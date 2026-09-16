@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -15,7 +15,7 @@ import {
   useTheme,
 } from "@mui/material";
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
-import { Navigate, useNavigate } from "react-router";
+import { Navigate, useNavigate, useSearchParams } from "react-router";
 
 import deluxeLogo from "../../../assets/deluxe-veneers.png";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
@@ -23,7 +23,8 @@ import {
   demoCredentials,
   getDefaultAuthenticatedRoute,
   isAuthenticated,
-  resetDemoPassword,
+  confirmPasswordReset,
+  requestPasswordReset,
   signIn,
 } from "../authSession";
 
@@ -32,9 +33,9 @@ type ForgotPasswordStep = "email" | "otp";
 export function LoginPage() {
   const theme = useTheme();
   const navigate = useNavigate();
-  const authenticated = useMemo(() => isAuthenticated(), []);
-  const [email, setEmail] = useState<string>(demoCredentials.email);
-  const [password, setPassword] = useState<string>(demoCredentials.password);
+  const authenticated = isAuthenticated();
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -103,43 +104,36 @@ export function LoginPage() {
     setForgotPasswordError("");
   };
 
-  const handleForgotPasswordAction = () => {
+  const [searchParams] = useSearchParams();
+  const resetTokenFromUrl = searchParams.get("token");
+
+  useEffect(() => {
+    if (resetTokenFromUrl) {
+      navigate(`/setup-password?token=${encodeURIComponent(resetTokenFromUrl)}`, { replace: true });
+    }
+  }, [navigate, resetTokenFromUrl]);
+
+  const handleForgotPasswordAction = async () => {
     setForgotPasswordError("");
 
-    if (forgotPasswordStep === "email") {
-      if (!forgotPasswordEmail.trim()) {
-        setForgotPasswordError("Enter email address.");
-        return;
-      }
-
-      if (forgotPasswordEmail.trim().toLowerCase() !== demoCredentials.email) {
-        setForgotPasswordError("Email address not found.");
-        return;
-      }
-
-      setForgotPasswordStep("otp");
-      setForgotPasswordMessage("OTP sent. Enter the OTP to continue.");
+    if (!forgotPasswordEmail.trim()) {
+      setForgotPasswordError("Enter email address.");
       return;
     }
 
-    if (forgotPasswordStep === "otp") {
-      if (!forgotPasswordOtp.trim()) {
-        setForgotPasswordError("Enter OTP.");
-        return;
-      }
-
-      if (forgotPasswordOtp.trim().length < 4) {
-        setForgotPasswordError("Enter a valid OTP.");
-        return;
-      }
-
-      setForgotPasswordOpen(false);
-      setResetPasswordOpen(true);
-      setForgotPasswordMessage("Email verified. Set your new password.");
+    try {
+      const msg = await requestPasswordReset(forgotPasswordEmail);
+      setForgotPasswordMessage(msg);
+      setLoginNotice("Password reset link has been sent to your email.");
+      setTimeout(() => {
+        setForgotPasswordOpen(false);
+      }, 2500);
+    } catch (err: any) {
+      setForgotPasswordError(err.message || "Failed to send password reset email.");
     }
   };
 
-  const handleResetPasswordAction = () => {
+  const handleResetPasswordAction = async () => {
     setForgotPasswordError("");
 
     if (!forgotPasswordNewPassword.trim()) {
@@ -147,8 +141,8 @@ export function LoginPage() {
       return;
     }
 
-    if (forgotPasswordNewPassword.trim().length < 4) {
-      setForgotPasswordError("Password must be at least 4 characters.");
+    if (forgotPasswordNewPassword.trim().length < 8) {
+      setForgotPasswordError("Password must be at least 8 characters.");
       return;
     }
 
@@ -157,13 +151,24 @@ export function LoginPage() {
       return;
     }
 
-    resetDemoPassword(forgotPasswordNewPassword);
-    setEmail(forgotPasswordEmail.trim().toLowerCase());
-    setPassword("");
-    setErrorMessage("");
-    setLoginNotice("Password reset successful. Sign in with the new password.");
-    handleCloseResetPassword();
-    resetForgotPasswordState();
+    try {
+      const tokenToUse = resetTokenFromUrl || forgotPasswordOtp || "";
+      if (!tokenToUse) {
+        setForgotPasswordError("Reset token is missing. Please use the link sent to your email.");
+        return;
+      }
+
+      const msg = await confirmPasswordReset(tokenToUse, forgotPasswordNewPassword, forgotPasswordConfirmPassword);
+      setEmail(forgotPasswordEmail.trim().toLowerCase());
+      setPassword("");
+      setErrorMessage("");
+      setLoginNotice(msg || "Password reset successful. Please sign in with your new password.");
+      handleCloseResetPassword();
+      resetForgotPasswordState();
+      navigate("/", { replace: true });
+    } catch (err: any) {
+      setForgotPasswordError(err.message || "Failed to reset password.");
+    }
   };
 
   const forgotPasswordPrimaryLabel =

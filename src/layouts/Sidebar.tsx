@@ -217,12 +217,12 @@ export function Sidebar({
     navigate("/profile");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleAccountMenuClose();
-    signOut();
     if (!isDesktop) {
       onClose();
     }
+    await signOut();
     navigate("/", { replace: true });
   };
 

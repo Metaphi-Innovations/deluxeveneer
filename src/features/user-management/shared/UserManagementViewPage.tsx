@@ -5,13 +5,17 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Stack,
   Tab,
   Tabs,
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft, Pencil } from "lucide-react";
+import { ChevronLeft, Eye, FileText, Pencil, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
@@ -43,6 +47,23 @@ export function UserManagementViewPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState<ViewTab>("overview");
+  const [previewDoc, setPreviewDoc] = useState<{
+    name: string;
+    url: string;
+    isPdf: boolean;
+  } | null>(null);
+
+  const openDocumentPreview = (title: string, fileUrlOrName?: string) => {
+    if (!fileUrlOrName || !fileUrlOrName.trim()) return;
+    const url = fileUrlOrName.trim();
+    const cleanPath = (url.split("?")[0] ?? "").toLowerCase();
+    const isPdf = cleanPath.endsWith(".pdf") || url.startsWith("data:application/pdf");
+    setPreviewDoc({
+      name: title,
+      url,
+      isPdf,
+    });
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -416,9 +437,19 @@ export function UserManagementViewPage() {
                       {
                         label: "Aadhaar Upload",
                         value: row.aadhaarUpload ?? "",
+                        onPreview: () =>
+                          openDocumentPreview(
+                            "Aadhaar Document",
+                            row.aadhaarUpload,
+                          ),
                       },
                       { label: "PAN No", value: row.panNo ?? "" },
-                      { label: "PAN Upload", value: row.panUpload ?? "" },
+                      {
+                        label: "PAN Upload",
+                        value: row.panUpload ?? "",
+                        onPreview: () =>
+                          openDocumentPreview("PAN Document", row.panUpload),
+                      },
                     ]}
                   />
                 </DetailCard>
@@ -435,6 +466,73 @@ export function UserManagementViewPage() {
           </Stack>
         )}
       </Box>
+
+      <Dialog
+        fullWidth
+        maxWidth="md"
+        onClose={() => setPreviewDoc(null)}
+        open={previewDoc !== null}
+      >
+        <DialogTitle sx={{ m: 0, p: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6" sx={{ fontSize: "1rem", fontWeight: 600 }}>
+            {previewDoc?.name ?? "Document Preview"}
+          </Typography>
+          <IconButton
+            aria-label="close"
+            onClick={() => setPreviewDoc(null)}
+            size="small"
+            sx={{ color: (theme) => theme.palette.grey[500] }}
+          >
+            <X size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          dividers
+          sx={{
+            p: 1.5,
+            minHeight: 450,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "background.default",
+          }}
+        >
+          {previewDoc?.url && !previewDoc.isPdf ? (
+            <Box
+              component="img"
+              src={previewDoc.url}
+              alt={previewDoc.name}
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "70vh",
+                width: "auto",
+                height: "auto",
+                objectFit: "contain",
+                display: "block",
+                borderRadius: 1,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              }}
+            />
+          ) : previewDoc?.url && previewDoc.isPdf ? (
+            <Box
+              component="iframe"
+              src={previewDoc.url}
+              title={previewDoc.name}
+              sx={{
+                width: "100%",
+                height: "70vh",
+                border: 0,
+                borderRadius: 1,
+              }}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No preview available for this document.
+            </Typography>
+          )}
+        </DialogContent>
+      </Dialog>
     </MasterPageShell>
   );
 }
@@ -471,6 +569,7 @@ function DetailGrid({
     label: string;
     value: string;
     fullWidth?: boolean;
+    onPreview?: (() => void) | undefined;
   }[];
 }) {
   return (
@@ -493,7 +592,11 @@ function DetailGrid({
             minWidth: 0,
           }}
         >
-          <DetailField label={item.label} value={item.value} />
+          <DetailField
+            label={item.label}
+            value={item.value}
+            {...(item.onPreview ? { onPreview: item.onPreview } : {})}
+          />
         </Box>
       ))}
     </Box>
@@ -504,12 +607,15 @@ function DetailField({
   label,
   value,
   allowWrap = false,
+  onPreview,
 }: {
   label: string;
   value: string;
   allowWrap?: boolean;
+  onPreview?: (() => void) | undefined;
 }) {
   const theme = useTheme();
+  const hasValue = Boolean(value?.trim());
 
   return (
     <Stack spacing={0.5}>
@@ -523,20 +629,107 @@ function DetailField({
       >
         {label}
       </Typography>
-      <Typography
-        sx={{
-          fontSize: "0.875rem",
-          fontWeight: 400,
-          color: theme.customTokens.text.primary,
-          lineHeight: 1.45,
-          whiteSpace: allowWrap ? "pre-wrap" : "nowrap",
-          overflow: allowWrap ? "visible" : "hidden",
-          textOverflow: allowWrap ? "clip" : "ellipsis",
-          wordBreak: allowWrap ? "break-word" : "normal",
-        }}
-      >
-        {value?.trim() ? value : "—"}
-      </Typography>
+      <Stack direction="row" alignItems="center" spacing={1.5}>
+        {onPreview ? (
+          hasValue ? (() => {
+            const isPdf =
+              value.toLowerCase().includes(".pdf") ||
+              value.startsWith("data:application/pdf");
+
+            return (
+              <Box
+                onClick={onPreview}
+                title="Click to view"
+                sx={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  bgcolor: theme.customTokens.brand.primaryScale[50] || "#f8fafc",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease-in-out",
+                  position: "relative",
+                  "&:hover": {
+                    borderColor: theme.customTokens.navigation.activeText,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
+                    "& .preview-overlay": {
+                      opacity: 1,
+                    },
+                  },
+                }}
+              >
+                {isPdf ? (
+                  <FileText
+                    size={24}
+                    color={theme.customTokens.navigation.activeText}
+                  />
+                ) : (
+                  <Box
+                    component="img"
+                    src={value}
+                    alt={label}
+                    sx={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                    onError={(e: any) => {
+                      e.target.style.display = "none";
+                    }}
+                  />
+                )}
+                <Box
+                  className="preview-overlay"
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    bgcolor: "rgba(0,0,0,0.4)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: 0,
+                    transition: "opacity 0.15s ease-in-out",
+                    color: "#fff",
+                  }}
+                >
+                  <Eye size={18} />
+                </Box>
+              </Box>
+            );
+          })() : (
+            <Typography
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                color: theme.customTokens.text.primary,
+                lineHeight: 1.45,
+              }}
+            >
+              —
+            </Typography>
+          )
+        ) : (
+          <Typography
+            sx={{
+              fontSize: "0.875rem",
+              fontWeight: 400,
+              color: theme.customTokens.text.primary,
+              lineHeight: 1.45,
+              whiteSpace: allowWrap ? "pre-wrap" : "nowrap",
+              overflow: allowWrap ? "visible" : "hidden",
+              textOverflow: allowWrap ? "clip" : "ellipsis",
+              wordBreak: allowWrap ? "break-word" : "normal",
+            }}
+          >
+            {hasValue ? value : "—"}
+          </Typography>
+        )}
+      </Stack>
     </Stack>
   );
 }

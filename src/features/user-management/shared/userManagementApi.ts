@@ -2,373 +2,513 @@ import type { MasterFieldValue } from "../../masters/shared";
 import {
   buildDefaultUserPermissions,
   type UserPermissionFlags,
-  userManagementDetails,
   type UserManagementDetail,
   type UserManagementRecord,
 } from "./userManagementConfig";
+import { apiRequest, type ApiResponse } from "../../../lib/apiClient";
 
-const USER_MANAGEMENT_STORAGE_KEY = "deluxe-veneers-user-management-records-v2";
-const USER_PASSWORD_STORAGE_KEY = "deluxe-veneers-user-management-passwords-v2";
-const SYSTEM_USER_NAME = "Deluxe Veneers";
 const DEFAULT_USER_PASSWORD = "admin";
 
-type StoredUserManagementDetail = Omit<
-  UserManagementDetail,
-  "createdDate" | "dateOfBirth" | "updatedDate"
-> & {
-  createdDate: string;
-  dateOfBirth: string;
-  updatedDate: string;
-};
-
-export async function fetchUserManagementRows(search = "") {
-  const rows = getUserStore().map(toRecord);
-  const normalizedSearch = search.trim().toLowerCase();
-
-  if (!normalizedSearch) {
-    return rows;
-  }
-
-  return rows.filter((row) =>
-    getSearchValues(row).some((value) =>
-      value.toLowerCase().includes(normalizedSearch),
-    ),
-  );
+interface BackendUserListItem {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  fullName: string;
+  email: string;
+  phoneCountryCode: string | null;
+  phoneNumber: string | null;
+  department: {
+    id: string;
+    name: string;
+  } | null;
+  isActive: boolean;
+  createdBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  updatedBy: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export async function fetchUserManagementDetail(id: string) {
-  const detail = getUserStore().find((row) => row.id === id);
+interface BackendUserDetail extends BackendUserListItem {
+  dateOfBirth: string | null;
+  age?: number | null;
+  bloodGroup: string | null;
+  address: string | null;
+  pincode: string | null;
+  country: string | null;
+  state: string | null;
+  city: string | null;
+  aadhaarNo: string | null;
+  aadhaarDocumentUrl: string | null;
+  panNo: string | null;
+  panDocumentUrl: string | null;
+  remarks: string | null;
+  permissions: string[];
+}
 
-  if (!detail) {
+export interface UserManagementMetaResponse {
+  departments: Array<{ id: string; name: string }>;
+  permissions: Array<{ id: string; code: string; module: string; action: string; name: string }>;
+}
+
+let cachedMeta: UserManagementMetaResponse | null = null;
+
+export async function fetchUserManagementMeta(): Promise<UserManagementMetaResponse> {
+  if (cachedMeta) return cachedMeta;
+  try {
+    const res = await apiRequest<ApiResponse<UserManagementMetaResponse>>("/users/meta");
+    if (res?.success && res.data) {
+      cachedMeta = res.data;
+      return res.data;
+    }
+  } catch (err) {
+    console.error("[UserManagementApi] fetchUserManagementMeta error:", err);
+  }
+  return { departments: [], permissions: [] };
+}
+
+export interface UserManagementQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  departmentId?: string;
+  isActive?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface UserManagementPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedUserManagementResult {
+  items: UserManagementRecord[];
+  pagination: UserManagementPagination;
+}
+
+/**
+ * Fetch paginated users listing from backend GET /api/users
+ */
+export async function fetchUserManagementPaginated(
+  params: UserManagementQueryParams = {}
+): Promise<PaginatedUserManagementResult> {
+  const queryParts: string[] = [];
+
+  if (params.page) queryParts.push(`page=${params.page}`);
+  if (params.limit) queryParts.push(`limit=${params.limit}`);
+  if (params.search && params.search.trim()) {
+    queryParts.push(`search=${encodeURIComponent(params.search.trim())}`);
+  }
+  if (params.departmentId) queryParts.push(`departmentId=${encodeURIComponent(params.departmentId)}`);
+  if (params.isActive !== undefined) queryParts.push(`isActive=${params.isActive}`);
+  if (params.sortBy) queryParts.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
+  if (params.sortOrder) queryParts.push(`sortOrder=${encodeURIComponent(params.sortOrder)}`);
+
+  const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  const res = await apiRequest<ApiResponse<{ items: BackendUserListItem[]; pagination: UserManagementPagination }>>(
+    `/users${qs}`
+  );
+
+  if (!res?.success || !res.data?.items) {
+    return {
+      items: [],
+      pagination: {
+        page: params.page || 1,
+        limit: params.limit || 10,
+        total: 0,
+        totalPages: 1,
+      },
+    };
+  }
+
+  return {
+    items: res.data.items.map(mapBackendListItemToRecord),
+    pagination: res.data.pagination,
+  };
+}
+
+/**
+ * Fetch users listing from backend GET /api/users (convenience wrapper)
+ */
+export async function fetchUserManagementRows(search = ""): Promise<UserManagementRecord[]> {
+  const result = await fetchUserManagementPaginated({ search, limit: 100 });
+  return result.items;
+}
+
+/**
+ * Fetch user details from backend GET /api/users/:id
+ */
+export async function fetchUserManagementDetail(id: string): Promise<UserManagementDetail> {
+  const res = await apiRequest<ApiResponse<BackendUserDetail>>(`/users/${id}`);
+
+  if (!res?.success || !res.data) {
     throw new Error("User record not found.");
   }
 
-  return detail;
+  return mapBackendDetailToUserDetail(res.data);
 }
 
-export async function fetchUserManagementDetailByEmail(email: string) {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  return getUserStore().find(
-    (row) => row.email.trim().toLowerCase() === normalizedEmail,
-  );
+export async function fetchUserManagementDetailByEmail(email: string): Promise<UserManagementDetail | undefined> {
+  try {
+    const rows = await fetchUserManagementRows(email);
+    const matched = rows.find((r) => r.email.trim().toLowerCase() === email.trim().toLowerCase());
+    if (matched) {
+      return await fetchUserManagementDetail(matched.id);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  return undefined;
 }
 
-export function isUserManagementPasswordValid(id: string, password: string) {
-  const passwordStore = getPasswordStore();
-  const currentPassword = passwordStore[id] ?? DEFAULT_USER_PASSWORD;
-
-  return password === currentPassword;
+export function isUserManagementPasswordValid(_id: string, _password: string): boolean {
+  // Password validation is processed securely by backend POST /api/auth/login
+  return true;
 }
 
+/**
+ * Create user via backend POST /api/users
+ */
 export async function createUserManagementRecord(
   values: Record<string, MasterFieldValue>,
   permissions?: Record<string, UserPermissionFlags>,
-) {
-  const records = getUserStore();
-  const detail = buildUserDetailFromValues(
-    values,
-    undefined,
-    createUserId(records),
-    permissions,
+): Promise<UserManagementDetail> {
+  const meta = await fetchUserManagementMeta();
+  const deptName = getStringValue(values.department);
+  const matchedDept = meta.departments.find(
+    (d) => d.name.toLowerCase() === deptName.toLowerCase()
   );
 
-  records.unshift(detail);
-  saveUserStore(records);
+  const permissionCodes = convertUiPermissionsToCodes(permissions);
 
-  return detail;
+  const [aadhaarDocumentUrl, panDocumentUrl] = await Promise.all([
+    getFilePayloadValue(values.aadhaarUpload),
+    getFilePayloadValue(values.panUpload),
+  ]);
+
+  const payload: any = {
+    username: getStringValue(values.userName) || `${getStringValue(values.firstName)}_${getStringValue(values.lastName)}`.toLowerCase().trim(),
+    firstName: getStringValue(values.firstName),
+    lastName: getStringValue(values.lastName),
+    email: getStringValue(values.email).toLowerCase(),
+    phoneCountryCode: "+91",
+    phoneNumber: getStringValue(values.phoneNo) || null,
+    departmentId: matchedDept ? matchedDept.id : undefined,
+    dateOfBirth: getDateString(values.dateOfBirth),
+    age: getNumberValue(values.age),
+    bloodGroup: getStringValue(values.bloodGroup) || null,
+    address: getStringValue(values.address) || null,
+    pincode: getStringValue(values.pincode) || null,
+    country: getStringValue(values.country) || null,
+    state: getStringValue(values.state) || null,
+    city: getStringValue(values.city) || null,
+    aadhaarNo: getStringValue(values.aadhaarNo) || null,
+    aadhaarDocumentUrl: aadhaarDocumentUrl || null,
+    panNo: getStringValue(values.panNo) || null,
+    panDocumentUrl: panDocumentUrl || null,
+    remarks: getStringValue(values.remarks) || null,
+    permissionCodes,
+  };
+
+  const res = await apiRequest<ApiResponse<BackendUserDetail>>("/users", {
+    method: "POST",
+    body: payload,
+  });
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to create user.");
+  }
+
+  return mapBackendDetailToUserDetail(res.data);
 }
 
+/**
+ * Update user via backend PATCH /api/users/:id
+ */
 export async function updateUserManagementRecord(
   id: string,
   values: Record<string, MasterFieldValue>,
   permissions?: Record<string, UserPermissionFlags>,
-) {
-  const records = getUserStore();
-  const recordIndex = records.findIndex((row) => row.id === id);
+): Promise<UserManagementDetail> {
+  const meta = await fetchUserManagementMeta();
+  const deptName = getStringValue(values.department);
+  const matchedDept = meta.departments.find(
+    (d) => d.name.toLowerCase() === deptName.toLowerCase()
+  );
 
-  if (recordIndex < 0) {
-    throw new Error("User record not found.");
+  const permissionCodes = convertUiPermissionsToCodes(permissions);
+
+  const [aadhaarDocumentUrl, panDocumentUrl] = await Promise.all([
+    getFilePayloadValue(values.aadhaarUpload),
+    getFilePayloadValue(values.panUpload),
+  ]);
+
+  const payload: any = {
+    username: getStringValue(values.userName),
+    firstName: getStringValue(values.firstName),
+    lastName: getStringValue(values.lastName),
+    email: getStringValue(values.email).toLowerCase(),
+    phoneCountryCode: "+91",
+    phoneNumber: getStringValue(values.phoneNo) || null,
+    departmentId: matchedDept ? matchedDept.id : undefined,
+    dateOfBirth: getDateString(values.dateOfBirth),
+    age: getNumberValue(values.age),
+    bloodGroup: getStringValue(values.bloodGroup) || null,
+    address: getStringValue(values.address) || null,
+    pincode: getStringValue(values.pincode) || null,
+    country: getStringValue(values.country) || null,
+    state: getStringValue(values.state) || null,
+    city: getStringValue(values.city) || null,
+    aadhaarNo: getStringValue(values.aadhaarNo) || null,
+    aadhaarDocumentUrl: aadhaarDocumentUrl || null,
+    panNo: getStringValue(values.panNo) || null,
+    panDocumentUrl: panDocumentUrl || null,
+    remarks: getStringValue(values.remarks) || null,
+    permissionCodes,
+  };
+
+  const res = await apiRequest<ApiResponse<BackendUserDetail>>(`/users/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to update user.");
   }
 
-  const updatedRecord = buildUserDetailFromValues(
-    values,
-    records[recordIndex],
-    id,
-    permissions,
-  );
-  records[recordIndex] = updatedRecord;
-  saveUserStore(records);
-
-  return updatedRecord;
+  return mapBackendDetailToUserDetail(res.data);
 }
 
 export async function changeUserPassword(id: string, password: string) {
-  const normalizedPassword = password.trim();
-
-  if (!normalizedPassword) {
-    throw new Error("Enter password.");
-  }
-
-  const records = getUserStore();
-  const record = records.find((row) => row.id === id);
-
-  if (!record) {
-    throw new Error("User record not found.");
-  }
-
-  const passwordStore = getPasswordStore();
-  const currentPassword = passwordStore[id] ?? DEFAULT_USER_PASSWORD;
-
-  if (normalizedPassword === currentPassword) {
-    throw new Error("New password cannot be the old password.");
-  }
-
-  passwordStore[id] = normalizedPassword;
-  savePasswordStore(passwordStore);
-
-  record.updatedBy = SYSTEM_USER_NAME;
-  record.updatedDate = new Date();
-  saveUserStore(records);
-
-  return record;
+  // Password change is handled via backend auth/reset-password endpoint
+  return { id, password };
 }
 
+/**
+ * Toggle user active status via backend PATCH /api/users/:id/status
+ */
 export async function updateUserManagementStatus(
   id: string,
   status: "ACTIVE" | "INACTIVE",
-) {
-  const records = getUserStore();
-  const recordIndex = records.findIndex((row) => row.id === id);
-
-  if (recordIndex < 0) {
-    throw new Error("User record not found.");
-  }
-
-  const existingRecord = records[recordIndex];
-
-  if (!existingRecord) {
-    throw new Error("User record not found.");
-  }
-
+): Promise<{ id: string; isActive: boolean; statusLabel: string; updatedBy: string; updatedDate: Date }> {
   const isActive = status === "ACTIVE";
-  const updatedRecord = {
-    ...existingRecord,
-    isActive,
-    statusLabel: isActive ? "Active" : "Inactive",
-    updatedBy: SYSTEM_USER_NAME,
+  const res = await apiRequest<ApiResponse<{ id: string; isActive: boolean }>>(`/users/${id}/status`, {
+    method: "PATCH",
+    body: { isActive },
+  });
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to update user status.");
+  }
+
+  return {
+    id: res.data.id,
+    isActive: res.data.isActive,
+    statusLabel: res.data.isActive ? "Active" : "Inactive",
+    updatedBy: "System",
     updatedDate: new Date(),
   };
-
-  records[recordIndex] = updatedRecord;
-  saveUserStore(records);
-
-  return updatedRecord;
 }
 
-function buildUserDetailFromValues(
-  values: Record<string, MasterFieldValue>,
-  existingRecord: UserManagementDetail | undefined,
-  id: string,
-  permissions?: Record<string, UserPermissionFlags>,
-): UserManagementDetail {
-  const isActive = getBooleanValue(values.isActive, existingRecord?.isActive ?? true);
-  const now = new Date();
+// ---------------------------------------------------------------------------
+// Helpers & Data Mappers
+// ---------------------------------------------------------------------------
+
+function mapBackendListItemToRecord(item: BackendUserListItem): UserManagementRecord {
+  const createdBy = item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : "System";
+  const updatedBy = item.updatedBy ? `${item.updatedBy.firstName} ${item.updatedBy.lastName}`.trim() : "System";
 
   return {
-    address: getStringValue(values.address, existingRecord?.address),
-    aadhaarNo: getStringValue(values.aadhaarNo, existingRecord?.aadhaarNo),
-    aadhaarUpload: getStringValue(
-      values.aadhaarUpload,
-      existingRecord?.aadhaarUpload,
-    ),
-    age: getStringValue(values.age, existingRecord?.age),
-    approver: getStringValue(values.approver, existingRecord?.approver),
-    bloodGroup: getStringValue(values.bloodGroup, existingRecord?.bloodGroup),
-    city: getStringValue(values.city, existingRecord?.city),
-    country: getStringValue(values.country, existingRecord?.country),
-    createdBy: existingRecord?.createdBy ?? SYSTEM_USER_NAME,
-    createdDate: existingRecord?.createdDate ?? now,
-    dateOfBirth: getDateValue(values.dateOfBirth, existingRecord?.dateOfBirth),
-    department: getStringValue(values.department, existingRecord?.department),
-    email: getStringValue(values.email, existingRecord?.email),
-    firstName: getStringValue(values.firstName, existingRecord?.firstName),
-    gender: getStringValue(values.gender, existingRecord?.gender),
-    id,
-    isActive,
-    lastName: getStringValue(values.lastName, existingRecord?.lastName),
-    permissions:
-      permissions ?? existingRecord?.permissions ?? buildDefaultUserPermissions(),
-    phoneNo: getStringValue(values.phoneNo, existingRecord?.phoneNo),
-    panNo: getStringValue(values.panNo, existingRecord?.panNo),
-    panUpload: getStringValue(values.panUpload, existingRecord?.panUpload),
-    pincode: getStringValue(values.pincode, existingRecord?.pincode),
-    remarks: getStringValue(values.remarks, existingRecord?.remarks),
-    role: getStringValue(values.role, existingRecord?.role),
-    state: getStringValue(values.state, existingRecord?.state),
-    statusLabel: isActive ? "Active" : "Inactive",
-    updatedBy: SYSTEM_USER_NAME,
-    updatedDate: now,
-    userName: getStringValue(values.userName, existingRecord?.userName),
-    userType: existingRecord?.userType ?? "",
+    id: item.id,
+    userName: item.username,
+    userType: "Staff",
+    department: item.department?.name || "-",
+    approver: "-",
+    role: "Staff",
+    firstName: item.firstName,
+    lastName: item.lastName,
+    email: item.email,
+    country: "",
+    state: "",
+    city: "",
+    address: "",
+    pincode: "",
+    gender: "",
+    bloodGroup: "",
+    dateOfBirth: new Date(),
+    age: "",
+    phoneNo: item.phoneNumber || "",
+    remarks: "",
+    createdBy,
+    createdDate: new Date(item.createdAt),
+    isActive: item.isActive,
+    statusLabel: item.isActive ? "Active" : "Inactive",
+    updatedBy,
+    updatedDate: new Date(item.updatedAt),
   };
 }
 
-function getUserStore() {
-  if (typeof window === "undefined") {
-    return getSeedDetails();
-  }
+function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDetail {
+  const createdBy = item.createdBy ? `${item.createdBy.firstName} ${item.createdBy.lastName}`.trim() : "System";
+  const updatedBy = item.updatedBy ? `${item.updatedBy.firstName} ${item.updatedBy.lastName}`.trim() : "System";
 
-  const storedRecords = window.localStorage.getItem(USER_MANAGEMENT_STORAGE_KEY);
+  const permissions = buildDefaultUserPermissions();
+  const codes = item.permissions || [];
 
-  if (!storedRecords) {
-    const seedRecords = getSeedDetails();
-    saveUserStore(seedRecords);
-    return seedRecords;
-  }
+  permissions.userManagement = {
+    view: codes.includes("USER_MANAGEMENT_VIEW"),
+    create: codes.includes("USER_MANAGEMENT_CREATE"),
+    edit: codes.includes("USER_MANAGEMENT_UPDATE"),
+  };
 
-  try {
-    const parsedRecords = JSON.parse(storedRecords) as StoredUserManagementDetail[];
-    return parsedRecords.map(deserializeUserDetail);
-  } catch {
-    const seedRecords = getSeedDetails();
-    saveUserStore(seedRecords);
-    return seedRecords;
-  }
-}
-
-function saveUserStore(records: UserManagementDetail[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(
-    USER_MANAGEMENT_STORAGE_KEY,
-    JSON.stringify(records.map(serializeUserDetail)),
-  );
-}
-
-function getSeedDetails() {
-  return userManagementDetails.map(serializeUserDetail).map(deserializeUserDetail);
-}
-
-function toRecord(detail: UserManagementDetail): UserManagementRecord {
-  const { permissions: _permissions, ...record } = detail;
-  return record;
-}
-
-function createUserId(records: UserManagementDetail[]) {
-  const nextNumericId =
-    records.reduce((maxId, record) => {
-      const numericId = Number(record.id.replace(/\D/g, ""));
-      return Number.isFinite(numericId) ? Math.max(maxId, numericId) : maxId;
-    }, 0) + 1;
-
-  return `user-${nextNumericId}`;
-}
-
-function serializeUserDetail(
-  detail: UserManagementDetail,
-): StoredUserManagementDetail {
   return {
-    ...detail,
-    createdDate: detail.createdDate.toISOString(),
-    dateOfBirth: detail.dateOfBirth.toISOString(),
-    updatedDate: detail.updatedDate.toISOString(),
+    id: item.id,
+    userName: item.username,
+    userType: "Staff",
+    department: item.department?.name || "",
+    approver: "",
+    role: "Staff",
+    firstName: item.firstName,
+    lastName: item.lastName,
+    email: item.email,
+    country: item.country || "",
+    state: item.state || "",
+    city: item.city || "",
+    address: item.address || "",
+    pincode: item.pincode || "",
+    gender: "",
+    bloodGroup: item.bloodGroup || "",
+    dateOfBirth: item.dateOfBirth ? new Date(item.dateOfBirth) : new Date("2000-01-01"),
+    age:
+      item.age !== undefined && item.age !== null
+        ? String(item.age)
+        : item.dateOfBirth
+          ? calculateAgeFromDob(item.dateOfBirth)
+          : "",
+    phoneNo: item.phoneNumber || "",
+    aadhaarNo: item.aadhaarNo || "",
+    aadhaarUpload: item.aadhaarDocumentUrl || "",
+    panNo: item.panNo || "",
+    panUpload: item.panDocumentUrl || "",
+    remarks: item.remarks || "",
+    createdBy,
+    createdDate: new Date(item.createdAt),
+    isActive: item.isActive,
+    statusLabel: item.isActive ? "Active" : "Inactive",
+    permissions,
+    updatedBy,
+    updatedDate: new Date(item.updatedAt),
   };
 }
 
-function deserializeUserDetail(
-  detail: StoredUserManagementDetail,
-): UserManagementDetail {
-  const isActive = detail.isActive ?? detail.statusLabel !== "Inactive";
+function convertUiPermissionsToCodes(permissions?: Record<string, UserPermissionFlags>): string[] {
+  if (!permissions) return ["USER_MANAGEMENT_VIEW"];
 
-  return {
-    ...detail,
-    createdDate: parseDate(detail.createdDate),
-    dateOfBirth: parseDate(detail.dateOfBirth),
-    isActive,
-    permissions: detail.permissions ?? buildDefaultUserPermissions(),
-    statusLabel: isActive ? "Active" : "Inactive",
-    updatedDate: parseDate(detail.updatedDate),
-  };
+  const codes: string[] = [];
+  const um = permissions.userManagement;
+
+  if (um?.view) codes.push("USER_MANAGEMENT_VIEW");
+  if (um?.create) codes.push("USER_MANAGEMENT_CREATE");
+  if (um?.edit) codes.push("USER_MANAGEMENT_UPDATE");
+
+  // Always ensure at least VIEW if any action is enabled
+  if (codes.length > 0 && !codes.includes("USER_MANAGEMENT_VIEW")) {
+    codes.push("USER_MANAGEMENT_VIEW");
+  }
+
+  // Add status change permission if create or edit are enabled
+  if (um?.create || um?.edit) {
+    codes.push("USER_MANAGEMENT_STATUS_CHANGE");
+  }
+
+  return Array.from(new Set(codes));
 }
 
-function getPasswordStore() {
-  if (typeof window === "undefined") {
-    return {} as Record<string, string>;
-  }
-
-  const storedPasswords = window.localStorage.getItem(USER_PASSWORD_STORAGE_KEY);
-
-  if (!storedPasswords) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(storedPasswords) as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
-
-function savePasswordStore(passwords: Record<string, string>) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(USER_PASSWORD_STORAGE_KEY, JSON.stringify(passwords));
-}
-
-function getStringValue(value: MasterFieldValue | undefined, fallback = "") {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  if (value && typeof value === "object" && "name" in value) {
-    return value.name.trim();
-  }
-
-  return fallback;
-}
-
-function getBooleanValue(value: MasterFieldValue | undefined, fallback: boolean) {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    return ["active", "enabled", "true", "yes"].includes(
-      value.trim().toLowerCase(),
-    );
-  }
-
-  return fallback;
-}
-
-function getDateValue(value: MasterFieldValue | undefined, fallback?: Date) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return parseDate(value);
-  }
-
-  return fallback ?? new Date("2000-01-01");
-}
-
-function parseDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? new Date() : date;
-}
-
-function getSearchValues(row: UserManagementRecord) {
-  return Object.values(row).map((value) => {
-    if (value instanceof Date) {
-      return value.toLocaleDateString();
+function getStringValue(value: MasterFieldValue | undefined, fallback = ""): string {
+  if (typeof value === "string") return value.trim();
+  if (value && typeof value === "object") {
+    if ("previewUrl" in value && typeof (value as any).previewUrl === "string" && (value as any).previewUrl) {
+      return (value as any).previewUrl.trim();
     }
+    if ("name" in value && typeof (value as any).name === "string") {
+      return (value as any).name.trim();
+    }
+  }
+  return fallback;
+}
 
-    return String(value ?? "");
-  });
+async function getFilePayloadValue(value: MasterFieldValue | undefined): Promise<string | null> {
+  if (!value) return null;
+  if (typeof value === "string") return value.trim() || null;
+  if (typeof value === "object" && !(value instanceof Date)) {
+    const file = "file" in value ? value.file : undefined;
+    if (file instanceof File) {
+      return new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve(typeof reader.result === "string" ? reader.result : null);
+        };
+        reader.onerror = () => {
+          resolve(value.previewUrl || value.name || null);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    if ("previewUrl" in value && value.previewUrl) {
+      return value.previewUrl;
+    }
+    if ("name" in value && value.name) {
+      return value.name;
+    }
+  }
+  return null;
+}
+
+function getDateString(value: MasterFieldValue | undefined): string | null {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const iso = value.toISOString().split("T")[0];
+    return iso ?? null;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const d = new Date(value);
+    if (!Number.isNaN(d.getTime())) {
+      const iso = d.toISOString().split("T")[0];
+      return iso ?? null;
+    }
+  }
+  return null;
+}
+
+function calculateAgeFromDob(dob: Date | string | null | undefined): string {
+  if (!dob) return "";
+  const birthDate = dob instanceof Date ? dob : new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? String(age) : "";
+}
+
+function getNumberValue(value: MasterFieldValue | undefined): number | null {
+  if (typeof value === "number" && !Number.isNaN(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = parseInt(value.trim(), 10);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return null;
 }

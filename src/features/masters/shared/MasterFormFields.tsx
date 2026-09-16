@@ -7,6 +7,7 @@ import {
 } from "libphonenumber-js";
 import {
   Box,
+  Button,
   Checkbox,
   Dialog,
   DialogContent,
@@ -99,7 +100,17 @@ function isMasterUploadedFileValue(
 
 function getMasterFileName(value: MasterFieldValue) {
   if (typeof value === "string") {
-    return value;
+    const trimmed = value.trim();
+    if (trimmed.startsWith("data:image/")) {
+      return "Uploaded Image";
+    }
+    if (trimmed.startsWith("data:application/pdf")) {
+      return "Uploaded PDF Document";
+    }
+    if (trimmed.length > 40 && trimmed.startsWith("data:")) {
+      return "Uploaded Document";
+    }
+    return trimmed;
   }
 
   if (isMasterUploadedFileValue(value)) {
@@ -652,15 +663,22 @@ export function MasterFormFields({
                     onClick={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
+                      const fileUrl =
+                        uploadedFieldValue?.previewUrl ||
+                        (typeof fieldValue === "string" && fieldValue.trim().length > 0
+                          ? fieldValue.trim()
+                          : "");
+
                       const previewMimeType = getUploadPreviewMimeType(
                         fileName,
                         uploadedFieldValue?.mimeType,
+                        fileUrl,
                       );
 
                       setPreviewState({
                         ...(previewMimeType ? { mimeType: previewMimeType } : {}),
                         name: fileName,
-                        previewUrl: uploadedFieldValue?.previewUrl ?? "",
+                        previewUrl: fileUrl,
                       });
                     }}
                     size="small"
@@ -900,36 +918,76 @@ export function MasterFormFields({
         onClose={() => setPreviewState(null)}
         open={previewState !== null}
       >
-        <DialogTitle>{previewState?.name ?? "File Preview"}</DialogTitle>
-        <DialogContent dividers>
-          {previewState?.previewUrl &&
-          previewState.mimeType?.startsWith("image/") ? (
-            <Box
-              component="img"
-              src={previewState.previewUrl}
-              alt={previewState.name}
-              sx={{
-                width: "100%",
-                maxHeight: 520,
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          ) : previewState?.previewUrl &&
-            previewState?.mimeType === "application/pdf" ? (
-            <Box
-              component="iframe"
-              src={previewState.previewUrl}
-              title={previewState.name}
-              sx={{
-                width: "100%",
-                height: 520,
-                border: 0,
-              }}
-            />
-          ) : (
+        <DialogTitle sx={{ m: 0, p: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6" sx={{ fontSize: "1rem", fontWeight: 600 }}>
+            {previewState?.name ?? "File Preview"}
+          </Typography>
+          <IconButton
+            aria-label="close"
+            onClick={() => setPreviewState(null)}
+            size="small"
+            sx={{ color: (theme) => theme.palette.grey[500] }}
+          >
+            <X size={18} />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          dividers
+          sx={{
+            p: 1.5,
+            minHeight: 450,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "background.default",
+          }}
+        >
+          {previewState?.previewUrl && (() => {
+            const url = previewState.previewUrl.trim();
+            const cleanPath = (url.split("?")[0] ?? "").toLowerCase();
+            const isPdf =
+              previewState.mimeType === "application/pdf" ||
+              cleanPath.endsWith(".pdf") ||
+              url.startsWith("data:application/pdf");
+
+            if (!isPdf) {
+              return (
+                <Box
+                  component="img"
+                  src={url}
+                  alt={previewState.name}
+                  sx={{
+                    maxWidth: "100%",
+                    maxHeight: "70vh",
+                    width: "auto",
+                    height: "auto",
+                    objectFit: "contain",
+                    display: "block",
+                    borderRadius: 1,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                  }}
+                />
+              );
+            }
+
+            return (
+              <Box
+                component="iframe"
+                src={url}
+                title={previewState.name}
+                sx={{
+                  width: "100%",
+                  height: "70vh",
+                  border: 0,
+                  borderRadius: 1,
+                }}
+              />
+            );
+          })()}
+          {!previewState?.previewUrl && (
             <Typography variant="body2" color="text.secondary">
-              Preview is available after selecting a PDF, PNG, JPG, or JPEG file in this form.
+              No preview available for this document.
             </Typography>
           )}
         </DialogContent>
@@ -1466,23 +1524,54 @@ function isAcceptedUploadFile(file: File) {
   );
 }
 
-function getUploadPreviewMimeType(fileName: string, mimeType?: string) {
+function getUploadPreviewMimeType(fileName: string, mimeType?: string, fileUrl?: string) {
   if (mimeType) {
     return mimeType;
   }
 
-  const normalizedName = fileName.toLowerCase();
-
-  if (normalizedName.endsWith(".pdf")) {
+  const urlStr = fileUrl || "";
+  if (urlStr.startsWith("data:image/")) {
+    const match = urlStr.match(/^data:(image\/[a-zA-Z0-9.+-]+);/);
+    return match ? match[1] : "image/jpeg";
+  }
+  if (urlStr.startsWith("data:application/pdf")) {
     return "application/pdf";
   }
 
-  if (normalizedName.endsWith(".png")) {
+  const normalizedTarget = ((fileUrl || fileName).split("?")[0] ?? "").toLowerCase();
+
+  if (normalizedTarget.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+
+  if (normalizedTarget.endsWith(".png")) {
     return "image/png";
   }
 
-  if (normalizedName.endsWith(".jpg") || normalizedName.endsWith(".jpeg")) {
+  if (
+    normalizedTarget.endsWith(".jpg") ||
+    normalizedTarget.endsWith(".jpeg") ||
+    normalizedTarget.endsWith(".webp") ||
+    normalizedTarget.endsWith(".gif") ||
+    normalizedTarget.endsWith(".svg")
+  ) {
     return "image/jpeg";
+  }
+
+  // If filename also has image extension
+  const normalizedFileName = (fileName.split("?")[0] ?? "").toLowerCase();
+  if (
+    normalizedFileName.endsWith(".png") ||
+    normalizedFileName.endsWith(".jpg") ||
+    normalizedFileName.endsWith(".jpeg") ||
+    normalizedFileName.endsWith(".webp") ||
+    normalizedFileName.endsWith(".gif") ||
+    normalizedFileName.endsWith(".svg")
+  ) {
+    return "image/jpeg";
+  }
+  if (normalizedFileName.endsWith(".pdf")) {
+    return "application/pdf";
   }
 
   return undefined;

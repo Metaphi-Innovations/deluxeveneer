@@ -1,7 +1,7 @@
 import { Navigate, createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 
-import { LoginPage, ProtectedAppShell } from "../features/auth";
+import { LoginPage, ProtectedAppShell, SetupPasswordPage } from "../features/auth";
 import { DashboardPage } from "../features/dashboard";
 import { DispatchPage } from "../features/dispatch";
 import {
@@ -25,6 +25,14 @@ const router = createBrowserRouter([
   {
     path: "/",
     Component: LoginPage,
+  },
+  {
+    path: "/setup-password",
+    Component: SetupPasswordPage,
+  },
+  {
+    path: "/reset-password",
+    Component: SetupPasswordPage,
   },
   {
     path: "/",

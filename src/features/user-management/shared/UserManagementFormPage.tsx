@@ -40,6 +40,7 @@ import {
 import {
   createUserManagementRecord,
   fetchUserManagementDetail,
+  fetchUserManagementMeta,
   updateUserManagementRecord,
 } from "./userManagementApi";
 
@@ -106,10 +107,47 @@ export function UserManagementFormPage({
   const [notFound, setNotFound] = useState(false);
   const [activeStep, setActiveStep] = useState<WorkflowStep>("basic");
   const [basicDetailsReady, setBasicDetailsReady] = useState(mode !== "add");
-  const activeFields = useMemo(
-    () => baseFields as MasterFieldDefinition[],
-    [baseFields],
-  );
+  const [departmentNames, setDepartmentNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchUserManagementMeta().then((meta) => {
+      if (meta?.departments?.length > 0) {
+        setDepartmentNames(meta.departments.map((d) => d.name));
+      }
+    });
+  }, []);
+
+  const calculateAge = (dob: Date | string | null | undefined): string => {
+    if (!dob) return "";
+    const birthDate = dob instanceof Date ? dob : new Date(dob);
+    if (Number.isNaN(birthDate.getTime())) return "";
+
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age >= 0 ? String(age) : "";
+  };
+
+  const activeFields = useMemo(() => {
+    return (baseFields as MasterFieldDefinition[]).map((field) => {
+      if (field.key === "department" && departmentNames.length > 0) {
+        return {
+          ...field,
+          options: departmentNames,
+        };
+      }
+      if (field.key === "age") {
+        return {
+          ...field,
+          placeholder: "Enter Age",
+        };
+      }
+      return field;
+    });
+  }, [baseFields, departmentNames]);
 
   const accountFields = useMemo(
     () => filterFieldsByKeys(activeFields, ACCOUNT_FIELD_KEYS),
@@ -168,7 +206,13 @@ export function UserManagementFormPage({
         const nextRow = await fetchUserManagementDetail(params.id);
         if (!ignore) {
           setRow(nextRow);
-          setValues(buildUserManagementInitialValues(baseFields, nextRow));
+          const initialValues = buildUserManagementInitialValues(baseFields, nextRow);
+          if (nextRow.age !== undefined && nextRow.age !== null && String(nextRow.age).trim() !== "") {
+            initialValues.age = String(nextRow.age);
+          } else if (nextRow.dateOfBirth) {
+            initialValues.age = calculateAge(nextRow.dateOfBirth);
+          }
+          setValues(initialValues);
           setPermissions(nextRow.permissions ?? buildDefaultUserPermissions());
           setActiveStep("basic");
           setBasicDetailsReady(true);
@@ -239,10 +283,18 @@ export function UserManagementFormPage({
   const selectedPermissionCount = countSelectedPermissions(permissions);
 
   const handleFieldChange = (key: string, value: MasterFieldValue) => {
-    setValues((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setValues((current) => {
+      const updated = {
+        ...current,
+        [key]: value,
+      };
+
+      if (key === "dateOfBirth") {
+        updated.age = calculateAge(value as Date | string | null);
+      }
+
+      return updated;
+    });
   };
 
   const handlePermissionToggle = (

@@ -69,6 +69,7 @@ import {
 } from "./userManagementConfig";
 import {
   changeUserPassword,
+  fetchUserManagementPaginated,
   fetchUserManagementRows,
   updateUserManagementStatus,
 } from "./userManagementApi";
@@ -98,6 +99,8 @@ export function UserManagementListing() {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [rows, setRows] = useState<UserManagementRecord[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [passwordDialogUser, setPasswordDialogUser] =
@@ -126,14 +129,21 @@ export function UserManagementListing() {
   useEffect(() => {
     let ignore = false;
 
-    async function loadRows() {
+    const timer = setTimeout(async () => {
       setIsLoading(true);
       setErrorMessage("");
 
       try {
-        const nextRows = await fetchUserManagementRows();
+        const result = await fetchUserManagementPaginated({
+          page,
+          limit: rowsPerPage,
+          search: searchValue,
+        });
+
         if (!ignore) {
-          setRows(nextRows);
+          setRows(result.items);
+          setTotalCount(result.pagination.total);
+          setTotalPages(Math.max(1, result.pagination.totalPages));
         }
       } catch (error) {
         if (!ignore) {
@@ -146,14 +156,13 @@ export function UserManagementListing() {
           setIsLoading(false);
         }
       }
-    }
-
-    loadRows();
+    }, 300);
 
     return () => {
       ignore = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [page, rowsPerPage, searchValue]);
 
   const departmentOptions = useMemo(
     () => getUniqueSortedValues(rows.map((row) => row.department)),
@@ -161,19 +170,8 @@ export function UserManagementListing() {
   );
 
   const filteredRows = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
-
     return [...rows]
       .filter((row) => {
-        if (
-          normalizedSearch &&
-          !getUserManagementSearchValues(row).some((value) =>
-            formatMasterValue(value).toLowerCase().includes(normalizedSearch),
-          )
-        ) {
-          return false;
-        }
-
         if (
           departmentFilter.length > 0 &&
           !departmentFilter.includes(row.department)
@@ -206,7 +204,7 @@ export function UserManagementListing() {
 
         return rightTime - leftTime;
       });
-  }, [departmentFilter, rows, searchValue, statusFilter]);
+  }, [departmentFilter, rows, statusFilter]);
 
   useEffect(() => {
     setPage(1);
@@ -249,21 +247,17 @@ export function UserManagementListing() {
       : []),
   ];
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
   const safePage = Math.min(page, totalPages);
-  const pageStartIndex = (safePage - 1) * rowsPerPage;
-  const currentPageRows = canView
-    ? filteredRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
-    : [];
+  const currentPageRows = canView ? filteredRows : [];
   const visiblePaginationPages = getVisiblePaginationPages(totalPages);
-  const rangeStart = filteredRows.length === 0 ? 0 : pageStartIndex + 1;
-  const rangeEnd = Math.min(pageStartIndex + rowsPerPage, filteredRows.length);
+  const rangeStart = totalCount === 0 ? 0 : (safePage - 1) * rowsPerPage + 1;
+  const rangeEnd = Math.min(safePage * rowsPerPage, totalCount);
 
   useEffect(() => {
-    if (page !== safePage) {
-      setPage(safePage);
+    if (page > totalPages && totalPages > 0) {
+      setPage(totalPages);
     }
-  }, [page, safePage]);
+  }, [page, totalPages]);
 
   const activeActionRow =
     activeActionRowId === null
@@ -888,7 +882,7 @@ export function UserManagementListing() {
           }}
         >
           <Typography variant="caption" color="text.secondary">
-            Showing {rangeStart}–{rangeEnd} of {filteredRows.length}
+            Showing {rangeStart}–{rangeEnd} of {totalCount}
             {activeColumnFilterCount > 0 ? " matching users" : " users"}
           </Typography>
 

@@ -3,17 +3,13 @@ import {
   type UserPermissionFlags,
   type UserManagementDetail,
 } from "../user-management/shared/userManagementConfig";
-import {
-  fetchUserManagementDetailByEmail,
-  isUserManagementPasswordValid,
-} from "../user-management/shared/userManagementApi";
+import { apiRequest, type ApiResponse } from "../../lib/apiClient";
 
 const AUTH_STORAGE_KEY = "deluxe-veneers-erp-authenticated";
 const AUTH_TOKEN_STORAGE_KEY = "deluxe-veneers-erp-token";
 const AUTH_USER_STORAGE_KEY = "deluxe-veneers-erp-user";
 const AUTH_PASSWORD_STORAGE_KEY = "deluxe-veneers-erp-password";
 export const AUTH_USER_UPDATED_EVENT = "deluxe-veneers-auth-user-updated";
-const DEMO_AUTH_TOKEN = "deluxe-veneers-local-demo-token";
 
 export interface AuthenticatedUserProfile {
   accountRole: "Admin" | "Super Admin" | "Staff";
@@ -48,8 +44,8 @@ type SerializedAuthenticatedUserProfile = Omit<
 };
 
 export const demoCredentials = {
-  email: "admin@deluxeveneers.com",
-  password: "admin",
+  email: "superadmin@deluxe-veneers.com",
+  password: "SuperAdmin@12345",
 } as const;
 
 export const demoUserProfile: AuthenticatedUserProfile = {
@@ -63,18 +59,18 @@ export const demoUserProfile: AuthenticatedUserProfile = {
   dateOfBirth: new Date("1995-04-18"),
   department: "Management / Admin",
   email: demoCredentials.email,
-  firstName: "Atharva",
+  firstName: "Super",
   gender: "Male",
   id: "",
-  lastName: "Patil",
+  lastName: "Admin",
   phoneNo: "+91 98765 43210",
   pincode: "380015",
   permissions: buildDefaultUserPermissions(),
   remarks: "System administrator profile for the Deluxe Veneers ERP.",
   role: "System Administrator",
   state: "Gujarat",
-  userName: "Deluxe Veneers",
-  userType: "Admin",
+  userName: "Super Admin",
+  userType: "Super Admin",
 };
 
 export function isAuthenticated() {
@@ -88,50 +84,91 @@ export function isAuthenticated() {
   );
 }
 
-export async function signIn(email: string, password: string) {
+/**
+ * Sign in against backend POST /api/auth/login
+ */
+export async function signIn(email: string, password: string): Promise<boolean> {
   if (typeof window === "undefined") {
     return false;
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const res = await apiRequest<ApiResponse<{ accessToken: string; user: any }>>(
+      "/auth/login",
+      {
+        method: "POST",
+        body: { email: email.trim().toLowerCase(), password },
+      }
+    );
 
-  if (normalizedEmail === demoCredentials.email) {
-    if (
-      password !== demoCredentials.password &&
-      password !== getCurrentPassword()
-    ) {
-      return false;
+    if (res?.success && res?.data?.accessToken) {
+      const backendUser = res.data.user;
+      const profile = mapBackendUserToProfile(backendUser);
+      persistAuthenticatedSession(res.data.accessToken, profile);
+      return true;
     }
-
-    persistAuthenticatedSession(DEMO_AUTH_TOKEN, demoUserProfile);
-    return true;
-  }
-
-  const userRecord = await fetchUserManagementDetailByEmail(normalizedEmail);
-
-  if (!userRecord || !userRecord.isActive) {
+    return false;
+  } catch (error) {
+    console.error("[Auth] Login error:", error);
     return false;
   }
-
-  if (!isUserManagementPasswordValid(userRecord.id, password)) {
-    return false;
-  }
-
-  persistAuthenticatedSession(
-    DEMO_AUTH_TOKEN,
-    mapUserManagementDetailToProfile(userRecord),
-  );
-  return true;
 }
 
-export function signOut() {
+/**
+ * Log out against backend POST /api/auth/logout
+ */
+export async function signOut() {
   if (typeof window === "undefined") {
     return;
   }
 
+  // Clear session storage immediately so any synchronous route guards/checks evaluate as unauthenticated
   window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
   window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent(AUTH_USER_UPDATED_EVENT));
+
+  try {
+    await apiRequest("/auth/logout", { method: "POST" }).catch(() => {});
+  } catch {
+    // Ignore error
+  }
+}
+
+/**
+ * Request password reset email via POST /api/auth/forgot-password
+ */
+export async function requestPasswordReset(email: string): Promise<string> {
+  const res = await apiRequest<ApiResponse>(
+    "/auth/forgot-password",
+    {
+      method: "POST",
+      body: { email: email.trim().toLowerCase() },
+    }
+  );
+  return res.message || "Password reset link sent if account exists.";
+}
+
+/**
+ * Reset password via POST /api/auth/reset-password
+ */
+export async function confirmPasswordReset(
+  token: string,
+  password: string,
+  confirmPassword?: string,
+): Promise<string> {
+  const res = await apiRequest<ApiResponse>(
+    "/auth/reset-password",
+    {
+      method: "POST",
+      body: {
+        token: token.trim(),
+        password,
+        confirmPassword: confirmPassword || password,
+      },
+    }
+  );
+  return res.message || "Password updated successfully.";
 }
 
 export function getAuthToken() {
@@ -162,31 +199,24 @@ export function getCurrentUser() {
   }
 
   try {
-    const parsedValue = JSON.parse(
-      storedValue,
-    ) as Partial<SerializedAuthenticatedUserProfile>;
+    const parsed = JSON.parse(storedValue) as SerializedAuthenticatedUserProfile;
 
     return {
-      ...demoUserProfile,
-      ...parsedValue,
-      dateOfBirth:
-        parsedValue.dateOfBirth != null ? new Date(parsedValue.dateOfBirth) : null,
+      ...parsed,
+      dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
     };
   } catch {
     return demoUserProfile;
   }
 }
 
-export function saveCurrentUser(profile: AuthenticatedUserProfile) {
-  persistCurrentUser(profile);
-}
+export function getDefaultAuthenticatedRoute() {
+  const user = getCurrentUser();
 
-export function getDefaultAuthenticatedRoute(
-  user: AuthenticatedUserProfile = getCurrentUser(),
-) {
   if (
     user.accountRole === "Super Admin" ||
-    getAccountRole(user.role, user.userType) === "Super Admin"
+    user.role.toLowerCase().includes("super admin") ||
+    hasAnyPermission(user, "dashboard")
   ) {
     return "/dashboard";
   }
@@ -199,6 +229,16 @@ export function getDefaultAuthenticatedRoute(
 }
 
 export async function refreshCurrentUserPermissions() {
+  try {
+    const res = await apiRequest<ApiResponse<{ user: any }>>("/auth/me");
+    if (res?.success && res?.data?.user) {
+      const profile = mapBackendUserToProfile(res.data.user);
+      persistCurrentUser(profile);
+      return profile;
+    }
+  } catch (error) {
+    console.error("[Auth] Failed to refresh permissions:", error);
+  }
   return getCurrentUser();
 }
 
@@ -242,6 +282,10 @@ export function getUserInitials(name: string) {
   return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "DV";
 }
 
+export function saveCurrentUser(profile: AuthenticatedUserProfile) {
+  persistCurrentUser(profile);
+}
+
 function persistCurrentUser(profile: AuthenticatedUserProfile) {
   if (typeof window === "undefined") {
     return;
@@ -265,15 +309,48 @@ function persistAuthenticatedSession(token: string, user: AuthenticatedUserProfi
   persistCurrentUser(user);
 }
 
-function getCurrentPassword() {
-  if (typeof window === "undefined") {
-    return demoCredentials.password;
+function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
+  const isSuperAdmin = Boolean(user.isSuperAdmin);
+  const permissions = buildDefaultUserPermissions();
+
+  const userPerms: string[] = user.permissions || [];
+  if (isSuperAdmin) {
+    Object.keys(permissions).forEach((k) => {
+      permissions[k] = { view: true, edit: true, create: true };
+    });
+  } else {
+    // Enable userManagement actions
+    permissions.userManagement = {
+      view: userPerms.includes("USER_MANAGEMENT_VIEW"),
+      create: userPerms.includes("USER_MANAGEMENT_CREATE"),
+      edit: userPerms.includes("USER_MANAGEMENT_UPDATE"),
+    };
   }
 
-  return (
-    window.localStorage.getItem(AUTH_PASSWORD_STORAGE_KEY) ??
-    demoCredentials.password
-  );
+  return {
+    accountRole: isSuperAdmin ? "Super Admin" : "Staff",
+    address: user.address || "",
+    age: user.age || "",
+    approver: "",
+    bloodGroup: user.bloodGroup || "",
+    city: user.city || "",
+    country: user.country || "",
+    dateOfBirth: user.dateOfBirth ? new Date(user.dateOfBirth) : null,
+    department: user.department?.name || "",
+    email: user.email || "",
+    firstName: user.firstName || "",
+    gender: "",
+    id: user.id || "",
+    lastName: user.lastName || "",
+    phoneNo: user.phoneNumber || "",
+    pincode: user.pincode || "",
+    permissions,
+    remarks: user.remarks || "",
+    role: isSuperAdmin ? "Super Admin" : "Staff",
+    state: user.state || "",
+    userName: user.username || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+    userType: isSuperAdmin ? "Super Admin" : "Staff",
+  };
 }
 
 function mapUserManagementDetailToProfile(
