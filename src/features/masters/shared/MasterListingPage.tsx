@@ -114,16 +114,13 @@ export function MasterListingPage({
   const addButtonLabel = `Add ${entityLabel}`;
   const searchPlaceholder = `Search ${entityLabel.toLowerCase()}s...`;
 
-  const handleStatusChange = (row: MasterRecord, checked: boolean) => {
+  const handleStatusChange = async (row: MasterRecord, checked: boolean) => {
     if (onStatusChange) {
-      void onStatusChange(row, checked);
+      await onStatusChange(row, checked);
       return;
     }
 
     updateLocalMasterStatus(localDefinition, row, checked);
-    if (onStatusChange) {
-      await onStatusChange(row, checked);
-    }
   };
 
 
