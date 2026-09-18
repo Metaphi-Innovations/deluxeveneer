@@ -121,7 +121,11 @@ export function MasterListingPage({
     }
 
     updateLocalMasterStatus(localDefinition, row, checked);
+    if (onStatusChange) {
+      await onStatusChange(row, checked);
+    }
   };
+
 
   return (
     <MasterPageShell
