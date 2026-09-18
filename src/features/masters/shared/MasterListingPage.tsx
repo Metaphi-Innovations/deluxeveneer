@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Stack,
-  useTheme,
 } from "@mui/material";
 import { Plus } from "lucide-react";
 import { Link as RouterLink } from "react-router";
@@ -23,13 +22,61 @@ import {
 } from "./localMasterStore";
 import type { MasterDefinition, MasterRecord } from "./types";
 import { formatMasterValue, getMasterPaths } from "./utils";
+import type { ColumnFilterValue } from "../../shared/columnFilters";
 
 interface MasterListingPageProps {
   definition: MasterDefinition;
+  /** When provided, rows come from the parent (e.g. API) instead of local mock store. */
+  rows?: MasterRecord[];
+  loading?: boolean;
+  errorMessage?: string;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  /** Server-side search: skip client filtering of provided rows. */
+  serverSearch?: boolean;
+  onStatusChange?: (
+    row: MasterRecord,
+    checked: boolean,
+  ) => Promise<void> | void;
+  /** Server-side pagination controls. */
+  pagination?: {
+    page: number;
+    rowsPerPage: number;
+    totalCount: number;
+    onPageChange: (page: number) => void;
+    onRowsPerPageChange: (rowsPerPage: number) => void;
+  };
+  /** Server-side sorting controls. */
+  sorting?: {
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+  };
+  columnFilters?: Partial<Record<string, ColumnFilterValue>>;
+  onColumnFiltersChange?: (
+    nextFilters: Partial<Record<string, ColumnFilterValue>>,
+  ) => void;
+  filterOptionsByColumn?: Record<
+    string,
+    Array<{ value: string; label: string }>
+  >;
 }
 
-export function MasterListingPage({ definition }: MasterListingPageProps) {
-  const theme = useTheme();
+export function MasterListingPage({
+  definition,
+  rows: remoteRows,
+  loading = false,
+  errorMessage = "",
+  searchValue: controlledSearch,
+  onSearchChange,
+  serverSearch = false,
+  onStatusChange,
+  pagination,
+  sorting,
+  columnFilters,
+  onColumnFiltersChange,
+  filterOptionsByColumn,
+}: MasterListingPageProps) {
   const localDefinition = useMemo(
     () => buildLocalMasterDefinition(definition),
     [definition],
@@ -40,10 +87,17 @@ export function MasterListingPage({ definition }: MasterListingPageProps) {
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
   const canOpenPage = canAccessAnyAction(permissionKey);
-  const [searchValue, setSearchValue] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
+  const searchValue = controlledSearch ?? internalSearch;
+  const setSearchValue = onSearchChange ?? setInternalSearch;
+  const sourceRows = remoteRows ?? localDefinition.rows;
 
   const filteredRows = useMemo(() => {
-    return localDefinition.rows.filter((row) => {
+    if (serverSearch) {
+      return sourceRows;
+    }
+
+    return sourceRows.filter((row) => {
       const matchesSearch =
         searchValue.trim().length === 0 ||
         Object.values(row).some((value) =>
@@ -54,13 +108,18 @@ export function MasterListingPage({ definition }: MasterListingPageProps) {
 
       return matchesSearch;
     });
-  }, [localDefinition.rows, searchValue]);
+  }, [searchValue, serverSearch, sourceRows]);
 
   const entityLabel = localDefinition.title.replace(/ Master$/, "");
   const addButtonLabel = `Add ${entityLabel}`;
   const searchPlaceholder = `Search ${entityLabel.toLowerCase()}s...`;
 
   const handleStatusChange = (row: MasterRecord, checked: boolean) => {
+    if (onStatusChange) {
+      void onStatusChange(row, checked);
+      return;
+    }
+
     updateLocalMasterStatus(localDefinition, row, checked);
   };
 
@@ -79,6 +138,8 @@ export function MasterListingPage({ definition }: MasterListingPageProps) {
           You do not have permission to access this master.
         </Alert>
       ) : null}
+
+      {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
       <Stack
         direction={{ xs: "column", sm: "row" }}
@@ -114,16 +175,25 @@ export function MasterListingPage({ definition }: MasterListingPageProps) {
           pt: theme.spacing(0.5),
         })}
       >
-        <MasterTable
-          canChangeStatus={canEdit}
-          canEdit={canEdit}
-          canView={canView}
-          columns={localDefinition.columns}
-          getEditPath={paths.edit}
-          getViewPath={paths.view}
-          onStatusChange={handleStatusChange}
-          rows={canView ? filteredRows : []}
-        />
+        {loading ? (
+          <Alert severity="info">Loading {entityLabel.toLowerCase()}s...</Alert>
+        ) : (
+          <MasterTable
+            canChangeStatus={canEdit}
+            canEdit={canEdit}
+            canView={canView}
+            columns={localDefinition.columns}
+            getEditPath={paths.edit}
+            getViewPath={paths.view}
+            onStatusChange={handleStatusChange}
+            {...(pagination ? { pagination } : {})}
+            {...(sorting ? { sorting } : {})}
+            {...(columnFilters ? { columnFilters } : {})}
+            {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
+            {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
+            rows={canView ? filteredRows : []}
+          />
+        )}
       </Stack>
     </MasterPageShell>
   );

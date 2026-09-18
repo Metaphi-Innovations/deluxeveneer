@@ -1,0 +1,53 @@
+import type { MasterDefinition } from "../shared/types";
+
+export const customerMasterDefinition: MasterDefinition = {
+  slug: "customer-master",
+  title: "Customer Master",
+  gridColumns: 4,
+  columns: [
+    { key: "customerName", label: "Customer Name" },
+    { key: "companyName", label: "Company Name" },
+    { key: "customerType", label: "Customer Type" },
+    { key: "email", label: "Email" },
+    { key: "phoneNumber", label: "Phone No" },
+    { key: "gstNo", label: "GST No" },
+    { key: "remark", label: "Remark" },
+    { key: "status", label: "Status" },
+    { key: "createdBy", label: "Created By" },
+    { key: "editedBy", label: "Updated By" },
+    { key: "createdDate", label: "Created Date" },
+    { key: "updatedDate", label: "Updated Date" },
+  ],
+  filters: [
+    {
+      key: "customerType",
+      label: "Customer Type",
+      options: ["Platinum", "Gold", "Silver"],
+    },
+    { key: "companyName", label: "Company Name", options: [] },
+  ],
+  fields: [
+    { key: "customerName", label: "Customer Name", type: "text" },
+    { key: "companyName", label: "Company Name", type: "text" },
+    {
+      key: "customerType",
+      label: "Customer Type",
+      type: "select",
+      options: ["Platinum", "Gold", "Silver"],
+    },
+    { key: "dob", label: "Date of Birth", type: "date" },
+    { key: "email", label: "Email", type: "text" },
+    { key: "phoneNumber", label: "Phone Number", type: "text" },
+    { key: "address", label: "Address", type: "text" },
+    { key: "pincode", label: "Pincode", type: "text" },
+    { key: "country", label: "Country", type: "select", options: [] },
+    { key: "state", label: "State", type: "select", options: [] },
+    { key: "city", label: "City", type: "select", options: [] },
+    { key: "gstNo", label: "GST No", type: "text" },
+    { key: "gstUpload", label: "GST Upload", type: "file" },
+    { key: "panNo", label: "PAN No", type: "text" },
+    { key: "panUpload", label: "PAN Upload", type: "file" },
+    { key: "remark", label: "Remark", type: "text" },
+  ],
+  rows: [],
+};

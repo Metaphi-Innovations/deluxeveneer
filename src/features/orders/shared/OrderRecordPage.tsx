@@ -72,6 +72,7 @@ import {
   updateOrderRecord,
   useOrderRecords,
 } from "./ordersStore";
+import { refreshCustomerMasterCache } from "../../masters/customer-master/api/customerMasterApi";
 import {
   OrderLineItemsTable,
   type OrderLineItemsTableHandle,
@@ -170,6 +171,7 @@ export function OrderRecordPage({
     [record],
   );
   const activeVariant = mode === "add" ? createVariant : recordVariant;
+  const [customerOptionsVersion, setCustomerOptionsVersion] = useState(0);
   const activeFields = useMemo(
     () =>
       mode === "view"
@@ -177,7 +179,7 @@ export function OrderRecordPage({
         : activeVariant
           ? getCreateOrderFormFields(activeVariant)
           : getOrderFormFields(),
-    [activeVariant, mode],
+    [activeVariant, customerOptionsVersion, mode],
   );
   const pageTitle = getOrderPageTitle(mode, activeVariant);
   const [values, setValues] = useState<Record<string, MasterFieldValue>>(() =>
@@ -204,7 +206,7 @@ export function OrderRecordPage({
       getOrderCustomerRows().find(
         (row) => String(row.customerName ?? "") === selectedCustomerName,
       ),
-    [selectedCustomerName],
+    [customerOptionsVersion, selectedCustomerName],
   );
   const canCreate = canAccessPermission(moduleConfig.permissionKey, "create");
   const canEdit = canAccessPermission(moduleConfig.permissionKey, "edit");
@@ -219,6 +221,24 @@ export function OrderRecordPage({
   useEffect(() => {
     setLineItems(record ? getOrderLineItems(record.id) : []);
   }, [record]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    void refreshCustomerMasterCache()
+      .then(() => {
+        if (!ignore) {
+          setCustomerOptionsVersion((value) => value + 1);
+        }
+      })
+      .catch(() => {
+        // Keep order form usable even if customer master API is unavailable.
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   if ((mode === "edit" || mode === "view") && !record) {
     return (

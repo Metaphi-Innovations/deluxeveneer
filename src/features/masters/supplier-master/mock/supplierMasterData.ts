@@ -1,1 +1,1 @@
-export { supplierMasterDefinition } from "../../shared/masterDefinitions";
+export { supplierMasterDefinition } from "../supplierMasterDefinition";

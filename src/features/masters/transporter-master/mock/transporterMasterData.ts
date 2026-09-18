@@ -1,1 +1,1 @@
-export { transporterMasterDefinition } from "../../shared/masterDefinitions";
+export { transporterMasterDefinition } from "../transporterMasterDefinition";

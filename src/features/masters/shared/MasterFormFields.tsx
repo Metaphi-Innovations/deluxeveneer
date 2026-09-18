@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Eye, Upload, X } from "lucide-react";
+import { Eye, FileText, Upload, X } from "lucide-react";
 import {
   getCountries,
   getCountryCallingCode,
@@ -49,6 +49,10 @@ import type {
   MasterUploadedFileValue,
 } from "./types";
 import { normalizeMasterStatusValue, formatMasterValue } from "./utils";
+import {
+  getMasterDocumentDisplayName,
+  getMasterDocumentUrl,
+} from "./masterDocumentValue";
 
 type FormFieldLayoutDefinition = {
   fields: readonly MasterFieldDefinition[];
@@ -98,23 +102,33 @@ function isMasterUploadedFileValue(
   );
 }
 
-function getMasterFileName(value: MasterFieldValue) {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (trimmed.startsWith("data:image/")) {
-      return "Uploaded Image";
-    }
-    if (trimmed.startsWith("data:application/pdf")) {
-      return "Uploaded PDF Document";
-    }
-    if (trimmed.length > 40 && trimmed.startsWith("data:")) {
-      return "Uploaded Document";
-    }
-    return trimmed;
+function getMasterFileName(value: MasterFieldValue, fallbackLabel = "Document") {
+  if (isMasterUploadedFileValue(value)) {
+    return value.name || getMasterDocumentDisplayName(value.previewUrl, fallbackLabel);
   }
 
+  if (typeof value === "string") {
+    return getMasterDocumentDisplayName(value, fallbackLabel);
+  }
+
+  return "";
+}
+
+function getMasterFileUrl(value: MasterFieldValue) {
   if (isMasterUploadedFileValue(value)) {
-    return value.name;
+    if (value.previewUrl) {
+      return getMasterDocumentUrl(value.previewUrl) || value.previewUrl.trim();
+    }
+
+    if (typeof value.name === "string" && value.name.startsWith("{")) {
+      return getMasterDocumentUrl(value.name);
+    }
+
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return getMasterDocumentUrl(value);
   }
 
   return "";
@@ -419,18 +433,26 @@ export function MasterFormFields({
               </Stack>
 
               {isDetailsPresentation ? (
-                <Typography
-                  sx={(currentTheme) => ({
-                    color: currentTheme.customTokens.text.primary,
-                    fontSize: "14px",
-                    fontWeight: 400,
-                    lineHeight: 1.4,
-                    minHeight: currentTheme.spacing(2.5),
-                    wordBreak: "break-word",
-                  })}
-                >
-                  {formatDetailFieldValue(field, fieldValue, values)}
-                </Typography>
+                field.type === "file" ? (
+                  <DetailFilePreview
+                    label={field.label}
+                    value={fieldValue}
+                    onPreview={(preview) => setPreviewState(preview)}
+                  />
+                ) : (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.customTokens.text.primary,
+                      fontSize: "14px",
+                      fontWeight: 400,
+                      lineHeight: 1.4,
+                      minHeight: currentTheme.spacing(2.5),
+                      wordBreak: "break-word",
+                    })}
+                  >
+                    {formatDetailFieldValue(field, fieldValue, values)}
+                  </Typography>
+                )
               ) : null}
 
               {!isDetailsPresentation && field.type === "text" && isPhoneField(field) ? (
@@ -548,12 +570,19 @@ export function MasterFormFields({
                       fieldValue,
                       getPhoneCountryCode(values, field.key),
                     )}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      const countryCodeKey = getPhoneCountryCodeKey(field.key);
+                      const countryCode = getPhoneCountryCode(values, field.key);
+
+                      if (values[countryCodeKey] !== countryCode) {
+                        onChange(countryCodeKey, countryCode);
+                      }
+
                       onChange(
                         field.key,
                         normalizeTextInputValue(field, event.target.value),
-                      )
-                    }
+                      );
+                    }}
                     sx={{
                       ...resolveFieldSx(fieldState),
                       "& .MuiOutlinedInput-root": {
@@ -651,11 +680,12 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation && renderedFieldType === "file" ? (() => {
-                const fileName = getMasterFileName(fieldValue);
+                const fileName = getMasterFileName(fieldValue, field.label);
                 const uploadedFieldValue = isMasterUploadedFileValue(fieldValue)
                   ? fieldValue
                   : null;
                 const canPreview = fileName.length > 0;
+                const resolvedFileUrl = getMasterFileUrl(fieldValue);
 
                 const previewButton = canPreview ? (
                   <IconButton
@@ -664,10 +694,7 @@ export function MasterFormFields({
                       event.preventDefault();
                       event.stopPropagation();
                       const fileUrl =
-                        uploadedFieldValue?.previewUrl ||
-                        (typeof fieldValue === "string" && fieldValue.trim().length > 0
-                          ? fieldValue.trim()
-                          : "");
+                        uploadedFieldValue?.previewUrl || resolvedFileUrl;
 
                       const previewMimeType = getUploadPreviewMimeType(
                         fileName,
@@ -719,10 +746,7 @@ export function MasterFormFields({
                 }
 
                 const fileUrl =
-                  uploadedFieldValue?.previewUrl ||
-                  (typeof fieldValue === "string" && fieldValue.trim().length > 0
-                    ? fieldValue.trim()
-                    : "");
+                  uploadedFieldValue?.previewUrl || resolvedFileUrl;
                 const isImage =
                   fileUrl.startsWith("data:image/") ||
                   fileUrl.endsWith(".png") ||
@@ -1096,7 +1120,7 @@ function formatDetailFieldValue(
   }
 
   if (field.type === "file") {
-    const fileName = getMasterFileName(value);
+    const fileName = getMasterFileName(value, field.label);
     return fileName || "—";
   }
 
@@ -1136,6 +1160,147 @@ function FieldLabel({
     >
       {getDisplayFieldLabel(label)}
     </Typography>
+  );
+}
+
+function DetailFilePreview({
+  label,
+  value,
+  onPreview,
+}: {
+  label: string;
+  value: MasterFieldValue;
+  onPreview: (preview: PreviewState) => void;
+}) {
+  const theme = useTheme();
+  const fileName = getMasterFileName(value, label);
+  const fileUrl = getMasterFileUrl(value);
+  const hasValue = Boolean(fileUrl || fileName);
+
+  if (!hasValue) {
+    return (
+      <Typography
+        sx={{
+          color: theme.customTokens.text.primary,
+          fontSize: "14px",
+          fontWeight: 400,
+          lineHeight: 1.4,
+          minHeight: theme.spacing(2.5),
+        }}
+      >
+        —
+      </Typography>
+    );
+  }
+
+  const previewMimeType = getUploadPreviewMimeType(
+    fileName,
+    isMasterUploadedFileValue(value) ? value.mimeType : undefined,
+    fileUrl,
+  );
+  const isPdf =
+    previewMimeType === "application/pdf" ||
+    fileUrl.toLowerCase().includes(".pdf") ||
+    fileUrl.startsWith("data:application/pdf") ||
+    fileName.toLowerCase().endsWith(".pdf");
+
+  return (
+    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ minWidth: 0 }}>
+      <Box
+        onClick={() => {
+          if (!fileUrl) {
+            return;
+          }
+
+          onPreview({
+            ...(previewMimeType ? { mimeType: previewMimeType } : {}),
+            name: fileName || label,
+            previewUrl: fileUrl,
+          });
+        }}
+        title={fileUrl ? "Click to view" : undefined}
+        sx={{
+          width: 48,
+          height: 48,
+          minWidth: 48,
+          borderRadius: "6px",
+          overflow: "hidden",
+          border: `1px solid ${theme.customTokens.borders.default}`,
+          bgcolor: theme.customTokens.brand.primaryScale[50] || "#f8fafc",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: fileUrl ? "pointer" : "default",
+          transition: "all 0.15s ease-in-out",
+          position: "relative",
+          flexShrink: 0,
+          ...(fileUrl
+            ? {
+                "&:hover": {
+                  borderColor: theme.customTokens.navigation.activeText,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
+                  "& .preview-overlay": {
+                    opacity: 1,
+                  },
+                },
+              }
+            : {}),
+        }}
+      >
+        {isPdf || !fileUrl ? (
+          <FileText size={24} color={theme.customTokens.navigation.activeText} />
+        ) : (
+          <Box
+            component="img"
+            src={fileUrl}
+            alt={fileName || label}
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
+        )}
+        {fileUrl ? (
+          <Box
+            className="preview-overlay"
+            sx={{
+              position: "absolute",
+              inset: 0,
+              bgcolor: "rgba(0,0,0,0.4)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: 0,
+              transition: "opacity 0.15s ease-in-out",
+              color: "#fff",
+            }}
+          >
+            <Eye size={18} />
+          </Box>
+        ) : null}
+      </Box>
+
+      <Typography
+        sx={{
+          color: theme.customTokens.text.primary,
+          fontSize: "14px",
+          fontWeight: 400,
+          lineHeight: 1.4,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          minWidth: 0,
+        }}
+        title={fileName || undefined}
+      >
+        {fileName || "—"}
+      </Typography>
+    </Stack>
   );
 }
 

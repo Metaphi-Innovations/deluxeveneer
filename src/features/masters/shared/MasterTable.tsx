@@ -94,6 +94,30 @@ interface MasterTableProps {
   getEditPath: (id: string) => string;
   getViewPath: (id: string) => string;
   onStatusChange?: (row: MasterRecord, checked: boolean) => Promise<void> | void;
+  /** When set, pagination is controlled by the parent (server-side). */
+  pagination?: {
+    page: number;
+    rowsPerPage: number;
+    totalCount: number;
+    onPageChange: (page: number) => void;
+    onRowsPerPageChange: (rowsPerPage: number) => void;
+  };
+  /** When set, sorting is controlled by the parent (server-side). */
+  sorting?: {
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+  };
+  /** When set, column filters are controlled by the parent (server-side). */
+  columnFilters?: Partial<Record<string, ColumnFilterValue>>;
+  onColumnFiltersChange?: (
+    nextFilters: Partial<Record<string, ColumnFilterValue>>,
+  ) => void;
+  /** Optional server-provided filter options keyed by column. */
+  filterOptionsByColumn?: Record<
+    string,
+    Array<{ value: string; label: string }>
+  >;
 }
 
 const actionColumnWidth = 64;
@@ -106,16 +130,74 @@ export function MasterTable({
   getEditPath,
   getViewPath,
   onStatusChange,
+  pagination,
+  sorting,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
+  filterOptionsByColumn,
   rows,
 }: MasterTableProps) {
   const theme = useTheme();
   const navigate = useNavigate();
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [columnFilters, setColumnFilters] = useState<
+  const [internalSortConfig, setInternalSortConfig] = useState<SortConfig>(null);
+  const [internalPage, setInternalPage] = useState(1);
+  const [internalRowsPerPage, setInternalRowsPerPage] = useState(10);
+  const isServerPagination = Boolean(pagination);
+  const isServerSorting = Boolean(sorting);
+  const isServerFiltering = Boolean(onColumnFiltersChange);
+  const page = pagination?.page ?? internalPage;
+  const rowsPerPage = pagination?.rowsPerPage ?? internalRowsPerPage;
+  const sortConfig: SortConfig = sorting
+    ? sorting.sortBy && sorting.sortOrder
+      ? { key: sorting.sortBy, direction: sorting.sortOrder }
+      : null
+    : internalSortConfig;
+
+  const goToPage = (nextPage: number | ((current: number) => number)) => {
+    const resolved =
+      typeof nextPage === "function" ? nextPage(page) : nextPage;
+
+    if (pagination) {
+      pagination.onPageChange(resolved);
+      return;
+    }
+
+    setInternalPage(resolved);
+  };
+
+  const changeRowsPerPage = (nextRowsPerPage: number) => {
+    if (pagination) {
+      pagination.onRowsPerPageChange(nextRowsPerPage);
+      pagination.onPageChange(1);
+      return;
+    }
+
+    setInternalRowsPerPage(nextRowsPerPage);
+    setInternalPage(1);
+  };
+
+  const [internalColumnFilters, setInternalColumnFilters] = useState<
     Partial<Record<string, ColumnFilterValue>>
   >({});
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters;
+
+  const setColumnFilters = (
+    next:
+      | Partial<Record<string, ColumnFilterValue>>
+      | ((
+          current: Partial<Record<string, ColumnFilterValue>>,
+        ) => Partial<Record<string, ColumnFilterValue>>),
+  ) => {
+    const resolved =
+      typeof next === "function" ? next(columnFilters) : next;
+
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(resolved);
+      return;
+    }
+
+    setInternalColumnFilters(resolved);
+  };
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<HTMLElement | null>(
     null,
   );
@@ -154,10 +236,14 @@ export function MasterTable({
         label: column.label,
         sampleValues,
       });
+      const serverOptions = filterOptionsByColumn?.[column.key] ?? [];
       const formattedValues = rows.map((row) =>
         formatMasterValue(row[column.key], column.key, column.label),
       );
-      const options = buildDistinctColumnFilterOptions(formattedValues);
+      const options =
+        serverOptions.length > 0
+          ? serverOptions
+          : buildDistinctColumnFilterOptions(formattedValues);
 
       meta[column.key] = {
         filterType,
@@ -167,9 +253,13 @@ export function MasterTable({
     });
 
     return meta;
-  }, [displayColumns, rows]);
+  }, [displayColumns, filterOptionsByColumn, rows]);
 
   const filteredRows = useMemo(() => {
+    if (isServerFiltering) {
+      return rows;
+    }
+
     return rows.filter((row) =>
       Object.entries(columnFilters).every(([key, filterValue]) => {
         if (!isActiveColumnFilter(filterValue)) {
@@ -185,7 +275,7 @@ export function MasterTable({
         return matchColumnFilter(rawValue, cellValue, filterValue);
       }),
     );
-  }, [columnFilters, rows]);
+  }, [columnFilters, displayColumns, isServerFiltering, rows]);
 
   const activeFilterChips = useMemo(
     () => buildActiveFilterChips(columnFilters, displayColumns),
@@ -194,7 +284,7 @@ export function MasterTable({
   const hasActiveFilters = activeFilterChips.length > 0;
 
   const sortedRows = useMemo(() => {
-    if (!sortConfig) {
+    if (isServerSorting || !sortConfig) {
       return filteredRows;
     }
 
@@ -212,19 +302,20 @@ export function MasterTable({
 
       return 0;
     });
-  }, [filteredRows, sortConfig]);
+  }, [filteredRows, isServerSorting, sortConfig]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / rowsPerPage));
+  const totalRecords = isServerPagination
+    ? pagination?.totalCount ?? sortedRows.length
+    : sortedRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRecords / rowsPerPage));
   const safePage = Math.min(page, totalPages);
   const pageStartIndex = (safePage - 1) * rowsPerPage;
-  const currentPageRows = sortedRows.slice(
-    pageStartIndex,
-    pageStartIndex + rowsPerPage,
-  );
+  const currentPageRows = isServerPagination
+    ? sortedRows
+    : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(totalPages);
-  const totalRecords = sortedRows.length;
   const rangeStart = totalRecords === 0 ? 0 : pageStartIndex + 1;
-  const rangeEnd = Math.min(pageStartIndex + rowsPerPage, totalRecords);
+  const rangeEnd = Math.min(pageStartIndex + currentPageRows.length, totalRecords);
 
   const activeFilterColumnDef = activeFilterColumn
     ? displayColumns.find((item) => item.key === activeFilterColumn)
@@ -234,23 +325,25 @@ export function MasterTable({
     : undefined;
 
   useEffect(() => {
-    if (page !== safePage) {
-      setPage(safePage);
+    if (!isServerPagination && page !== safePage) {
+      setInternalPage(safePage);
     }
-  }, [page, safePage]);
+  }, [isServerPagination, page, safePage]);
 
   const handleSort = (columnKey: string) => {
-    setPage(1);
-    setSortConfig((current) => {
-      if (!current || current.key !== columnKey) {
-        return { key: columnKey, direction: "asc" };
-      }
+    const nextDirection: SortDirection =
+      sortConfig?.key === columnKey && sortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
 
-      return {
-        key: columnKey,
-        direction: current.direction === "asc" ? "desc" : "asc",
-      };
-    });
+    goToPage(1);
+
+    if (sorting) {
+      sorting.onSortChange(columnKey, nextDirection);
+      return;
+    }
+
+    setInternalSortConfig({ key: columnKey, direction: nextDirection });
   };
 
   const handleOpenFilter = (
@@ -283,7 +376,7 @@ export function MasterTable({
 
       return next;
     });
-    setPage(1);
+    goToPage(1);
   };
 
   const handleApplyMultiSelectFilter = (values: string[]) => {
@@ -309,12 +402,12 @@ export function MasterTable({
       delete next[targetKey];
       return next;
     });
-    setPage(1);
+    goToPage(1);
   };
 
   const handleClearAllFilters = () => {
     setColumnFilters({});
-    setPage(1);
+    goToPage(1);
   };
 
   const handleOpenActionMenu = (
@@ -635,8 +728,7 @@ export function MasterTable({
                 size="small"
                 value={String(rowsPerPage)}
                 onChange={(event) => {
-                  setRowsPerPage(Number(event.target.value));
-                  setPage(1);
+                  changeRowsPerPage(Number(event.target.value));
                 }}
                 sx={(currentTheme) => ({
                   minWidth: 64,
@@ -661,7 +753,7 @@ export function MasterTable({
                 size="small"
                 aria-label="Previous page"
                 disabled={safePage === 1}
-                onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                onClick={() => goToPage((current) => Math.max(current - 1, 1))}
                 sx={(currentTheme) =>
                   listingPaginationIconButtonSx(currentTheme)
                 }
@@ -683,7 +775,7 @@ export function MasterTable({
                   <Button
                     key={pageItem}
                     size="small"
-                    onClick={() => setPage(pageItem)}
+                    onClick={() => goToPage(pageItem)}
                     sx={(currentTheme) =>
                       listingPageNumberButtonSx(
                         currentTheme,
@@ -701,7 +793,7 @@ export function MasterTable({
                 aria-label="Next page"
                 disabled={safePage === totalPages}
                 onClick={() =>
-                  setPage((current) => Math.min(current + 1, totalPages))
+                  goToPage((current) => Math.min(current + 1, totalPages))
                 }
                 sx={(currentTheme) =>
                   listingPaginationIconButtonSx(currentTheme)
