@@ -329,6 +329,24 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       create: userPerms.includes("USER_MANAGEMENT_CREATE"),
       edit: userPerms.includes("USER_MANAGEMENT_UPDATE"),
     };
+
+    permissions.customerMaster = {
+      view: userPerms.includes("CUSTOMER_MASTER_VIEW"),
+      create: userPerms.includes("CUSTOMER_MASTER_CREATE"),
+      edit: userPerms.includes("CUSTOMER_MASTER_UPDATE"),
+    };
+
+    permissions.supplierMaster = {
+      view: userPerms.includes("SUPPLIER_MASTER_VIEW"),
+      create: userPerms.includes("SUPPLIER_MASTER_CREATE"),
+      edit: userPerms.includes("SUPPLIER_MASTER_UPDATE"),
+    };
+
+    permissions.transporterMaster = {
+      view: userPerms.includes("TRANSPORTER_MASTER_VIEW"),
+      create: userPerms.includes("TRANSPORTER_MASTER_CREATE"),
+      edit: userPerms.includes("TRANSPORTER_MASTER_UPDATE"),
+    };
   }
 
   return {

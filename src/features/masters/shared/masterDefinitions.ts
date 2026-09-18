@@ -1,5 +1,10 @@
 import type { MasterDefinition, MasterRecord } from "./types";
 import { createMasterRows } from "./utils";
+import { getCachedSupplierMasterRows } from "../supplier-master/api/supplierMasterApi";
+
+export { customerMasterDefinition } from "../customer-master/customerMasterDefinition";
+export { supplierMasterDefinition } from "../supplier-master/supplierMasterDefinition";
+export { transporterMasterDefinition } from "../transporter-master/transporterMasterDefinition";
 
 const asDate = (value: string) => new Date(value);
 
@@ -419,97 +424,6 @@ const gradeRows = withAuditFields(createMasterRows("grade-master", [
     updatedBy: "Atharva Patil",
     createdEditedDate: asDate("2026-05-26"),
     updatedDate: asDate("2026-06-09"),
-  },
-]));
-
-const customerRows = withAuditFields(createMasterRows("customer-master", [
-  {
-    customerName: "Vikram Mehta",
-    companyName: "Prime Habitat Studio",
-    customerType: "Architect",
-    dob: asDate("1986-03-12"),
-    email: "vikram@primehabitat.in",
-    phoneNumber: "+91 98765 44120",
-    address: "Bandra Kurla Complex",
-    pincode: "400051",
-    country: "India",
-    state: "Maharashtra",
-    city: "Mumbai",
-    gstNo: "27AABCP1122L1ZX",
-    gstUpload: "prime-habitat-gst.pdf",
-    panNo: "AABCP1122L",
-    panUpload: "prime-habitat-pan.pdf",
-    remark: "Premium interior fit-out account.",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-04-22"),
-    updatedDate: asDate("2026-05-28"),
-  },
-  {
-    customerName: "Aarav Soni",
-    companyName: "Timberline Projects",
-    customerType: "Dealer",
-    dob: asDate("1989-07-08"),
-    email: "aarav@timberline.in",
-    phoneNumber: "+91 98250 77891",
-    address: "Satellite Road",
-    pincode: "380015",
-    country: "India",
-    state: "Gujarat",
-    city: "Ahmedabad",
-    gstNo: "29AACCT4488C1ZP",
-    gstUpload: "timberline-gst.pdf",
-    panNo: "AACCT4488C",
-    panUpload: "timberline-pan.pdf",
-    remark: "Bulk plywood and veneer dispatch account.",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Atharva Patil",
-    createdEditedDate: asDate("2026-05-03"),
-    updatedDate: asDate("2026-06-01"),
-  },
-  {
-    customerName: "Rhea Kapoor",
-    companyName: "Aura Living Concepts",
-    customerType: "Retail",
-    dob: asDate("1992-11-16"),
-    email: "rhea@auraliving.in",
-    phoneNumber: "+91 98111 23498",
-    address: "C G Road",
-    pincode: "380009",
-    country: "India",
-    state: "Gujarat",
-    city: "Ahmedabad",
-    gstNo: "24AATCA5567D1Z2",
-    gstUpload: "aura-living-gst.pdf",
-    panNo: "AATCA5567D",
-    panUpload: "aura-living-pan.pdf",
-    remark: "Focus on designer sample sheets.",
-    createdEditedBy: "Aditi Desai",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-05-17"),
-    updatedDate: asDate("2026-06-05"),
-  },
-  {
-    customerName: "Harsh Vora",
-    companyName: "Woodform Spaces",
-    customerType: "Architect",
-    dob: asDate("1984-01-29"),
-    email: "harsh@woodformspaces.com",
-    phoneNumber: "+91 98989 67012",
-    address: "Connaught Place",
-    pincode: "110001",
-    country: "India",
-    state: "Delhi",
-    city: "New Delhi",
-    gstNo: "07AAFCW9011J1ZW",
-    gstUpload: "woodform-gst.pdf",
-    panNo: "AAFCW9011J",
-    panUpload: "woodform-pan.pdf",
-    remark: "Requires FSC-certified veneer selections.",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-03-28"),
-    updatedDate: asDate("2026-05-19"),
   },
 ]));
 
@@ -1080,6 +994,15 @@ export function getSupplierState(supplierName: string) {
     return "";
   }
 
+  const cachedMatch = getCachedSupplierMasterRows().find(
+    (row) =>
+      String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
+  );
+
+  if (cachedMatch) {
+    return String(cachedMatch.state ?? "");
+  }
+
   const match = (supplierRows as readonly MasterRecord[]).find(
     (row) =>
       String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
@@ -1154,54 +1077,6 @@ export const gradeMasterDefinition: MasterDefinition = {
   rows: limitDemoListingRows(gradeRows),
 };
 
-export const customerMasterDefinition: MasterDefinition = {
-  slug: "customer-master",
-  title: "Customer Master",
-  gridColumns: 4,
-  columns: [
-    { key: "customerName", label: "Customer Name" },
-    { key: "companyName", label: "Company Name" },
-    { key: "customerType", label: "Customer Type" },
-    { key: "email", label: "Email" },
-    { key: "phoneNumber", label: "Phone No" },
-    { key: "gstNo", label: "GST No" },
-    { key: "remark", label: "Remark" },
-    { key: "status", label: "Status" },
-    { key: "createdBy", label: "Created By" },
-    { key: "editedBy", label: "Updated By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-  ],
-  filters: [
-    { key: "customerType", label: "Customer Type", options: uniqueOptions(customerRows, "customerType") },
-    { key: "companyName", label: "Company Name", options: uniqueOptions(customerRows, "companyName") },
-  ],
-  fields: [
-    { key: "customerName", label: "Customer Name", type: "text" },
-    { key: "companyName", label: "Company Name", type: "text" },
-    {
-      key: "customerType",
-      label: "Customer Type",
-      type: "select",
-      options: ["Platinum", "Gold", "Silver"],
-    },
-    { key: "dob", label: "Date of Birth", type: "date" },
-    { key: "email", label: "Email", type: "text" },
-    { key: "phoneNumber", label: "Phone Number", type: "text" },
-    { key: "address", label: "Address", type: "text" },
-    { key: "pincode", label: "Pincode", type: "text" },
-    { key: "country", label: "Country", type: "select", options: uniqueOptions(customerRows, "country") },
-    { key: "state", label: "State", type: "select", options: uniqueOptions(customerRows, "state") },
-    { key: "city", label: "City", type: "select", options: uniqueOptions(customerRows, "city") },
-    { key: "gstNo", label: "GST No", type: "text" },
-    { key: "gstUpload", label: "GST Upload", type: "file" },
-    { key: "panNo", label: "PAN No", type: "text" },
-    { key: "panUpload", label: "PAN Upload", type: "file" },
-    { key: "remark", label: "Remark", type: "text" },
-  ],
-  rows: limitDemoListingRows(customerRows),
-};
-
 export const unitMasterDefinition: MasterDefinition = {
   slug: "unit-master",
   title: "Unit Master",
@@ -1226,45 +1101,6 @@ export const unitMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
   rows: limitDemoListingRows(unitRows),
-};
-
-export const supplierMasterDefinition: MasterDefinition = {
-  slug: "supplier-master",
-  title: "Supplier Master",
-  gridColumns: 4,
-  columns: [
-    { key: "supplierName", label: "Supplier Name" },
-    { key: "contactPersonName", label: "Contact Person Name" },
-    { key: "emailAddress", label: "Email" },
-    { key: "mobileNumber", label: "Phone Number" },
-    { key: "gstNo", label: "GST No" },
-    { key: "status", label: "Status" },
-    { key: "createdBy", label: "Created By" },
-    { key: "editedBy", label: "Updated By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-  ],
-  filters: [
-    { key: "country", label: "Country", options: uniqueOptions(supplierRows, "country") },
-    { key: "msmeType", label: "MSME Type", options: uniqueOptions(supplierRows, "msmeType") },
-  ],
-  fields: [
-    { key: "supplierName", label: "Supplier Name", type: "text" },
-    { key: "address", label: "Address", type: "text" },
-    { key: "pincode", label: "Pincode", type: "text" },
-    { key: "country", label: "Country", type: "select", options: uniqueOptions(supplierRows, "country") },
-    { key: "state", label: "State", type: "select", options: uniqueOptions(supplierRows, "state") },
-    { key: "city", label: "City", type: "select", options: uniqueOptions(supplierRows, "city") },
-    { key: "msmeType", label: "MSME Type", type: "text" },
-    { key: "msmeNo", label: "MSME No", type: "text" },
-    { key: "gstNo", label: "GST No", type: "text" },
-    { key: "fscCode", label: "FSC Code", type: "text" },
-    { key: "gstUpload", label: "GST Upload", type: "file" },
-    { key: "panNo", label: "PAN No", type: "text" },
-    { key: "panUpload", label: "PAN Upload", type: "file" },
-    { key: "status", label: "Status", type: "select", options: statusOptions },
-  ],
-  rows: limitDemoListingRows(supplierRows),
 };
 
 export const gstMasterDefinition: MasterDefinition = {
@@ -1407,54 +1243,3 @@ export const transporterAreaOfOperationOptions = uniqueOptions(
   transporterRows,
   "areaOfOperation",
 );
-
-export const transporterMasterDefinition: MasterDefinition = {
-  slug: "transporter-master",
-  title: "Transporter Master",
-  gridColumns: 3,
-  columns: [
-    { key: "srNo", label: "Sr No" },
-    { key: "transporterName", label: "Transporter Name" },
-    { key: "branchName", label: "Branch Name" },
-    { key: "transporterId", label: "Transporter Id" },
-    { key: "type", label: "Type" },
-    { key: "areaOfOperation", label: "Area Of Operation" },
-    { key: "status", label: "Status" },
-    { key: "createdBy", label: "Created By" },
-    { key: "editedBy", label: "Updated By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-  ],
-  filters: [
-    {
-      key: "type",
-      label: "Type",
-      options: transporterTypeOptions,
-    },
-    {
-      key: "areaOfOperation",
-      label: "Area Of Operation",
-      options: transporterAreaOfOperationOptions,
-    },
-    { key: "status", label: "Status", options: statusOptions },
-  ],
-  fields: [
-    { key: "transporterName", label: "Transporter Name", type: "text" },
-    { key: "branchName", label: "Branch Name", type: "text" },
-    { key: "transporterId", label: "Transporter Id", type: "text" },
-    {
-      key: "type",
-      label: "Type",
-      type: "select",
-      options: transporterTypeOptions,
-    },
-    {
-      key: "areaOfOperation",
-      label: "Area Of Operation",
-      type: "select",
-      options: [],
-    },
-    { key: "status", label: "Status", type: "select", options: statusOptions },
-  ],
-  rows: limitDemoListingRows(transporterRows),
-};

@@ -5,10 +5,8 @@ import type {
   EnterpriseTableRow,
 } from "../../../components/data-display/EnterpriseDataTable";
 import { buildLocalMasterDefinition } from "../../masters/shared/localMasterStore";
-import {
-  customerMasterDefinition,
-  itemMasterDefinition,
-} from "../../masters/shared/masterDefinitions";
+import { itemMasterDefinition } from "../../masters/shared/masterDefinitions";
+import { getCachedCustomerMasterRows } from "../../masters/customer-master/api/customerMasterApi";
 import type { MasterFieldDefinition, MasterRecord } from "../../masters/shared";
 import {
   formatAmount,
@@ -271,7 +269,7 @@ export function getCreateOrderFormFields(
 }
 
 export function getOrderCustomerRows(): MasterRecord[] {
-  return buildLocalMasterDefinition(customerMasterDefinition).rows;
+  return getCachedCustomerMasterRows();
 }
 
 export function getOrderCustomerOptions() {

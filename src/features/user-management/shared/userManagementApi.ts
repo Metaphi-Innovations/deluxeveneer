@@ -1,4 +1,5 @@
 import type { MasterFieldValue } from "../../masters/shared";
+import { getCurrentUser } from "../../auth";
 import {
   buildDefaultUserPermissions,
   type UserPermissionFlags,
@@ -327,7 +328,7 @@ export async function updateUserManagementStatus(
     try {
       const current = getCurrentUser();
       const name = `${current.firstName || ""} ${current.lastName || ""}`.trim();
-      updatedByName = name || current.username || current.email || "System";
+      updatedByName = name || current.userName || current.email || "System";
     } catch {
       updatedByName = "System";
     }
@@ -393,6 +394,24 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("USER_MANAGEMENT_UPDATE"),
   };
 
+  permissions.customerMaster = {
+    view: codes.includes("CUSTOMER_MASTER_VIEW"),
+    create: codes.includes("CUSTOMER_MASTER_CREATE"),
+    edit: codes.includes("CUSTOMER_MASTER_UPDATE"),
+  };
+
+  permissions.supplierMaster = {
+    view: codes.includes("SUPPLIER_MASTER_VIEW"),
+    create: codes.includes("SUPPLIER_MASTER_CREATE"),
+    edit: codes.includes("SUPPLIER_MASTER_UPDATE"),
+  };
+
+  permissions.transporterMaster = {
+    view: codes.includes("TRANSPORTER_MASTER_VIEW"),
+    create: codes.includes("TRANSPORTER_MASTER_CREATE"),
+    edit: codes.includes("TRANSPORTER_MASTER_UPDATE"),
+  };
+
   return {
     id: item.id,
     userName: item.username,
@@ -451,6 +470,30 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
   // Add status change permission if create or edit are enabled
   if (um?.create || um?.edit) {
     codes.push("USER_MANAGEMENT_STATUS_CHANGE");
+  }
+
+  const customer = permissions.customerMaster;
+  if (customer?.view) codes.push("CUSTOMER_MASTER_VIEW");
+  if (customer?.create) codes.push("CUSTOMER_MASTER_CREATE");
+  if (customer?.edit) codes.push("CUSTOMER_MASTER_UPDATE");
+  if (customer?.create || customer?.edit) {
+    codes.push("CUSTOMER_MASTER_STATUS_CHANGE");
+  }
+
+  const supplier = permissions.supplierMaster;
+  if (supplier?.view) codes.push("SUPPLIER_MASTER_VIEW");
+  if (supplier?.create) codes.push("SUPPLIER_MASTER_CREATE");
+  if (supplier?.edit) codes.push("SUPPLIER_MASTER_UPDATE");
+  if (supplier?.create || supplier?.edit) {
+    codes.push("SUPPLIER_MASTER_STATUS_CHANGE");
+  }
+
+  const transporter = permissions.transporterMaster;
+  if (transporter?.view) codes.push("TRANSPORTER_MASTER_VIEW");
+  if (transporter?.create) codes.push("TRANSPORTER_MASTER_CREATE");
+  if (transporter?.edit) codes.push("TRANSPORTER_MASTER_UPDATE");
+  if (transporter?.create || transporter?.edit) {
+    codes.push("TRANSPORTER_MASTER_STATUS_CHANGE");
   }
 
   return Array.from(new Set(codes));

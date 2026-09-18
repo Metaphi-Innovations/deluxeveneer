@@ -39,13 +39,17 @@ interface MasterFormPageProps {
   beforeSave?: () => boolean;
   cancelTo?: string;
   definition: MasterDefinition;
+  errorMessage?: string;
+  loading?: boolean;
   mode: "add" | "edit" | "view";
+  /** When provided, used instead of looking up the row from local mock store. */
+  record?: MasterRecord;
   onSave?: (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
     row?: MasterRecord;
     values: Record<string, MasterFieldValue>;
-  }) => void;
+  }) => void | Promise<void>;
 }
 
 const remarkField: MasterFieldDefinition = {
@@ -68,7 +72,7 @@ function getMasterFormDefinitionForMode(
   mode: "add" | "edit" | "view",
 ): MasterDefinition {
   const fields =
-    mode === "add"
+    mode === "add" || mode === "edit"
       ? definition.fields.filter((field) => field.key !== "status")
       : definition.fields;
 
@@ -84,8 +88,11 @@ export function MasterFormPage({
   beforeSave,
   cancelTo,
   definition,
+  errorMessage = "",
+  loading = false,
   mode,
   onSave,
+  record,
 }: MasterFormPageProps) {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -107,20 +114,47 @@ export function MasterFormPage({
   const row =
     mode === "add"
       ? undefined
-      : localDefinition.rows.find((record) => record.id === params.id);
+      : (record ??
+        localDefinition.rows.find((entry) => entry.id === params.id));
 
   const [values, setValues] = useState<Record<string, MasterFieldValue>>(() =>
     buildMasterInitialValues(localDefinition, row),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const formDefinition = getMasterFormDefinitionForMode(localDefinition, mode);
   const handleCancel = () => {
     navigate(cancelPath, { replace: true });
   };
 
   useEffect(() => {
-    setValues(buildMasterInitialValues(localDefinition, row));
+    const nextValues = buildMasterInitialValues(localDefinition, row);
+
+    if (row) {
+      const phoneCountryCode = row.phoneNumberCountryCode;
+      if (typeof phoneCountryCode === "string" && phoneCountryCode.trim()) {
+        nextValues.phoneNumberCountryCode = phoneCountryCode;
+      }
+    }
+
+    setValues(nextValues);
   }, [localDefinition, row]);
+
+  if (loading) {
+    return (
+      <MasterPageShell
+        breadcrumbs={[
+          { label: "Masters", to: "/masters" },
+          { label: localDefinition.title, to: paths.list },
+          { label: mode === "add" ? "Add" : mode === "edit" ? "Edit" : "View" },
+        ]}
+        title={getMasterPageTitle(localDefinition, mode)}
+      >
+        <Alert severity="info">Loading record...</Alert>
+      </MasterPageShell>
+    );
+  }
 
   if ((mode === "edit" || mode === "view") && !row) {
     return (
@@ -134,7 +168,8 @@ export function MasterFormPage({
       >
         <MasterSectionCard>
           <Typography variant="body2" color="text.secondary">
-            The requested record could not be found in the mock dataset.
+            {errorMessage ||
+              "The requested record could not be found."}
           </Typography>
         </MasterSectionCard>
       </MasterPageShell>
@@ -158,12 +193,13 @@ export function MasterFormPage({
     );
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (mode === "view") {
       return;
     }
 
     setHasSubmitted(true);
+    setSaveError("");
 
     const canSaveAdditionalContent = beforeSave?.() ?? true;
 
@@ -182,26 +218,36 @@ export function MasterFormPage({
 
     const saveContext = row
       ? {
-          definition: localDefinition,
-          mode,
-          row,
-          values: valuesToSave,
-        }
+        definition: localDefinition,
+        mode,
+        row,
+        values: valuesToSave,
+      }
       : {
-          definition: localDefinition,
-          mode,
-          values: valuesToSave,
-        };
+        definition: localDefinition,
+        mode,
+        values: valuesToSave,
+      };
 
-    if (onSave) {
-      onSave(saveContext);
-    } else if (row) {
-      updateLocalMasterRecord(localDefinition, row, valuesToSave);
-    } else {
-      createLocalMasterRecord(localDefinition, valuesToSave);
+    try {
+      setIsSaving(true);
+
+      if (onSave) {
+        await onSave(saveContext);
+      } else if (row) {
+        updateLocalMasterRecord(localDefinition, row, valuesToSave);
+      } else {
+        createLocalMasterRecord(localDefinition, valuesToSave);
+      }
+
+      navigate(paths.list);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save record.",
+      );
+    } finally {
+      setIsSaving(false);
     }
-
-    navigate(paths.list);
   };
 
   const handleFieldChange = (key: string, value: MasterFieldValue) => {
@@ -255,6 +301,10 @@ export function MasterFormPage({
             gap: theme.spacing(1.5),
           })}
         >
+          {errorMessage || saveError ? (
+            <Alert severity="error">{errorMessage || saveError}</Alert>
+          ) : null}
+
           <MasterFormFields
             compact
             definition={formDefinition}
@@ -310,6 +360,7 @@ export function MasterFormPage({
                   type="button"
                   variant="outlined"
                   onClick={handleCancel}
+                  disabled={isSaving}
                   sx={(theme) => mastersFormOutlinedButtonSx(theme)}
                 >
                   Cancel
@@ -319,10 +370,13 @@ export function MasterFormPage({
                   type="button"
                   variant="contained"
                   startIcon={<Save size={16} />}
-                  onClick={handleSave}
+                  onClick={() => {
+                    void handleSave();
+                  }}
+                  disabled={isSaving}
                   sx={(theme) => mastersFormPrimaryButtonSx(theme)}
                 >
-                  Save
+                  {isSaving ? "Saving..." : "Save"}
                 </Button>
               </>
             )}

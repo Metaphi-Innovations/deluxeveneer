@@ -30,6 +30,7 @@ export interface SupplierContactPersonTableHandle {
 interface SupplierContactPersonTableProps {
   contacts: SupplierContactPerson[];
   onChange: (contacts: SupplierContactPerson[]) => void;
+  readOnly?: boolean;
 }
 
 const contactColumns: Array<{
@@ -87,7 +88,10 @@ function hasContactValidationErrors(
 export const SupplierContactPersonTable = forwardRef<
   SupplierContactPersonTableHandle,
   SupplierContactPersonTableProps
->(function SupplierContactPersonTable({ contacts, onChange }, ref) {
+>(function SupplierContactPersonTable(
+  { contacts, onChange, readOnly = false },
+  ref,
+) {
   const theme = useTheme();
   const [draftContact, setDraftContact] =
     useState<SupplierContactPerson>(emptyContact);
@@ -97,11 +101,22 @@ export const SupplierContactPersonTable = forwardRef<
   const [tableError, setTableError] = useState("");
 
   const handleAddContact = () => {
+    if (readOnly) {
+      return;
+    }
+
     const errors = getContactValidationErrors(draftContact);
 
     setDraftErrors(errors);
 
     if (hasContactValidationErrors(errors)) {
+      return;
+    }
+
+    if (!draftContact.contactPersonName.trim()) {
+      setDraftErrors({
+        contactPersonName: "Contact person name is required.",
+      });
       return;
     }
 
@@ -111,12 +126,16 @@ export const SupplierContactPersonTable = forwardRef<
     setTableError("");
   };
 
-  useImperativeHandle(ref, () => ({
-    validate: () => {
-      setTableError("");
-      return true;
-    },
-  }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      validate: () => {
+        setTableError("");
+        return true;
+      },
+    }),
+    [],
+  );
 
   return (
     <Stack
@@ -183,79 +202,96 @@ export const SupplierContactPersonTable = forwardRef<
                   <ColumnLabel label={column.label} required />
                 </TableCell>
               ))}
-              <TableCell width={96}>Action</TableCell>
+              {!readOnly ? <TableCell width={96}>Action</TableCell> : null}
             </TableRow>
           </TableHead>
 
           <TableBody>
-            <TableRow>
-              {contactColumns.map((column) => (
-                <TableCell key={column.key}>
-                  <TextField
-                    fullWidth
-                    error={Boolean(draftErrors[column.key])}
-                    helperText={draftErrors[column.key] ?? ""}
-                    value={draftContact[column.key]}
-                    onChange={(event) =>
-                      setDraftContact((current) => ({
-                        ...current,
-                        [column.key]:
-                          column.key === "phoneNumber"
-                            ? event.target.value.replace(/\D/g, "").slice(0, 10)
-                            : event.target.value,
-                      }))
-                    }
-                    sx={getCompactFieldSx(
-                      theme,
-                      draftErrors[column.key] ? "error" : "default",
-                    )}
-                  />
+            {!readOnly ? (
+              <TableRow>
+                {contactColumns.map((column) => (
+                  <TableCell key={column.key}>
+                    <TextField
+                      fullWidth
+                      error={Boolean(draftErrors[column.key])}
+                      helperText={draftErrors[column.key] ?? ""}
+                      value={draftContact[column.key]}
+                      onChange={(event) =>
+                        setDraftContact((current) => ({
+                          ...current,
+                          [column.key]:
+                            column.key === "phoneNumber"
+                              ? event.target.value.replace(/\D/g, "").slice(0, 10)
+                              : event.target.value,
+                        }))
+                      }
+                      sx={getCompactFieldSx(
+                        theme,
+                        draftErrors[column.key] ? "error" : "default",
+                      )}
+                    />
+                  </TableCell>
+                ))}
+                <TableCell>
+                  <IconButton
+                    aria-label="Add contact person"
+                    onClick={handleAddContact}
+                    size="small"
+                    sx={{
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                      borderRadius: `${theme.customTokens.radius.md}px`,
+                      color: theme.customTokens.brand.primary,
+                      height: 30,
+                      width: 30,
+                      "&:hover": {
+                        backgroundColor:
+                          theme.customTokens.navigation.hoverBackground,
+                        borderColor: theme.customTokens.brand.primary,
+                      },
+                    }}
+                    type="button"
+                  >
+                    <Plus color={theme.customTokens.brand.primary} size={15} />
+                  </IconButton>
                 </TableCell>
-              ))}
-              <TableCell>
-                <IconButton
-                  aria-label="Add contact person"
-                  onClick={handleAddContact}
-                  size="small"
-                  sx={{
-                    border: `1px solid ${theme.customTokens.borders.default}`,
-                    borderRadius: `${theme.customTokens.radius.md}px`,
-                    color: theme.customTokens.brand.primary,
-                    height: 30,
-                    width: 30,
-                    "&:hover": {
-                      backgroundColor: theme.customTokens.navigation.hoverBackground,
-                      borderColor: theme.customTokens.brand.primary,
-                    },
-                  }}
-                  type="button"
-                >
-                  <Plus color={theme.customTokens.brand.primary} size={15} />
-                </IconButton>
-              </TableCell>
-            </TableRow>
+              </TableRow>
+            ) : null}
+
+            {contacts.length === 0 && readOnly ? (
+              <TableRow>
+                <TableCell colSpan={contactColumns.length}>
+                  <Typography variant="body2" color="text.secondary">
+                    No contact persons added.
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : null}
 
             {contacts.map((contact, index) => (
               <TableRow key={`${contact.contactPersonName}-${index}`}>
                 {contactColumns.map((column) => (
                   <TableCell key={column.key}>{contact[column.key]}</TableCell>
                 ))}
-                <TableCell>
-                  <IconButton
-                    aria-label="Remove contact person"
-                    onClick={() =>
-                      onChange(
-                        contacts.filter((_, contactIndex) => contactIndex !== index),
-                      )
-                    }
-                    size="small"
-                    sx={{
-                      color: theme.palette.error.main,
-                    }}
-                  >
-                    <Trash2 size={15} />
-                  </IconButton>
-                </TableCell>
+                {!readOnly ? (
+                  <TableCell>
+                    <IconButton
+                      aria-label="Remove contact person"
+                      onClick={() =>
+                        onChange(
+                          contacts.filter(
+                            (_, contactIndex) => contactIndex !== index,
+                          ),
+                        )
+                      }
+                      size="small"
+                      sx={{
+                        color: theme.palette.error.main,
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </IconButton>
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>
