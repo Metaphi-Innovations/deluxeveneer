@@ -1173,7 +1173,7 @@ function getFieldValidationError(
     }
   }
 
-  if (isGstOrHsnNumericField(field) && !/^\d+$/.test(textValue)) {
+  if (isGstOrHsnNumericField(field) && field.type !== "select" && !/^\d+$/.test(textValue)) {
     return `${getDisplayFieldLabel(field.label)} should contain numbers only.`;
   }
 
@@ -1246,7 +1246,7 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
     return value.replace(/\D/g, "").slice(0, 10);
   }
 
-  if (isGstOrHsnNumericField(field)) {
+  if (isGstOrHsnNumericField(field) && field.type !== "select") {
     return value.replace(/\D/g, "");
   }
 

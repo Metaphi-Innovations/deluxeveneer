@@ -26,9 +26,13 @@ import { formatMasterValue, getMasterPaths } from "./utils";
 
 interface MasterListingPageProps {
   definition: MasterDefinition;
+  onStatusChange?: (row: MasterRecord, checked: boolean) => Promise<void> | void;
 }
 
-export function MasterListingPage({ definition }: MasterListingPageProps) {
+export function MasterListingPage({
+  definition,
+  onStatusChange,
+}: MasterListingPageProps) {
   const theme = useTheme();
   const localDefinition = useMemo(
     () => buildLocalMasterDefinition(definition),
@@ -60,9 +64,13 @@ export function MasterListingPage({ definition }: MasterListingPageProps) {
   const addButtonLabel = `Add ${entityLabel}`;
   const searchPlaceholder = `Search ${entityLabel.toLowerCase()}s...`;
 
-  const handleStatusChange = (row: MasterRecord, checked: boolean) => {
+  const handleStatusChange = async (row: MasterRecord, checked: boolean) => {
     updateLocalMasterStatus(localDefinition, row, checked);
+    if (onStatusChange) {
+      await onStatusChange(row, checked);
+    }
   };
+
 
   return (
     <MasterPageShell

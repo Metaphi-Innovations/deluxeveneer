@@ -182,16 +182,16 @@ export function MasterFormPage({
 
     const saveContext = row
       ? {
-          definition: localDefinition,
-          mode,
-          row,
-          values: valuesToSave,
-        }
+        definition: localDefinition,
+        mode,
+        row,
+        values: valuesToSave,
+      }
       : {
-          definition: localDefinition,
-          mode,
-          values: valuesToSave,
-        };
+        definition: localDefinition,
+        mode,
+        values: valuesToSave,
+      };
 
     if (onSave) {
       onSave(saveContext);
