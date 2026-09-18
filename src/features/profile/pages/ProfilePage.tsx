@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Box, Button, Stack, Typography } from "@mui/material";
+import { Avatar, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { Save } from "lucide-react";
 import { useNavigate } from "react-router";
 
@@ -20,7 +20,11 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
-import { userManagementFormFields } from "../../user-management/shared";
+import {
+  userManagementFormFields,
+  fetchUserManagementDetail,
+  updateUserManagementRecord,
+} from "../../user-management/shared";
 
 export function ProfilePage() {
   const navigate = useNavigate();
@@ -31,15 +35,65 @@ export function ProfilePage() {
     buildProfileInitialValues(currentUser),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
   const profileFields = useMemo(
     () => withProfileRoleOptions(userManagementFormFields, roleOptions, currentUser.role),
     [currentUser.role, roleOptions],
   );
 
+  // Fetch fresh profile data directly from database on mount
   useEffect(() => {
-    setValues(buildProfileInitialValues(currentUser));
-  }, [currentUser]);
+    let ignore = false;
+    const activeUser = getCurrentUser();
+
+    if (activeUser?.id) {
+      setIsLoadingProfile(true);
+      fetchUserManagementDetail(activeUser.id)
+        .then((detail) => {
+          if (!ignore && detail) {
+            const syncedUser: AuthenticatedUserProfile = {
+              ...activeUser,
+              userName: detail.userName || activeUser.userName,
+              firstName: detail.firstName || activeUser.firstName,
+              lastName: detail.lastName || activeUser.lastName,
+              email: detail.email || activeUser.email,
+              phoneNo: detail.phoneNo || activeUser.phoneNo,
+              department: detail.department || activeUser.department,
+              dateOfBirth: detail.dateOfBirth,
+              age: detail.age || activeUser.age,
+              bloodGroup: detail.bloodGroup || activeUser.bloodGroup,
+              address: detail.address || activeUser.address,
+              pincode: detail.pincode || activeUser.pincode,
+              country: detail.country || activeUser.country,
+              state: detail.state || activeUser.state,
+              city: detail.city || activeUser.city,
+              aadhaarNo: detail.aadhaarNo || activeUser.aadhaarNo,
+              aadhaarUpload: detail.aadhaarUpload || activeUser.aadhaarUpload,
+              panNo: detail.panNo || activeUser.panNo,
+              panUpload: detail.panUpload || activeUser.panUpload,
+              remarks: detail.remarks || activeUser.remarks,
+            };
+            setCurrentUser(syncedUser);
+            saveCurrentUser(syncedUser);
+            setValues(buildProfileInitialValues(syncedUser));
+          }
+        })
+        .catch((err) => {
+          console.error("[ProfilePage] Failed to fetch profile from database:", err);
+        })
+        .finally(() => {
+          if (!ignore) {
+            setIsLoadingProfile(false);
+          }
+        });
+    }
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -80,7 +134,7 @@ export function ProfilePage() {
     closeProfilePage(navigate);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setHasSubmitted(true);
 
     if (hasFormFieldErrors(profileFields, values)) {
@@ -88,10 +142,47 @@ export function ProfilePage() {
     }
 
     const nextUser = buildProfileFromValues(values, currentUser);
-    saveCurrentUser(nextUser);
-    setCurrentUser(nextUser);
-    setValues(buildProfileInitialValues(nextUser));
-    closeProfilePage(navigate);
+
+    try {
+      setIsSaving(true);
+      // Persist directly to backend database if user has an ID
+      if (currentUser.id) {
+        const updatedDetail = await updateUserManagementRecord(currentUser.id, values);
+        if (updatedDetail) {
+          nextUser.userName = updatedDetail.userName || nextUser.userName;
+          nextUser.firstName = updatedDetail.firstName || nextUser.firstName;
+          nextUser.lastName = updatedDetail.lastName || nextUser.lastName;
+          nextUser.email = updatedDetail.email || nextUser.email;
+          nextUser.phoneNo = updatedDetail.phoneNo || nextUser.phoneNo;
+          nextUser.department = updatedDetail.department || nextUser.department;
+          nextUser.dateOfBirth = updatedDetail.dateOfBirth;
+          nextUser.age = updatedDetail.age || nextUser.age;
+          nextUser.bloodGroup = updatedDetail.bloodGroup || nextUser.bloodGroup;
+          nextUser.address = updatedDetail.address || nextUser.address;
+          nextUser.pincode = updatedDetail.pincode || nextUser.pincode;
+          nextUser.country = updatedDetail.country || nextUser.country;
+          nextUser.state = updatedDetail.state || nextUser.state;
+          nextUser.city = updatedDetail.city || nextUser.city;
+          nextUser.aadhaarNo = updatedDetail.aadhaarNo || nextUser.aadhaarNo;
+          nextUser.aadhaarUpload = updatedDetail.aadhaarUpload || nextUser.aadhaarUpload;
+          nextUser.panNo = updatedDetail.panNo || nextUser.panNo;
+          nextUser.panUpload = updatedDetail.panUpload || nextUser.panUpload;
+          nextUser.remarks = updatedDetail.remarks || nextUser.remarks;
+        }
+      }
+      saveCurrentUser(nextUser);
+      setCurrentUser(nextUser);
+      setValues(buildProfileInitialValues(nextUser));
+      closeProfilePage(navigate);
+    } catch (error) {
+      console.error("[ProfilePage] Failed to save profile to database:", error);
+      // Fallback save to session
+      saveCurrentUser(nextUser);
+      setCurrentUser(nextUser);
+      closeProfilePage(navigate);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -169,11 +260,12 @@ export function ProfilePage() {
             <Button
               type="button"
               onClick={handleSave}
-              startIcon={<Save size={16} />}
+              disabled={isSaving}
+              startIcon={isSaving ? <CircularProgress size={16} color="inherit" /> : <Save size={16} />}
               sx={recordFormActionButtonSx}
               variant="contained"
             >
-              Save
+              {isSaving ? "Saving..." : "Save"}
             </Button>
           </Box>
         </Stack>

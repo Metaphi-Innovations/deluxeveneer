@@ -718,14 +718,67 @@ export function MasterFormFields({
                   );
                 }
 
+                const fileUrl =
+                  uploadedFieldValue?.previewUrl ||
+                  (typeof fieldValue === "string" && fieldValue.trim().length > 0
+                    ? fieldValue.trim()
+                    : "");
+                const isImage =
+                  fileUrl.startsWith("data:image/") ||
+                  fileUrl.endsWith(".png") ||
+                  fileUrl.endsWith(".jpg") ||
+                  fileUrl.endsWith(".jpeg") ||
+                  fileUrl.endsWith(".webp") ||
+                  uploadedFieldValue?.mimeType?.startsWith("image/");
+
                 return (
                   <Box
                     sx={(currentTheme) => ({
                       display: "flex",
                       gap: currentTheme.spacing(1),
                       alignItems: "center",
+                      width: "100%",
                     })}
                   >
+                    {isImage && fileUrl ? (
+                      <Box
+                        onClick={() => {
+                          setPreviewState({
+                            mimeType: "image/jpeg",
+                            name: fileName || "Preview",
+                            previewUrl: fileUrl,
+                          });
+                        }}
+                        sx={(currentTheme) => ({
+                          width: 36,
+                          height: 36,
+                          minWidth: 36,
+                          borderRadius: `${currentTheme.customTokens.radius.md}px`,
+                          overflow: "hidden",
+                          border: `1px solid ${currentTheme.customTokens.borders.default}`,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: currentTheme.palette.background.paper,
+                          transition: "transform 0.15s ease",
+                          "&:hover": {
+                            transform: "scale(1.08)",
+                          },
+                        })}
+                      >
+                        <img
+                          src={fileUrl}
+                          alt={fileName}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </Box>
+                    ) : null}
+
                     <input
                       ref={(element) => {
                         fileInputRefs.current[field.key] = element;
@@ -771,6 +824,7 @@ export function MasterFormFields({
                       value={fileName}
                       sx={{
                         ...resolveFieldSx(fieldHasRequiredError ? "error" : "readOnly"),
+                        flex: 1,
                         "& .MuiOutlinedInput-root": {
                           height: theme.spacing(4.5),
                           minHeight: theme.spacing(4.5),

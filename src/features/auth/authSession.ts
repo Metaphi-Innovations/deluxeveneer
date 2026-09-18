@@ -28,6 +28,10 @@ export interface AuthenticatedUserProfile {
   lastName: string;
   phoneNo: string;
   pincode: string;
+  aadhaarNo?: string;
+  aadhaarUpload?: string;
+  panNo?: string;
+  panUpload?: string;
   permissions: Record<string, UserPermissionFlags>;
   remarks: string;
   role: string;
@@ -344,6 +348,10 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
     lastName: user.lastName || "",
     phoneNo: user.phoneNumber || "",
     pincode: user.pincode || "",
+    aadhaarNo: user.aadhaarNo || "",
+    aadhaarUpload: user.aadhaarDocumentUrl || "",
+    panNo: user.panNo || "",
+    panUpload: user.panDocumentUrl || "",
     permissions,
     remarks: user.remarks || "",
     role: isSuperAdmin ? "Super Admin" : "Staff",

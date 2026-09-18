@@ -22,6 +22,7 @@ interface BackendUserListItem {
     id: string;
     name: string;
   } | null;
+  remarks?: string | null;
   isActive: boolean;
   createdBy: {
     id: string;
@@ -303,7 +304,14 @@ export async function updateUserManagementStatus(
   status: "ACTIVE" | "INACTIVE",
 ): Promise<{ id: string; isActive: boolean; statusLabel: string; updatedBy: string; updatedDate: Date }> {
   const isActive = status === "ACTIVE";
-  const res = await apiRequest<ApiResponse<{ id: string; isActive: boolean }>>(`/users/${id}/status`, {
+  const res = await apiRequest<
+    ApiResponse<{
+      id: string;
+      isActive: boolean;
+      updatedAt?: string;
+      updatedBy?: { id: string; firstName: string; lastName: string } | null;
+    }>
+  >(`/users/${id}/status`, {
     method: "PATCH",
     body: { isActive },
   });
@@ -312,12 +320,25 @@ export async function updateUserManagementStatus(
     throw new Error(res?.message || "Failed to update user status.");
   }
 
+  let updatedByName = "";
+  if (res.data.updatedBy?.firstName || res.data.updatedBy?.lastName) {
+    updatedByName = `${res.data.updatedBy.firstName || ""} ${res.data.updatedBy.lastName || ""}`.trim();
+  } else {
+    try {
+      const current = getCurrentUser();
+      const name = `${current.firstName || ""} ${current.lastName || ""}`.trim();
+      updatedByName = name || current.username || current.email || "System";
+    } catch {
+      updatedByName = "System";
+    }
+  }
+
   return {
     id: res.data.id,
     isActive: res.data.isActive,
     statusLabel: res.data.isActive ? "Active" : "Inactive",
-    updatedBy: "System",
-    updatedDate: new Date(),
+    updatedBy: updatedByName,
+    updatedDate: res.data.updatedAt ? new Date(res.data.updatedAt) : new Date(),
   };
 }
 
@@ -349,7 +370,7 @@ function mapBackendListItemToRecord(item: BackendUserListItem): UserManagementRe
     dateOfBirth: new Date(),
     age: "",
     phoneNo: item.phoneNumber || "",
-    remarks: "",
+    remarks: item.remarks || "",
     createdBy,
     createdDate: new Date(item.createdAt),
     isActive: item.isActive,
