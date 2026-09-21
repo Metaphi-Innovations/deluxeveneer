@@ -1,10 +1,12 @@
 import type { MasterDefinition, MasterRecord } from "./types";
 import { createMasterRows } from "./utils";
 import { getCachedSupplierMasterRows } from "../supplier-master/api/supplierMasterApi";
+import { getCachedTransporterMasterRows } from "../transporter-master/api/transporterMasterApi";
 
 export { customerMasterDefinition } from "../customer-master/customerMasterDefinition";
 export { supplierMasterDefinition } from "../supplier-master/supplierMasterDefinition";
 export { transporterMasterDefinition } from "../transporter-master/transporterMasterDefinition";
+export { warehouseLocationMasterDefinition } from "../warehouse-location-master/warehouseLocationMasterDefinition";
 
 const asDate = (value: string) => new Date(value);
 
@@ -466,152 +468,6 @@ const unitRows = withAuditFields(createMasterRows("unit-master", [
   },
 ]));
 
-const supplierRows = withAuditFields(createMasterRows("supplier-master", [
-  {
-    supplierName: "Arihant Veneers LLP",
-    supplierType: "Domestic",
-    contactPersonName: "Karan Shah",
-    designation: "Sales Manager",
-    mobileNumber: "+91 98250 11223",
-    emailAddress: "karan@arihantveneers.in",
-    address: "Narol Industrial Estate",
-    pincode: "380051",
-    city: "Ahmedabad",
-    state: "Gujarat",
-    country: "India",
-    msmeType: "Small",
-    msmeNo: "UDYAM-GJ-10-1122334",
-    gstNo: "24AAWFA2214F1Z5",
-    gstUpload: "arihant-gst.pdf",
-    panNo: "AAWFA2214F",
-    panUpload: "arihant-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-04-12"),
-    updatedDate: asDate("2026-05-07"),
-  },
-  {
-    supplierName: "Baltic Timber Supply",
-    supplierType: "Import",
-    contactPersonName: "Elina Markova",
-    designation: "Export Coordinator",
-    mobileNumber: "+371 22 455 881",
-    emailAddress: "elina@baltictimber.eu",
-    address: "Riga Export Terminal",
-    pincode: "100001",
-    city: "Riga",
-    state: "Riga",
-    country: "Latvia",
-    msmeType: "Corporate",
-    msmeNo: "EU-CORP-771092",
-    gstNo: "LT-EXIM-771092",
-    gstUpload: "baltic-gst.pdf",
-    panNo: "BTSUP7710K",
-    panUpload: "baltic-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-04-27"),
-    updatedDate: asDate("2026-05-20"),
-  },
-  {
-    supplierName: "City Timber Traders",
-    supplierType: "Domestic",
-    contactPersonName: "Nitin Arora",
-    designation: "Proprietor",
-    mobileNumber: "+91 98101 44770",
-    emailAddress: "nitin@citytimber.in",
-    address: "Karol Bagh Timber Market",
-    pincode: "110001",
-    city: "Delhi",
-    state: "Delhi",
-    country: "India",
-    msmeType: "Medium",
-    msmeNo: "UDYAM-DL-05-7784510",
-    gstNo: "07AAKFC5561N1Z8",
-    gstUpload: "city-timber-gst.pdf",
-    panNo: "AAKFC5561N",
-    panUpload: "city-timber-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-10"),
-    updatedDate: asDate("2026-05-29"),
-  },
-  {
-    supplierName: "Nordic Veneer House",
-    supplierType: "Import",
-    contactPersonName: "Mikael Sorensen",
-    designation: "Account Director",
-    mobileNumber: "+45 31 77 9821",
-    emailAddress: "mikael@nordicveneer.dk",
-    address: "Aarhus Port",
-    pincode: "800000",
-    city: "Aarhus",
-    state: "Central Denmark",
-    country: "Denmark",
-    msmeType: "Corporate",
-    msmeNo: "EU-CORP-883214",
-    gstNo: "DK-EXIM-883214",
-    gstUpload: "nordic-gst.pdf",
-    panNo: "NVHOU8832Q",
-    panUpload: "nordic-pan.pdf",
-    status: "Inactive",
-    createdEditedBy: "Aditi Desai",
-    updatedBy: "Atharva Patil",
-    createdEditedDate: asDate("2026-05-24"),
-    updatedDate: asDate("2026-06-08"),
-  },
-]));
-
-const transporterRows = withAuditFields(createMasterRows("transporter-master", [
-  {
-    transporterName: "Amardeep Cargo Logistic",
-    branchName: "Ahmedabad",
-    transporterId: "TRN-AMD-001",
-    type: "Road",
-    areaOfOperation: "Ahmedabad",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-05-04"),
-    updatedDate: asDate("2026-06-02"),
-  },
-  {
-    transporterName: "National Freight Carrier",
-    branchName: "Mumbai",
-    transporterId: "TRN-NFC-014",
-    type: "Road",
-    areaOfOperation: "Mumbai",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-05-12"),
-    updatedDate: asDate("2026-06-08"),
-  },
-  {
-    transporterName: "Deluxe Transport Services",
-    branchName: "Surat",
-    transporterId: "TRN-DTS-021",
-    type: "Road",
-    areaOfOperation: "Surat",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-21"),
-    updatedDate: asDate("2026-06-15"),
-  },
-  {
-    transporterName: "Blue Sky Air Cargo",
-    branchName: "Delhi",
-    transporterId: "TRN-BSA-032",
-    type: "Air",
-    areaOfOperation: "Delhi",
-    createdEditedBy: "Aditi Desai",
-    updatedBy: "Atharva Patil",
-    createdEditedDate: asDate("2026-06-01"),
-    updatedDate: asDate("2026-06-20"),
-  },
-]));
-
 const gstRows = withAuditFields(createMasterRows("gst-master", [
   {
     gstPercentage: "5%",
@@ -691,57 +547,6 @@ const hsnRows = withAuditFields(createMasterRows("hsn-master", [
     updatedBy: "Atharva Patil",
     createdEditedDate: asDate("2026-05-25"),
     updatedDate: asDate("2026-06-08"),
-  },
-]));
-
-const warehouseRows = withAuditFields(createMasterRows("warehouse-location-master", [
-  {
-    warehouseName: "Warehouse A",
-    warehouseCode: "WH-A-01",
-    warehouseType: "Inward",
-    status: "Active",
-    address: "Plot 18, GIDC Estate, Changodar",
-    city: "Ahmedabad",
-    pincode: "382213",
-    state: "Gujarat",
-    country: "India",
-    remark: "Primary inward warehouse for veneer receipts.",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-04-13"),
-    updatedDate: asDate("2026-05-05"),
-  },
-  {
-    warehouseName: "Warehouse B",
-    warehouseCode: "WH-B-02",
-    warehouseType: "Storage",
-    status: "Active",
-    address: "Shed 9, Timber Market Road, Narol",
-    city: "Ahmedabad",
-    pincode: "382405",
-    state: "Gujarat",
-    country: "India",
-    remark: "Finished inspected stock storage location.",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-04-26"),
-    updatedDate: asDate("2026-05-18"),
-  },
-  {
-    warehouseName: "Warehouse C",
-    warehouseCode: "WH-C-03",
-    warehouseType: "Production",
-    status: "Active",
-    address: "Unit 4, Industrial Layout, Sanand",
-    city: "Sanand",
-    pincode: "382110",
-    state: "Gujarat",
-    country: "India",
-    remark: "Production stage transfer warehouse.",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-09"),
-    updatedDate: asDate("2026-05-28"),
   },
 ]));
 
@@ -948,7 +753,13 @@ export const colorMasterDefinition: MasterDefinition = {
 export const cutMasterOptions = uniqueOptions(cutRows, "cutName");
 export const gradeMasterOptions = uniqueOptions(gradeRows, "gradeName");
 export const gstMasterOptions = uniqueOptions(gstRows, "gstPercentage");
-export const supplierMasterOptions = activeOptions(supplierRows, "supplierName");
+export function getSupplierMasterOptions() {
+  return activeOptions(getCachedSupplierMasterRows(), "supplierName");
+}
+
+/** @deprecated Prefer getSupplierMasterOptions() for live API cache values. */
+export const supplierMasterOptions = getSupplierMasterOptions();
+
 export const currencyMasterOptions = activeOptions(currencyRows, "currencyName");
 export const itemMasterOptions = activeOptions(itemRows, "itemName");
 export const hsnMasterOptions = activeOptions(hsnRows, "hsnCode");
@@ -999,16 +810,7 @@ export function getSupplierState(supplierName: string) {
       String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
   );
 
-  if (cachedMatch) {
-    return String(cachedMatch.state ?? "");
-  }
-
-  const match = (supplierRows as readonly MasterRecord[]).find(
-    (row) =>
-      String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
-  );
-
-  return match ? String(match.state ?? "") : "";
+  return cachedMatch ? String(cachedMatch.state ?? "") : "";
 }
 
 export function getWarehouseAGstMode(
@@ -1159,50 +961,6 @@ export const hsnMasterDefinition: MasterDefinition = {
   rows: limitDemoListingRows(hsnRows, { uniqueKey: "hsnCode" }),
 };
 
-export const warehouseLocationMasterDefinition: MasterDefinition = {
-  slug: "warehouse-location-master",
-  title: "Warehouse / Location Master",
-  gridColumns: 4,
-  columns: [
-    { key: "srNo", label: "Sr No" },
-    { key: "warehouseName", label: "Warehouse Name" },
-    { key: "warehouseCode", label: "Warehouse Code" },
-    { key: "status", label: "Status" },
-    { key: "address", label: "Address" },
-    { key: "pincode", label: "Pincode" },
-    { key: "country", label: "Country" },
-    { key: "state", label: "State" },
-    { key: "city", label: "City" },
-    { key: "createdBy", label: "Created By" },
-    { key: "editedBy", label: "Updated By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-  ],
-  filters: [
-    { key: "country", label: "Country", options: uniqueOptions(warehouseRows, "country") },
-    { key: "state", label: "State", options: uniqueOptions(warehouseRows, "state") },
-    { key: "status", label: "Status", options: statusOptions },
-  ],
-  fields: [
-    { key: "warehouseName", label: "Warehouse Name", type: "text" },
-    { key: "warehouseCode", label: "Warehouse Code", type: "text" },
-    {
-      key: "warehouseType",
-      label: "Warehouse Type",
-      type: "select",
-      options: ["Inward", "Storage", "Production"],
-    },
-    { key: "status", label: "Status", type: "select", options: statusOptions },
-    { key: "address", label: "Address", type: "text" },
-    { key: "pincode", label: "Pincode", type: "text" },
-    { key: "country", label: "Country", type: "select", options: uniqueOptions(warehouseRows, "country") },
-    { key: "state", label: "State", type: "select", options: uniqueOptions(warehouseRows, "state") },
-    { key: "city", label: "City", type: "text" },
-    { key: "remark", label: "Remark", type: "text" },
-  ],
-  rows: warehouseRows,
-};
-
 export const currencyMasterDefinition: MasterDefinition = {
   slug: "currency-master",
   title: "Currency Master",
@@ -1232,14 +990,23 @@ export const currencyMasterDefinition: MasterDefinition = {
 
 export const unitMasterOptions = uniqueOptions(unitRows, "unitName");
 
-export const transporterMasterOptions = uniqueOptions(
-  transporterRows,
-  "transporterName",
-);
+export function getTransporterMasterOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "transporterName");
+}
 
-export const transporterTypeOptions = uniqueOptions(transporterRows, "type");
+/** @deprecated Prefer getTransporterMasterOptions() for live API cache values. */
+export const transporterMasterOptions = getTransporterMasterOptions();
 
-export const transporterAreaOfOperationOptions = uniqueOptions(
-  transporterRows,
-  "areaOfOperation",
-);
+export const transporterTypeOptions = ["Road", "Air", "Rail"];
+
+export function getTransporterAreaOfOperationOptions() {
+  return uniqueOptions(
+    getCachedTransporterMasterRows(),
+    "areaOfOperation",
+  );
+}
+
+/** @deprecated Prefer getTransporterAreaOfOperationOptions(). */
+export const transporterAreaOfOperationOptions =
+  getTransporterAreaOfOperationOptions();
+

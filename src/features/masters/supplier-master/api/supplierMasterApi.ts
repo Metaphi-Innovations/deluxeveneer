@@ -66,6 +66,14 @@ export interface SupplierMasterMetaResponse {
 
 export type SupplierMasterDropdownsResponse = SupplierMasterMetaResponse;
 
+export interface SupplierMasterColumnDropdownResponse {
+  column: string;
+  options: Array<{
+    value: string;
+    label: string;
+  }>;
+}
+
 export interface SupplierMasterQueryParams {
   page?: number;
   limit?: number;
@@ -154,27 +162,24 @@ export async function fetchSupplierMasterMeta(): Promise<SupplierMasterMetaRespo
 }
 
 export async function fetchSupplierMasterDropdowns(): Promise<SupplierMasterDropdownsResponse> {
-  try {
-    const res = await apiRequest<ApiResponse<SupplierMasterDropdownsResponse>>(
-      `${BASE_PATH}/dropdowns`,
-    );
-    if (res?.success && res.data) {
-      return {
-        countries: res.data.countries ?? [],
-        states: res.data.states ?? [],
-        cities: res.data.cities ?? [],
-        msmeTypes: res.data.msmeTypes ?? [],
-        columnFilters: res.data.columnFilters ?? {},
-      };
-    }
-  } catch (error) {
-    console.error(
-      "[SupplierMasterApi] fetchSupplierMasterDropdowns error:",
-      error,
-    );
+  return fetchSupplierMasterMeta();
+}
+
+export async function fetchSupplierMasterColumnDropdown(
+  column: string,
+): Promise<SupplierMasterColumnDropdownResponse> {
+  const res = await apiRequest<
+    ApiResponse<SupplierMasterColumnDropdownResponse>
+  >(`${BASE_PATH}/dropdowns?column=${encodeURIComponent(column)}`);
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Unable to load column filter options.");
   }
 
-  return fetchSupplierMasterMeta();
+  return {
+    column: res.data.column ?? column,
+    options: res.data.options ?? [],
+  };
 }
 
 export async function fetchSupplierMasterPaginated(

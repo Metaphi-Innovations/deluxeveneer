@@ -12,8 +12,9 @@ import { isActiveColumnFilter } from "../../../shared/columnFilters";
 import { supplierMasterDefinition } from "../supplierMasterDefinition";
 import {
   createSupplierMasterRecord,
+  fetchSupplierMasterColumnDropdown,
   fetchSupplierMasterDetail,
-  fetchSupplierMasterDropdowns,
+  fetchSupplierMasterMeta,
   fetchSupplierMasterPaginated,
   refreshSupplierMasterCache,
   updateSupplierMasterRecord,
@@ -109,38 +110,60 @@ export function SupplierMasterListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [countryOptions, setCountryOptions] = useState<string[]>([]);
-  const [msmeTypeOptions, setMsmeTypeOptions] = useState<string[]>([]);
+  const hasLoadedRowsRef = useRef(false);
+  const columnDropdownRequestIdRef = useRef(0);
 
   const definition = useMemo(
     () => ({
       ...supplierMasterDefinition,
       filters: supplierMasterDefinition.filters.map((filter) => {
         if (filter.key === "country") {
-          return { ...filter, options: countryOptions };
+          return {
+            ...filter,
+            options: (filterOptionsByColumn.country ?? []).map(
+              (entry) => entry.label,
+            ),
+          };
         }
         if (filter.key === "msmeType") {
-          return { ...filter, options: msmeTypeOptions };
+          return {
+            ...filter,
+            options: (filterOptionsByColumn.msmeType ?? []).map(
+              (entry) => entry.label,
+            ),
+          };
         }
         return filter;
       }),
     }),
-    [countryOptions, msmeTypeOptions],
+    [filterOptionsByColumn],
   );
 
-  useEffect(() => {
-    void fetchSupplierMasterDropdowns().then((dropdowns) => {
-      setCountryOptions(dropdowns.countries.map((entry) => entry.label));
-      setMsmeTypeOptions(dropdowns.msmeTypes.map((entry) => entry.label));
-      setFilterOptionsByColumn(dropdowns.columnFilters ?? {});
-    });
-  }, [reloadKey]);
+  const loadColumnDropdown = useCallback(async (columnKey: string) => {
+    const requestId = ++columnDropdownRequestIdRef.current;
+    setFilterOptionsByColumn({});
+
+    try {
+      const result = await fetchSupplierMasterColumnDropdown(columnKey);
+      if (requestId !== columnDropdownRequestIdRef.current) {
+        return;
+      }
+
+      setFilterOptionsByColumn({
+        [result.column]: result.options,
+      });
+    } catch {
+      // Keep page usable; filter menus can fall back to page-local options.
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
 
     const timer = window.setTimeout(async () => {
-      setIsLoading(true);
+      if (!hasLoadedRowsRef.current) {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       try {
@@ -160,6 +183,7 @@ export function SupplierMasterListPage() {
         if (!ignore) {
           setRows(result.items);
           setTotalCount(result.pagination.total);
+          hasLoadedRowsRef.current = true;
           void refreshSupplierMasterCache(result.items);
         }
       } catch (error) {
@@ -261,6 +285,9 @@ export function SupplierMasterListPage() {
         onSortChange: handleSortChange,
       }}
       columnFilters={columnFilters}
+      onColumnFilterOpen={(columnKey) => {
+        void loadColumnDropdown(columnKey);
+      }}
       onColumnFiltersChange={handleColumnFiltersChange}
       filterOptionsByColumn={filterOptionsByColumn}
       rows={rows}
@@ -320,8 +347,8 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
   );
 
   useEffect(() => {
-    void fetchSupplierMasterDropdowns().then((dropdowns) => {
-      setMsmeTypeOptions(dropdowns.msmeTypes.map((entry) => entry.label));
+    void fetchSupplierMasterMeta().then((meta) => {
+      setMsmeTypeOptions(meta.msmeTypes.map((entry) => entry.label));
     });
   }, []);
 

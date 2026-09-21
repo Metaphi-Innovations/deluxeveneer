@@ -1,0 +1,51 @@
+import type { MasterDefinition } from "../shared/types";
+
+export const warehouseLocationMasterDefinition: MasterDefinition = {
+  slug: "warehouse-location-master",
+  title: "Warehouse / Location Master",
+  gridColumns: 4,
+  columns: [
+    { key: "warehouseName", label: "Warehouse Name" },
+    { key: "warehouseCode", label: "Warehouse Code" },
+    { key: "warehouseType", label: "Warehouse Type" },
+    { key: "address", label: "Address" },
+    { key: "pincode", label: "Pincode" },
+    { key: "country", label: "Country" },
+    { key: "state", label: "State" },
+    { key: "city", label: "City" },
+    { key: "remark", label: "Remark" },
+    { key: "status", label: "Status" },
+    { key: "createdBy", label: "Created By" },
+    { key: "editedBy", label: "Updated By" },
+    { key: "createdDate", label: "Created Date" },
+    { key: "updatedDate", label: "Updated Date" },
+  ],
+  filters: [
+    {
+      key: "warehouseType",
+      label: "Warehouse Type",
+      options: ["Inward", "Storage", "Production"],
+    },
+    { key: "country", label: "Country", options: [] },
+    { key: "state", label: "State", options: [] },
+    { key: "status", label: "Status", options: ["Active", "Inactive"] },
+  ],
+  fields: [
+    { key: "warehouseName", label: "Warehouse Name", type: "text" },
+    { key: "warehouseCode", label: "Warehouse Code", type: "text" },
+    {
+      key: "warehouseType",
+      label: "Warehouse Type",
+      type: "select",
+      options: ["Inward", "Storage", "Production"],
+    },
+    { key: "address", label: "Address", type: "text" },
+    { key: "pincode", label: "Pincode", type: "text" },
+    { key: "country", label: "Country", type: "select", options: [] },
+    { key: "state", label: "State", type: "select", options: [] },
+    { key: "city", label: "City", type: "select", options: [] },
+    { key: "remark", label: "Remark", type: "text" },
+    { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
+  ],
+  rows: [],
+};

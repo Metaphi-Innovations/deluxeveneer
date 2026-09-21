@@ -68,6 +68,14 @@ export interface CustomerMasterMetaResponse {
 
 export type CustomerMasterDropdownsResponse = CustomerMasterMetaResponse;
 
+export interface CustomerMasterColumnDropdownResponse {
+  column: string;
+  options: Array<{
+    value: string;
+    label: string;
+  }>;
+}
+
 export interface CustomerMasterQueryParams {
   page?: number;
   limit?: number;
@@ -148,25 +156,24 @@ export async function fetchCustomerMasterMeta(): Promise<CustomerMasterMetaRespo
 }
 
 export async function fetchCustomerMasterDropdowns(): Promise<CustomerMasterDropdownsResponse> {
-  try {
-    const res = await apiRequest<ApiResponse<CustomerMasterDropdownsResponse>>(
-      `${BASE_PATH}/dropdowns`,
-    );
-    if (res?.success && res.data) {
-      return {
-        customerTypes: res.data.customerTypes ?? [],
-        companyNames: res.data.companyNames ?? [],
-        columnFilters: res.data.columnFilters ?? {},
-      };
-    }
-  } catch (error) {
-    console.error(
-      "[CustomerMasterApi] fetchCustomerMasterDropdowns error:",
-      error,
-    );
+  return fetchCustomerMasterMeta();
+}
+
+export async function fetchCustomerMasterColumnDropdown(
+  column: string,
+): Promise<CustomerMasterColumnDropdownResponse> {
+  const res = await apiRequest<
+    ApiResponse<CustomerMasterColumnDropdownResponse>
+  >(`${BASE_PATH}/dropdowns?column=${encodeURIComponent(column)}`);
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Unable to load column filter options.");
   }
 
-  return fetchCustomerMasterMeta();
+  return {
+    column: res.data.column ?? column,
+    options: res.data.options ?? [],
+  };
 }
 
 export async function fetchCustomerMasterPaginated(

@@ -1,1 +1,0 @@
-export { transporterMasterDefinition } from "../transporterMasterDefinition";

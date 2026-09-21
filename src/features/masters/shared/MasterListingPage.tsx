@@ -60,6 +60,8 @@ interface MasterListingPageProps {
     string,
     Array<{ value: string; label: string }>
   >;
+  /** Called when a column filter menu is opened (lazy-load options). */
+  onColumnFilterOpen?: (columnKey: string) => void;
 }
 
 export function MasterListingPage({
@@ -76,6 +78,7 @@ export function MasterListingPage({
   columnFilters,
   onColumnFiltersChange,
   filterOptionsByColumn,
+  onColumnFilterOpen,
 }: MasterListingPageProps) {
   const localDefinition = useMemo(
     () => buildLocalMasterDefinition(definition),
@@ -176,7 +179,7 @@ export function MasterListingPage({
           pt: theme.spacing(0.5),
         })}
       >
-        {loading ? (
+        {loading && sourceRows.length === 0 ? (
           <Alert severity="info">Loading {entityLabel.toLowerCase()}s...</Alert>
         ) : (
           <MasterTable
@@ -192,6 +195,7 @@ export function MasterListingPage({
             {...(columnFilters ? { columnFilters } : {})}
             {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
             {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
+            {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
             rows={canView ? filteredRows : []}
           />
         )}

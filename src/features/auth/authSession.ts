@@ -347,6 +347,12 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       create: userPerms.includes("TRANSPORTER_MASTER_CREATE"),
       edit: userPerms.includes("TRANSPORTER_MASTER_UPDATE"),
     };
+
+    permissions.warehouseLocationMaster = {
+      view: userPerms.includes("WAREHOUSE_MASTER_VIEW"),
+      create: userPerms.includes("WAREHOUSE_MASTER_CREATE"),
+      edit: userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
+    };
   }
 
   return {

@@ -412,6 +412,12 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("TRANSPORTER_MASTER_UPDATE"),
   };
 
+  permissions.warehouseLocationMaster = {
+    view: codes.includes("WAREHOUSE_MASTER_VIEW"),
+    create: codes.includes("WAREHOUSE_MASTER_CREATE"),
+    edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
+  };
+
   return {
     id: item.id,
     userName: item.username,
@@ -494,6 +500,14 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
   if (transporter?.edit) codes.push("TRANSPORTER_MASTER_UPDATE");
   if (transporter?.create || transporter?.edit) {
     codes.push("TRANSPORTER_MASTER_STATUS_CHANGE");
+  }
+
+  const warehouse = permissions.warehouseLocationMaster;
+  if (warehouse?.view) codes.push("WAREHOUSE_MASTER_VIEW");
+  if (warehouse?.create) codes.push("WAREHOUSE_MASTER_CREATE");
+  if (warehouse?.edit) codes.push("WAREHOUSE_MASTER_UPDATE");
+  if (warehouse?.create || warehouse?.edit) {
+    codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
   }
 
   return Array.from(new Set(codes));

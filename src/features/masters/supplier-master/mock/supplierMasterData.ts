@@ -1,1 +1,0 @@
-export { supplierMasterDefinition } from "../supplierMasterDefinition";
