@@ -347,6 +347,78 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       create: userPerms.includes("TRANSPORTER_MASTER_CREATE"),
       edit: userPerms.includes("TRANSPORTER_MASTER_UPDATE"),
     };
+
+    permissions.colorMaster = {
+      view: userPerms.includes("COLOR_MASTER_VIEW"),
+      create: userPerms.includes("COLOR_MASTER_CREATE"),
+      edit: userPerms.includes("COLOR_MASTER_UPDATE"),
+    };
+
+    permissions.currencyMaster = {
+      view: userPerms.includes("CURRENCY_MASTER_VIEW"),
+      create: userPerms.includes("CURRENCY_MASTER_CREATE"),
+      edit: userPerms.includes("CURRENCY_MASTER_UPDATE"),
+    };
+
+    permissions.cutMaster = {
+      view: userPerms.includes("CUT_MASTER_VIEW"),
+      create: userPerms.includes("CUT_MASTER_CREATE"),
+      edit: userPerms.includes("CUT_MASTER_UPDATE"),
+    };
+
+    permissions.departmentMaster = {
+      view: userPerms.includes("DEPARTMENT_MASTER_VIEW"),
+      create: userPerms.includes("DEPARTMENT_MASTER_CREATE"),
+      edit: userPerms.includes("DEPARTMENT_MASTER_UPDATE"),
+    };
+
+    permissions.gradeMaster = {
+      view: userPerms.includes("GRADE_MASTER_VIEW"),
+      create: userPerms.includes("GRADE_MASTER_CREATE"),
+      edit: userPerms.includes("GRADE_MASTER_UPDATE"),
+    };
+
+    permissions.gstMaster = {
+      view: userPerms.includes("GST_MASTER_VIEW"),
+      create: userPerms.includes("GST_MASTER_CREATE"),
+      edit: userPerms.includes("GST_MASTER_UPDATE"),
+    };
+
+    permissions.hsnMaster = {
+      view: userPerms.includes("HSN_MASTER_VIEW"),
+      create: userPerms.includes("HSN_MASTER_CREATE"),
+      edit: userPerms.includes("HSN_MASTER_UPDATE"),
+    };
+
+    permissions.itemCategoryMaster = {
+      view: userPerms.includes("ITEM_CATEGORY_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_CATEGORY_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_CATEGORY_MASTER_UPDATE"),
+    };
+
+    permissions.itemMaster = {
+      view: userPerms.includes("ITEM_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_MASTER_UPDATE"),
+    };
+
+    permissions.itemSubCategoryMaster = {
+      view: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_UPDATE"),
+    };
+
+    permissions.unitMaster = {
+      view: userPerms.includes("UNIT_MASTER_VIEW"),
+      create: userPerms.includes("UNIT_MASTER_CREATE"),
+      edit: userPerms.includes("UNIT_MASTER_UPDATE"),
+    };
+
+    permissions.warehouseLocationMaster = {
+      view: userPerms.includes("WAREHOUSE_LOCATION_MASTER_VIEW"),
+      create: userPerms.includes("WAREHOUSE_LOCATION_MASTER_CREATE"),
+      edit: userPerms.includes("WAREHOUSE_LOCATION_MASTER_UPDATE"),
+    };
   }
 
   return {
