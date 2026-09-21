@@ -14,10 +14,6 @@ import {
   buildUserPermissionSections,
   userPermissionSections,
 } from "./userManagementConfig";
-import {
-  getDynamicSidebarWarehouses,
-  LOCAL_WAREHOUSES_UPDATED_EVENT,
-} from "../../warehouses/shared/localWarehouseStore";
 import type { UserPermissionItem } from "./userManagementConfig";
 
 export type PermissionBulkUpdate = {
@@ -52,13 +48,7 @@ export function UserPermissionMatrix({
   readOnly = false,
 }: UserPermissionMatrixProps) {
   const theme = useTheme();
-  const [dynamicWarehouses, setDynamicWarehouses] = useState(() =>
-    getDynamicSidebarWarehouses(),
-  );
-  const permissionSections = useMemo(
-    () => buildUserPermissionSections(dynamicWarehouses),
-    [dynamicWarehouses],
-  );
+  const permissionSections = useMemo(() => buildUserPermissionSections(), []);
   const [selectedSectionId, setSelectedSectionId] = useState(
     userPermissionSections[0]?.id ?? "",
   );
@@ -100,26 +90,6 @@ export function UserPermissionMatrix({
       }
     }
   }, [permissionSections, selectedSectionId]);
-
-  useEffect(() => {
-    const handleWarehousesUpdate = () => {
-      setDynamicWarehouses(getDynamicSidebarWarehouses());
-    };
-
-    window.addEventListener(
-      LOCAL_WAREHOUSES_UPDATED_EVENT,
-      handleWarehousesUpdate,
-    );
-    window.addEventListener("storage", handleWarehousesUpdate);
-
-    return () => {
-      window.removeEventListener(
-        LOCAL_WAREHOUSES_UPDATED_EVENT,
-        handleWarehousesUpdate,
-      );
-      window.removeEventListener("storage", handleWarehousesUpdate);
-    };
-  }, []);
 
   const applyUpdates = (updates: PermissionBulkUpdate[]) => {
     if (updates.length === 0 || readOnly) {

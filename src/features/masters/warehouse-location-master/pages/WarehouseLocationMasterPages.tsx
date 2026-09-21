@@ -18,6 +18,7 @@ import {
   updateWarehouseMasterStatus,
   type WarehouseMasterDetail,
 } from "../api/warehouseMasterApi";
+import { notifyMasterWarehousesUpdated } from "../../../warehouses/shared/warehouseSidebarStore";
 
 const WAREHOUSE_SORT_FIELD_MAP: Record<string, string> = {
   warehouseName: "name",
@@ -179,6 +180,7 @@ export function WarehouseLocationMasterListPage() {
     async (row: MasterRecord, checked: boolean) => {
       try {
         await updateWarehouseMasterStatus(row.id, checked);
+        notifyMasterWarehousesUpdated();
         setRows((current) =>
           current.map((entry) =>
             entry.id === row.id
@@ -333,10 +335,12 @@ function WarehouseLocationMasterFormPage({
       onSave={async ({ mode: saveMode, row, values }) => {
         if (saveMode === "edit" && row?.id) {
           await updateWarehouseMasterRecord(row.id, values);
+          notifyMasterWarehousesUpdated();
           return;
         }
 
         await createWarehouseMasterRecord(values);
+        notifyMasterWarehousesUpdated();
       }}
     />
   );

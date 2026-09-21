@@ -37,9 +37,10 @@ import {
   masterPermissionKeyBySlug,
 } from "../features/permissions";
 import {
-  getDynamicSidebarWarehouses,
-  LOCAL_WAREHOUSES_UPDATED_EVENT,
-} from "../features/warehouses/shared/localWarehouseStore";
+  fetchSidebarWarehouses,
+  MASTER_WAREHOUSES_UPDATED_EVENT,
+  type SidebarWarehouseItem,
+} from "../features/warehouses/shared/warehouseSidebarStore";
 import {
   portalIconSize,
   portalIconStroke,
@@ -83,9 +84,9 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
-  const [dynamicWarehouses, setDynamicWarehouses] = useState(() =>
-    getDynamicSidebarWarehouses(),
-  );
+  const [dynamicWarehouses, setDynamicWarehouses] = useState<
+    SidebarWarehouseItem[]
+  >([]);
   const userDisplayName = useMemo(
     () => getUserDisplayName(currentUser),
     [currentUser],
@@ -148,22 +149,38 @@ export function Sidebar({
   }, []);
 
   useEffect(() => {
+    let ignore = false;
+
+    const loadWarehouses = async () => {
+      try {
+        const warehouses = await fetchSidebarWarehouses();
+        if (!ignore) {
+          setDynamicWarehouses(warehouses);
+        }
+      } catch {
+        if (!ignore) {
+          setDynamicWarehouses([]);
+        }
+      }
+    };
+
+    void loadWarehouses();
+
     const handleWarehousesUpdate = () => {
-      setDynamicWarehouses(getDynamicSidebarWarehouses());
+      void loadWarehouses();
     };
 
     window.addEventListener(
-      LOCAL_WAREHOUSES_UPDATED_EVENT,
+      MASTER_WAREHOUSES_UPDATED_EVENT,
       handleWarehousesUpdate,
     );
-    window.addEventListener("storage", handleWarehousesUpdate);
 
     return () => {
+      ignore = true;
       window.removeEventListener(
-        LOCAL_WAREHOUSES_UPDATED_EVENT,
+        MASTER_WAREHOUSES_UPDATED_EVENT,
         handleWarehousesUpdate,
       );
-      window.removeEventListener("storage", handleWarehousesUpdate);
     };
   }, []);
 

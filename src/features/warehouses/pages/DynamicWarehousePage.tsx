@@ -1,86 +1,94 @@
 import { Typography } from "@mui/material";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
-import { warehouseLocationMasterDefinition } from "../../masters/shared/masterDefinitions";
 import {
-  MasterFormFields,
   MasterPageShell,
   MasterSectionCard,
 } from "../../masters/shared";
-import { buildMasterInitialValues } from "../../masters/shared/utils";
-import { findLocalWarehouseBySlug } from "../shared/localWarehouseStore";
-import { WarehouseAInventoryModulePage } from "./WarehouseAInventoryPage";
-import { WarehouseBInventoryModulePage } from "./WarehouseBInventoryPage";
-import { WarehouseCInventoryModulePage } from "./WarehouseCInventoryPage";
+import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 
 export function DynamicWarehousePage() {
   const params = useParams<{ warehouseSlug: string }>();
-  const warehouseSlug = params.warehouseSlug ?? "";
-  const warehouse = useMemo(
-    () => findLocalWarehouseBySlug(warehouseSlug),
-    [warehouseSlug],
-  );
-  const values = useMemo(
-    () =>
-      buildMasterInitialValues(
-        warehouseLocationMasterDefinition,
-        warehouse,
-      ),
-    [warehouse],
-  );
+  const warehouseId = params.warehouseSlug ?? "";
+  const [warehouseName, setWarehouseName] = useState("Warehouse");
+  const [warehouseType, setWarehouseType] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!warehouse) {
-    return (
-      <MasterPageShell
-        breadcrumbs={[{ label: "Warehouses" }, { label: "Not Found" }]}
-        title="Warehouse"
-      >
-        <MasterSectionCard>
-          <Typography variant="body2" color="text.secondary">
-            This temporary warehouse could not be found in local storage.
-          </Typography>
-        </MasterSectionCard>
-      </MasterPageShell>
-    );
-  }
+  useEffect(() => {
+    let ignore = false;
 
-  if (warehouse.warehouseType === "Inward") {
-    return (
-      <WarehouseAInventoryModulePage
-        warehouseName={warehouse.warehouseName}
-        warehouseRootPath={`/warehouses/${warehouse.slug}`}
-      />
-    );
-  }
+    const loadWarehouse = async () => {
+      if (!warehouseId) {
+        if (!ignore) {
+          setErrorMessage("Warehouse not found.");
+          setIsLoading(false);
+        }
+        return;
+      }
 
-  if (warehouse.warehouseType === "Storage") {
-    return (
-      <WarehouseBInventoryModulePage
-        warehouseName={warehouse.warehouseName}
-        warehouseRootPath={`/warehouses/${warehouse.slug}`}
-      />
-    );
-  }
+      setIsLoading(true);
+      setErrorMessage("");
 
-  if (warehouse.warehouseType === "Production") {
-    return (
-      <WarehouseCInventoryModulePage warehouseName={warehouse.warehouseName} />
-    );
-  }
+      try {
+        const record = await fetchWarehouseMasterDetail(warehouseId);
+        if (ignore) {
+          return;
+        }
+
+        const name =
+          typeof record.warehouseName === "string" && record.warehouseName.trim()
+            ? record.warehouseName.trim()
+            : "Warehouse";
+        const type =
+          typeof record.warehouseType === "string" ? record.warehouseType.trim() : "";
+
+        setWarehouseName(name);
+        setWarehouseType(type);
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to load warehouse.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadWarehouse();
+
+    return () => {
+      ignore = true;
+    };
+  }, [warehouseId]);
 
   return (
     <MasterPageShell
-      breadcrumbs={[{ label: "Warehouses" }, { label: warehouse.warehouseName }]}
-      title={warehouse.warehouseName}
+      breadcrumbs={[
+        { label: "Warehouses" },
+        { label: isLoading ? "Loading..." : warehouseName },
+      ]}
+      subtitle={
+        warehouseType
+          ? `${warehouseType} warehouse`
+          : "Warehouse workspace"
+      }
+      title={isLoading ? "Warehouse" : warehouseName}
     >
       <MasterSectionCard>
-        <MasterFormFields
-          definition={warehouseLocationMasterDefinition}
-          onChange={() => undefined}
-          readOnly
-          values={values}
-        />
+        <Typography variant="body2" color="text.secondary">
+          {errorMessage
+            ? errorMessage
+            : isLoading
+              ? "Loading warehouse..."
+              : "Warehouse workspace will be configured based on warehouse type."}
+        </Typography>
       </MasterSectionCard>
     </MasterPageShell>
   );
