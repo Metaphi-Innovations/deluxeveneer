@@ -81,22 +81,44 @@ export function mapBackendItemSubCategoryToMasterRecord(
   };
 }
 
-export async function fetchItemSubCategoriesApi(params?: {
+export interface ItemSubCategoryQueryParams {
   page?: number;
   limit?: number;
   search?: string;
   category?: string;
   categoryId?: string;
   status?: boolean;
-}): Promise<MasterRecord[]> {
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
+}
+
+export interface PaginatedItemSubCategoryResult {
+  items: MasterRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchItemSubCategoriesPaginated(
+  params: ItemSubCategoryQueryParams = {},
+): Promise<PaginatedItemSubCategoryResult> {
   try {
     const query = new URLSearchParams();
-    if (params?.page) query.set("page", String(params.page));
-    if (params?.limit) query.set("limit", String(params.limit));
-    if (params?.search) query.set("search", params.search);
-    if (params?.category) query.set("category", params.category);
-    if (params?.categoryId) query.set("categoryId", params.categoryId);
-    if (params?.status !== undefined) query.set("status", String(params.status));
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.search?.trim()) query.set("search", params.search.trim());
+    if (params.category) query.set("category", params.category);
+    if (params.categoryId) query.set("categoryId", params.categoryId);
+    if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      query.set("filters", encodeURIComponent(JSON.stringify(params.filters)));
+    }
 
     const queryString = query.toString();
     const endpoint = queryString
@@ -105,12 +127,56 @@ export async function fetchItemSubCategoriesApi(params?: {
 
     const res = await apiRequest<ApiResponse<BackendItemSubCategoryListResponse>>(endpoint);
     if (res?.success && Array.isArray(res?.data?.items)) {
-      return res.data.items.map((item, idx) => mapBackendItemSubCategoryToMasterRecord(item, idx));
+      return {
+        items: res.data.items.map((item, idx) => mapBackendItemSubCategoryToMasterRecord(item, idx)),
+        pagination: {
+          page: res.data.pagination.page,
+          limit: res.data.pagination.limit,
+          total: res.data.pagination.total,
+          totalPages: res.data.pagination.totalPages,
+        },
+      };
     }
   } catch (error) {
     console.warn("Failed to fetch item sub-categories from backend API:", error);
   }
-  return [];
+  return {
+    items: [],
+    pagination: {
+      page: params.page || 1,
+      limit: params.limit || 10,
+      total: 0,
+      totalPages: 1,
+    },
+  };
+}
+
+export async function fetchItemSubCategoriesApi(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  categoryId?: string;
+  status?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}): Promise<MasterRecord[]> {
+  const result = await fetchItemSubCategoriesPaginated(params);
+  return result.items;
+}
+
+export async function getItemSubCategoryByIdApi(id: string): Promise<MasterRecord | null> {
+  try {
+    const res = await apiRequest<ApiResponse<BackendItemSubCategoryItem>>(
+      `/masters/item-sub-categories/${id}`,
+    );
+    if (res?.success && res?.data) {
+      return mapBackendItemSubCategoryToMasterRecord(res.data);
+    }
+  } catch (error) {
+    console.warn(`Failed to fetch item sub-category with id ${id} from API:`, error);
+  }
+  return null;
 }
 
 export async function createItemSubCategoryApi(values: {
@@ -219,6 +285,21 @@ export async function deleteItemSubCategoryApi(id: string): Promise<boolean> {
 
 const LOCAL_MASTER_RECORDS_STORAGE_KEY = "deluxe-veneers-local-master-records";
 
+export async function fetchItemSubCategoryColumnDropdown(
+  column: string,
+): Promise<{ column: string; options: Array<{ value: string; label: string }> }> {
+  try {
+    const res = await apiRequest<ApiResponse<{ column: string; options: Array<{ value: string; label: string }> }>>(
+      `/masters/item-sub-categories/dropdowns?column=${encodeURIComponent(column)}`,
+    );
+    if (res?.success && res.data) {
+      return { column: res.data.column ?? column, options: res.data.options ?? [] };
+    }
+  } catch (error) {
+    console.warn('Failed to fetch column dropdown:', error);
+  }
+  return { column, options: [] };
+}
 export function syncItemSubCategoryMasterToStorage(rows: MasterRecord[]) {
   if (typeof window === "undefined") return;
   try {

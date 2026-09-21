@@ -155,6 +155,74 @@ export function syncItemMasterToStorage(rows: MasterRecord[]) {
   }
 }
 
+export interface ItemQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  subCategory?: string;
+  status?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
+}
+
+export interface PaginatedItemResult {
+  items: MasterRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchItemsPaginated(
+  params: ItemQueryParams = {},
+): Promise<PaginatedItemResult> {
+  try {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.search?.trim()) query.set("search", params.search.trim());
+    if (params.category) query.set("category", params.category);
+    if (params.subCategory) query.set("subCategory", params.subCategory);
+    if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      query.set("filters", encodeURIComponent(JSON.stringify(params.filters)));
+    }
+
+    const queryString = query.toString();
+    const endpoint = queryString ? `/masters/items?${queryString}` : "/masters/items";
+
+    const res = await apiRequest<ApiResponse<BackendItemListResponse>>(endpoint);
+    if (res?.success && Array.isArray(res?.data?.items)) {
+      return {
+        items: res.data.items.map((item, idx) => mapBackendItemToMasterRecord(item, idx)),
+        pagination: {
+          page: res.data.pagination.page,
+          limit: res.data.pagination.limit,
+          total: res.data.pagination.total,
+          totalPages: res.data.pagination.totalPages,
+        },
+      };
+    }
+  } catch (error) {
+    console.warn("Failed to fetch items from backend API:", error);
+  }
+  return {
+    items: [],
+    pagination: {
+      page: params.page || 1,
+      limit: params.limit || 10,
+      total: 0,
+      totalPages: 1,
+    },
+  };
+}
+
 export async function fetchItemsApi(params?: {
   page?: number;
   limit?: number;
@@ -162,28 +230,11 @@ export async function fetchItemsApi(params?: {
   category?: string;
   subCategory?: string;
   status?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  try {
-    const query = new URLSearchParams();
-    if (params?.page) query.set("page", String(params.page));
-    query.set("limit", String(params?.limit ?? 1000));
-    if (params?.search) query.set("search", params.search);
-    if (params?.category) query.set("category", params.category);
-    if (params?.subCategory) query.set("subCategory", params.subCategory);
-    if (params?.status !== undefined) query.set("status", String(params.status));
-
-    const queryString = query.toString();
-    const endpoint = queryString ? `/masters/items?${queryString}` : "/masters/items";
-
-    const res = await apiRequest<ApiResponse<BackendItemListResponse>>(endpoint);
-    if (res?.success && Array.isArray(res?.data?.items)) {
-      return res.data.items.map((item, idx) => mapBackendItemToMasterRecord(item, idx));
-    }
-  } catch (error) {
-    console.warn("Failed to fetch items from backend API, using local records:", error);
-    return getStoredItemMasterRows();
-  }
-  return getStoredItemMasterRows();
+  const result = await fetchItemsPaginated(params);
+  return result.items;
 }
 
 export async function getItemByIdApi(id: string): Promise<MasterRecord | null> {
@@ -407,3 +458,20 @@ export async function deleteItemApi(id: string): Promise<boolean> {
   });
   return Boolean(res?.success);
 }
+
+export async function fetchItemColumnDropdown(
+  column: string,
+): Promise<{ column: string; options: Array<{ value: string; label: string }> }> {
+  try {
+    const res = await apiRequest<ApiResponse<{ column: string; options: Array<{ value: string; label: string }> }>>(
+      `/masters/items/dropdowns?column=${encodeURIComponent(column)}`,
+    );
+    if (res?.success && res.data) {
+      return { column: res.data.column ?? column, options: res.data.options ?? [] };
+    }
+  } catch (error) {
+    console.warn('Failed to fetch column dropdown:', error);
+  }
+  return { column, options: [] };
+}
+
