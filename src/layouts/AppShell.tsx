@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AppBar,
   Box,
@@ -9,15 +9,13 @@ import {
   useTheme,
 } from "@mui/material";
 import { Menu } from "lucide-react";
-import { useLocation, useOutlet } from "react-router";
+import { Outlet } from "react-router";
 
 import deluxeMark from "../assets/favicon.png";
 import { Sidebar } from "./Sidebar";
 
 export function AppShell() {
   const theme = useTheme();
-  const location = useLocation();
-  const outlet = useOutlet();
   const isDesktop = useMediaQuery(theme.breakpoints.up("lg"));
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -103,9 +101,7 @@ export function AppShell() {
           bgcolor: "background.paper",
         }}
       >
-        <Fragment key={`${location.pathname}${location.search}`}>
-          {outlet}
-        </Fragment>
+        <Outlet />
       </Box>
     </Box>
   );
