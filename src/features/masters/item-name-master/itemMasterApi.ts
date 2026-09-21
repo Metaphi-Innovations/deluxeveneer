@@ -82,16 +82,17 @@ export function mapBackendItemToMasterRecord(
     name: item.name || item.itemName || "",
     itemCode: item.itemCode || item.factoryItemCode || "",
     factoryItemCode: item.factoryItemCode || item.itemCode || "",
-    category: item.category || item.categoryName || "Decorative Veneer",
-    categoryName: item.categoryName || item.category || "Decorative Veneer",
-    subCategory: item.subCategory || "Natural Veneer",
-    color: item.color || item.colorName || "Natural Oak",
-    colorName: item.colorName || item.color || "Natural Oak",
-    hsn: item.hsn || item.hsnCode || "4408",
-    hsnCode: item.hsnCode || item.hsn || "4408",
-    gst: item.gst || item.gstNo || item.gstPercentage || "12%",
-    gstNo: item.gstNo || item.gst || item.gstPercentage || "12%",
-    gstPercentage: item.gstPercentage || item.gst || item.gstNo || "12%",
+    category: item.category || item.categoryName || "",
+    categoryName: item.categoryName || item.category || "",
+    subCategory: item.subCategory || "",
+    subCategoryName: item.subCategory || "",
+    color: item.color || item.colorName || "",
+    colorName: item.colorName || item.color || "",
+    hsn: item.hsn || item.hsnCode || "",
+    hsnCode: item.hsnCode || item.hsn || "",
+    gst: item.gst || item.gstNo || item.gstPercentage || "",
+    gstNo: item.gstNo || item.gst || item.gstPercentage || "",
+    gstPercentage: item.gstPercentage || item.gst || item.gstNo || "",
     length: item.length || undefined,
     width: item.width || undefined,
     thickness: item.thickness || undefined,
@@ -113,6 +114,47 @@ export function mapBackendItemToMasterRecord(
   };
 }
 
+export const LOCAL_MASTER_RECORDS_STORAGE_KEY = "deluxe-veneers-local-master-records";
+
+export function getStoredItemMasterRows(): MasterRecord[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(LOCAL_MASTER_RECORDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const rows = parsed["item-name-master"];
+    if (Array.isArray(rows)) {
+      return rows.map((r, idx) => ({
+        ...r,
+        srNo: r.srNo || String(idx + 1),
+        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+        createdDate: r.createdDate ? new Date(r.createdDate) : new Date(),
+        updatedAt: r.updatedAt ? new Date(r.updatedAt) : new Date(),
+        updatedDate: r.updatedDate ? new Date(r.updatedDate) : new Date(),
+      }));
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export function syncItemMasterToStorage(rows: MasterRecord[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(LOCAL_MASTER_RECORDS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    parsed["item-name-master"] = rows.map((r) =>
+      Object.fromEntries(
+        Object.entries(r).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])
+      )
+    );
+    window.localStorage.setItem(LOCAL_MASTER_RECORDS_STORAGE_KEY, JSON.stringify(parsed));
+  } catch {
+    // ignore
+  }
+}
+
 export async function fetchItemsApi(params?: {
   page?: number;
   limit?: number;
@@ -124,7 +166,7 @@ export async function fetchItemsApi(params?: {
   try {
     const query = new URLSearchParams();
     if (params?.page) query.set("page", String(params.page));
-    if (params?.limit) query.set("limit", String(params.limit));
+    query.set("limit", String(params?.limit ?? 1000));
     if (params?.search) query.set("search", params.search);
     if (params?.category) query.set("category", params.category);
     if (params?.subCategory) query.set("subCategory", params.subCategory);
@@ -139,8 +181,9 @@ export async function fetchItemsApi(params?: {
     }
   } catch (error) {
     console.warn("Failed to fetch items from backend API, using local records:", error);
+    return getStoredItemMasterRows();
   }
-  return [];
+  return getStoredItemMasterRows();
 }
 
 export async function getItemByIdApi(id: string): Promise<MasterRecord | null> {
@@ -152,30 +195,31 @@ export async function getItemByIdApi(id: string): Promise<MasterRecord | null> {
   } catch (error) {
     console.warn(`Failed to fetch item with id ${id} from API:`, error);
   }
-  return null;
+  const localRows = getStoredItemMasterRows();
+  return localRows.find((r) => r.id === id) || null;
 }
 
 export async function createItemApi(values: {
-  name?: string;
-  itemName?: string;
-  factoryItemCode?: string;
-  itemCode?: string;
-  category?: string;
-  subCategory?: string;
-  color?: string;
-  hsn?: string;
-  hsnCode?: string;
-  gst?: string;
-  gstNo?: string;
-  gstPercentage?: string;
-  length?: string;
-  width?: string;
-  thickness?: string;
-  quantitySheets?: string;
-  ratePerSqf?: string;
-  remark?: string | null;
-  remarks?: string | null;
-  status?: boolean | string;
+  name?: string | undefined;
+  itemName?: string | undefined;
+  factoryItemCode?: string | undefined;
+  itemCode?: string | undefined;
+  category?: string | undefined;
+  subCategory?: string | undefined;
+  color?: string | undefined;
+  hsn?: string | undefined;
+  hsnCode?: string | undefined;
+  gst?: string | undefined;
+  gstNo?: string | undefined;
+  gstPercentage?: string | undefined;
+  length?: string | undefined;
+  width?: string | undefined;
+  thickness?: string | undefined;
+  quantitySheets?: string | undefined;
+  ratePerSqf?: string | undefined;
+  remark?: string | null | undefined;
+  remarks?: string | null | undefined;
+  status?: boolean | string | undefined;
 }): Promise<MasterRecord | null> {
   const isStatusActive =
     typeof values.status === "boolean"
@@ -184,31 +228,60 @@ export async function createItemApi(values: {
         ? values.status.toLowerCase() === "active"
         : true;
 
-  const itemName = values.itemName || values.name || "";
-  const factoryItemCode = values.factoryItemCode || values.itemCode || `ITM-${Date.now()}`;
+  const itemName = (values.itemName || values.name || "").trim();
+  const factoryItemCode = (values.factoryItemCode || values.itemCode || "").trim() || `ITM-${Date.now()}`;
 
-  const body = {
+  const body: any = {
     name: itemName,
     itemName,
     factoryItemCode,
     itemCode: factoryItemCode,
-    category: values.category || "Decorative Veneer",
-    subCategory: values.subCategory || "Natural Veneer",
-    color: values.color || "Natural Oak",
-    hsn: values.hsn || values.hsnCode || "4408",
-    hsnCode: values.hsn || values.hsnCode || "4408",
-    gst: values.gst || values.gstNo || values.gstPercentage || "12%",
-    gstNo: values.gst || values.gstNo || values.gstPercentage || "12%",
-    gstPercentage: values.gst || values.gstNo || values.gstPercentage || "12%",
-    length: values.length || null,
-    width: values.width || null,
-    thickness: values.thickness || null,
-    quantitySheets: values.quantitySheets || null,
-    ratePerSqf: values.ratePerSqf || null,
-    remark: values.remark || values.remarks || null,
-    remarks: values.remark || values.remarks || null,
     status: isStatusActive,
   };
+
+  const category = (values.category || "").trim();
+  if (category) body.category = category;
+
+  const subCategory = (values.subCategory || "").trim();
+  if (subCategory) body.subCategory = subCategory;
+
+  const color = (values.color || "").trim();
+  if (color) body.color = color;
+
+  const hsn = (values.hsn || values.hsnCode || "").trim();
+  if (hsn) {
+    body.hsn = hsn;
+    body.hsnCode = hsn;
+  }
+
+  const gst = (values.gst || values.gstNo || values.gstPercentage || "").trim();
+  if (gst) {
+    body.gst = gst;
+    body.gstNo = gst;
+    body.gstPercentage = gst;
+  }
+
+  const remark = (values.remark ?? values.remarks ?? "").trim();
+  if (remark) {
+    body.remark = remark;
+    body.remarks = remark;
+  }
+
+  if (values.length && String(values.length).trim()) {
+    body.length = String(values.length).trim();
+  }
+  if (values.width && String(values.width).trim()) {
+    body.width = String(values.width).trim();
+  }
+  if (values.thickness && String(values.thickness).trim()) {
+    body.thickness = String(values.thickness).trim();
+  }
+  if (values.quantitySheets && String(values.quantitySheets).trim()) {
+    body.quantitySheets = String(values.quantitySheets).trim();
+  }
+  if (values.ratePerSqf && String(values.ratePerSqf).trim()) {
+    body.ratePerSqf = String(values.ratePerSqf).trim();
+  }
 
   const res = await apiRequest<ApiResponse<BackendItemItem>>("/masters/items", {
     method: "POST",
@@ -224,26 +297,26 @@ export async function createItemApi(values: {
 export async function updateItemApi(
   id: string,
   values: {
-    name?: string;
-    itemName?: string;
-    factoryItemCode?: string;
-    itemCode?: string;
-    category?: string;
-    subCategory?: string;
-    color?: string;
-    hsn?: string;
-    hsnCode?: string;
-    gst?: string;
-    gstNo?: string;
-    gstPercentage?: string;
-    length?: string;
-    width?: string;
-    thickness?: string;
-    quantitySheets?: string;
-    ratePerSqf?: string;
-    remark?: string | null;
-    remarks?: string | null;
-    status?: boolean | string;
+    name?: string | undefined;
+    itemName?: string | undefined;
+    factoryItemCode?: string | undefined;
+    itemCode?: string | undefined;
+    category?: string | undefined;
+    subCategory?: string | undefined;
+    color?: string | undefined;
+    hsn?: string | undefined;
+    hsnCode?: string | undefined;
+    gst?: string | undefined;
+    gstNo?: string | undefined;
+    gstPercentage?: string | undefined;
+    length?: string | undefined;
+    width?: string | undefined;
+    thickness?: string | undefined;
+    quantitySheets?: string | undefined;
+    ratePerSqf?: string | undefined;
+    remark?: string | null | undefined;
+    remarks?: string | null | undefined;
+    status?: boolean | string | undefined;
   },
 ): Promise<MasterRecord | null> {
   const isStatusActive =
@@ -254,38 +327,49 @@ export async function updateItemApi(
         : undefined;
 
   const body: any = {};
-  const itemName = values.itemName || values.name;
+  const itemName = (values.itemName || values.name)?.trim();
   if (itemName) {
     body.name = itemName;
     body.itemName = itemName;
   }
-  const factoryItemCode = values.factoryItemCode || values.itemCode;
+  const factoryItemCode = (values.factoryItemCode || values.itemCode)?.trim();
   if (factoryItemCode) {
     body.factoryItemCode = factoryItemCode;
     body.itemCode = factoryItemCode;
   }
-  if (values.category) body.category = values.category;
-  if (values.subCategory) body.subCategory = values.subCategory;
-  if (values.color) body.color = values.color;
-  const hsn = values.hsn || values.hsnCode;
+  if (values.category && values.category.trim()) body.category = values.category.trim();
+  if (values.subCategory && values.subCategory.trim()) body.subCategory = values.subCategory.trim();
+  if (values.color && values.color.trim()) body.color = values.color.trim();
+  const hsn = (values.hsn || values.hsnCode)?.trim();
   if (hsn) {
     body.hsn = hsn;
     body.hsnCode = hsn;
   }
-  const gst = values.gst || values.gstNo || values.gstPercentage;
+  const gst = (values.gst || values.gstNo || values.gstPercentage)?.trim();
   if (gst) {
     body.gst = gst;
     body.gstNo = gst;
     body.gstPercentage = gst;
   }
-  if (values.length !== undefined) body.length = values.length;
-  if (values.width !== undefined) body.width = values.width;
-  if (values.thickness !== undefined) body.thickness = values.thickness;
-  if (values.quantitySheets !== undefined) body.quantitySheets = values.quantitySheets;
-  if (values.ratePerSqf !== undefined) body.ratePerSqf = values.ratePerSqf;
-  if (values.remark !== undefined || values.remarks !== undefined) {
-    body.remark = values.remark ?? values.remarks ?? null;
-    body.remarks = values.remark ?? values.remarks ?? null;
+  if (values.length && String(values.length).trim()) {
+    body.length = String(values.length).trim();
+  }
+  if (values.width && String(values.width).trim()) {
+    body.width = String(values.width).trim();
+  }
+  if (values.thickness && String(values.thickness).trim()) {
+    body.thickness = String(values.thickness).trim();
+  }
+  if (values.quantitySheets && String(values.quantitySheets).trim()) {
+    body.quantitySheets = String(values.quantitySheets).trim();
+  }
+  if (values.ratePerSqf && String(values.ratePerSqf).trim()) {
+    body.ratePerSqf = String(values.ratePerSqf).trim();
+  }
+  const remark = (values.remark ?? values.remarks)?.trim();
+  if (remark !== undefined) {
+    body.remark = remark || null;
+    body.remarks = remark || null;
   }
   if (isStatusActive !== undefined) {
     body.status = isStatusActive;
@@ -322,22 +406,4 @@ export async function deleteItemApi(id: string): Promise<boolean> {
     method: "DELETE",
   });
   return Boolean(res?.success);
-}
-
-const LOCAL_MASTER_RECORDS_STORAGE_KEY = "deluxe-veneers-local-master-records";
-
-export function syncItemMasterToStorage(rows: MasterRecord[]) {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(LOCAL_MASTER_RECORDS_STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    parsed["item-name-master"] = rows.map((r) =>
-      Object.fromEntries(
-        Object.entries(r).map(([k, v]) => [k, v instanceof Date ? v.toISOString() : v])
-      )
-    );
-    window.localStorage.setItem(LOCAL_MASTER_RECORDS_STORAGE_KEY, JSON.stringify(parsed));
-  } catch {
-    // ignore
-  }
 }

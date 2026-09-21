@@ -9,6 +9,7 @@ import {
   updateItemCategoryApi,
   updateItemCategoryStatusApi,
 } from "../itemCategoryMasterApi";
+import { fetchHsnsApi } from "../../hsn-master/hsnMasterApi";
 
 export function ItemCategoryMasterListPage() {
   const [apiRows, setApiRows] = useState<MasterRecord[]>([]);
@@ -21,19 +22,12 @@ export function ItemCategoryMasterListPage() {
         syncItemCategoryMasterToStorage(records);
       }
     });
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const definitionWithApiRows = useMemo<MasterDefinition>(() => {
-    if (apiRows.length === 0) {
-      return itemCategoryMasterDefinition;
-    }
-    return {
-      ...itemCategoryMasterDefinition,
-      rows: apiRows,
-    };
+    if (apiRows.length === 0) return itemCategoryMasterDefinition;
+    return { ...itemCategoryMasterDefinition, rows: apiRows };
   }, [apiRows]);
 
   const handleStatusToggle = async (row: MasterRecord, checked: boolean) => {
@@ -57,7 +51,64 @@ export function ItemCategoryMasterListPage() {
   );
 }
 
+function useHsnOptions() {
+  const [hsnOptions, setHsnOptions] = useState<string[]>([]);
+  const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
+
+  useEffect(() => {
+    fetchHsnsApi({ status: true, limit: 1000 }).then((records) => {
+      const activeRecords = records.filter(
+        (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+      );
+      const codes = activeRecords
+        .map((r) => String(r.hsnCode || r.code || "").trim())
+        .filter(Boolean);
+      setHsnOptions([...new Set(codes)]);
+      setHsnRows(activeRecords);
+    }).catch(() => {});
+  }, []);
+
+  return { hsnOptions, hsnRows };
+}
+
+function buildCategoryDefinitionWithHsn(
+  baseDefinition: MasterDefinition,
+  hsnOptions: string[],
+  hsnRows: MasterRecord[],
+): MasterDefinition {
+  if (!hsnOptions.length) return baseDefinition;
+  return {
+    ...baseDefinition,
+    fields: baseDefinition.fields.map((field) => {
+      if (field.key === "hsn") {
+        return { ...field, options: hsnOptions };
+      }
+      if (field.key === "gst") {
+        return {
+          ...field,
+          readOnly: true,
+          autoFillFrom: {
+            rows: hsnRows,
+            sourceSlug: "hsn-master",
+            sourceKey: "hsn",
+            sourceMatchKey: "hsnCode",
+            sourceValueKey: "gstPercentage",
+          },
+        };
+      }
+      return field;
+    }),
+  };
+}
+
 export function AddItemCategoryMasterPage() {
+  const { hsnOptions, hsnRows } = useHsnOptions();
+
+  const definitionWithDynamicOptions = useMemo<MasterDefinition>(
+    () => buildCategoryDefinitionWithHsn(itemCategoryMasterDefinition, hsnOptions, hsnRows),
+    [hsnOptions, hsnRows],
+  );
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -67,16 +118,14 @@ export function AddItemCategoryMasterPage() {
     try {
       const created = await createItemCategoryApi({
         categoryName: String(context.values.categoryName || context.values.name || ""),
-        hsn: context.values.hsn || context.values.hsnCode || "4412",
-        gst: context.values.gst || context.values.gstNo || "18%",
+        hsn: context.values.hsn || context.values.hsnCode || "",
+        gst: context.values.gst || context.values.gstNo || "",
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
       if (created) {
         const allRecords = await fetchItemCategoriesApi();
-        if (allRecords.length > 0) {
-          syncItemCategoryMasterToStorage(allRecords);
-        }
+        if (allRecords.length > 0) syncItemCategoryMasterToStorage(allRecords);
       }
     } catch (error) {
       console.warn("Failed to create item category via API, fallback will persist locally:", error);
@@ -85,7 +134,7 @@ export function AddItemCategoryMasterPage() {
 
   return (
     <MasterFormPage
-      definition={itemCategoryMasterDefinition}
+      definition={definitionWithDynamicOptions}
       mode="add"
       onSave={handleSave}
     />
@@ -93,6 +142,13 @@ export function AddItemCategoryMasterPage() {
 }
 
 export function EditItemCategoryMasterPage() {
+  const { hsnOptions, hsnRows } = useHsnOptions();
+
+  const definitionWithDynamicOptions = useMemo<MasterDefinition>(
+    () => buildCategoryDefinitionWithHsn(itemCategoryMasterDefinition, hsnOptions, hsnRows),
+    [hsnOptions, hsnRows],
+  );
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -110,9 +166,7 @@ export function EditItemCategoryMasterPage() {
         });
         if (updated) {
           const allRecords = await fetchItemCategoriesApi();
-          if (allRecords.length > 0) {
-            syncItemCategoryMasterToStorage(allRecords);
-          }
+          if (allRecords.length > 0) syncItemCategoryMasterToStorage(allRecords);
         }
       } catch (error) {
         console.warn("Failed to update item category via API, fallback will persist locally:", error);
@@ -122,7 +176,7 @@ export function EditItemCategoryMasterPage() {
 
   return (
     <MasterFormPage
-      definition={itemCategoryMasterDefinition}
+      definition={definitionWithDynamicOptions}
       mode="edit"
       onSave={handleSave}
     />

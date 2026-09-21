@@ -11,116 +11,10 @@ const asDate = (value: string) => new Date(value);
 const demoListingRowCount = 12;
 
 function limitDemoListingRows<T extends MasterRecord>(
-  rows: ReadonlyArray<T>,
-  options: { count?: number; uniqueKey?: string } = {},
+  _rows: ReadonlyArray<T>,
+  _options: { count?: number; uniqueKey?: string } = {},
 ) {
-  if (rows.length === 0) {
-    return [] as T[];
-  }
-
-  const count = options.count ?? demoListingRowCount;
-  const usedUniqueValues = new Set(
-    options.uniqueKey
-      ? rows
-          .map((row) => row[options.uniqueKey!])
-          .filter((value): value is string => typeof value === "string")
-      : [],
-  );
-
-  return Array.from({ length: count }, (_, index) => {
-    const sourceRow = rows[index % rows.length]!;
-
-    if (index < rows.length) {
-      return sourceRow;
-    }
-
-    return createMasterDemoRow(
-      sourceRow,
-      index,
-      options.uniqueKey,
-      usedUniqueValues,
-    );
-  });
-}
-
-function createMasterDemoRow<T extends MasterRecord>(
-  row: T,
-  index: number,
-  uniqueKey?: string,
-  usedUniqueValues?: Set<string>,
-) {
-  const sequence = String(index + 1).padStart(2, "0");
-  const clonedRow = {
-    ...row,
-    id: `${row.id}-demo-${sequence}`,
-  } as MasterRecord;
-  const identityKeys = [
-    "itemName",
-    "itemCode",
-    "categoryName",
-    "itemSubCategory",
-    "colorName",
-    "cutName",
-    "gradeName",
-    "customerName",
-    "companyName",
-    "unitName",
-    "symbolicName",
-    "supplierName",
-    "transporterName",
-    "branchName",
-    "warehouseName",
-    "warehouseCode",
-    "currencyName",
-    "currencyCode",
-    "hsnCodeDescription",
-  ] as const;
-
-  identityKeys.forEach((key) => {
-    const value = clonedRow[key];
-
-    if (typeof value === "string" && value.trim()) {
-      clonedRow[key] = `${value} ${sequence}`;
-    }
-  });
-
-  if (uniqueKey && usedUniqueValues) {
-    const uniqueValue = getNextUniqueMasterValue(
-      uniqueKey,
-      index,
-      usedUniqueValues,
-    );
-    clonedRow[uniqueKey] = uniqueValue;
-    usedUniqueValues.add(uniqueValue);
-  }
-
-  if (typeof clonedRow.remark === "string" && clonedRow.remark.trim()) {
-    clonedRow.remark = `${clonedRow.remark} Demo entry ${sequence}.`;
-  }
-
-  return clonedRow as T;
-}
-
-function getNextUniqueMasterValue(
-  key: string,
-  index: number,
-  usedValues: Set<string>,
-) {
-  let sequence = index;
-  let candidate =
-    key === "hsnCode"
-      ? String(4400 + sequence)
-      : `${key.toUpperCase()}-${String(sequence + 1).padStart(2, "0")}`;
-
-  while (usedValues.has(candidate)) {
-    sequence += 1;
-    candidate =
-      key === "hsnCode"
-        ? String(4400 + sequence)
-        : `${key.toUpperCase()}-${String(sequence + 1).padStart(2, "0")}`;
-  }
-
-  return candidate;
+  return [] as T[];
 }
 
 function withAuditFields<T extends MasterRecord>(rows: ReadonlyArray<T>) {
@@ -825,28 +719,32 @@ export const itemMasterDefinition: MasterDefinition = {
   fields: [
     { key: "itemName", label: "Item Name", type: "text" },
     { key: "itemCode", label: "Factory Item Code", type: "text" },
-    { key: "category", label: "Category", type: "select", options: activeOptions(itemCategoryRows, "categoryName") },
-    { key: "subCategory", label: "Sub Category", type: "select", options: activeOptions(itemSubCategoryRows, "itemSubCategory") },
-    { key: "color", label: "Color", type: "select", options: activeOptions(colorRows, "colorName") },
-    { key: "hsn", label: "HSN Code", type: "select", options: activeOptions(hsnRows, "hsnCode") },
+    { key: "category", label: "Category", type: "select", options: [] },
+    {
+      key: "subCategory",
+      label: "Sub Category",
+      type: "select",
+      options: [],
+    },
+    { key: "color", label: "Color", type: "select", options: [] },
+    {
+      key: "hsn",
+      label: "HSN Code",
+      type: "select",
+      options: [],
+      readOnly: true,
+    },
     {
       key: "gst",
       label: "GST No",
       type: "select",
-      options: activeOptions(gstRows, "gstPercentage"),
+      options: [],
       readOnly: true,
-      autoFillFrom: {
-        rows: limitDemoListingRows(hsnRows),
-        sourceSlug: "hsn-master",
-        sourceKey: "hsn",
-        sourceMatchKey: "hsnCode",
-        sourceValueKey: "gstPercentage",
-      },
     },
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemRows),
+  rows: [],
 };
 
 export const itemCategoryMasterDefinition: MasterDefinition = {
@@ -891,7 +789,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemCategoryRows),
+  rows: [],
 };
 
 export const itemSubCategoryMasterDefinition: MasterDefinition = {
@@ -917,7 +815,7 @@ export const itemSubCategoryMasterDefinition: MasterDefinition = {
     { key: "category", label: "Category", type: "select", options: activeOptions(itemCategoryRows, "categoryName") },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemSubCategoryRows),
+  rows: [],
 };
 
 export const colorMasterDefinition: MasterDefinition = {
@@ -942,7 +840,7 @@ export const colorMasterDefinition: MasterDefinition = {
     { key: "colorName", label: "Color Name", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(colorRows),
+  rows: [],
 };
 
 export const cutMasterOptions = uniqueOptions(cutRows, "cutName");
@@ -1048,7 +946,7 @@ export const cutMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(cutRows),
+  rows: [],
 };
 
 export const gradeMasterDefinition: MasterDefinition = {
@@ -1074,7 +972,7 @@ export const gradeMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(gradeRows),
+  rows: [],
 };
 
 export const unitMasterDefinition: MasterDefinition = {
@@ -1085,9 +983,10 @@ export const unitMasterDefinition: MasterDefinition = {
     { key: "srNo", label: "Sr No" },
     { key: "unitName", label: "Unit Name" },
     { key: "symbolicName", label: "Symbolic Name" },
+    { key: "remark", label: "Remark" },
+    { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },
-    { key: "status", label: "Status" },
     { key: "createdDate", label: "Created Date" },
     { key: "updatedDate", label: "Updated Date" },
   ],
@@ -1099,8 +998,9 @@ export const unitMasterDefinition: MasterDefinition = {
     { key: "unitName", label: "Unit Name", type: "text" },
     { key: "symbolicName", label: "Symbolic Name", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
+    { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: limitDemoListingRows(unitRows),
+  rows: [],
 };
 
 export const gstMasterDefinition: MasterDefinition = {
@@ -1127,7 +1027,7 @@ export const gstMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", type: "select", options: statusOptions },
     { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: gstRows,
+  rows: [],
 };
 
 export const hsnMasterDefinition: MasterDefinition = {
@@ -1156,7 +1056,7 @@ export const hsnMasterDefinition: MasterDefinition = {
     { key: "gstPercentage", label: "GST%", type: "select", options: activeOptions(gstRows, "gstPercentage") },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(hsnRows, { uniqueKey: "hsnCode" }),
+  rows: [],
 };
 
 export const warehouseLocationMasterDefinition: MasterDefinition = {
@@ -1200,7 +1100,7 @@ export const warehouseLocationMasterDefinition: MasterDefinition = {
     { key: "city", label: "City", type: "text" },
     { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: warehouseRows,
+  rows: [],
 };
 
 export const currencyMasterDefinition: MasterDefinition = {
@@ -1227,7 +1127,7 @@ export const currencyMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", type: "select", options: statusOptions },
     { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: currencyRows,
+  rows: [],
 };
 
 export const unitMasterOptions = uniqueOptions(unitRows, "unitName");

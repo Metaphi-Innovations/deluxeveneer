@@ -1693,20 +1693,17 @@ function getTextFieldSlotProps(
   field: MasterFieldDefinition,
   readOnly: boolean,
 ) {
-  const htmlInput = getTextInputHtmlProps(field);
+  const htmlInput = getTextInputHtmlProps(field) ?? {};
 
-  return htmlInput
-    ? {
-        input: {
-          readOnly,
-        },
-        htmlInput,
-      }
-    : {
-        input: {
-          readOnly,
-        },
-      };
+  return {
+    input: {
+      readOnly,
+    },
+    htmlInput: {
+      autoComplete: "off",
+      ...htmlInput,
+    },
+  };
 }
 
 function getToggleCheckedValue(
