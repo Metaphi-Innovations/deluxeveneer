@@ -249,8 +249,6 @@ export async function updateUserManagementRecord(
     (d) => d.name.toLowerCase() === deptName.toLowerCase()
   );
 
-  const permissionCodes = convertUiPermissionsToCodes(permissions);
-
   const [aadhaarDocumentUrl, panDocumentUrl] = await Promise.all([
     getFilePayloadValue(values.aadhaarUpload),
     getFilePayloadValue(values.panUpload),
@@ -277,8 +275,13 @@ export async function updateUserManagementRecord(
     panNo: getStringValue(values.panNo) || null,
     panDocumentUrl: panDocumentUrl || null,
     remarks: getStringValue(values.remarks) || null,
-    permissionCodes,
   };
+
+  // Only sync permissions when the caller explicitly provides them (Permissions step).
+  // Omitting permissionCodes keeps existing DB permissions intact on basic-info edits.
+  if (permissions !== undefined) {
+    payload.permissionCodes = convertUiPermissionsToCodes(permissions);
+  }
 
   const res = await apiRequest<ApiResponse<BackendUserDetail>>(`/users/${id}`, {
     method: "PATCH",

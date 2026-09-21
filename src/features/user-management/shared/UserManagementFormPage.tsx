@@ -11,7 +11,11 @@ import {
 import { Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { syncCurrentUserFromUserManagementDetail } from "../../auth";
+import {
+  getCurrentUser,
+  refreshCurrentUserPermissions,
+  syncCurrentUserFromUserManagementDetail,
+} from "../../auth";
 import {
   MasterFormFields,
   MasterPageShell,
@@ -384,6 +388,7 @@ export function UserManagementFormPage({
 
     try {
       let savedUser: UserManagementDetail | undefined;
+      const syncPermissions = activeStep === "permissions";
 
       if (mode === "add") {
         savedUser = await createUserManagementRecord(values, permissions);
@@ -391,12 +396,29 @@ export function UserManagementFormPage({
         savedUser = await updateUserManagementRecord(
           params.id,
           values,
-          permissions,
+          // Basic-info save must not rewrite permission rows (especially for self /
+          // super-admin, where UI permission state is incomplete).
+          syncPermissions ? permissions : undefined,
         );
       }
 
       if (savedUser) {
-        syncCurrentUserFromUserManagementDetail(savedUser);
+        const currentUser = getCurrentUser();
+        const isSelfEdit =
+          Boolean(currentUser.id && currentUser.id === savedUser.id) ||
+          Boolean(
+            currentUser.email &&
+              savedUser.email &&
+              currentUser.email.trim().toLowerCase() ===
+                savedUser.email.trim().toLowerCase(),
+          );
+
+        if (isSelfEdit) {
+          // Reload from /auth/me so isSuperAdmin and full permission mapping are preserved.
+          await refreshCurrentUserPermissions();
+        } else {
+          syncCurrentUserFromUserManagementDetail(savedUser);
+        }
       }
 
       navigate(paths.list);

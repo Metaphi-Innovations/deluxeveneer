@@ -264,7 +264,9 @@ export function syncCurrentUserFromUserManagementDetail(
     return;
   }
 
-  persistCurrentUser(mapUserManagementDetailToProfile(detail));
+  // Always reload from /auth/me. User-management detail mapping drops
+  // isSuperAdmin and can wipe session permissions until a hard refresh.
+  void refreshCurrentUserPermissions();
 }
 
 export function getUserDisplayName(profile: AuthenticatedUserProfile) {
