@@ -77,6 +77,56 @@ export function mapBackendUnitToMasterRecord(
   };
 }
 
+export interface PaginatedUnitResult {
+  records: MasterRecord[];
+  totalCount: number;
+  page: number;
+  limit: number;
+}
+
+export async function fetchUnitsPaginated(params: {
+  page: number;
+  limit: number;
+  search?: string;
+  status?: boolean;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
+}): Promise<PaginatedUnitResult> {
+  try {
+    const query = new URLSearchParams();
+    query.set("page", String(params.page));
+    query.set("limit", String(params.limit));
+    if (params.search?.trim()) query.set("search", params.search.trim());
+    if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      query.set("filters", encodeURIComponent(JSON.stringify(params.filters)));
+    }
+
+    const queryString = query.toString();
+    const endpoint = queryString ? `/masters/units?${queryString}` : "/masters/units";
+
+    const res = await apiRequest<ApiResponse<BackendUnitListResponse>>(endpoint);
+    if (res?.success && res.data) {
+      const offset = (params.page - 1) * params.limit;
+      const records = (res.data.items || []).map((item, idx) =>
+        mapBackendUnitToMasterRecord(item, offset + idx),
+      );
+      return {
+        records,
+        totalCount: res.data.pagination?.total ?? records.length,
+        page: res.data.pagination?.page ?? params.page,
+        limit: res.data.pagination?.limit ?? params.limit,
+      };
+    }
+  } catch (error) {
+    console.warn("Failed to fetch paginated units from backend API:", error);
+  }
+  return { records: [], totalCount: 0, page: params.page, limit: params.limit };
+}
+
 export async function fetchUnitsApi(params?: {
   page?: number;
   limit?: number;
@@ -116,12 +166,12 @@ export async function getUnitByIdApi(id: string): Promise<MasterRecord | null> {
 }
 
 export async function createUnitApi(values: {
-  name?: string;
-  unitName?: string;
-  symbolicName?: string | null;
-  remark?: string | null;
-  remarks?: string | null;
-  status?: boolean | string;
+  name?: string | undefined;
+  unitName?: string | undefined;
+  symbolicName?: string | null | undefined;
+  remark?: string | null | undefined;
+  remarks?: string | null | undefined;
+  status?: boolean | string | undefined;
 }): Promise<MasterRecord | null> {
   const isStatusActive =
     typeof values.status === "boolean"
@@ -155,12 +205,12 @@ export async function createUnitApi(values: {
 export async function updateUnitApi(
   id: string,
   values: {
-    name?: string;
-    unitName?: string;
-    symbolicName?: string | null;
-    remark?: string | null;
-    remarks?: string | null;
-    status?: boolean | string;
+    name?: string | undefined;
+    unitName?: string | undefined;
+    symbolicName?: string | null | undefined;
+    remark?: string | null | undefined;
+    remarks?: string | null | undefined;
+    status?: boolean | string | undefined;
   },
 ): Promise<MasterRecord | null> {
   const isStatusActive =
@@ -222,6 +272,21 @@ export async function deleteUnitApi(id: string): Promise<boolean> {
 
 const LOCAL_MASTER_RECORDS_STORAGE_KEY = "deluxe-veneers-local-master-records";
 
+export async function fetchUnitColumnDropdown(
+  column: string,
+): Promise<{ column: string; options: Array<{ value: string; label: string }> }> {
+  try {
+    const res = await apiRequest<ApiResponse<{ column: string; options: Array<{ value: string; label: string }> }>>(
+      `/masters/units/dropdowns?column=${encodeURIComponent(column)}`,
+    );
+    if (res?.success && res.data) {
+      return { column: res.data.column ?? column, options: res.data.options ?? [] };
+    }
+  } catch (error) {
+    console.warn('Failed to fetch column dropdown:', error);
+  }
+  return { column, options: [] };
+}
 export function syncUnitMasterToStorage(rows: MasterRecord[]) {
   if (typeof window === "undefined") return;
   try {

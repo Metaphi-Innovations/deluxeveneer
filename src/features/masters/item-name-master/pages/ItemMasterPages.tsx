@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { MasterFormPage, MasterListingPage } from "../../shared";
 import { createLocalMasterRecord, updateLocalMasterRecord } from "../../shared/localMasterStore";
 import type { MasterDefinition, MasterFieldDefinition, MasterRecord } from "../../shared/types";
+import type { ColumnFilterValue } from "../../../shared/columnFilters";
+import { isActiveColumnFilter } from "../../../shared/columnFilters";
 import { itemMasterDefinition } from "../mock/itemMasterData";
 import {
   createItemApi,
   fetchItemsApi,
+  fetchItemsPaginated,
+  fetchItemColumnDropdown,
   getItemByIdApi,
   getStoredItemMasterRows,
   syncItemMasterToStorage,
@@ -18,85 +22,187 @@ import { fetchItemSubCategoriesApi } from "../../item-sub-category-master/itemSu
 import { fetchHsnsApi } from "../../hsn-master/hsnMasterApi";
 import { fetchColorsApi } from "../../color-master/colorMasterApi";
 
+const ITEM_SORT_FIELD_MAP: Record<string, string> = {
+  itemName: "name",
+  name: "name",
+  itemCode: "factoryItemCode",
+  factoryItemCode: "factoryItemCode",
+  category: "category",
+  categoryName: "category",
+  subCategory: "subCategory",
+  remark: "remarks",
+  remarks: "remarks",
+  status: "status",
+  createdDate: "createdAt",
+  createdAt: "createdAt",
+  createdBy: "createdAt",
+  updatedDate: "updatedAt",
+  updatedAt: "updatedAt",
+  editedBy: "updatedAt",
+  updatedBy: "updatedAt",
+};
+
+function mapItemSortField(columnKey: string | null): string | undefined {
+  if (!columnKey) return undefined;
+  return ITEM_SORT_FIELD_MAP[columnKey];
+}
+
+function toApiColumnFilters(
+  columnFilters: Partial<Record<string, ColumnFilterValue>>,
+): Record<string, string[]> {
+  const filters: Record<string, string[]> = {};
+  for (const [key, filter] of Object.entries(columnFilters)) {
+    if (!isActiveColumnFilter(filter)) continue;
+    filters[key] = filter.values;
+  }
+  return filters;
+}
+
 export function ItemMasterListPage() {
+  const [rows, setRows] = useState<MasterRecord[]>([]);
+  const [searchValue, setSearchValue] = useState("");
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<string, ColumnFilterValue>>>({});
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [apiRows, setApiRows] = useState<MasterRecord[]>(() => {
-    return getStoredItemMasterRows();
-  });
+  const [errorMessage, setErrorMessage] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+  const hasLoadedRowsRef = useRef(false);
+  const columnDropdownRequestIdRef = useRef(0);
 
-  const loadItems = async () => {
+  const loadColumnDropdown = useCallback(async (columnKey: string) => {
+    const requestId = ++columnDropdownRequestIdRef.current;
+    setFilterOptionsByColumn({});
     try {
-      const records = await fetchItemsApi({ limit: 1000 });
-      if (records && records.length > 0) {
-        setApiRows(records);
-        syncItemMasterToStorage(records);
-      } else {
-        const stored = getStoredItemMasterRows();
-        if (stored.length > 0) {
-          setApiRows(stored);
-        } else {
-          setApiRows([]);
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to fetch items:", err);
-      const stored = getStoredItemMasterRows();
-      if (stored.length > 0) {
-        setApiRows(stored);
-      }
-    } finally {
-      setIsLoading(false);
+      const result = await fetchItemColumnDropdown(columnKey);
+      if (requestId !== columnDropdownRequestIdRef.current) return;
+      setFilterOptionsByColumn({ [result.column]: result.options });
+    } catch {
+      // keep page usable
     }
-  };
-
-  useEffect(() => {
-    loadItems();
   }, []);
 
-  const definitionWithApiRows = useMemo<MasterDefinition>(() => {
-    return { ...itemMasterDefinition, rows: apiRows };
-  }, [apiRows]);
+  useEffect(() => {
+    let ignore = false;
 
-  const handleStatusToggle = async (row: MasterRecord, checked: boolean) => {
-    // Optimistically update status
-    setApiRows((prev) =>
-      prev.map((r) =>
-        r.id === row.id
-          ? {
-              ...r,
-              status: checked ? "Active" : "Inactive",
-              statusLabel: checked ? "Active" : "Inactive",
-            }
-          : r,
-      ),
-    );
+    const timer = window.setTimeout(async () => {
+      if (!hasLoadedRowsRef.current) {
+        setIsLoading(true);
+      }
+      setErrorMessage("");
 
+      try {
+        const apiSortBy = mapItemSortField(sortBy);
+        const apiFilters = toApiColumnFilters(columnFilters);
+        const result = await fetchItemsPaginated({
+          page,
+          limit: rowsPerPage,
+          search: searchValue,
+          ...(apiSortBy ? { sortBy: apiSortBy } : {}),
+          ...(sortOrder ? { sortOrder } : {}),
+          ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+        });
+
+        if (!ignore) {
+          setRows(result.items);
+          setTotalCount(result.pagination.total);
+          hasLoadedRowsRef.current = true;
+          syncItemMasterToStorage(result.items);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Unable to load items.",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      ignore = true;
+      window.clearTimeout(timer);
+    };
+  }, [reloadKey, searchValue, page, rowsPerPage, sortBy, sortOrder, columnFilters]);
+
+  const handleStatusToggle = useCallback(async (row: MasterRecord, checked: boolean) => {
     try {
       await updateItemStatusApi(row.id, checked);
-      const allRecords = await fetchItemsApi({ limit: 1000 });
-      if (allRecords.length > 0) {
-        setApiRows(allRecords);
-        syncItemMasterToStorage(allRecords);
-      }
-    } catch (error) {
-      console.warn("Failed to toggle item status via backend API:", error);
-      // Revert optimistic update
-      setApiRows((prev) =>
-        prev.map((r) =>
-          r.id === row.id
-            ? { ...r, status: row.status, statusLabel: row.statusLabel }
-            : r,
+      setRows((current) =>
+        current.map((entry) =>
+          entry.id === row.id
+            ? { ...entry, status: checked ? "Active" : "Inactive" }
+            : entry,
         ),
       );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to update item status.",
+      );
+      setReloadKey((v) => v + 1);
     }
-  };
+  }, []);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchValue(value);
+    setPage(1);
+  }, []);
+
+  const handleRowsPerPageChange = useCallback((nextRowsPerPage: number) => {
+    setRowsPerPage(nextRowsPerPage);
+    setPage(1);
+  }, []);
+
+  const handleSortChange = useCallback(
+    (nextSortBy: string, nextSortOrder: "asc" | "desc") => {
+      setSortBy(nextSortBy);
+      setSortOrder(nextSortOrder);
+      setPage(1);
+    },
+    [],
+  );
+
+  const handleColumnFiltersChange = useCallback(
+    (nextFilters: Partial<Record<string, ColumnFilterValue>>) => {
+      setColumnFilters(nextFilters);
+      setPage(1);
+    },
+    [],
+  );
 
   return (
     <MasterListingPage
-      definition={definitionWithApiRows}
-      rows={apiRows}
-      loading={isLoading && apiRows.length === 0}
+      definition={itemMasterDefinition}
+      errorMessage={errorMessage}
+      loading={isLoading}
+      onSearchChange={handleSearchChange}
       onStatusChange={handleStatusToggle}
+      pagination={{
+        page,
+        rowsPerPage,
+        totalCount,
+        onPageChange: setPage,
+        onRowsPerPageChange: handleRowsPerPageChange,
+      }}
+      sorting={{
+        sortBy,
+        sortOrder,
+        onSortChange: handleSortChange,
+      }}
+      columnFilters={columnFilters}
+      onColumnFilterOpen={(columnKey) => { void loadColumnDropdown(columnKey); }}
+      onColumnFiltersChange={handleColumnFiltersChange}
+      filterOptionsByColumn={filterOptionsByColumn}
+      rows={rows}
+      searchValue={searchValue}
+      serverSearch
     />
   );
 }
