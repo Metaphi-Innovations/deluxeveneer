@@ -90,32 +90,29 @@ export function isAuthenticated() {
 
 /**
  * Sign in against backend POST /api/auth/login
+ * @throws Error with backend message (e.g. inactive account)
  */
 export async function signIn(email: string, password: string): Promise<boolean> {
   if (typeof window === "undefined") {
     return false;
   }
 
-  try {
-    const res = await apiRequest<ApiResponse<{ accessToken: string; user: any }>>(
-      "/auth/login",
-      {
-        method: "POST",
-        body: { email: email.trim().toLowerCase(), password },
-      }
-    );
+  const res = await apiRequest<ApiResponse<{ accessToken: string; user: any }>>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: { email: email.trim().toLowerCase(), password },
+    },
+  );
 
-    if (res?.success && res?.data?.accessToken) {
-      const backendUser = res.data.user;
-      const profile = mapBackendUserToProfile(backendUser);
-      persistAuthenticatedSession(res.data.accessToken, profile);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error("[Auth] Login error:", error);
-    return false;
+  if (res?.success && res?.data?.accessToken) {
+    const backendUser = res.data.user;
+    const profile = mapBackendUserToProfile(backendUser);
+    persistAuthenticatedSession(res.data.accessToken, profile);
+    return true;
   }
+
+  return false;
 }
 
 /**
