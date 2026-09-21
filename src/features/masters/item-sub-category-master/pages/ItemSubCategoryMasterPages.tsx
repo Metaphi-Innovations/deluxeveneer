@@ -9,6 +9,7 @@ import {
   updateItemSubCategoryApi,
   updateItemSubCategoryStatusApi,
 } from "../itemSubCategoryMasterApi";
+import { fetchItemCategoriesApi } from "../../item-category-master/itemCategoryMasterApi";
 
 export function ItemSubCategoryMasterListPage() {
   const [apiRows, setApiRows] = useState<MasterRecord[]>([]);
@@ -21,19 +22,12 @@ export function ItemSubCategoryMasterListPage() {
         syncItemSubCategoryMasterToStorage(records);
       }
     });
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, []);
 
   const definitionWithApiRows = useMemo<MasterDefinition>(() => {
-    if (apiRows.length === 0) {
-      return itemSubCategoryMasterDefinition;
-    }
-    return {
-      ...itemSubCategoryMasterDefinition,
-      rows: apiRows,
-    };
+    if (apiRows.length === 0) return itemSubCategoryMasterDefinition;
+    return { ...itemSubCategoryMasterDefinition, rows: apiRows };
   }, [apiRows]);
 
   const handleStatusToggle = async (row: MasterRecord, checked: boolean) => {
@@ -45,7 +39,7 @@ export function ItemSubCategoryMasterListPage() {
         syncItemSubCategoryMasterToStorage(allRecords);
       }
     } catch (error) {
-      console.warn("Failed to toggle item sub category status via backend API:", error);
+      console.warn("Failed to toggle item sub-category status via backend API:", error);
     }
   };
 
@@ -58,6 +52,31 @@ export function ItemSubCategoryMasterListPage() {
 }
 
 export function AddItemSubCategoryMasterPage() {
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchItemCategoriesApi({ status: true, limit: 1000 }).then((records) => {
+      const names = records
+        .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+        .map((r) => String(r.categoryName || r.name || "").trim())
+        .filter((n) => Boolean(n) && isNaN(Number(n)));
+      setCategoryOptions([...new Set(names)]);
+    }).catch(() => {});
+  }, []);
+
+  const definitionWithDynamicOptions = useMemo<MasterDefinition>(() => {
+    if (!categoryOptions.length) return itemSubCategoryMasterDefinition;
+    return {
+      ...itemSubCategoryMasterDefinition,
+      fields: itemSubCategoryMasterDefinition.fields.map((field) => {
+        if (field.key === "category") {
+          return { ...field, options: categoryOptions };
+        }
+        return field;
+      }),
+    };
+  }, [categoryOptions]);
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -66,28 +85,25 @@ export function AddItemSubCategoryMasterPage() {
   }) => {
     try {
       const created = await createItemSubCategoryApi({
-        itemSubCategory: String(context.values.itemSubCategory || context.values.name || ""),
         name: String(context.values.itemSubCategory || context.values.name || ""),
-        category: context.values.category || "Decorative Veneer",
-        categoryName: context.values.category || "Decorative Veneer",
+        itemSubCategory: String(context.values.itemSubCategory || context.values.name || ""),
+        category: context.values.category || "",
+        categoryName: context.values.category || "",
         remark: context.values.remark || context.values.remarks || null,
-        remarks: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
       if (created) {
         const allRecords = await fetchItemSubCategoriesApi();
-        if (allRecords.length > 0) {
-          syncItemSubCategoryMasterToStorage(allRecords);
-        }
+        if (allRecords.length > 0) syncItemSubCategoryMasterToStorage(allRecords);
       }
     } catch (error) {
-      console.warn("Failed to create item sub category via API, fallback will persist locally:", error);
+      console.warn("Failed to create item sub-category via API:", error);
     }
   };
 
   return (
     <MasterFormPage
-      definition={itemSubCategoryMasterDefinition}
+      definition={definitionWithDynamicOptions}
       mode="add"
       onSave={handleSave}
     />
@@ -95,6 +111,31 @@ export function AddItemSubCategoryMasterPage() {
 }
 
 export function EditItemSubCategoryMasterPage() {
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchItemCategoriesApi({ status: true, limit: 1000 }).then((records) => {
+      const names = records
+        .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+        .map((r) => String(r.categoryName || r.name || "").trim())
+        .filter((n) => Boolean(n) && isNaN(Number(n)));
+      setCategoryOptions([...new Set(names)]);
+    }).catch(() => {});
+  }, []);
+
+  const definitionWithDynamicOptions = useMemo<MasterDefinition>(() => {
+    if (!categoryOptions.length) return itemSubCategoryMasterDefinition;
+    return {
+      ...itemSubCategoryMasterDefinition,
+      fields: itemSubCategoryMasterDefinition.fields.map((field) => {
+        if (field.key === "category") {
+          return { ...field, options: categoryOptions };
+        }
+        return field;
+      }),
+    };
+  }, [categoryOptions]);
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -104,29 +145,26 @@ export function EditItemSubCategoryMasterPage() {
     if (context.row?.id) {
       try {
         const updated = await updateItemSubCategoryApi(context.row.id, {
-          itemSubCategory: String(context.values.itemSubCategory || context.values.name || ""),
           name: String(context.values.itemSubCategory || context.values.name || ""),
+          itemSubCategory: String(context.values.itemSubCategory || context.values.name || ""),
           category: context.values.category,
           categoryName: context.values.category,
           remark: context.values.remark || context.values.remarks || null,
-          remarks: context.values.remark || context.values.remarks || null,
           status: context.values.status,
         });
         if (updated) {
           const allRecords = await fetchItemSubCategoriesApi();
-          if (allRecords.length > 0) {
-            syncItemSubCategoryMasterToStorage(allRecords);
-          }
+          if (allRecords.length > 0) syncItemSubCategoryMasterToStorage(allRecords);
         }
       } catch (error) {
-        console.warn("Failed to update item sub category via API, fallback will persist locally:", error);
+        console.warn("Failed to update item sub-category via API:", error);
       }
     }
   };
 
   return (
     <MasterFormPage
-      definition={itemSubCategoryMasterDefinition}
+      definition={definitionWithDynamicOptions}
       mode="edit"
       onSave={handleSave}
     />
@@ -134,8 +172,5 @@ export function EditItemSubCategoryMasterPage() {
 }
 
 export function ViewItemSubCategoryMasterPage() {
-  return (
-    <MasterFormPage definition={itemSubCategoryMasterDefinition} mode="view" />
-  );
+  return <MasterFormPage definition={itemSubCategoryMasterDefinition} mode="view" />;
 }
-
