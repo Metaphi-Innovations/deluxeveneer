@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -95,6 +95,32 @@ export function MasterListingPage({
   const setSearchValue = onSearchChange ?? setInternalSearch;
   const sourceRows = remoteRows ?? localDefinition.rows;
 
+  // Local input state and debounce effect to avoid immediate API firing on every keystroke
+  const [inputValue, setInputValue] = useState(searchValue);
+
+  useEffect(() => {
+    setInputValue(searchValue);
+  }, [searchValue]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (inputValue !== searchValue) {
+        setSearchValue(inputValue);
+      }
+    }, 450);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [inputValue, searchValue, setSearchValue]);
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val);
+    if (val === "") {
+      setSearchValue("");
+    }
+  };
+
   const filteredRows = useMemo(() => {
     if (serverSearch) {
       return sourceRows;
@@ -152,8 +178,8 @@ export function MasterListingPage({
         spacing={1.5}
       >
         <ClearableSearchField
-          value={searchValue}
-          onChange={setSearchValue}
+          value={inputValue}
+          onChange={handleInputChange}
           placeholder={searchPlaceholder}
           sx={{
             width: { xs: "100%", sm: 300 },
