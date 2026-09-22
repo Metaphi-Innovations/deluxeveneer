@@ -6,6 +6,7 @@ import {
   FileOutput,
   Pencil,
   Plus,
+  Trash2,
   Upload,
 } from "lucide-react";
 import {
@@ -43,6 +44,7 @@ import {
   type WarehouseAInventorySlug,
 } from "../shared/warehouseTableData";
 import {
+  deleteWarehouseAInwardRow,
   getWarehouseAInwardRows,
   subscribeWarehouseAInwardUpdates,
 } from "../shared/warehouseAInwardStore";
@@ -54,6 +56,10 @@ import {
   resolveWarehouseQcRows,
   subscribeWarehouseQcStatusUpdates,
 } from "../shared/warehouseQcStore";
+import {
+  isActiveColumnFilter,
+  type ColumnFilterValue,
+} from "../../shared/columnFilters";
 
 type WarehouseAVisibleInventorySlug = Exclude<
   WarehouseAInventorySlug,
@@ -133,19 +139,58 @@ export function WarehouseAInventoryModulePage({
     [],
   );
 
-  const filteredRows = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
+  const [columnFilters, setColumnFilters] = useState<
+    Partial<Record<string, ColumnFilterValue>>
+  >({});
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
 
-    if (!normalizedSearch) {
-      return resolvedRows;
+  const filteredRows = useMemo(() => {
+    let result = resolvedRows;
+
+    // Apply column filters
+    for (const [columnKey, filter] of Object.entries(columnFilters)) {
+      if (!isActiveColumnFilter(filter) || filter.values.length === 0) continue;
+      const lowerValues = new Set(filter.values.map((v) => v.toLowerCase().trim()));
+      result = result.filter((row) => {
+        const cellValue = formatInventorySearchValue(
+          (row as unknown as Record<string, EnterpriseTableCellValue>)[columnKey],
+        );
+        return lowerValues.has(cellValue.trim());
+      });
     }
 
-    return resolvedRows.filter((row) =>
+    const normalizedSearch = searchValue.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return result;
+    }
+
+    return result.filter((row) =>
       Object.values(row).some((value) =>
         formatInventorySearchValue(value).includes(normalizedSearch),
       ),
     );
-  }, [resolvedRows, searchValue]);
+  }, [columnFilters, resolvedRows, searchValue]);
+
+  const handleColumnFilterOpen = (columnKey: string) => {
+    const distinctSet = new Set<string>();
+    resolvedRows.forEach((row) => {
+      const val = formatInventorySearchValue(
+        (row as unknown as Record<string, EnterpriseTableCellValue>)[columnKey],
+      ).trim();
+      if (val) distinctSet.add(val);
+    });
+    const options = Array.from(distinctSet)
+      .sort()
+      .map((val) => ({ value: val, label: val }));
+    setFilterOptionsByColumn((prev) => ({
+      ...prev,
+      [columnKey]: options,
+    }));
+  };
+
+  const [deleteTarget, setDeleteTarget] = useState<WarehouseInventoryRow | null>(null);
 
   const getRowActions = useMemo(
     () => (row: WarehouseInventoryRow) => {
@@ -192,14 +237,7 @@ export function WarehouseAInventoryModulePage({
           : []),
       ];
 
-      const qcStatus = getWarehouseQcStatus(row);
-      const alreadyTransferred = isWarehouseQcTransferred(row);
-
-      if (
-        canEdit &&
-        (qcStatus === "pending" || qcStatus === "fail") &&
-        !alreadyTransferred
-      ) {
+      if (canEdit) {
         actions.push({
           id: "qc-pass",
           label: "QC Pass",
@@ -208,9 +246,7 @@ export function WarehouseAInventoryModulePage({
             setQcPassRow(selectedRow);
           },
         });
-      }
 
-      if (canEdit && qcStatus === "pending" && !alreadyTransferred) {
         actions.push({
           id: "qc-fail",
           label: "QC Fail",
@@ -312,9 +348,13 @@ export function WarehouseAInventoryModulePage({
         <EnterpriseDataTable
           key={activeInventory}
           columns={warehouseInvoiceListingColumns}
+          columnFilters={columnFilters}
           defaultRowsPerPage={10}
+          filterOptionsByColumn={filterOptionsByColumn}
           getRowActions={getRowActions}
           initialSort={{ key: "inwardDate", direction: "desc" }}
+          onColumnFilterOpen={handleColumnFilterOpen}
+          onColumnFiltersChange={setColumnFilters}
           rows={canView ? filteredRows : []}
         />
       </Stack>
@@ -332,6 +372,41 @@ export function WarehouseAInventoryModulePage({
         }}
         open={Boolean(qcPassRow)}
       />
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete inward record{" "}
+            <strong>{deleteTarget?.invoiceNo || deleteTarget?.inwardSrNo || "selected record"}</strong>?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} variant="outlined">
+            Cancel
+          </Button>
+          <Button
+            onClick={() => {
+              if (deleteTarget) {
+                deleteWarehouseAInwardRow(deleteTarget.id);
+                deleteWarehouseAInwardRow(deleteTarget.inventoryRecordId);
+                setDeleteTarget(null);
+                setInwardRevision((current) => current + 1);
+              }
+            }}
+            color="error"
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </MasterPageShell>
   );
 }

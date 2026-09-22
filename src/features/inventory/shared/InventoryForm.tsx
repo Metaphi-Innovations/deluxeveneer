@@ -71,7 +71,7 @@ import {
   isInrCurrency,
 } from "./warehouseAAddStockConfig";
 import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
-import { createInwardApi } from "../../warehouses/api/inwardApi";
+import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
 import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";

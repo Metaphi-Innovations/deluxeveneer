@@ -107,7 +107,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "supplierName", label: "Supplier Name" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
-    { key: "totalAmount", label: "Total Amount" },
+    { key: "expenseAmount", label: "Expense Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "qcRemark", label: "QC Remark" },
     { key: "remark", label: "Remark" },
@@ -161,11 +161,6 @@ export function InwardWarehousePage({
       setTotalCount(0);
       setErrorMessage("");
       setIsLoading(false);
-      return;
-    }
-
-    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
-    if (!inventoryType || !warehouseId) {
       return;
     }
 
@@ -453,16 +448,7 @@ export function InwardWarehousePage({
               >
                 Add Stock
               </Button>
-            ) : (
-              <Button
-                startIcon={<Plus size={15} />}
-                variant="contained"
-                disabled
-                sx={(theme) => getListingToolbarButtonSx(theme)}
-              >
-                Add Stock
-              </Button>
-            )}
+            ) : null}
 
             <Button
               variant="outlined"

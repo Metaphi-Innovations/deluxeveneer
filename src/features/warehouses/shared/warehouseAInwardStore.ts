@@ -64,6 +64,14 @@ export function saveWarehouseAInwardItems(input: {
   return nextRows.map(reviveWarehouseInventoryRow);
 }
 
+export function deleteWarehouseAInwardRow(idOrRecordId: string) {
+  const existingRows = readWarehouseAInwardRows();
+  const nextRows = existingRows.filter(
+    (row) => row.id !== idOrRecordId && row.inventoryRecordId !== idOrRecordId,
+  );
+  writeWarehouseAInwardRows(nextRows);
+}
+
 export function subscribeWarehouseAInwardUpdates(listener: () => void) {
   if (typeof window === "undefined") {
     return () => undefined;

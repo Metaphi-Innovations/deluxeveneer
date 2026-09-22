@@ -127,6 +127,7 @@ export interface InwardItemDetail {
   width: number | null;
   height: number | null;
   thickness?: number | null;
+  thickness?: number | null;
   cbm: number | null;
   rate: number | null;
   amount: number;
@@ -461,6 +462,18 @@ export async function updateInwardQcStatusApi(
 
   if (!res?.success) {
     throw new Error(res?.message || "Failed to update QC status");
+  }
+
+  return res.data;
+}
+
+export async function deleteInwardApi(id: string) {
+  const res = await apiRequest<ApiResponse<unknown>>(`${BASE_PATH}/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!res?.success) {
+    throw new Error(res?.message || "Failed to delete inward");
   }
 
   return res.data;

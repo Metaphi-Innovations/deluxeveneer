@@ -795,7 +795,7 @@ export function UserManagementFormPage({
                         <MasterFormFields
                           definition={{
                             fields: identityDocumentFields,
-                            gridColumns: 2,
+                            gridColumns: 3,
                           }}
                           onChange={handleFieldChange}
                           readOnly={mode === "view"}
