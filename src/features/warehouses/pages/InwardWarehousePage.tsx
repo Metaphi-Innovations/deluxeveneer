@@ -22,6 +22,7 @@ import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessT
 import { MasterPageShell } from "../../masters/shared";
 import { getInventoryPaths } from "../../inventory/shared";
 import { canAccessPermission } from "../../permissions";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import {
   getListingToolbarButtonSx,
   getListingToolbarOutlinedButtonSx,
@@ -148,9 +149,10 @@ export function InwardWarehousePage({
     searchParams.get("inventory"),
   );
   const activeTitle = inwardInventoryTitles[activeInventory];
-  const canCreate = canAccessPermission("warehouseA", "create");
-  const canEdit = canAccessPermission("warehouseA", "edit");
-  const canView = canAccessPermission("warehouseA", "view");
+  const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
+  const canCreate = canAccessPermission(warehousePermissionKey, "create");
+  const canEdit = canAccessPermission(warehousePermissionKey, "edit");
+  const canView = canAccessPermission(warehousePermissionKey, "view");
   const isApiSupportedInventory = isApiSupportedInwardSlug(activeInventory);
   const activeInventoryListPath = `${warehouseRootPath}?inventory=${activeInventory}`;
 

@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 import type {
   EnterpriseTableColumn,
   EnterpriseTableRow,
@@ -6,6 +8,7 @@ import type { MasterFieldDefinition, MasterFieldValue } from "../../masters/shar
 import {
   getDynamicWarehousePermissionKey,
   type DynamicWarehousePermissionItem,
+  type WarehousePermissionType,
 } from "../../shared/warehousePermission";
 
 export type UserPermissionAction = "view" | "edit" | "create";
@@ -19,6 +22,8 @@ export interface UserPermissionFlags {
 export interface UserPermissionItem {
   key: string;
   label: string;
+  icon?: LucideIcon;
+  warehouseType?: WarehousePermissionType;
 }
 
 export interface UserPermissionSection {
@@ -163,11 +168,7 @@ export const userPermissionSections: readonly UserPermissionSection[] = [
   {
     id: "warehouses",
     label: "Warehouses",
-    items: [
-      { key: "warehouseA", label: "Warehouse A" },
-      { key: "warehouseB", label: "Warehouse B" },
-      { key: "warehouseC", label: "Warehouse C" },
-    ],
+    items: [],
   },
   {
     id: "factory",
@@ -205,21 +206,29 @@ export const userPermissionSections: readonly UserPermissionSection[] = [
 
 export function buildUserPermissionSections(
   dynamicWarehouses: readonly DynamicWarehousePermissionItem[] = [],
-) {
+  iconsByType?: Partial<Record<WarehousePermissionType, LucideIcon>>,
+): UserPermissionSection[] {
   return userPermissionSections.map((section) => {
-    if (section.id !== "warehouses" || dynamicWarehouses.length === 0) {
+    if (section.id !== "warehouses") {
       return section;
     }
 
+    const items: UserPermissionItem[] = dynamicWarehouses.map((warehouse) => {
+      const icon = iconsByType?.[warehouse.warehouseType];
+      const item: UserPermissionItem = {
+        key: getDynamicWarehousePermissionKey(warehouse.id),
+        label: warehouse.label,
+        warehouseType: warehouse.warehouseType,
+      };
+      if (icon) {
+        item.icon = icon;
+      }
+      return item;
+    });
+
     return {
       ...section,
-      items: [
-        ...section.items,
-        ...dynamicWarehouses.map((warehouse) => ({
-          key: getDynamicWarehousePermissionKey(warehouse.slug),
-          label: warehouse.label,
-        })),
-      ],
+      items,
     };
   });
 }

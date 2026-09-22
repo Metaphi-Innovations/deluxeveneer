@@ -31,6 +31,7 @@ import {
   canAccessPermission,
   getWarehousePermissionKey,
 } from "../../permissions";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import {
   recordFormActionButtonSx,
   recordViewActionButtonSx,
@@ -140,9 +141,10 @@ export function InventoryForm<Row extends InventoryRecord>({
     isApiSupportedInwardSlug(definition.slug) &&
     params.id
   ) {
+    const warehousePermissionKey = getDynamicWarehousePermissionKey(apiWarehouseId);
     const canOpen =
-      (mode === "view" && canAccessPermission("warehouseA", "view")) ||
-      (mode === "edit" && canAccessPermission("warehouseA", "edit"));
+      (mode === "view" && canAccessPermission(warehousePermissionKey, "view")) ||
+      (mode === "edit" && canAccessPermission(warehousePermissionKey, "edit"));
 
     if (!canOpen) {
       return (
@@ -217,7 +219,9 @@ function InventoryFormContent<Row extends InventoryRecord>({
   const apiWarehouseName = searchParams.get("warehouseName")?.trim() || "";
   const isApiInward = Boolean(apiWarehouseId);
   const isApiInwardAdd = isApiInward && mode === "add";
-  const permissionKey = getWarehousePermissionKey(activeWarehouse);
+  const permissionKey = apiWarehouseId
+    ? getDynamicWarehousePermissionKey(apiWarehouseId)
+    : getWarehousePermissionKey(activeWarehouse);
   const canCreate = canAccessPermission(permissionKey, "create");
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");

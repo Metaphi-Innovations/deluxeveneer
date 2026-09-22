@@ -1,6 +1,10 @@
 import type { MasterFieldValue } from "../../masters/shared";
 import { getCurrentUser } from "../../auth";
 import {
+  applyWarehouseScopedCodesToPermissions,
+  collectWarehouseScopedCodesFromPermissions,
+} from "../../shared/warehousePermission";
+import {
   buildDefaultUserPermissions,
   type UserPermissionFlags,
   type UserManagementDetail,
@@ -487,17 +491,7 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
   };
 
-  permissions.warehouseA = {
-    view:
-      codes.includes("WAREHOUSE_INWARD_VIEW") ||
-      codes.includes("WAREHOUSE_MASTER_VIEW"),
-    create:
-      codes.includes("WAREHOUSE_INWARD_CREATE") ||
-      codes.includes("WAREHOUSE_MASTER_CREATE"),
-    edit:
-      codes.includes("WAREHOUSE_INWARD_UPDATE") ||
-      codes.includes("WAREHOUSE_MASTER_UPDATE"),
-  };
+  applyWarehouseScopedCodesToPermissions(codes, permissions);
 
   return {
     id: item.id,
@@ -613,10 +607,7 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
     codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
   }
 
-  const warehouseInward = permissions.warehouseA;
-  if (warehouseInward?.view) codes.push("WAREHOUSE_INWARD_VIEW");
-  if (warehouseInward?.create) codes.push("WAREHOUSE_INWARD_CREATE");
-  if (warehouseInward?.edit) codes.push("WAREHOUSE_INWARD_UPDATE");
+  codes.push(...collectWarehouseScopedCodesFromPermissions(permissions));
 
   return Array.from(new Set(codes));
 }

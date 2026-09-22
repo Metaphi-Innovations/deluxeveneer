@@ -3,6 +3,7 @@ import {
   type UserPermissionFlags,
   type UserManagementDetail,
 } from "../user-management/shared/userManagementConfig";
+import { applyWarehouseScopedCodesToPermissions } from "../shared/warehousePermission";
 import { apiRequest, type ApiResponse } from "../../lib/apiClient";
 
 const AUTH_STORAGE_KEY = "deluxe-veneers-erp-authenticated";
@@ -226,7 +227,22 @@ export function getDefaultAuthenticatedRoute() {
     hasAnyPermission(user, permissionKey),
   );
 
-  return route?.path ?? "/profile";
+  if (route) {
+    return route.path;
+  }
+
+  const warehousePermissionKey = Object.keys(user.permissions ?? {}).find(
+    (key) => key.startsWith("warehouse:") && hasAnyPermission(user, key),
+  );
+
+  if (warehousePermissionKey) {
+    const warehouseId = warehousePermissionKey.slice("warehouse:".length);
+    if (warehouseId) {
+      return `/warehouses/${warehouseId}`;
+    }
+  }
+
+  return "/dashboard";
 }
 
 export async function refreshCurrentUserPermissions() {
@@ -419,17 +435,7 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       edit: userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
     };
 
-    permissions.warehouseA = {
-      view:
-        userPerms.includes("WAREHOUSE_INWARD_VIEW") ||
-        userPerms.includes("WAREHOUSE_MASTER_VIEW"),
-      create:
-        userPerms.includes("WAREHOUSE_INWARD_CREATE") ||
-        userPerms.includes("WAREHOUSE_MASTER_CREATE"),
-      edit:
-        userPerms.includes("WAREHOUSE_INWARD_UPDATE") ||
-        userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
-    };
+    applyWarehouseScopedCodesToPermissions(userPerms, permissions);
   }
 
   return {
@@ -522,9 +528,6 @@ function hasAnyPermission(
 const defaultPermissionRoutes = [
   { permissionKey: "dashboard", path: "/dashboard" },
   { permissionKey: "userManagement", path: "/user-management" },
-  { permissionKey: "warehouseA", path: "/warehouse-a" },
-  { permissionKey: "warehouseB", path: "/warehouse-b" },
-  { permissionKey: "warehouseC", path: "/warehouse-c" },
   { permissionKey: "colorMaster", path: "/masters/color-master" },
   { permissionKey: "currencyMaster", path: "/masters/currency-master" },
   { permissionKey: "customerMaster", path: "/masters/customer-master" },

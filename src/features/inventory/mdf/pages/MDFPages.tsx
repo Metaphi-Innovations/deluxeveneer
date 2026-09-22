@@ -2,6 +2,7 @@ import { Alert } from "@mui/material";
 import { Navigate, useParams, useSearchParams } from "react-router";
 
 import { canAccessPermission } from "../../../permissions";
+import { getDynamicWarehousePermissionKey } from "../../../shared/warehousePermission";
 import { ApiInwardEditForm } from "../../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../../warehouses/pages/ApiInwardViewForm";
 import { InventoryForm, InventoryPageShell, mdfDefinition } from "../../shared";
@@ -38,9 +39,10 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
   const inwardId = params.id?.trim() || "";
 
   if (warehouseId && inwardId) {
+    const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
     const canOpen =
-      (mode === "view" && canAccessPermission("warehouseA", "view")) ||
-      (mode === "edit" && canAccessPermission("warehouseA", "edit"));
+      (mode === "view" && canAccessPermission(warehousePermissionKey, "view")) ||
+      (mode === "edit" && canAccessPermission(warehousePermissionKey, "edit"));
 
     const listPath =
       returnTo?.startsWith("/")

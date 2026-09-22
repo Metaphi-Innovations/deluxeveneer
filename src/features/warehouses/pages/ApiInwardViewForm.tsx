@@ -20,6 +20,7 @@ import { useNavigate } from "react-router";
 import { MasterSectionCard } from "../../masters/shared";
 import { getInwardGstMode } from "../../masters/shared/masterDefinitions";
 import { canAccessPermission } from "../../permissions";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
   formSectionCardSx,
@@ -83,6 +84,7 @@ function qcChipColor(
 
 export function ApiInwardViewForm({
   inwardId,
+  warehouseId,
   warehouseName,
   warehouseRootPath,
   listPath,
@@ -90,7 +92,10 @@ export function ApiInwardViewForm({
 }: ApiInwardViewFormProps) {
   const theme = useTheme();
   const navigate = useNavigate();
-  const canEdit = canAccessPermission("warehouseA", "edit");
+  const canEdit = canAccessPermission(
+    getDynamicWarehousePermissionKey(warehouseId),
+    "edit",
+  );
   const [detail, setDetail] = useState<InwardDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");

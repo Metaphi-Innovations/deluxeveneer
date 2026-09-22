@@ -1,6 +1,7 @@
 import {
   fetchWarehouseMasterPaginated,
 } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 
 export const MASTER_WAREHOUSES_UPDATED_EVENT =
   "deluxe-veneers-master-warehouses-updated";
@@ -14,20 +15,30 @@ export interface SidebarWarehouseItem {
   permissionKey: string;
 }
 
-const WAREHOUSE_TYPE_PERMISSION_KEY: Record<WarehouseMasterType, string> = {
-  Inward: "warehouseA",
-  Storage: "warehouseB",
-  Production: "warehouseC",
+const WAREHOUSE_TYPE_SIDEBAR_ORDER: Record<WarehouseMasterType, number> = {
+  Inward: 0,
+  Storage: 1,
+  Production: 2,
 };
 
 function isWarehouseMasterType(value: string): value is WarehouseMasterType {
   return value === "Inward" || value === "Storage" || value === "Production";
 }
 
-export function getWarehouseTypePermissionKey(
-  warehouseType: WarehouseMasterType,
+function compareSidebarWarehouses(
+  left: SidebarWarehouseItem,
+  right: SidebarWarehouseItem,
 ) {
-  return WAREHOUSE_TYPE_PERMISSION_KEY[warehouseType];
+  const typeOrder =
+    WAREHOUSE_TYPE_SIDEBAR_ORDER[left.warehouseType] -
+    WAREHOUSE_TYPE_SIDEBAR_ORDER[right.warehouseType];
+  if (typeOrder !== 0) {
+    return typeOrder;
+  }
+
+  return left.label.localeCompare(right.label, undefined, {
+    sensitivity: "base",
+  });
 }
 
 export function notifyMasterWarehousesUpdated() {
@@ -62,8 +73,9 @@ export async function fetchSidebarWarehouses(): Promise<SidebarWarehouseItem[]> 
         id: item.id,
         label: warehouseName,
         warehouseType,
-        permissionKey: getWarehouseTypePermissionKey(warehouseType),
+        permissionKey: getDynamicWarehousePermissionKey(item.id),
       } satisfies SidebarWarehouseItem;
     })
-    .filter((item): item is SidebarWarehouseItem => item !== null);
+    .filter((item): item is SidebarWarehouseItem => item !== null)
+    .sort(compareSidebarWarehouses);
 }
