@@ -311,7 +311,7 @@ async function mapLineItemToPayload(
     };
   }
 
-  if (inventoryType === "PLYWOOD") {
+  if (inventoryType === "PLYWOOD" || inventoryType === "MDF") {
     return {
       ...base,
       batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,

@@ -231,7 +231,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             onTotalsChange={setLineTotals}
           />
 
-          {slug !== "plywood" ? (
+          {slug !== "plywood" && slug !== "mdf" ? (
             <Box>
               <Typography
                 variant="subtitle2"

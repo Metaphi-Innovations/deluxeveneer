@@ -136,7 +136,6 @@ export const warehouseInvoiceListingColumns: readonly EnterpriseTableColumn<Ware
     { key: "amount", label: "Amount" },
     { key: "expenseAmount", label: "Expense Amount" },
     { key: "qcStatus", label: "QC Status" },
-    { key: "qcRemark", label: "QC Remark" },
     { key: "remark", label: "Remark" },
   ];
 
