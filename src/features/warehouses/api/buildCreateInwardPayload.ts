@@ -13,6 +13,7 @@ import type {
   CreateInwardConsumablePayload,
   CreateInwardItemPayload,
   CreateInwardPayload,
+  InwardInventoryType,
 } from "../api/inwardApi";
 
 function parseNumber(value: string | undefined | null): number | null {
@@ -272,9 +273,16 @@ async function mapLineItemToPayload(
     hsnId,
     hsnCode: hsnCode || null,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
+    palletNo: String(values.palletNo ?? values.palletNumber ?? "").trim() || null,
+    logCode: String(values.logCode ?? "").trim() || null,
+    bundleNumber: String(values.bundleNumber ?? "").trim() || null,
+    noOfLeaves: parseNumber(values.noOfLeaves) !== null ? Math.round(parseNumber(values.noOfLeaves)!) : null,
+    sheets: parseNumber(values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets) !== null ? Math.round(parseNumber(values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets)!) : null,
+    totalSqMeter: parseNumber(values.totalSqMeter ?? values.totalSqm),
     length: parseNumber(values.length),
     width: parseNumber(values.width),
-    height: parseNumber(values.height ?? values.thickness),
+    height: parseNumber(values.height),
+    thickness: parseNumber(values.thickness),
     cbm: parseNumber(values.cbm),
     rate: parseNumber(values.rate),
     amount,
@@ -289,6 +297,7 @@ async function mapLineItemToPayload(
 
 export async function buildCreateInwardPayload(input: {
   warehouseId: string;
+  inventoryType?: InwardInventoryType | undefined;
   header: {
     attachment: string;
     currency: string;
@@ -330,7 +339,7 @@ export async function buildCreateInwardPayload(input: {
 
   return {
     warehouseId: input.warehouseId,
-    inventoryType: "VENEER_BLOCKS",
+    inventoryType: input.inventoryType ?? "VENEER_BLOCKS",
     inwardDate: toDateOnly(input.header.inwardDate),
     supplierId,
     invoiceNo: input.header.invoiceNo.trim(),

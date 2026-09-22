@@ -231,107 +231,109 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             onTotalsChange={setLineTotals}
           />
 
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                mb: 1,
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-              }}
-            >
-              Other Consumables
-            </Typography>
+          {slug !== "plywood" ? (
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  mb: 1,
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                }}
+              >
+                Other Consumables
+              </Typography>
 
-            <Stack spacing={1}>
-              {otherConsumables.length > 0 ? (
-                <Box
-                  sx={{
-                    display: { xs: "none", md: "grid" },
-                    gap: 1,
-                    gridTemplateColumns:
-                      "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                    px: 0.25,
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                    Consumable Name
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                    Price
-                  </Typography>
-                  <span />
-                </Box>
-              ) : null}
-
-              {otherConsumables.map((row) => (
-                <Box
-                  key={row.id}
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    alignItems: "center",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                    },
-                  }}
-                >
-                  <TextField
-                    fullWidth
-                    placeholder="Enter consumable name"
-                    size="small"
-                    value={row.name}
-                    onChange={(event) =>
-                      handleConsumableChange(row.id, "name", event.target.value)
-                    }
-                    sx={getCompactFieldSx(theme, "default", { dense: true })}
-                  />
-                  <TextField
-                    fullWidth
-                    placeholder="Price"
-                    size="small"
-                    value={row.price}
-                    onChange={(event) =>
-                      handleConsumableChange(row.id, "price", event.target.value)
-                    }
-                    sx={getCompactFieldSx(theme, "default", { dense: true })}
-                  />
-                  <IconButton
-                    aria-label="Remove consumable"
-                    onClick={() => handleRemoveConsumable(row.id)}
-                    size="small"
+              <Stack spacing={1}>
+                {otherConsumables.length > 0 ? (
+                  <Box
                     sx={{
-                      color: theme.customTokens.text.secondary,
-                      "&:hover": {
-                        color: theme.palette.error.main,
+                      display: { xs: "none", md: "grid" },
+                      gap: 1,
+                      gridTemplateColumns:
+                        "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                      px: 0.25,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Consumable Name
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Price
+                    </Typography>
+                    <span />
+                  </Box>
+                ) : null}
+
+                {otherConsumables.map((row) => (
+                  <Box
+                    key={row.id}
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      alignItems: "center",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
                       },
                     }}
                   >
-                    <Trash2 size={15} />
-                  </IconButton>
-                </Box>
-              ))}
+                    <TextField
+                      fullWidth
+                      placeholder="Enter consumable name"
+                      size="small"
+                      value={row.name}
+                      onChange={(event) =>
+                        handleConsumableChange(row.id, "name", event.target.value)
+                      }
+                      sx={getCompactFieldSx(theme, "default", { dense: true })}
+                    />
+                    <TextField
+                      fullWidth
+                      placeholder="Price"
+                      size="small"
+                      value={row.price}
+                      onChange={(event) =>
+                        handleConsumableChange(row.id, "price", event.target.value)
+                      }
+                      sx={getCompactFieldSx(theme, "default", { dense: true })}
+                    />
+                    <IconButton
+                      aria-label="Remove consumable"
+                      onClick={() => handleRemoveConsumable(row.id)}
+                      size="small"
+                      sx={{
+                        color: theme.customTokens.text.secondary,
+                        "&:hover": {
+                          color: theme.palette.error.main,
+                        },
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </IconButton>
+                  </Box>
+                ))}
 
-              <Box>
-                <Button
-                  disableElevation
-                  onClick={handleAddConsumable}
-                  startIcon={<Plus size={14} />}
-                  size="small"
-                  sx={{
-                    minHeight: 32,
-                    textTransform: "none",
-                    fontWeight: 600,
-                    color: theme.customTokens.brand.primary,
-                  }}
-                  variant="text"
-                >
-                  Add Consumable
-                </Button>
-              </Box>
-            </Stack>
-          </Box>
+                <Box>
+                  <Button
+                    disableElevation
+                    onClick={handleAddConsumable}
+                    startIcon={<Plus size={14} />}
+                    size="small"
+                    sx={{
+                      minHeight: 32,
+                      textTransform: "none",
+                      fontWeight: 600,
+                      color: theme.customTokens.brand.primary,
+                    }}
+                    variant="text"
+                  >
+                    Add Consumable
+                  </Button>
+                </Box>
+              </Stack>
+            </Box>
+          ) : null}
 
           <Box
             sx={{
@@ -490,7 +492,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   color: theme.customTokens.text.secondary,
                 }}
               >
-                Cost Summary
+                INVOICE TOTALS
               </Typography>
 
               <Stack spacing={0.75}>
@@ -506,14 +508,12 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                 ) : (
                   <SummaryLine label="IGST" value={invoiceSummary.igst} />
                 )}
-                <SummaryLine
-                  label="Taxable Sub Total"
-                  value={invoiceSummary.itemSubTotalWithTax}
-                />
-                <SummaryLine
-                  label="Other Consumables"
-                  value={invoiceSummary.otherConsumables}
-                />
+                {otherConsumables.length > 0 && (
+                  <SummaryLine
+                    label="Other Consumables"
+                    value={invoiceSummary.otherConsumables}
+                  />
+                )}
                 <SummaryLine
                   label="Additional Charges"
                   value={invoiceSummary.additionalCharges}

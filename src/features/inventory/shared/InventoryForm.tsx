@@ -71,7 +71,7 @@ import {
   isInrCurrency,
 } from "./warehouseAAddStockConfig";
 import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
-import { createInwardApi } from "../../warehouses/api/inwardApi";
+import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
@@ -136,7 +136,6 @@ export function InventoryForm<Row extends InventoryRecord>({
   if (
     apiWarehouseId &&
     (mode === "view" || mode === "edit") &&
-    definition.slug === "veneer-blocks" &&
     params.id
   ) {
     const canOpen =
@@ -376,7 +375,6 @@ function InventoryFormContent<Row extends InventoryRecord>({
     if (
       isApiInward &&
       apiWarehouseId &&
-      definition.slug === "veneer-blocks" &&
       params.id
     ) {
       const editUrl = new URL(
@@ -790,17 +788,13 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         };
 
                         if (apiWarehouseId) {
-                          if (warehouseAAddStockSlug !== "veneer-blocks") {
-                            setSaveError(
-                              "Only Veneer Blocks inward is supported currently.",
-                            );
-                            return;
-                          }
+                          const inventoryType = getInwardInventoryTypeFromSlug(warehouseAAddStockSlug) ?? undefined;
 
                           setIsSaving(true);
                           try {
                             const payload = await buildCreateInwardPayload({
                               warehouseId: apiWarehouseId,
+                              inventoryType,
                               header,
                               lineItems,
                               otherConsumables,

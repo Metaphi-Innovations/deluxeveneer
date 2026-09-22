@@ -55,9 +55,16 @@ export interface CreateInwardItemPayload {
   hsnId?: string | null;
   hsnCode?: string | null;
   batchNo?: string | null;
+  palletNo?: string | null;
+  logCode?: string | null;
+  bundleNumber?: string | null;
+  noOfLeaves?: number | null;
+  sheets?: number | null;
+  totalSqMeter?: number | null;
   length?: number | null;
   width?: number | null;
   height?: number | null;
+  thickness?: number | null;
   cbm?: number | null;
   rate?: number | null;
   amount: number;
@@ -109,9 +116,16 @@ export interface InwardItemDetail {
   hsnId: string | null;
   hsnCode: string | null;
   batchNo: string | null;
+  palletNo?: string | null;
+  logCode?: string | null;
+  bundleNumber?: string | null;
+  noOfLeaves?: number | null;
+  sheets?: number | null;
+  totalSqMeter?: number | null;
   length: number | null;
   width: number | null;
   height: number | null;
+  thickness?: number | null;
   cbm: number | null;
   rate: number | null;
   amount: number;
@@ -411,6 +425,18 @@ export async function updateInwardQcStatusApi(
 
   if (!res?.success) {
     throw new Error(res?.message || "Failed to update QC status");
+  }
+
+  return res.data;
+}
+
+export async function deleteInwardApi(id: string) {
+  const res = await apiRequest<ApiResponse<unknown>>(`${BASE_PATH}/${id}`, {
+    method: "DELETE",
+  });
+
+  if (!res?.success) {
+    throw new Error(res?.message || "Failed to delete inward");
   }
 
   return res.data;

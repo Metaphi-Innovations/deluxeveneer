@@ -135,15 +135,14 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
-    { key: "color", label: "Color", minWidth: 160, options: ["Natural Oak", "Walnut Brown", "Teak Gold", "Ash Grey"], placeholder: "Color", type: "select" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
     { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
     { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
-    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
-    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
+    { key: "totalSqMeter", label: "Total Square Feet", minWidth: 130, placeholder: "SQF / SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "productAmount", label: "Item Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -202,6 +201,7 @@ export function getWarehouseAAddStockTableConfig(
 export function getWarehouseAVisibleColumns(
   columns: readonly WarehouseAAddStockFieldConfig[],
   gstMode: WarehouseAGstMode,
+  _slug?: WarehouseAAddStockSlug,
 ) {
   return columns.filter((column) => {
     if (gstMode === "inter") {
@@ -236,8 +236,8 @@ export const WarehouseAAddStockLineItems = forwardRef<
   const theme = useTheme();
   const columnConfig = warehouseAAddStockTableConfigs[slug];
   const visibleColumns = useMemo(
-    () => getWarehouseAVisibleColumns(columnConfig, gstMode),
-    [columnConfig, gstMode],
+    () => getWarehouseAVisibleColumns(columnConfig, gstMode, slug),
+    [columnConfig, gstMode, slug],
   );
   const nextRowId = useRef(1);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -633,9 +633,31 @@ function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
 ) {
-  const productAmount = parseAmountValue(values.productAmount ?? "");
+  let nextValues = { ...values };
+
+  const length = parseAmountValue(nextValues.length ?? "");
+  const width = parseAmountValue(nextValues.width ?? "");
+  const sheets = parseAmountValue(
+    nextValues.sheets ?? nextValues.noOfSheets ?? nextValues.noOfLeaves ?? "",
+  );
+  const rate = parseAmountValue(nextValues.rate ?? "");
+
+  // Auto calculate totalSqMeter: (Length * Width / 10000 or / 1000000 based on standard mm vs cm)
+  // Total square feet is entered manually by the user, do not auto-calculate it
+  if (rate > 0 && nextValues.totalSqMeter) {
+    const area = parseAmountValue(nextValues.totalSqMeter);
+    if (area > 0) {
+      const calculatedAmount = Math.round(area * rate * 100) / 100;
+      nextValues.productAmount = calculatedAmount.toFixed(2);
+      nextValues.amount = calculatedAmount.toFixed(2);
+    }
+  }
+
+  const productAmount = parseAmountValue(
+    nextValues.productAmount ?? nextValues.amount ?? "",
+  );
   const gstPercentage = parseAmountValue(
-    (values.gstPercentage ?? "").replace(/%/g, ""),
+    (nextValues.gstPercentage ?? "").replace(/%/g, ""),
   );
   const gstAmount = productAmount * (gstPercentage / 100);
 
@@ -653,7 +675,7 @@ function applyTaxCalculations(
   const totalAmount = productAmount + cgst + sgst + igst;
 
   return {
-    ...values,
+    ...nextValues,
     cgst: formatAmount(cgst),
     sgst: formatAmount(sgst),
     igst: formatAmount(igst),

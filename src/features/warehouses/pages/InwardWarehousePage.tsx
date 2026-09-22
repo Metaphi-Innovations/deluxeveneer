@@ -6,6 +6,7 @@ import {
   FileOutput,
   Pencil,
   Plus,
+  Trash2,
   Upload,
 } from "lucide-react";
 import {
@@ -38,6 +39,7 @@ import {
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import {
+  deleteInwardApi,
   fetchInwardColumnDropdown,
   fetchInwardsPaginated,
   getInwardInventoryTypeFromSlug,
@@ -119,7 +121,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "supplierName", label: "Supplier Name" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
-    { key: "totalAmount", label: "Total Amount" },
+    { key: "expenseAmount", label: "Expense Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "qcRemark", label: "QC Remark" },
     { key: "remark", label: "Remark" },
@@ -168,16 +170,12 @@ export function InwardWarehousePage({
   const activeInventoryListPath = `${warehouseRootPath}?inventory=${activeInventory}`;
 
   const loadInwards = useCallback(async () => {
-    if (!isVeneerBlocks) {
+    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
+    if (!inventoryType || !warehouseId) {
       setRows([]);
       setTotalCount(0);
       setErrorMessage("");
       setIsLoading(false);
-      return;
-    }
-
-    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
-    if (!inventoryType || !warehouseId) {
       return;
     }
 
@@ -239,7 +237,7 @@ export function InwardWarehousePage({
   const loadColumnDropdown = useCallback(
     async (columnKey: string) => {
       const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
-      if (!inventoryType || !warehouseId || !isVeneerBlocks) {
+      if (!inventoryType || !warehouseId) {
         return;
       }
 
@@ -260,7 +258,7 @@ export function InwardWarehousePage({
         }));
       }
     },
-    [activeInventory, isVeneerBlocks, warehouseId],
+    [activeInventory, warehouseId],
   );
 
   const addStockPath = useMemo(
@@ -308,6 +306,26 @@ export function InwardWarehousePage({
     [isSubmittingQc, qcDialog],
   );
 
+  const [deleteTarget, setDeleteTarget] = useState<WarehouseInventoryRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true);
+    setActionError("");
+    try {
+      await deleteInwardApi(deleteTarget.id);
+      setDeleteTarget(null);
+      setReloadKey((current) => current + 1);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to delete inward record.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [deleteTarget, isDeleting]);
+
   const getRowActions = useMemo(
     () =>
       (_row: WarehouseInventoryRow): EnterpriseTableAction<WarehouseInventoryRow>[] => {
@@ -351,34 +369,29 @@ export function InwardWarehousePage({
               );
             },
           });
+        }
 
-          const qcStatus = String(_row.qcStatus ?? "")
-            .trim()
-            .toLowerCase();
-          const isQcPending = !qcStatus || qcStatus === "pending";
+        if (canEdit) {
+          actions.push({
+            id: "qc-pass",
+            label: "QC Pass",
+            icon: BadgeCheck,
+            onSelect: (selectedRow) => {
+              setActionError("");
+              setQcDialog({ mode: "PASS", row: selectedRow });
+            },
+          });
 
-          if (isQcPending) {
-            actions.push({
-              id: "qc-pass",
-              label: "QC Pass",
-              icon: BadgeCheck,
-              onSelect: (selectedRow) => {
-                setActionError("");
-                setQcDialog({ mode: "PASS", row: selectedRow });
-              },
-            });
-
-            actions.push({
-              id: "qc-fail",
-              label: "QC Fail",
-              icon: CircleX,
-              tone: "danger",
-              onSelect: (selectedRow) => {
-                setActionError("");
-                setQcDialog({ mode: "FAIL", row: selectedRow });
-              },
-            });
-          }
+          actions.push({
+            id: "qc-fail",
+            label: "QC Fail",
+            icon: CircleX,
+            tone: "danger",
+            onSelect: (selectedRow) => {
+              setActionError("");
+              setQcDialog({ mode: "FAIL", row: selectedRow });
+            },
+          });
         }
 
         return actions;
@@ -445,7 +458,7 @@ export function InwardWarehousePage({
               flexWrap: "wrap",
             }}
           >
-            {canCreate && isVeneerBlocks ? (
+            {canCreate ? (
               <Button
                 component={RouterLink}
                 to={addStockPath}
@@ -455,16 +468,7 @@ export function InwardWarehousePage({
               >
                 Add Stock
               </Button>
-            ) : (
-              <Button
-                startIcon={<Plus size={15} />}
-                variant="contained"
-                disabled
-                sx={(theme) => getListingToolbarButtonSx(theme)}
-              >
-                Add Stock
-              </Button>
-            )}
+            ) : null}
 
             <Button
               variant="outlined"
@@ -495,12 +499,10 @@ export function InwardWarehousePage({
           emptyStateLabel={
             isLoading
               ? "Loading inward records..."
-              : isVeneerBlocks
-                ? `No ${activeTitle.toLowerCase()} records are available.`
-                : `${activeTitle} inward will be available soon.`
+              : `No ${activeTitle.toLowerCase()} records are available.`
           }
           filterOptionsByColumn={filterOptionsByColumn}
-          getRowActions={isVeneerBlocks ? getRowActions : () => []}
+          getRowActions={getRowActions}
           onColumnFilterOpen={(columnKey) => {
             void loadColumnDropdown(columnKey);
           }}
@@ -542,6 +544,41 @@ export function InwardWarehousePage({
         }}
         onSubmit={handleQcSubmit}
       />
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Are you sure you want to delete inward record{" "}
+            <strong>{deleteTarget?.invoiceNo || deleteTarget?.inwardSrNo || "selected record"}</strong>?
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            disabled={isDeleting}
+            onClick={() => setDeleteTarget(null)}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={isDeleting}
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+          >
+            {isDeleting ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </MasterPageShell>
   );
 }
