@@ -107,7 +107,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "supplierName", label: "Supplier Name" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
-    { key: "expenseAmount", label: "Expense Amount" },
+    { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
   ];
