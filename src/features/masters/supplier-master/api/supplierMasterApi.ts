@@ -27,6 +27,7 @@ interface BackendSupplierListItem {
   phoneNumber: string | null;
   mobileNumber?: string | null;
   country: string | null;
+  state?: string | null;
   msmeType: string | null;
   gstNo: string | null;
   remarks: string | null;
@@ -359,6 +360,7 @@ function mapBackendListItemToRecord(item: BackendSupplierListItem): MasterRecord
     emailAddress: email,
     mobileNumber: phone,
     country: item.country ?? "",
+    state: item.state ?? "",
     msmeType: item.msmeType ?? "",
     gstNo: item.gstNo ?? "",
     remark: item.remarks ?? "",

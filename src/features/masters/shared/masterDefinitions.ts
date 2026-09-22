@@ -662,8 +662,6 @@ export const currencyMasterOptions = activeOptions(currencyRows, "currencyName")
 export const itemMasterOptions = activeOptions(itemRows, "itemName");
 export const hsnMasterOptions = activeOptions(hsnRows, "hsnCode");
 
-export const warehouseABillingState = "Gujarat";
-
 export function getItemMasterRecord(itemName: string) {
   const normalizedName = itemName.trim().toLowerCase();
 
@@ -711,18 +709,30 @@ export function getSupplierState(supplierName: string) {
   return cachedMatch ? String(cachedMatch.state ?? "") : "";
 }
 
-export function getWarehouseAGstMode(
-  supplierName: string,
-): "intra" | "inter" {
-  const supplierState = getSupplierState(supplierName).trim().toLowerCase();
+function normalizeStateValue(state: string) {
+  return state.trim().toLowerCase();
+}
 
-  if (!supplierState) {
+/** Same warehouse & supplier state → CGST+SGST; different → IGST. */
+export function getInwardGstMode(
+  warehouseState: string,
+  supplierState: string,
+): "intra" | "inter" {
+  const warehouse = normalizeStateValue(warehouseState);
+  const supplier = normalizeStateValue(supplierState);
+
+  if (!warehouse || !supplier) {
     return "intra";
   }
 
-  return supplierState === warehouseABillingState.toLowerCase()
-    ? "intra"
-    : "inter";
+  return warehouse === supplier ? "intra" : "inter";
+}
+
+export function getWarehouseAGstMode(
+  supplierName: string,
+  warehouseState = "",
+): "intra" | "inter" {
+  return getInwardGstMode(warehouseState, getSupplierState(supplierName));
 }
 
 export const cutMasterDefinition: MasterDefinition = {

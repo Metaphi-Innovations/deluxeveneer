@@ -68,6 +68,7 @@ export function mapBackendHsnToMasterRecord(
     code: code,
     hsnCodeDescription: desc,
     description: desc,
+    gstId: item.gstId ?? "",
     gstPercentage: gst,
     gst: gst,
     remark: item.remark || item.remarks || "",

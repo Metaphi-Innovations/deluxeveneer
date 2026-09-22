@@ -7,6 +7,7 @@ import {
   MasterSectionCard,
 } from "../../masters/shared";
 import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
+import { InwardWarehousePage } from "./InwardWarehousePage";
 
 export function DynamicWarehousePage() {
   const params = useParams<{ warehouseSlug: string }>();
@@ -42,7 +43,9 @@ export function DynamicWarehousePage() {
             ? record.warehouseName.trim()
             : "Warehouse";
         const type =
-          typeof record.warehouseType === "string" ? record.warehouseType.trim() : "";
+          typeof record.warehouseType === "string"
+            ? record.warehouseType.trim()
+            : "";
 
         setWarehouseName(name);
         setWarehouseType(type);
@@ -67,6 +70,16 @@ export function DynamicWarehousePage() {
       ignore = true;
     };
   }, [warehouseId]);
+
+  if (!isLoading && !errorMessage && warehouseType === "Inward") {
+    return (
+      <InwardWarehousePage
+        warehouseId={warehouseId}
+        warehouseName={warehouseName}
+        warehouseRootPath={`/warehouses/${warehouseId}`}
+      />
+    );
+  }
 
   return (
     <MasterPageShell

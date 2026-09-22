@@ -56,12 +56,14 @@ export type WarehouseInventoryRow = {
   availableSqf: string;
   currency: string;
   amount: string;
+  totalAmount?: string;
   attachment?: string;
   consumables?: string;
   eta?: Date | string | null;
   etd?: Date | string | null;
   mode?: string;
   qcStatus: string;
+  qcRemark?: string;
   remark: string;
   status?: string;
   veneerSrNo: string;
@@ -665,18 +667,7 @@ const mdfRows = mdfDefinition.rows.map((row) =>
   normalizeStockRow(row as Record<string, unknown>, "mdf"),
 );
 
-const warehouseAVeneerBlockRows = rawVeneerDefinition.rows.map((row, index) =>
-  mapWarehouseVeneerRow(
-    {
-      ...row,
-      veneerSrNo:
-        (row as Record<string, unknown>).veneerSrNo ??
-        `VNR-${String(index + 1).padStart(5, "0")}`,
-    } as Record<string, unknown>,
-    index,
-    { idPrefix: "warehouse-a-veneer-blocks", inventorySlug: "veneer-blocks" },
-  ),
-);
+const warehouseAVeneerBlockRows: WarehouseInventoryRow[] = [];
 
 const warehouseARawPurchaseRows = rawVeneerDefinition.rows.map((row, index) =>
   mapWarehouseVeneerRow(row as Record<string, unknown>, index, {

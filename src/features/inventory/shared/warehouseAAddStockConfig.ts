@@ -141,5 +141,6 @@ export function buildWarehouseAAddStockInitialValues(
     mode: "",
     attachment: "",
     supplierName: "",
+    remark: "",
   };
 }

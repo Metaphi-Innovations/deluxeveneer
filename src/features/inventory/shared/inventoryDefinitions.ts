@@ -1652,7 +1652,8 @@ export const veneerBlocksDefinition: InventoryDefinition<StockRecord> = {
   editFields: createInventoryEditFields(stockColumns, veneerBlocksRows),
   formFields: createInventoryFormFields(veneerBlocksRows),
   viewFields: createInventoryViewFields(stockColumns),
-  rows: limitDemoListingRows(veneerBlocksRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
