@@ -127,7 +127,6 @@ export interface InwardItemDetail {
   width: number | null;
   height: number | null;
   thickness?: number | null;
-  thickness?: number | null;
   cbm: number | null;
   rate: number | null;
   amount: number;

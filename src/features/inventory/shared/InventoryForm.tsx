@@ -793,7 +793,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         if (apiWarehouseId) {
                           if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
                             setSaveError(
-                              "Only Veneer Blocks and Raw Veneer inward are supported currently.",
+                              "Only Veneer Blocks, Raw Veneer, and Plywood inward are supported currently.",
                             );
                             return;
                           }

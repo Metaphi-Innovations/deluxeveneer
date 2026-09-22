@@ -4,6 +4,7 @@ import type { InwardInventoryType } from "../api/inwardApi";
 export const API_SUPPORTED_INWARD_SLUGS = [
   "veneer-blocks",
   "raw-veneer",
+  "plywood",
 ] as const;
 
 export type ApiSupportedInwardSlug = (typeof API_SUPPORTED_INWARD_SLUGS)[number];
@@ -27,9 +28,15 @@ export function inventoryTypeFromSlug(
 export function slugFromInventoryTypeLabel(
   inventoryType: string | null | undefined,
 ): ApiSupportedInwardSlug {
-  const normalized = (inventoryType ?? "").trim().toLowerCase().replace(/_/g, " ");
+  const normalized = (inventoryType ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ");
   if (normalized === "raw veneer" || normalized === "raw-veneer") {
     return "raw-veneer";
+  }
+  if (normalized === "plywood") {
+    return "plywood";
   }
   return "veneer-blocks";
 }

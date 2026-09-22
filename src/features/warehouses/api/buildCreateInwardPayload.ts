@@ -14,7 +14,6 @@ import type {
   CreateInwardItemPayload,
   CreateInwardPayload,
   InwardInventoryType,
-  InwardInventoryType,
 } from "../api/inwardApi";
 import {
   inventoryTypeFromSlug,
@@ -312,6 +311,19 @@ async function mapLineItemToPayload(
     };
   }
 
+  if (inventoryType === "PLYWOOD") {
+    return {
+      ...base,
+      batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
+      palletNo: String(values.palletNo ?? "").trim() || null,
+      sheets: parseNumber(values.sheets),
+      totalSqMeter: parseNumber(values.totalSqMeter),
+      thickness: parseNumber(values.thickness),
+      length: parseNumber(values.length),
+      width: parseNumber(values.width),
+    };
+  }
+
   // Veneer Blocks: UI `thickness` maps to DB `height`; `logCode` field is Batch No.
   return {
     ...base,
@@ -378,7 +390,7 @@ export async function buildCreateInwardPayload(input: {
 
   return {
     warehouseId: input.warehouseId,
-    inventoryType: input.inventoryType ?? "VENEER_BLOCKS",
+    inventoryType,
     inwardDate: toDateOnly(input.header.inwardDate),
     supplierId,
     invoiceNo: input.header.invoiceNo.trim(),

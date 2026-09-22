@@ -164,6 +164,11 @@ export function InwardWarehousePage({
       return;
     }
 
+    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
+    if (!inventoryType || !warehouseId) {
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage("");
 

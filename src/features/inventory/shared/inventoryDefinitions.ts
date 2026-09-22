@@ -1665,7 +1665,8 @@ export const plywoodDefinition: InventoryDefinition<StockRecord> = {
   editFields: createInventoryEditFields(stockColumns, plywoodRows),
   formFields: createInventoryFormFields(plywoodRows),
   viewFields: createInventoryViewFields(stockColumns),
-  rows: limitDemoListingRows(plywoodRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 

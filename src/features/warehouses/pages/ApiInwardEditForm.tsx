@@ -123,6 +123,18 @@ function mapDetailItemToLineValues(
     };
   }
 
+  if (slug === "plywood") {
+    return {
+      ...shared,
+      logCode: item.batchNo ?? "",
+      palletNo: item.palletNo ?? "",
+      thickness: formatOptionalNumber(item.thickness),
+      sheets: formatOptionalNumber(item.sheets),
+      totalSqMeter: formatOptionalNumber(item.totalSqMeter),
+      remarks: item.remark ?? "",
+    };
+  }
+
   return {
     ...shared,
     logCode: item.batchNo ?? "",

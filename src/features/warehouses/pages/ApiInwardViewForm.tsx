@@ -176,6 +176,28 @@ export function ApiInwardViewForm({
       ];
     }
 
+    if (inventorySlug === "plywood") {
+      return [
+        "Item Name",
+        "Sub Category",
+        "HSN",
+        "Batch No",
+        "Pallet",
+        "L",
+        "W",
+        "Thk",
+        "Sheets",
+        "SQM",
+        "Rate",
+        "Amount",
+        ...taxHeaders,
+        "Total",
+        "QC",
+        "QC Remark",
+        "Remark",
+      ];
+    }
+
     return [
       "Item Name",
       "Sub Category",
@@ -817,6 +839,7 @@ function ItemRow({
   const theme = useTheme();
   const qcLabel = normalizeQcLabel(item.qcStatus);
   const isRawVeneer = inventorySlug === "raw-veneer";
+  const isPlywood = inventorySlug === "plywood";
 
   return (
     <TableRow
@@ -854,6 +877,30 @@ function ItemRow({
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.noOfLeaves)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.totalSqMeter)}
+          </TableCell>
+        </>
+      ) : isPlywood ? (
+        <>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.batchNo || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.palletNo || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.length)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.width)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.thickness)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.sheets)}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.totalSqMeter)}
