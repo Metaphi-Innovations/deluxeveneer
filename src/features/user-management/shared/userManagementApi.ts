@@ -487,6 +487,18 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
   };
 
+  permissions.warehouseA = {
+    view:
+      codes.includes("WAREHOUSE_INWARD_VIEW") ||
+      codes.includes("WAREHOUSE_MASTER_VIEW"),
+    create:
+      codes.includes("WAREHOUSE_INWARD_CREATE") ||
+      codes.includes("WAREHOUSE_MASTER_CREATE"),
+    edit:
+      codes.includes("WAREHOUSE_INWARD_UPDATE") ||
+      codes.includes("WAREHOUSE_MASTER_UPDATE"),
+  };
+
   return {
     id: item.id,
     userName: item.username,
@@ -600,6 +612,11 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
   if (warehouse?.create || warehouse?.edit) {
     codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
   }
+
+  const warehouseInward = permissions.warehouseA;
+  if (warehouseInward?.view) codes.push("WAREHOUSE_INWARD_VIEW");
+  if (warehouseInward?.create) codes.push("WAREHOUSE_INWARD_CREATE");
+  if (warehouseInward?.edit) codes.push("WAREHOUSE_INWARD_UPDATE");
 
   return Array.from(new Set(codes));
 }

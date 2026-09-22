@@ -85,7 +85,7 @@ type DynamicLineItem = {
   values: Record<string, string>;
 };
 
-export interface WarehouseAAddStockLineItemsHandle {
+export interface InwardEditStockLineItemsHandle {
   getFilledLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
 }
@@ -101,8 +101,9 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
+    { key: "thickness", label: "Height", minWidth: 90, placeholder: "Height", type: "text", required: true },
     { key: "cbm", label: "CBM", minWidth: 100, placeholder: "CBM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text" },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -199,7 +200,17 @@ export function getWarehouseAAddStockTableConfig(
   return warehouseAAddStockTableConfigs[slug];
 }
 
-export function getWarehouseAVisibleColumns(
+export function getWarehouseAAddStockTableMinWidth(
+  columns: readonly WarehouseAAddStockFieldConfig[],
+  includeActions = true,
+) {
+  return (
+    columns.reduce((total, column) => total + column.minWidth, 0) +
+    (includeActions ? 72 : 0)
+  );
+}
+
+function getVisibleGstColumns(
   columns: readonly WarehouseAAddStockFieldConfig[],
   gstMode: WarehouseAGstMode,
 ) {
@@ -211,39 +222,33 @@ export function getWarehouseAVisibleColumns(
   });
 }
 
-export function getWarehouseAAddStockTableMinWidth(
-  columns: readonly WarehouseAAddStockFieldConfig[],
-  includeActions = true,
-) {
-  return (
-    columns.reduce((total, column) => total + column.minWidth, 0) +
-    (includeActions ? 72 : 0)
-  );
-}
-
-export const WarehouseAAddStockLineItems = forwardRef<
-  WarehouseAAddStockLineItemsHandle,
+export const InwardEditStockLineItems = forwardRef<
+  InwardEditStockLineItemsHandle,
   {
     gstMode?: WarehouseAGstMode;
+    initialLineItems?: Array<{ id?: string; values: Record<string, string> }>;
     onTotalsChange?: (totals: WarehouseALineItemsTotals) => void;
+    readOnly?: boolean;
     slug: WarehouseAAddStockSlug;
   }
->(function WarehouseAAddStockLineItems({
+>(function InwardEditStockLineItems({
   gstMode = "intra",
+  initialLineItems,
   onTotalsChange,
+  readOnly = false,
   slug,
 }, ref) {
   const theme = useTheme();
   const columnConfig = warehouseAAddStockTableConfigs[slug];
   const visibleColumns = useMemo(
-    () => getWarehouseAVisibleColumns(columnConfig, gstMode),
+    () => getVisibleGstColumns(columnConfig, gstMode),
     [columnConfig, gstMode],
   );
   const nextRowId = useRef(1);
   const tableScrollRef = useRef<HTMLDivElement>(null);
-  const [lineItems, setLineItems] = useState<DynamicLineItem[]>(() => [
-    createEmptyRow(slug, nextRowId, columnConfig),
-  ]);
+  const [lineItems, setLineItems] = useState<DynamicLineItem[]>(() =>
+    createInitialLineItems(slug, nextRowId, columnConfig, initialLineItems, gstMode),
+  );
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [rowErrors, setRowErrors] = useState<
     Record<string, Record<string, string>>
@@ -254,9 +259,19 @@ export const WarehouseAAddStockLineItems = forwardRef<
 
   useEffect(() => {
     nextRowId.current = 1;
-    setLineItems([createEmptyRow(slug, nextRowId, columnConfig)]);
+    setLineItems(
+      createInitialLineItems(
+        slug,
+        nextRowId,
+        columnConfig,
+        initialLineItems,
+        gstMode,
+      ),
+    );
     setSubmitAttempted(false);
     setRowErrors({});
+    // Parent remounts via key when seed data changes; avoid resetting on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seed only on slug/config change
   }, [columnConfig, slug]);
 
   useEffect(() => {
@@ -297,8 +312,8 @@ export const WarehouseAAddStockLineItems = forwardRef<
   }, [lineItems, pendingFocusRowId]);
 
   const tableMinWidth = useMemo(
-    () => getWarehouseAAddStockTableMinWidth(visibleColumns),
-    [visibleColumns],
+    () => getWarehouseAAddStockTableMinWidth(visibleColumns, !readOnly),
+    [visibleColumns, readOnly],
   );
 
   const handleFieldChange = (rowId: string, key: string, value: string) => {
@@ -466,13 +481,15 @@ export const WarehouseAAddStockLineItems = forwardRef<
                   >
                     <ColumnLabel
                       label={column.label}
-                      required={isDynamicColumnRequired(column)}
+                      required={!readOnly && isDynamicColumnRequired(column)}
                     />
                   </TableCell>
                 ))}
-                <TableCell sx={getActionHeaderCellSx(theme, 64)}>
-                  Actions
-                </TableCell>
+                {!readOnly ? (
+                  <TableCell sx={getActionHeaderCellSx(theme, 64)}>
+                    Actions
+                  </TableCell>
+                ) : null}
               </TableRow>
             </TableHead>
 
@@ -496,6 +513,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
                           column,
                           onChange: (value) =>
                             handleFieldChange(row.id, column.key, value),
+                          readOnly,
                           theme,
                           value: row.values[column.key] ?? "",
                           errorText: errors[column.key] ?? "",
@@ -503,22 +521,24 @@ export const WarehouseAAddStockLineItems = forwardRef<
                       </TableCell>
                     ))}
 
-                    <TableCell
-                      align="center"
-                      sx={getActionBodyCellSx(theme, 64, index)}
-                    >
-                      <IconButton
-                        aria-label="Remove item"
-                        disabled={
-                          lineItems.length <= 1 && allValuesEmpty(row.values)
-                        }
-                        onClick={() => handleDeleteLineItem(row.id)}
-                        size="small"
-                        sx={getActionButtonSx(theme)}
+                    {!readOnly ? (
+                      <TableCell
+                        align="center"
+                        sx={getActionBodyCellSx(theme, 64, index)}
                       >
-                        <Trash2 size={15} />
-                      </IconButton>
-                    </TableCell>
+                        <IconButton
+                          aria-label="Remove item"
+                          disabled={
+                            lineItems.length <= 1 && allValuesEmpty(row.values)
+                          }
+                          onClick={() => handleDeleteLineItem(row.id)}
+                          size="small"
+                          sx={getActionButtonSx(theme)}
+                        >
+                          <Trash2 size={15} />
+                        </IconButton>
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 );
               })}
@@ -527,17 +547,19 @@ export const WarehouseAAddStockLineItems = forwardRef<
         </Box>
       </Box>
 
-      <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
-        <Button
-          disableElevation
-          onClick={handleAddLineItem}
-          startIcon={<Plus size={14} />}
-          sx={getAddItemButtonSx(theme)}
-          variant="outlined"
-        >
-          Add Item
-        </Button>
-      </Box>
+      {!readOnly ? (
+        <Box sx={{ display: "flex", justifyContent: "flex-start" }}>
+          <Button
+            disableElevation
+            onClick={handleAddLineItem}
+            startIcon={<Plus size={14} />}
+            sx={getAddItemButtonSx(theme)}
+            variant="outlined"
+          >
+            Add Item
+          </Button>
+        </Box>
+      ) : null}
 
       {submitAttempted && Object.keys(rowErrors).length > 0 ? (
         <Typography variant="caption" color="error">
@@ -688,6 +710,33 @@ function summarizeLineItemTotals(
       totalAmount: 0,
     },
   );
+}
+
+function createInitialLineItems(
+  slug: WarehouseAAddStockSlug,
+  nextRowId: { current: number },
+  columns: readonly DynamicFieldConfig[],
+  initialLineItems:
+    | Array<{ id?: string; values: Record<string, string> }>
+    | undefined,
+  gstMode: WarehouseAGstMode,
+): DynamicLineItem[] {
+  if (!initialLineItems?.length) {
+    return [createEmptyRow(slug, nextRowId, columns)];
+  }
+
+  return initialLineItems.map((row, index) => {
+    const id = row.id?.trim() || `${slug}-seed-${index + 1}`;
+    const mergedValues = {
+      ...createEmptyValues(columns),
+      ...row.values,
+    };
+
+    return {
+      id,
+      values: applyTaxCalculations(mergedValues, gstMode),
+    };
+  });
 }
 
 function createEmptyRow(
@@ -940,16 +989,18 @@ function renderEditableField({
   column,
   errorText,
   onChange,
+  readOnly = false,
   theme,
   value,
 }: {
   column: DynamicFieldConfig;
   errorText?: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
   theme: Theme;
   value: string;
 }): ReactNode {
-  if (column.type === "computed") {
+  if (column.type === "computed" || readOnly) {
     return (
       <TextField
         fullWidth

@@ -418,6 +418,18 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       create: userPerms.includes("WAREHOUSE_MASTER_CREATE"),
       edit: userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
     };
+
+    permissions.warehouseA = {
+      view:
+        userPerms.includes("WAREHOUSE_INWARD_VIEW") ||
+        userPerms.includes("WAREHOUSE_MASTER_VIEW"),
+      create:
+        userPerms.includes("WAREHOUSE_INWARD_CREATE") ||
+        userPerms.includes("WAREHOUSE_MASTER_CREATE"),
+      edit:
+        userPerms.includes("WAREHOUSE_INWARD_UPDATE") ||
+        userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
+    };
   }
 
   return {

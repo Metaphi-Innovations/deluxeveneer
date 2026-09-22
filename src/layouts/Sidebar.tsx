@@ -671,8 +671,8 @@ export function Sidebar({
                             >
                               <ListItemIcon
                                 sx={{
-                                  minWidth: 14,
-                                  width: 14,
+                                  minWidth: 16,
+                                  width: 16,
                                   mr: 0,
                                   justifyContent: "center",
                                   color: isItemActive
@@ -680,13 +680,20 @@ export function Sidebar({
                                     : theme.customTokens.neutrals[500],
                                 }}
                               >
-                                <Circle
-                                  size={12}
-                                  strokeWidth={portalIconStroke.default}
-                                  fill={
-                                    isItemActive ? "currentColor" : "none"
-                                  }
-                                />
+                                {item.icon ? (
+                                  <item.icon
+                                    size={portalIconSize.sm}
+                                    strokeWidth={portalIconStroke.default}
+                                  />
+                                ) : (
+                                  <Circle
+                                    size={12}
+                                    strokeWidth={portalIconStroke.default}
+                                    fill={
+                                      isItemActive ? "currentColor" : "none"
+                                    }
+                                  />
+                                )}
                               </ListItemIcon>
                               <ListItemText
                                 primary={item.label}

@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowDownToLine,
   Award,
+  Boxes,
   Building2,
   CircleDollarSign,
   ClipboardCheck,
@@ -31,7 +33,10 @@ import {
   Wind,
 } from "lucide-react";
 
-import type { SidebarWarehouseItem } from "../features/warehouses/shared/warehouseSidebarStore";
+import type {
+  SidebarWarehouseItem,
+  WarehouseMasterType,
+} from "../features/warehouses/shared/warehouseSidebarStore";
 
 export type SidebarMatchLocation = {
   pathname: string;
@@ -46,6 +51,7 @@ export type SidebarNavigationItem = {
   id: string;
   label: string;
   icon?: LucideIcon;
+  warehouseType?: WarehouseMasterType;
   permissionKey?: string;
   to: string;
   match: (location: SidebarMatchLocation) => boolean;
@@ -80,13 +86,20 @@ export type SidebarNavigationEntry =
 
 export type { SidebarWarehouseItem as DynamicWarehouseSidebarItem };
 
+export const WAREHOUSE_TYPE_ICONS: Record<WarehouseMasterType, LucideIcon> = {
+  Inward: ArrowDownToLine,
+  Storage: Boxes,
+  Production: Factory,
+};
+
 const buildWarehouseNavigationItems = (
   warehouses: readonly SidebarWarehouseItem[] = [],
 ): SidebarNavigationItem[] =>
   warehouses.map((warehouse) => ({
     id: `master-warehouse-${warehouse.id}`,
     label: warehouse.label,
-    icon: Warehouse,
+    icon: WAREHOUSE_TYPE_ICONS[warehouse.warehouseType] ?? Warehouse,
+    warehouseType: warehouse.warehouseType,
     permissionKey: warehouse.permissionKey,
     to: `/warehouses/${warehouse.id}`,
     match: (location: SidebarMatchLocation) =>

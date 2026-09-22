@@ -18,7 +18,10 @@ import {
 } from "@mui/material";
 import { Plus, Trash2 } from "lucide-react";
 
-import { getWarehouseAGstMode } from "../../masters/shared/masterDefinitions";
+import {
+  getInwardGstMode,
+  getSupplierState,
+} from "../../masters/shared/masterDefinitions";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
   formSectionCardSx,
@@ -26,11 +29,11 @@ import {
 } from "../../shared/formSectionStyles";
 import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
 import {
-  WarehouseAAddStockLineItems,
-  type WarehouseAAddStockLineItemsHandle,
+  InwardEditStockLineItems,
+  type InwardEditStockLineItemsHandle,
   type WarehouseAAddStockSlug,
   type WarehouseALineItemsTotals,
-} from "./WarehouseAAddStockLineItems";
+} from "./InwardEditStockLineItems";
 
 type AdditionalChargeRow = {
   amount: string;
@@ -52,47 +55,68 @@ const emptyLineTotals: WarehouseALineItemsTotals = {
   totalAmount: 0,
 };
 
-export interface WarehouseAAddStockWorkspaceHandle {
+export interface InwardEditStockWorkspaceHandle {
   getAdditionalCharges: () => Array<{ chargeName: string; amount: string }>;
   getOtherConsumables: () => Array<{ consumableName: string; price: string }>;
   getLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
 }
 
-export const WarehouseAAddStockWorkspace = forwardRef<
-  WarehouseAAddStockWorkspaceHandle,
+export const InwardEditStockWorkspace = forwardRef<
+  InwardEditStockWorkspaceHandle,
   {
     invoiceDate?: Date | null;
+    initialAdditionalCharges?: Array<{ chargeName: string; amount: string }>;
+    initialOtherConsumables?: Array<{ consumableName: string; price: string }>;
+    initialLineItems?: Array<{ id?: string; values: Record<string, string> }>;
     onRemarkChange?: (value: string) => void;
+    readOnly?: boolean;
     remark?: string;
     slug: WarehouseAAddStockSlug;
     supplierName?: string;
+    supplierState?: string;
     warehouseState?: string;
   }
->(function WarehouseAAddStockWorkspace({
+>(function InwardEditStockWorkspace({
+  initialAdditionalCharges,
+  initialOtherConsumables,
+  initialLineItems,
   onRemarkChange,
+  readOnly = false,
   remark = "",
   slug,
   supplierName = "",
+  supplierState = "",
   warehouseState = "",
 }, ref) {
   const theme = useTheme();
-  const lineItemsRef = useRef<WarehouseAAddStockLineItemsHandle>(null);
-  const nextChargeId = useRef(1);
-  const nextConsumableId = useRef(1);
+  const lineItemsRef = useRef<InwardEditStockLineItemsHandle>(null);
+  const nextChargeId = useRef((initialAdditionalCharges?.length ?? 0) + 1);
+  const nextConsumableId = useRef((initialOtherConsumables?.length ?? 0) + 1);
   const [lineTotals, setLineTotals] =
     useState<WarehouseALineItemsTotals>(emptyLineTotals);
   const [otherConsumables, setOtherConsumables] = useState<OtherConsumableRow[]>(
-    [],
+    () =>
+      (initialOtherConsumables ?? []).map((row, index) => ({
+        id: `consumable-${index + 1}`,
+        name: row.consumableName,
+        price: row.price,
+      })),
   );
   const [additionalCharges, setAdditionalCharges] = useState<
     AdditionalChargeRow[]
-  >([]);
-
-  const gstMode = useMemo(
-    () => getWarehouseAGstMode(supplierName, warehouseState),
-    [supplierName, warehouseState],
+  >(() =>
+    (initialAdditionalCharges ?? []).map((charge, index) => ({
+      id: `charge-${index + 1}`,
+      name: charge.chargeName,
+      amount: charge.amount,
+    })),
   );
+  const gstMode = useMemo(() => {
+    const resolvedSupplierState =
+      getSupplierState(supplierName) || supplierState;
+    return getInwardGstMode(warehouseState, resolvedSupplierState);
+  }, [supplierName, supplierState, warehouseState]);
 
   const otherConsumablesTotal = useMemo(
     () =>
@@ -224,9 +248,11 @@ export const WarehouseAAddStockWorkspace = forwardRef<
     >
       <SectionBlock title="Item Details">
         <Stack spacing={2}>
-          <WarehouseAAddStockLineItems
+          <InwardEditStockLineItems
             ref={lineItemsRef}
             gstMode={gstMode}
+            {...(initialLineItems ? { initialLineItems } : {})}
+            readOnly={readOnly}
             slug={slug}
             onTotalsChange={setLineTotals}
           />
@@ -249,8 +275,9 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   sx={{
                     display: { xs: "none", md: "grid" },
                     gap: 1,
-                    gridTemplateColumns:
-                      "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                    gridTemplateColumns: readOnly
+                      ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
+                      : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
                     px: 0.25,
                   }}
                 >
@@ -260,7 +287,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   <Typography variant="caption" color="text.secondary" fontWeight={600}>
                     Price
                   </Typography>
-                  <span />
+                  {!readOnly ? <span /> : null}
                 </Box>
               ) : null}
 
@@ -273,7 +300,9 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     alignItems: "center",
                     gridTemplateColumns: {
                       xs: "1fr",
-                      md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                      md: readOnly
+                        ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
+                        : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
                     },
                   }}
                 >
@@ -285,7 +314,16 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     onChange={(event) =>
                       handleConsumableChange(row.id, "name", event.target.value)
                     }
-                    sx={getCompactFieldSx(theme, "default", { dense: true })}
+                    sx={getCompactFieldSx(
+                      theme,
+                      readOnly ? "readOnly" : "default",
+                      { dense: true },
+                    )}
+                    slotProps={{
+                      input: {
+                        readOnly,
+                      },
+                    }}
                   />
                   <TextField
                     fullWidth
@@ -295,41 +333,65 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     onChange={(event) =>
                       handleConsumableChange(row.id, "price", event.target.value)
                     }
-                    sx={getCompactFieldSx(theme, "default", { dense: true })}
-                  />
-                  <IconButton
-                    aria-label="Remove consumable"
-                    onClick={() => handleRemoveConsumable(row.id)}
-                    size="small"
-                    sx={{
-                      color: theme.customTokens.text.secondary,
-                      "&:hover": {
-                        color: theme.palette.error.main,
+                    sx={getCompactFieldSx(
+                      theme,
+                      readOnly ? "readOnly" : "default",
+                      { dense: true },
+                    )}
+                    slotProps={{
+                      input: {
+                        readOnly,
                       },
                     }}
-                  >
-                    <Trash2 size={15} />
-                  </IconButton>
+                  />
+                  {!readOnly ? (
+                    <IconButton
+                      aria-label="Remove consumable"
+                      onClick={() => handleRemoveConsumable(row.id)}
+                      size="small"
+                      sx={{
+                        color: theme.customTokens.text.secondary,
+                        "&:hover": {
+                          color: theme.palette.error.main,
+                        },
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </IconButton>
+                  ) : null}
                 </Box>
               ))}
 
-              <Box>
-                <Button
-                  disableElevation
-                  onClick={handleAddConsumable}
-                  startIcon={<Plus size={14} />}
-                  size="small"
+              {!readOnly ? (
+                <Box>
+                  <Button
+                    disableElevation
+                    onClick={handleAddConsumable}
+                    startIcon={<Plus size={14} />}
+                    size="small"
+                    sx={{
+                      minHeight: 32,
+                      textTransform: "none",
+                      fontWeight: 600,
+                      color: theme.customTokens.brand.primary,
+                    }}
+                    variant="text"
+                  >
+                    Add Consumable
+                  </Button>
+                </Box>
+              ) : null}
+
+              {readOnly && otherConsumables.length === 0 ? (
+                <Typography
                   sx={{
-                    minHeight: 32,
-                    textTransform: "none",
-                    fontWeight: 600,
-                    color: theme.customTokens.brand.primary,
+                    fontSize: "0.8125rem",
+                    color: theme.customTokens.text.secondary,
                   }}
-                  variant="text"
                 >
-                  Add Consumable
-                </Button>
-              </Box>
+                  No other consumables.
+                </Typography>
+              ) : null}
             </Stack>
           </Box>
 
@@ -362,8 +424,9 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     sx={{
                       display: { xs: "none", md: "grid" },
                       gap: 1,
-                      gridTemplateColumns:
-                        "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                      gridTemplateColumns: readOnly
+                        ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
+                        : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
                       px: 0.25,
                     }}
                   >
@@ -373,7 +436,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     <Typography variant="caption" color="text.secondary" fontWeight={600}>
                       Amount
                     </Typography>
-                    <span />
+                    {!readOnly ? <span /> : null}
                   </Box>
                 ) : null}
 
@@ -386,7 +449,9 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                       alignItems: "center",
                       gridTemplateColumns: {
                         xs: "1fr",
-                        md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                        md: readOnly
+                          ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
+                          : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
                       },
                     }}
                   >
@@ -398,7 +463,16 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                       onChange={(event) =>
                         handleChargeChange(row.id, "name", event.target.value)
                       }
-                      sx={getCompactFieldSx(theme, "default", { dense: true })}
+                      sx={getCompactFieldSx(
+                        theme,
+                        readOnly ? "readOnly" : "default",
+                        { dense: true },
+                      )}
+                      slotProps={{
+                        input: {
+                          readOnly,
+                        },
+                      }}
                     />
                     <TextField
                       fullWidth
@@ -408,41 +482,54 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                       onChange={(event) =>
                         handleChargeChange(row.id, "amount", event.target.value)
                       }
-                      sx={getCompactFieldSx(theme, "default", { dense: true })}
-                    />
-                    <IconButton
-                      aria-label="Remove charge"
-                      onClick={() => handleRemoveCharge(row.id)}
-                      size="small"
-                      sx={{
-                        color: theme.customTokens.text.secondary,
-                        "&:hover": {
-                          color: theme.palette.error.main,
+                      sx={getCompactFieldSx(
+                        theme,
+                        readOnly ? "readOnly" : "default",
+                        { dense: true },
+                      )}
+                      slotProps={{
+                        input: {
+                          readOnly,
                         },
                       }}
-                    >
-                      <Trash2 size={15} />
-                    </IconButton>
+                    />
+                    {!readOnly ? (
+                      <IconButton
+                        aria-label="Remove charge"
+                        onClick={() => handleRemoveCharge(row.id)}
+                        size="small"
+                        sx={{
+                          color: theme.customTokens.text.secondary,
+                          "&:hover": {
+                            color: theme.palette.error.main,
+                          },
+                        }}
+                      >
+                        <Trash2 size={15} />
+                      </IconButton>
+                    ) : null}
                   </Box>
                 ))}
 
-                <Box>
-                  <Button
-                    disableElevation
-                    onClick={handleAddCharge}
-                    startIcon={<Plus size={14} />}
-                    size="small"
-                    sx={{
-                      minHeight: 32,
-                      textTransform: "none",
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                    }}
-                    variant="text"
-                  >
-                    Add Charge
-                  </Button>
-                </Box>
+                {!readOnly ? (
+                  <Box>
+                    <Button
+                      disableElevation
+                      onClick={handleAddCharge}
+                      startIcon={<Plus size={14} />}
+                      size="small"
+                      sx={{
+                        minHeight: 32,
+                        textTransform: "none",
+                        fontWeight: 600,
+                        color: theme.customTokens.brand.primary,
+                      }}
+                      variant="text"
+                    >
+                      Add Charge
+                    </Button>
+                  </Box>
+                ) : null}
               </Stack>
 
               <Box sx={{ mt: 2, maxWidth: 360 }}>
@@ -464,7 +551,16 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   size="small"
                   value={remark}
                   onChange={(event) => onRemarkChange?.(event.target.value)}
-                  sx={getCompactFieldSx(theme, "default", { dense: true })}
+                  sx={getCompactFieldSx(
+                    theme,
+                    readOnly ? "readOnly" : "default",
+                    { dense: true },
+                  )}
+                  slotProps={{
+                    input: {
+                      readOnly,
+                    },
+                  }}
                 />
               </Box>
             </Box>
