@@ -13,7 +13,12 @@ import type {
   CreateInwardConsumablePayload,
   CreateInwardItemPayload,
   CreateInwardPayload,
+  InwardInventoryType,
 } from "../api/inwardApi";
+import {
+  inventoryTypeFromSlug,
+  type ApiSupportedInwardSlug,
+} from "../inward/supportedInwardTypes";
 
 function parseNumber(value: string | undefined | null): number | null {
   if (value === undefined || value === null || value.trim() === "") {
@@ -178,6 +183,7 @@ async function resolveGstId(gstPercentage: string): Promise<string | null> {
 
 async function mapLineItemToPayload(
   values: Record<string, string>,
+  inventoryType: InwardInventoryType,
 ): Promise<CreateInwardItemPayload> {
   const itemName = String(values.itemName ?? "").trim();
   const subCategoryName = String(
@@ -264,18 +270,15 @@ async function mapLineItemToPayload(
     );
   }
 
-  return {
+  const base: CreateInwardItemPayload = {
     itemId: asOptionalId(itemMaster?.id),
     itemName,
     itemCategoryId,
     itemSubCategoryId,
     hsnId,
     hsnCode: hsnCode || null,
-    batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
     length: parseNumber(values.length),
     width: parseNumber(values.width),
-    height: parseNumber(values.height ?? values.thickness),
-    cbm: parseNumber(values.cbm),
     rate: parseNumber(values.rate),
     amount,
     gstId,
@@ -285,10 +288,33 @@ async function mapLineItemToPayload(
     totalAmount,
     remark: String(values.remark ?? values.remarks ?? "").trim() || null,
   };
+
+  if (inventoryType === "RAW_VENEER") {
+    return {
+      ...base,
+      logCode: String(values.logCode ?? "").trim() || null,
+      bundleNumber: String(values.bundleNumber ?? "").trim() || null,
+      palletNo: String(values.palletNo ?? "").trim() || null,
+      noOfLeaves: parseNumber(values.noOfLeaves),
+      totalSqMeter: parseNumber(values.totalSqMeter),
+      thickness: parseNumber(values.thickness),
+    };
+  }
+
+  // Veneer Blocks: UI `thickness` maps to DB `height`; `logCode` field is Batch No.
+  return {
+    ...base,
+    batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
+    height: parseNumber(values.height ?? values.thickness),
+    cbm: parseNumber(values.cbm),
+  };
 }
 
 export async function buildCreateInwardPayload(input: {
   warehouseId: string;
+  /** Inventory slug (`veneer-blocks` | `raw-veneer`) or enum. Defaults to veneer blocks. */
+  inventorySlug?: ApiSupportedInwardSlug | string;
+  inventoryType?: InwardInventoryType;
   header: {
     attachment: string;
     currency: string;
@@ -305,10 +331,21 @@ export async function buildCreateInwardPayload(input: {
   otherConsumables?: ReadonlyArray<{ consumableName: string; price: string }>;
   additionalCharges: ReadonlyArray<{ chargeName: string; amount: string }>;
 }): Promise<CreateInwardPayload> {
+  const inventoryType: InwardInventoryType =
+    input.inventoryType ??
+    (input.inventorySlug
+      ? inventoryTypeFromSlug(input.inventorySlug)
+      : null) ??
+    "VENEER_BLOCKS";
+
   const [supplierId, currencyId, items] = await Promise.all([
     resolveSupplierId(input.header.supplierName),
     resolveCurrencyId(input.header.currency || "INR"),
-    Promise.all(input.lineItems.map((line) => mapLineItemToPayload(line.values))),
+    Promise.all(
+      input.lineItems.map((line) =>
+        mapLineItemToPayload(line.values, inventoryType),
+      ),
+    ),
   ]);
 
   const otherConsumables: CreateInwardConsumablePayload[] = (
@@ -330,7 +367,7 @@ export async function buildCreateInwardPayload(input: {
 
   return {
     warehouseId: input.warehouseId,
-    inventoryType: "VENEER_BLOCKS",
+    inventoryType,
     inwardDate: toDateOnly(input.header.inwardDate),
     supplierId,
     invoiceNo: input.header.invoiceNo.trim(),

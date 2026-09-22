@@ -32,6 +32,10 @@ import {
   type InwardDetail,
   type InwardItemDetail,
 } from "../api/inwardApi";
+import {
+  slugFromInventoryTypeLabel,
+  type ApiSupportedInwardSlug,
+} from "../inward/supportedInwardTypes";
 
 interface ApiInwardViewFormProps {
   inwardId: string;
@@ -140,9 +144,37 @@ export function ApiInwardViewForm({
     [detail?.supplierState, detail?.warehouseState],
   );
 
+  const inventorySlug = useMemo(
+    () => slugFromInventoryTypeLabel(detail?.inventoryType),
+    [detail?.inventoryType],
+  );
+
   const itemTableHeaders = useMemo(() => {
     const taxHeaders =
       gstMode === "inter" ? (["IGST"] as const) : (["CGST", "SGST"] as const);
+
+    if (inventorySlug === "raw-veneer") {
+      return [
+        "Item Name",
+        "Sub Category",
+        "HSN",
+        "Log Code",
+        "Bundle",
+        "Pallet",
+        "L",
+        "W",
+        "Thk",
+        "Leaves",
+        "SQM",
+        "Rate",
+        "Amount",
+        ...taxHeaders,
+        "Total",
+        "QC",
+        "QC Remark",
+        "Remark",
+      ];
+    }
 
     return [
       "Item Name",
@@ -161,7 +193,7 @@ export function ApiInwardViewForm({
       "QC Remark",
       "Remark",
     ];
-  }, [gstMode]);
+  }, [gstMode, inventorySlug]);
 
   const headerFields = useMemo(() => {
     if (!detail) return [];
@@ -413,6 +445,7 @@ export function ApiInwardViewForm({
                       <ItemRow
                         key={item.id}
                         gstMode={gstMode}
+                        inventorySlug={inventorySlug}
                         item={item}
                         index={index}
                       />
@@ -772,15 +805,18 @@ function TotalsLine({
 
 function ItemRow({
   gstMode,
+  inventorySlug,
   item,
   index,
 }: {
   gstMode: "intra" | "inter";
+  inventorySlug: ApiSupportedInwardSlug;
   item: InwardItemDetail;
   index: number;
 }) {
   const theme = useTheme();
   const qcLabel = normalizeQcLabel(item.qcStatus);
+  const isRawVeneer = inventorySlug === "raw-veneer";
 
   return (
     <TableRow
@@ -796,21 +832,52 @@ function ItemRow({
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.hsnCode || "—"}
       </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {item.batchNo || "—"}
-      </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {formatMeasure(item.length)}
-      </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {formatMeasure(item.width)}
-      </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {formatMeasure(item.height)}
-      </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {formatMeasure(item.cbm)}
-      </TableCell>
+      {isRawVeneer ? (
+        <>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.logCode || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.bundleNumber || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.palletNo || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.length)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.width)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.thickness)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.noOfLeaves)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.totalSqMeter)}
+          </TableCell>
+        </>
+      ) : (
+        <>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.batchNo || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.length)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.width)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.height)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.cbm)}
+          </TableCell>
+        </>
+      )}
       <TableCell sx={getViewBodyCellSx(theme)}>
         {formatMeasure(item.rate)}
       </TableCell>

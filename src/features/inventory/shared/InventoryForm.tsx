@@ -73,6 +73,7 @@ import {
 import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
 import { createInwardApi } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
+import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
 import { refreshSupplierMasterCache } from "../../masters/supplier-master/api/supplierMasterApi";
@@ -136,7 +137,7 @@ export function InventoryForm<Row extends InventoryRecord>({
   if (
     apiWarehouseId &&
     (mode === "view" || mode === "edit") &&
-    definition.slug === "veneer-blocks" &&
+    isApiSupportedInwardSlug(definition.slug) &&
     params.id
   ) {
     const canOpen =
@@ -376,7 +377,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
     if (
       isApiInward &&
       apiWarehouseId &&
-      definition.slug === "veneer-blocks" &&
+      isApiSupportedInwardSlug(definition.slug) &&
       params.id
     ) {
       const editUrl = new URL(
@@ -790,9 +791,9 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         };
 
                         if (apiWarehouseId) {
-                          if (warehouseAAddStockSlug !== "veneer-blocks") {
+                          if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
                             setSaveError(
-                              "Only Veneer Blocks inward is supported currently.",
+                              "Only Veneer Blocks and Raw Veneer inward are supported currently.",
                             );
                             return;
                           }
@@ -801,6 +802,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                           try {
                             const payload = await buildCreateInwardPayload({
                               warehouseId: apiWarehouseId,
+                              inventorySlug: warehouseAAddStockSlug,
                               header,
                               lineItems,
                               otherConsumables,

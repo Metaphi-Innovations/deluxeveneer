@@ -24,6 +24,7 @@ export interface InwardListItem {
   currencyId: string;
   currency: string;
   itemName: string;
+  itemCount?: number;
   amount: number;
   totalAmount: number;
   additionalChargesTotal: number;
@@ -55,9 +56,16 @@ export interface CreateInwardItemPayload {
   hsnId?: string | null;
   hsnCode?: string | null;
   batchNo?: string | null;
+  logCode?: string | null;
+  bundleNumber?: string | null;
+  palletNo?: string | null;
+  noOfLeaves?: number | null;
+  sheets?: number | null;
+  totalSqMeter?: number | null;
   length?: number | null;
   width?: number | null;
   height?: number | null;
+  thickness?: number | null;
   cbm?: number | null;
   rate?: number | null;
   amount: number;
@@ -109,9 +117,16 @@ export interface InwardItemDetail {
   hsnId: string | null;
   hsnCode: string | null;
   batchNo: string | null;
+  logCode?: string | null;
+  bundleNumber?: string | null;
+  palletNo?: string | null;
+  noOfLeaves?: number | null;
+  sheets?: number | null;
+  totalSqMeter?: number | null;
   length: number | null;
   width: number | null;
   height: number | null;
+  thickness?: number | null;
   cbm: number | null;
   rate: number | null;
   amount: number;
@@ -233,10 +248,18 @@ function formatAmount(value: number): string {
   });
 }
 
-function normalizeQcStatus(value: string): string {
+function normalizeListingQcStatus(value: string): "done" | "pending" {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "pass") return "pass";
-  if (normalized === "fail") return "fail";
+  if (
+    normalized === "pass" ||
+    normalized === "fail" ||
+    normalized === "done" ||
+    normalized === "qc done" ||
+    normalized === "qc pass" ||
+    normalized === "qc fail"
+  ) {
+    return "done";
+  }
   return "pending";
 }
 
@@ -248,9 +271,11 @@ export function mapInwardListItemToRow(
     ? new Date(`${item.inwardDate}T00:00:00`)
     : new Date();
 
+  const listingQcStatus = normalizeListingQcStatus(item.qcStatus);
+
   return {
-    id: item.id,
-    inventoryRecordId: item.inwardId,
+    id: item.inwardId || item.id,
+    inventoryRecordId: item.inwardId || item.id,
     inventorySlug,
     inwardSrNo: item.inwardSrNo ?? "",
     inwardType: item.inventoryType,
@@ -268,7 +293,7 @@ export function mapInwardListItemToRow(
     length: "",
     width: "",
     thickness: "",
-    totalUnits: "",
+    totalUnits: item.itemCount != null ? String(item.itemCount) : "",
     availableUnits: "",
     totalSqm: "",
     totalSqf: "",
@@ -282,10 +307,10 @@ export function mapInwardListItemToRow(
     eta: null,
     etd: null,
     mode: "",
-    qcStatus: normalizeQcStatus(item.qcStatus),
+    qcStatus: listingQcStatus,
     qcRemark: item.qcRemark ?? "",
     remark: item.remark ?? "",
-    status: item.qcStatus,
+    status: listingQcStatus === "done" ? "QC Done" : "Pending",
     veneerSrNo: "",
     itemSrNo: "",
     mdfSrNo: "",
@@ -334,6 +359,31 @@ export async function fetchInwardsPaginated(
   }
 
   return res.data;
+}
+
+export async function exportInwardsApi(
+  params: Omit<InwardQueryParams, "page" | "limit">,
+): Promise<InwardListItem[]> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("inventoryType", params.inventoryType ?? "VENEER_BLOCKS");
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.qcStatus) query.set("qcStatus", params.qcStatus);
+  if (params.sortBy) query.set("sortBy", params.sortBy);
+  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    query.set("filters", JSON.stringify(params.filters));
+  }
+
+  const res = await apiRequest<ApiResponse<{ items: InwardListItem[] }>>(
+    `${BASE_PATH}/export?${query.toString()}`,
+  );
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Failed to export inwards");
+  }
+
+  return res.data.items ?? [];
 }
 
 export async function fetchInwardColumnDropdown(params: {

@@ -1,23 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BadgeCheck,
-  CircleX,
+  ClipboardCheck,
   Eye,
   FileOutput,
   Pencil,
   Plus,
-  Upload,
 } from "lucide-react";
 import {
   Alert,
   Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Stack,
-  TextField,
-  Typography,
 } from "@mui/material";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 
@@ -38,13 +30,14 @@ import {
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import {
+  exportInwardsApi,
   fetchInwardColumnDropdown,
   fetchInwardsPaginated,
   getInwardInventoryTypeFromSlug,
   mapInwardListItemToRow,
-  updateInwardQcStatusApi,
-  type InwardQcStatus,
 } from "../api/inwardApi";
+import { InwardQcUpdateDialog } from "../components/InwardQcUpdateDialog";
+import { isApiSupportedInwardSlug } from "../inward/supportedInwardTypes";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
   isActiveColumnFilter,
@@ -56,11 +49,6 @@ type InwardInventoryTab =
   | "raw-veneer"
   | "plywood"
   | "mdf";
-
-type QcDialogState = {
-  mode: "PASS" | "FAIL";
-  row: WarehouseInventoryRow;
-} | null;
 
 const INWARD_SORT_FIELD_MAP: Record<string, string> = {
   inwardSrNo: "inwardSrNo",
@@ -154,8 +142,8 @@ export function InwardWarehousePage({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
-  const [qcDialog, setQcDialog] = useState<QcDialogState>(null);
-  const [isSubmittingQc, setIsSubmittingQc] = useState(false);
+  const [qcInwardId, setQcInwardId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const activeInventory = getActiveInwardInventoryTab(
     searchParams.get("inventory"),
@@ -164,11 +152,11 @@ export function InwardWarehousePage({
   const canCreate = canAccessPermission("warehouseA", "create");
   const canEdit = canAccessPermission("warehouseA", "edit");
   const canView = canAccessPermission("warehouseA", "view");
-  const isVeneerBlocks = activeInventory === "veneer-blocks";
+  const isApiSupportedInventory = isApiSupportedInwardSlug(activeInventory);
   const activeInventoryListPath = `${warehouseRootPath}?inventory=${activeInventory}`;
 
   const loadInwards = useCallback(async () => {
-    if (!isVeneerBlocks) {
+    if (!isApiSupportedInventory) {
       setRows([]);
       setTotalCount(0);
       setErrorMessage("");
@@ -218,7 +206,7 @@ export function InwardWarehousePage({
   }, [
     activeInventory,
     columnFilters,
-    isVeneerBlocks,
+    isApiSupportedInventory,
     page,
     rowsPerPage,
     searchValue,
@@ -239,7 +227,7 @@ export function InwardWarehousePage({
   const loadColumnDropdown = useCallback(
     async (columnKey: string) => {
       const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
-      if (!inventoryType || !warehouseId || !isVeneerBlocks) {
+      if (!inventoryType || !warehouseId || !isApiSupportedInventory) {
         return;
       }
 
@@ -260,7 +248,7 @@ export function InwardWarehousePage({
         }));
       }
     },
-    [activeInventory, isVeneerBlocks, warehouseId],
+    [activeInventory, isApiSupportedInventory, warehouseId],
   );
 
   const addStockPath = useMemo(
@@ -275,38 +263,66 @@ export function InwardWarehousePage({
     [activeInventory, activeInventoryListPath, warehouseId, warehouseName],
   );
 
-  const handleQcSubmit = useCallback(
-    async (details: {
-      remark: string;
-      attachmentUrl: string | null;
-    }) => {
-      if (!qcDialog || isSubmittingQc) {
+  const handleExport = useCallback(async () => {
+    if (!isApiSupportedInventory || isExporting || !warehouseId) {
+      return;
+    }
+
+    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
+    if (!inventoryType) {
+      return;
+    }
+
+    setIsExporting(true);
+    setActionError("");
+
+    try {
+      const apiSortBy = mapInwardSortField(sortBy);
+      const apiFilters = toApiColumnFilters(columnFilters);
+      const items = await exportInwardsApi({
+        warehouseId,
+        inventoryType,
+        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(apiSortBy ? { sortBy: apiSortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0
+          ? { filters: apiFilters }
+          : {}),
+      });
+
+      const exportRows = items.map((item) =>
+        mapInwardListItemToRow(item, activeInventory),
+      );
+
+      if (exportRows.length === 0) {
+        setActionError("No records available to export.");
         return;
       }
 
-      setActionError("");
-      setIsSubmittingQc(true);
-
-      try {
-        await updateInwardQcStatusApi(qcDialog.row.id, {
-          qcStatus: qcDialog.mode as InwardQcStatus,
-          qcRemark: details.remark.trim() || null,
-          qcAttachmentUrl: details.attachmentUrl,
-        });
-        setQcDialog(null);
-        setReloadKey((current) => current + 1);
-      } catch (error) {
-        setActionError(
-          error instanceof Error
-            ? error.message
-            : "Failed to update QC status.",
-        );
-      } finally {
-        setIsSubmittingQc(false);
-      }
-    },
-    [isSubmittingQc, qcDialog],
-  );
+      exportRowsToCsv(
+        exportRows,
+        inwardListingColumns,
+        `inward-${activeInventory}`,
+      );
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to export inward records.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [
+    activeInventory,
+    columnFilters,
+    isApiSupportedInventory,
+    isExporting,
+    searchValue,
+    sortBy,
+    sortOrder,
+    warehouseId,
+  ]);
 
   const getRowActions = useMemo(
     () =>
@@ -352,33 +368,15 @@ export function InwardWarehousePage({
             },
           });
 
-          const qcStatus = String(_row.qcStatus ?? "")
-            .trim()
-            .toLowerCase();
-          const isQcPending = !qcStatus || qcStatus === "pending";
-
-          if (isQcPending) {
-            actions.push({
-              id: "qc-pass",
-              label: "QC Pass",
-              icon: BadgeCheck,
-              onSelect: (selectedRow) => {
-                setActionError("");
-                setQcDialog({ mode: "PASS", row: selectedRow });
-              },
-            });
-
-            actions.push({
-              id: "qc-fail",
-              label: "QC Fail",
-              icon: CircleX,
-              tone: "danger",
-              onSelect: (selectedRow) => {
-                setActionError("");
-                setQcDialog({ mode: "FAIL", row: selectedRow });
-              },
-            });
-          }
+          actions.push({
+            id: "qc-update",
+            label: "QC Update",
+            icon: ClipboardCheck,
+            onSelect: (selectedRow) => {
+              setActionError("");
+              setQcInwardId(selectedRow.inventoryRecordId);
+            },
+          });
         }
 
         return actions;
@@ -445,7 +443,7 @@ export function InwardWarehousePage({
               flexWrap: "wrap",
             }}
           >
-            {canCreate && isVeneerBlocks ? (
+            {canCreate && isApiSupportedInventory ? (
               <Button
                 component={RouterLink}
                 to={addStockPath}
@@ -469,17 +467,15 @@ export function InwardWarehousePage({
             <Button
               variant="outlined"
               startIcon={<FileOutput size={15} />}
-              disabled={rows.length === 0}
-              onClick={() =>
-                exportRowsToCsv(
-                  rows,
-                  inwardListingColumns,
-                  `inward-${activeInventory}`,
-                )
+              disabled={
+                !isApiSupportedInventory || isExporting || totalCount === 0
               }
+              onClick={() => {
+                void handleExport();
+              }}
               sx={(theme) => getListingToolbarOutlinedButtonSx(theme)}
             >
-              Export
+              {isExporting ? "Exporting..." : "Export"}
             </Button>
           </Stack>
         </Stack>
@@ -495,12 +491,12 @@ export function InwardWarehousePage({
           emptyStateLabel={
             isLoading
               ? "Loading inward records..."
-              : isVeneerBlocks
+              : isApiSupportedInventory
                 ? `No ${activeTitle.toLowerCase()} records are available.`
                 : `${activeTitle} inward will be available soon.`
           }
           filterOptionsByColumn={filterOptionsByColumn}
-          getRowActions={isVeneerBlocks ? getRowActions : () => []}
+          getRowActions={isApiSupportedInventory ? getRowActions : () => []}
           onColumnFilterOpen={(columnKey) => {
             void loadColumnDropdown(columnKey);
           }}
@@ -531,146 +527,13 @@ export function InwardWarehousePage({
         />
       </Stack>
 
-      <InwardQcDialog
-        mode={qcDialog?.mode ?? "PASS"}
-        open={Boolean(qcDialog)}
-        submitting={isSubmittingQc}
-        onClose={() => {
-          if (!isSubmittingQc) {
-            setQcDialog(null);
-          }
-        }}
-        onSubmit={handleQcSubmit}
+      <InwardQcUpdateDialog
+        inwardId={qcInwardId}
+        open={Boolean(qcInwardId)}
+        onClose={() => setQcInwardId(null)}
+        onUpdated={() => setReloadKey((current) => current + 1)}
       />
     </MasterPageShell>
-  );
-}
-
-function InwardQcDialog({
-  mode,
-  open,
-  submitting,
-  onClose,
-  onSubmit,
-}: {
-  mode: "PASS" | "FAIL";
-  open: boolean;
-  submitting: boolean;
-  onClose: () => void;
-  onSubmit: (details: {
-    remark: string;
-    attachmentUrl: string | null;
-  }) => void;
-}) {
-  const [remark, setRemark] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
-  const [fileError, setFileError] = useState("");
-
-  useEffect(() => {
-    if (open) {
-      setRemark("");
-      setFileName("");
-      setAttachmentUrl(null);
-      setFileError("");
-    }
-  }, [open]);
-
-  const title = mode === "PASS" ? "Mark QC Pass" : "Mark QC Fail";
-
-  return (
-    <Dialog fullWidth maxWidth="sm" onClose={onClose} open={open}>
-      <DialogTitle>{title}</DialogTitle>
-      <DialogContent sx={{ pt: "8px !important" }}>
-        <Stack spacing={2}>
-          <TextField
-            fullWidth
-            label="Remark"
-            multiline
-            minRows={3}
-            onChange={(event) => setRemark(event.target.value)}
-            value={remark}
-          />
-
-          <Stack spacing={0.75}>
-            <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>
-              File Upload
-            </Typography>
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <Button
-                component="label"
-                disabled={submitting}
-                startIcon={<Upload size={15} />}
-                variant="outlined"
-              >
-                Choose File
-                <input
-                  accept="image/*,.pdf"
-                  hidden
-                  type="file"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    setFileError("");
-
-                    if (!file) {
-                      setFileName("");
-                      setAttachmentUrl(null);
-                      return;
-                    }
-
-                    setFileName(file.name);
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      setAttachmentUrl(
-                        typeof reader.result === "string" ? reader.result : null,
-                      );
-                    };
-                    reader.onerror = () => {
-                      setFileError("Failed to read selected file.");
-                      setAttachmentUrl(null);
-                    };
-                    reader.readAsDataURL(file);
-                  }}
-                />
-              </Button>
-              <Typography
-                sx={{
-                  color: "text.secondary",
-                  fontSize: "0.8125rem",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {fileName || "No file selected"}
-              </Typography>
-            </Stack>
-            {fileError ? (
-              <Typography color="error" sx={{ fontSize: "0.75rem" }}>
-                {fileError}
-              </Typography>
-            ) : null}
-          </Stack>
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button disabled={submitting} onClick={onClose} variant="outlined">
-          Cancel
-        </Button>
-        <Button
-          disabled={submitting || Boolean(fileError)}
-          onClick={() =>
-            onSubmit({
-              remark,
-              attachmentUrl,
-            })
-          }
-          variant="contained"
-        >
-          {submitting ? "Submitting..." : "Submit"}
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 }
 

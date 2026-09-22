@@ -1557,13 +1557,14 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
 function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
   const normalizedValue = formatEnterpriseValue(value).trim().toLowerCase();
   const isInspectionStatus = normalizedValue.includes("inspection");
-  const isPass =
-    normalizedValue === "pass" ||
-    normalizedValue === "qc pass" ||
-    normalizedValue === "inspection pass" ||
+  const isDone =
     normalizedValue === "done" ||
     normalizedValue === "qc done" ||
     normalizedValue === "inspection done";
+  const isPass =
+    normalizedValue === "pass" ||
+    normalizedValue === "qc pass" ||
+    normalizedValue === "inspection pass";
   const isFail =
     normalizedValue === "fail" ||
     normalizedValue === "qc fail" ||
@@ -1575,16 +1576,18 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
     : normalizedValue === "inspection fail"
       ? "Inspection Fail"
       : isInspectionStatus
-        ? isPass
+        ? isDone || isPass
           ? "Inspection Done"
           : "Inspection Pending"
-    : isPass
-      ? "QC Pass"
-      : isFail
-        ? "QC Fail"
-        : "Pending";
+    : isDone
+      ? "QC Done"
+      : isPass
+        ? "QC Pass"
+        : isFail
+          ? "QC Fail"
+          : "Pending";
 
-  const palette = isPass
+  const palette = isDone || isPass
     ? theme.customTokens.semanticScale.success
     : isFail
       ? theme.customTokens.semanticScale.error

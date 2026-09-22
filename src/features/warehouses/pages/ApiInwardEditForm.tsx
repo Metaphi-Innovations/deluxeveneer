@@ -28,6 +28,10 @@ import {
   type InwardItemDetail,
 } from "../api/inwardApi";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
+import {
+  slugFromInventoryTypeLabel,
+  type ApiSupportedInwardSlug,
+} from "../inward/supportedInwardTypes";
 
 type ApiInwardEditMode = "edit";
 
@@ -87,16 +91,16 @@ function formatGstPercentageDisplay(
   return `${raw}%`;
 }
 
-function mapDetailItemToLineValues(item: InwardItemDetail): Record<string, string> {
-  return {
+function mapDetailItemToLineValues(
+  item: InwardItemDetail,
+  slug: ApiSupportedInwardSlug,
+): Record<string, string> {
+  const shared = {
     itemName: item.itemName ?? "",
     itemSubCategory: item.itemSubCategoryName ?? "",
     hsn: item.hsnCode ?? "",
-    logCode: item.batchNo ?? "",
     length: formatOptionalNumber(item.length),
     width: formatOptionalNumber(item.width),
-    thickness: formatOptionalNumber(item.height),
-    cbm: formatOptionalNumber(item.cbm),
     rate: formatOptionalNumber(item.rate),
     productAmount: String(item.amount ?? 0),
     gstPercentage: formatGstPercentageDisplay(item.gstPercentage),
@@ -105,6 +109,25 @@ function mapDetailItemToLineValues(item: InwardItemDetail): Record<string, strin
     igst: String(item.igst ?? 0),
     totalAmount: String(item.totalAmount ?? 0),
     remark: item.remark ?? "",
+  };
+
+  if (slug === "raw-veneer") {
+    return {
+      ...shared,
+      logCode: item.logCode ?? "",
+      bundleNumber: item.bundleNumber ?? "",
+      palletNo: item.palletNo ?? "",
+      thickness: formatOptionalNumber(item.thickness),
+      noOfLeaves: formatOptionalNumber(item.noOfLeaves),
+      totalSqMeter: formatOptionalNumber(item.totalSqMeter),
+    };
+  }
+
+  return {
+    ...shared,
+    logCode: item.batchNo ?? "",
+    thickness: formatOptionalNumber(item.height),
+    cbm: formatOptionalNumber(item.cbm),
   };
 }
 
@@ -168,6 +191,11 @@ export function ApiInwardEditForm({
     };
   }, [inwardId]);
 
+  const inventorySlug = useMemo(
+    () => slugFromInventoryTypeLabel(detail?.inventoryType),
+    [detail?.inventoryType],
+  );
+
   const fields = useMemo(
     () =>
       createWarehouseAAddStockHeaderFields(
@@ -180,9 +208,9 @@ export function ApiInwardEditForm({
     () =>
       (detail?.items ?? []).map((item) => ({
         id: item.id,
-        values: mapDetailItemToLineValues(item),
+        values: mapDetailItemToLineValues(item, inventorySlug),
       })),
-    [detail],
+    [detail, inventorySlug],
   );
 
   const initialOtherConsumables = useMemo(
@@ -230,6 +258,7 @@ export function ApiInwardEditForm({
 
       const payload = await buildCreateInwardPayload({
         warehouseId,
+        inventorySlug,
         header: {
           currency:
             typeof values.currency === "string" ? values.currency : "INR",
@@ -407,7 +436,7 @@ export function ApiInwardEditForm({
                   ? values.remarks
                   : ""
             }
-            slug="veneer-blocks"
+            slug={inventorySlug}
             supplierName={
               typeof values.supplierName === "string"
                 ? values.supplierName

@@ -1641,7 +1641,8 @@ export const rawVeneerDefinition: InventoryDefinition<RawVeneerRecord> = {
   editFields: createInventoryEditFields(rawVeneerColumns, rawVeneerRows),
   formFields: createInventoryFormFields(rawVeneerRows),
   viewFields: createInventoryViewFields(rawVeneerViewColumns),
-  rows: limitDemoListingRows(rawVeneerRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
