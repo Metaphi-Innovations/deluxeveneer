@@ -104,7 +104,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "thickness", label: "Height", minWidth: 90, placeholder: "Height", type: "text", required: true },
     { key: "cbm", label: "CBM", minWidth: 100, placeholder: "CBM", type: "text", required: true },
     { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
-    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
+    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -125,7 +125,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "noOfLeaves", label: "No of Leaves", minWidth: 110, placeholder: "Leaves", type: "text", required: true },
     { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
     { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
-    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
+    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -635,23 +635,31 @@ function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
 ) {
-  let nextValues = { ...values };
-
-  const length = parseAmountValue(nextValues.length ?? "");
-  const width = parseAmountValue(nextValues.width ?? "");
-  const sheets = parseAmountValue(
-    nextValues.sheets ?? nextValues.noOfSheets ?? nextValues.noOfLeaves ?? "",
-  );
+  const nextValues = { ...values };
   const rate = parseAmountValue(nextValues.rate ?? "");
+  const hasCbm = Object.prototype.hasOwnProperty.call(nextValues, "cbm");
+  const hasSqMeter = Object.prototype.hasOwnProperty.call(
+    nextValues,
+    "totalSqMeter",
+  );
 
-  // Auto calculate totalSqMeter: (Length * Width / 10000 or / 1000000 based on standard mm vs cm)
-  // Total square feet is entered manually by the user, do not auto-calculate it
-  if (rate > 0 && nextValues.totalSqMeter) {
-    const area = parseAmountValue(nextValues.totalSqMeter);
-    if (area > 0) {
-      const calculatedAmount = Math.round(area * rate * 100) / 100;
-      nextValues.productAmount = calculatedAmount.toFixed(2);
-      nextValues.amount = calculatedAmount.toFixed(2);
+  // Veneer blocks: Amount = CBM × Rate
+  // Raw veneer (and sheet goods): Amount = Total Sq Meter × Rate
+  if (rate > 0) {
+    if (hasCbm) {
+      const cbm = parseAmountValue(nextValues.cbm ?? "");
+      if (cbm > 0) {
+        const calculatedAmount = Math.round(cbm * rate * 100) / 100;
+        nextValues.productAmount = calculatedAmount.toFixed(2);
+        nextValues.amount = calculatedAmount.toFixed(2);
+      }
+    } else if (hasSqMeter) {
+      const area = parseAmountValue(nextValues.totalSqMeter ?? "");
+      if (area > 0) {
+        const calculatedAmount = Math.round(area * rate * 100) / 100;
+        nextValues.productAmount = calculatedAmount.toFixed(2);
+        nextValues.amount = calculatedAmount.toFixed(2);
+      }
     }
   }
 
@@ -737,7 +745,11 @@ function createEmptyValues(columns: readonly DynamicFieldConfig[]) {
 
 function allValuesEmpty(values: Record<string, string>) {
   return Object.entries(values).every(([key, value]) => {
-    if (["cgst", "sgst", "igst", "totalAmount"].includes(key)) {
+    if (
+      ["cgst", "sgst", "igst", "totalAmount", "productAmount", "amount"].includes(
+        key,
+      )
+    ) {
       return true;
     }
 

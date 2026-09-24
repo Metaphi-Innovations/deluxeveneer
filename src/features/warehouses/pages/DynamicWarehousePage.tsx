@@ -8,6 +8,7 @@ import {
 } from "../../masters/shared";
 import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import { InwardWarehousePage } from "./InwardWarehousePage";
+import { StorageWarehousePage } from "./StorageWarehousePage";
 
 export function DynamicWarehousePage() {
   const params = useParams<{ warehouseSlug: string }>();
@@ -74,6 +75,16 @@ export function DynamicWarehousePage() {
   if (!isLoading && !errorMessage && warehouseType === "Inward") {
     return (
       <InwardWarehousePage
+        warehouseId={warehouseId}
+        warehouseName={warehouseName}
+        warehouseRootPath={`/warehouses/${warehouseId}`}
+      />
+    );
+  }
+
+  if (!isLoading && !errorMessage && warehouseType === "Storage") {
+    return (
+      <StorageWarehousePage
         warehouseId={warehouseId}
         warehouseName={warehouseName}
         warehouseRootPath={`/warehouses/${warehouseId}`}
