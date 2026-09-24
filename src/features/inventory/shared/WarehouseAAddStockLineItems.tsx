@@ -265,10 +265,10 @@ export const WarehouseAAddStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode),
+        values: applyTaxCalculations(row.values, gstMode, slug),
       })),
     );
-  }, [gstMode]);
+  }, [gstMode, slug]);
 
   useEffect(() => {
     onTotalsChange?.(summarizeLineItemTotals(lineItems));
@@ -326,7 +326,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
 
         return {
           ...row,
@@ -348,7 +348,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
@@ -634,6 +634,7 @@ function isActiveMasterRecord(row: MasterRecord) {
 function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
+  slug?: WarehouseAAddStockSlug,
 ) {
   const nextValues = { ...values };
   const rate = parseAmountValue(nextValues.rate ?? "");

@@ -123,7 +123,7 @@ function mapDetailItemToLineValues(
     };
   }
 
-  if (slug === "plywood") {
+  if (slug === "plywood" || slug === "mdf") {
     return {
       ...shared,
       logCode: item.batchNo ?? "",

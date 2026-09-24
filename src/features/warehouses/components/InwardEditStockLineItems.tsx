@@ -138,7 +138,6 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
     { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
-    { key: "color", label: "Color", minWidth: 160, options: ["Natural Oak", "Walnut Brown", "Teak Gold", "Ash Grey"], placeholder: "Color", type: "select" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
@@ -158,7 +157,6 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
@@ -281,10 +279,10 @@ export const InwardEditStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode),
+        values: applyTaxCalculations(row.values, gstMode, slug),
       })),
     );
-  }, [gstMode]);
+  }, [gstMode, slug]);
 
   useEffect(() => {
     onTotalsChange?.(summarizeLineItemTotals(lineItems));
@@ -342,7 +340,7 @@ export const InwardEditStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
 
         return {
           ...row,
@@ -364,7 +362,7 @@ export const InwardEditStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
@@ -767,7 +765,7 @@ function createInitialLineItems(
 
     return {
       id,
-      values: applyTaxCalculations(mergedValues, gstMode),
+      values: applyTaxCalculations(mergedValues, gstMode, slug),
     };
   });
 }

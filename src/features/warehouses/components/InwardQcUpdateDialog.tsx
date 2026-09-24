@@ -115,12 +115,24 @@ export function InwardQcUpdateDialog({
 
   const items = useMemo(() => detail?.items ?? [], [detail]);
 
-  const pendingCount = useMemo(
-    () =>
-      items.filter((item) => normalizeQcLabel(item.qcStatus) === "Pending")
-        .length,
-    [items],
-  );
+  const qcCounts = useMemo(() => {
+    let passCount = 0;
+    let failCount = 0;
+    let pendingCount = 0;
+
+    for (const item of items) {
+      const status = (item.qcStatus ?? "").trim().toUpperCase();
+      if (status === "PASS") {
+        passCount++;
+      } else if (status === "FAIL") {
+        failCount++;
+      } else {
+        pendingCount++;
+      }
+    }
+
+    return { passCount, failCount, pendingCount };
+  }, [items]);
 
   const handleConfirmSubmit = async (details: {
     remark: string;
@@ -214,12 +226,32 @@ export function InwardQcUpdateDialog({
               </Typography>
             </Box>
             {detail ? (
-              <Chip
-                label={overallQc}
-                color={qcChipColor(overallQc)}
-                size="small"
-                sx={{ fontWeight: 700, height: 26 }}
-              />
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Chip
+                  label={`${qcCounts.passCount} Pass`}
+                  size="small"
+                  variant="outlined"
+                  color="success"
+                  sx={{
+                    height: 24,
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    "& .MuiChip-label": { px: 0.85 },
+                  }}
+                />
+                <Chip
+                  label={`${qcCounts.failCount} Fail`}
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  sx={{
+                    height: 24,
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    "& .MuiChip-label": { px: 0.85 },
+                  }}
+                />
+              </Stack>
             ) : null}
           </Stack>
         </DialogTitle>
@@ -273,7 +305,7 @@ export function InwardQcUpdateDialog({
                   />
                   <SummaryField
                     label="Items"
-                    value={`${items.length} total · ${pendingCount} pending`}
+                    value={`${items.length} total · ${qcCounts.passCount} pass · ${qcCounts.failCount} fail · ${qcCounts.pendingCount} pending`}
                   />
                 </Stack>
               </Box>
@@ -353,6 +385,8 @@ export function InwardQcUpdateDialog({
 
       <InwardQcConfirmDialog
         itemName={confirmState?.item.itemName ?? ""}
+        initialRemark={confirmState?.item.qcRemark ?? ""}
+        initialAttachmentUrl={confirmState?.item.qcAttachmentUrl ?? null}
         mode={confirmState?.mode ?? "PASS"}
         open={Boolean(confirmState)}
         submitting={isSubmitting}
@@ -485,20 +519,20 @@ function ItemQcCard({
           </Stack>
         </Box>
 
-        {isPending ? (
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ flexShrink: 0, alignSelf: { xs: "stretch", md: "center" } }}
-          >
+        <Stack
+          direction="column"
+          spacing={1}
+          sx={{ flexShrink: 0, alignSelf: { xs: "stretch", md: "center" }, minWidth: { md: 200 } }}
+        >
+          <Stack direction="row" spacing={1}>
             <Button
               disabled={disabled}
               size="small"
               startIcon={<BadgeCheck size={15} />}
-              variant="outlined"
+              variant={qcLabel === "Pass" ? "contained" : "outlined"}
               color="success"
               onClick={onPass}
-              sx={{ minWidth: 92, flex: { xs: 1, md: "none" } }}
+              sx={{ minWidth: 92, flex: 1 }}
             >
               Pass
             </Button>
@@ -506,99 +540,32 @@ function ItemQcCard({
               disabled={disabled}
               size="small"
               startIcon={<CircleX size={15} />}
-              variant="outlined"
+              variant={qcLabel === "Fail" ? "contained" : "outlined"}
               color="error"
               onClick={onFail}
-              sx={{ minWidth: 92, flex: { xs: 1, md: "none" } }}
+              sx={{ minWidth: 92, flex: 1 }}
             >
               Fail
             </Button>
           </Stack>
-        ) : (
-          <Stack
-            direction="row"
-            spacing={1.5}
-            sx={{
-              flexShrink: 0,
-              width: { xs: "100%", md: 300 },
-              alignSelf: { xs: "stretch", md: "center" },
-              alignItems: "stretch",
-            }}
-          >
-            <Box
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <Typography
-                sx={(theme) => ({
-                  color: theme.customTokens.text.secondary,
-                  fontSize: "0.6875rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  lineHeight: 1.2,
-                  mb: 0.5,
-                  minHeight: 16,
-                })}
-              >
-                Remark
-              </Typography>
-              <Box
-                sx={(theme) => ({
-                  flex: 1,
-                  minHeight: 88,
-                  px: 1,
-                  py: 0.75,
-                  borderRadius: `${theme.customTokens.radius.sm}px`,
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  backgroundColor: theme.customTokens.surfaces.alt,
-                  display: "flex",
-                  alignItems: "flex-start",
-                })}
-              >
+          {remark || attachmentUrl ? (
+            <Box sx={{ mt: 0.5 }}>
+              {remark ? (
                 <Typography
                   sx={{
-                    fontSize: "0.8125rem",
-                    fontWeight: 500,
+                    fontSize: "0.75rem",
+                    color: (theme) => theme.customTokens.text.secondary,
                     wordBreak: "break-word",
-                    lineHeight: 1.4,
                   }}
                 >
-                  {remark || "—"}
+                  <Box component="span" sx={{ fontWeight: 600 }}>QC Remark: </Box>
+                  {remark}
                 </Typography>
-              </Box>
+              ) : null}
+              {attachmentUrl ? <QcAttachmentPreview url={attachmentUrl} /> : null}
             </Box>
-
-            <Box
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                display: "flex",
-                flexDirection: "column",
-              }}
-            >
-              <Typography
-                sx={(theme) => ({
-                  color: theme.customTokens.text.secondary,
-                  fontSize: "0.6875rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  lineHeight: 1.2,
-                  mb: 0.5,
-                  minHeight: 16,
-                })}
-              >
-                Attachment
-              </Typography>
-              <QcAttachmentPreview url={attachmentUrl} />
-            </Box>
-          </Stack>
-        )}
+          ) : null}
+        </Stack>
       </Stack>
     </Box>
   );
@@ -728,11 +695,13 @@ function DetailPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InwardQcConfirmDialog({
+export function InwardQcConfirmDialog({
   mode,
   open,
   submitting,
   itemName,
+  initialRemark,
+  initialAttachmentUrl,
   onClose,
   onSubmit,
 }: {
@@ -740,6 +709,8 @@ function InwardQcConfirmDialog({
   open: boolean;
   submitting: boolean;
   itemName: string;
+  initialRemark?: string | null;
+  initialAttachmentUrl?: string | null;
   onClose: () => void;
   onSubmit: (details: {
     remark: string;
@@ -753,11 +724,12 @@ function InwardQcConfirmDialog({
 
   useEffect(() => {
     if (open) {
-      setRemark("");
+      setRemark(initialRemark?.trim() ?? "");
       setFileName("");
-      setAttachmentUrl(null);
+      setAttachmentUrl(initialAttachmentUrl ?? null);
       setFileError("");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const title = mode === "PASS" ? "Mark QC Pass" : "Mark QC Fail";

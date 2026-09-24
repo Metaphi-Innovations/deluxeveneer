@@ -1571,6 +1571,12 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
     normalizedValue === "inspection fail" ||
     normalizedValue === "failed";
 
+  const isPartial =
+    normalizedValue === "partially done" ||
+    normalizedValue === "partial" ||
+    normalizedValue === "qc partial" ||
+    normalizedValue === "inspection partial";
+
   const label = normalizedValue === "inspection pass"
     ? "Inspection Pass"
     : normalizedValue === "inspection fail"
@@ -1578,20 +1584,26 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
       : isInspectionStatus
         ? isDone || isPass
           ? "Inspection Done"
-          : "Inspection Pending"
+          : isPartial
+            ? "Partially Done"
+            : "Inspection Pending"
     : isDone
       ? "QC Done"
-      : isPass
-        ? "QC Pass"
-        : isFail
-          ? "QC Fail"
-          : "Pending";
+      : isPartial
+        ? "Partially Done"
+        : isPass
+          ? "QC Pass"
+          : isFail
+            ? "QC Fail"
+            : "Pending";
 
   const palette = isDone || isPass
     ? theme.customTokens.semanticScale.success
-    : isFail
-      ? theme.customTokens.semanticScale.error
-      : theme.customTokens.semanticScale.warning;
+    : isPartial
+      ? theme.customTokens.semanticScale.info
+      : isFail
+        ? theme.customTokens.semanticScale.error
+        : theme.customTokens.semanticScale.warning;
 
   return (
     <Chip
