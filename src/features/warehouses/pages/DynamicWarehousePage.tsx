@@ -8,6 +8,7 @@ import {
 } from "../../masters/shared";
 import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import { InwardWarehousePage } from "./InwardWarehousePage";
+import { ProductionWarehousePage } from "../production/ProductionWarehousePage";
 
 export function DynamicWarehousePage() {
   const params = useParams<{ warehouseSlug: string }>();
@@ -71,9 +72,19 @@ export function DynamicWarehousePage() {
     };
   }, [warehouseId]);
 
-  if (!isLoading && !errorMessage && warehouseType === "Inward") {
+  if (!isLoading && !errorMessage && (warehouseType === "Inward" || warehouseType === "INWARD")) {
     return (
       <InwardWarehousePage
+        warehouseId={warehouseId}
+        warehouseName={warehouseName}
+        warehouseRootPath={`/warehouses/${warehouseId}`}
+      />
+    );
+  }
+
+  if (!isLoading && !errorMessage && (warehouseType === "Production" || warehouseType === "PRODUCTION")) {
+    return (
+      <ProductionWarehousePage
         warehouseId={warehouseId}
         warehouseName={warehouseName}
         warehouseRootPath={`/warehouses/${warehouseId}`}
