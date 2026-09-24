@@ -108,7 +108,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "qcStatus", label: "QC Status" },
+    { key: "qcStatus", label: "QC" },
     { key: "remark", label: "Remark" },
   ];
 
@@ -325,7 +325,7 @@ export function InwardWarehousePage({
 
   const getRowActions = useMemo(
     () =>
-      (_row: WarehouseInventoryRow): EnterpriseTableAction<WarehouseInventoryRow>[] => {
+      (row: WarehouseInventoryRow): EnterpriseTableAction<WarehouseInventoryRow>[] => {
         const actions: EnterpriseTableAction<WarehouseInventoryRow>[] = [];
 
         if (canView) {
@@ -367,13 +367,25 @@ export function InwardWarehousePage({
             },
           });
 
+          const normalizedQc = (
+            row.qcStatus ||
+            row.status ||
+            ""
+          )
+            .trim()
+            .toLowerCase();
+          const isPending =
+            normalizedQc === "pending" ||
+            normalizedQc === "" ||
+            normalizedQc === "inspection pending";
+
           actions.push({
-            id: "qc-update",
-            label: "QC Update",
+            id: "qc-action",
+            label: isPending ? "QC" : "QC Update",
             icon: ClipboardCheck,
-            onSelect: (selectedRow) => {
+            onSelect: (rowToUpdate) => {
               setActionError("");
-              setQcInwardId(selectedRow.inventoryRecordId);
+              setQcInwardId(rowToUpdate.inventoryRecordId);
             },
           });
         }
@@ -403,7 +415,7 @@ export function InwardWarehousePage({
       >
         <ModuleProcessTabs
           onChange={(value) => {
-            setSearchParams({ inventory: value }, { replace: true });
+            setSearchParams({ inventory: value }, { replace: false });
             setPage(1);
             setColumnFilters({});
             setFilterOptionsByColumn({});

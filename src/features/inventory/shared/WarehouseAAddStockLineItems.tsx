@@ -265,10 +265,10 @@ export const WarehouseAAddStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode),
+        values: applyTaxCalculations(row.values, gstMode, slug),
       })),
     );
-  }, [gstMode]);
+  }, [gstMode, slug]);
 
   useEffect(() => {
     onTotalsChange?.(summarizeLineItemTotals(lineItems));
@@ -326,7 +326,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
 
         return {
           ...row,
@@ -348,7 +348,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
@@ -634,24 +634,86 @@ function isActiveMasterRecord(row: MasterRecord) {
 function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
+  slug?: WarehouseAAddStockSlug,
 ) {
   let nextValues = { ...values };
 
   const length = parseAmountValue(nextValues.length ?? "");
   const width = parseAmountValue(nextValues.width ?? "");
+  const thickness = parseAmountValue(nextValues.thickness ?? nextValues.height ?? "");
   const sheets = parseAmountValue(
-    nextValues.sheets ?? nextValues.noOfSheets ?? nextValues.noOfLeaves ?? "",
+    nextValues.sheets ?? nextValues.noOfSheets ?? nextValues.noOfLeaves ?? "1",
   );
+  const qty = sheets > 0 ? sheets : 1;
   const rate = parseAmountValue(nextValues.rate ?? "");
 
-  // Auto calculate totalSqMeter: (Length * Width / 10000 or / 1000000 based on standard mm vs cm)
-  // Total square feet is entered manually by the user, do not auto-calculate it
-  if (rate > 0 && nextValues.totalSqMeter) {
-    const area = parseAmountValue(nextValues.totalSqMeter);
-    if (area > 0) {
-      const calculatedAmount = Math.round(area * rate * 100) / 100;
-      nextValues.productAmount = calculatedAmount.toFixed(2);
-      nextValues.amount = calculatedAmount.toFixed(2);
+  // Auto-calculate CBM for veneer blocks: length * width * height (always recompute dynamically)
+  if (slug === "veneer-blocks") {
+    if (length > 0 && width > 0 && thickness > 0) {
+      // If dimensions are > 20 in all axes, treat as centimeters
+      const isCentimeters = length > 20 && width > 20 && thickness > 20;
+      const computedCbm = isCentimeters
+        ? (length * width * thickness) / 1000000
+        : length * width * thickness;
+      nextValues.cbm = Number(computedCbm.toFixed(4)).toString();
+    }
+  }
+
+  // Auto-calculate totalSqMeter for sheet goods: length * width * leaves/sheets (always recompute dynamically)
+  if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+    if (length > 0 && width > 0) {
+      const isMillimeters = length > 500 && width > 200;
+      const isCentimeters = !isMillimeters && length > 50 && width > 20;
+      const sqmPerUnit = isMillimeters
+        ? (length * width) / 1000000
+        : isCentimeters
+          ? (length * width) / 10000
+          : length * width;
+      const computedTotalSqm = sqmPerUnit * qty;
+      nextValues.totalSqMeter = Number(computedTotalSqm.toFixed(3)).toString();
+    }
+  }
+
+  // Calculate productAmount cleanly based on slug / units
+  if (rate > 0) {
+    const area = parseAmountValue(nextValues.totalSqMeter ?? "");
+    const cubic = parseAmountValue(nextValues.cbm ?? "");
+    const sqf = parseAmountValue(nextValues.totalSqf ?? "");
+    const qtyVal = parseAmountValue(nextValues.quantity ?? "");
+
+    let calcAmt: number | null = null;
+
+    if (slug === "veneer-blocks") {
+      // Veneer blocks are calculated on CBM basis (cubic)
+      if (cubic > 0) {
+        calcAmt = cubic * rate;
+      }
+    } else if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+      // Raw veneer, plywood, MDF are calculated on SQM (area) or SQF basis
+      if (area > 0) {
+        calcAmt = area * rate;
+      } else if (sqf > 0) {
+        calcAmt = sqf * rate;
+      }
+    } else if (slug === "consumables") {
+      if (qtyVal > 0) {
+        calcAmt = qtyVal * rate;
+      }
+    } else {
+      // Fallback if slug not passed
+      if (cubic > 0) {
+        calcAmt = cubic * rate;
+      } else if (area > 0) {
+        calcAmt = area * rate;
+      } else if (sqf > 0) {
+        calcAmt = sqf * rate;
+      }
+    }
+
+    if (calcAmt !== null) {
+      const rounded = Math.round(calcAmt * 100) / 100;
+      nextValues.productAmount = rounded.toFixed(2);
+      nextValues.amount = rounded.toFixed(2);
     }
   }
 

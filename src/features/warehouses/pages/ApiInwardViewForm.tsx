@@ -57,8 +57,11 @@ function formatDateDisplay(value: string | null | undefined): string {
   });
 }
 
-function formatMoney(value: number | null | undefined): string {
-  return formatAmountShared(value ?? 0);
+function formatMoney(value: number | null | undefined, currency?: string | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "0.00";
+  }
+  return formatAmountShared(value, currency ? { currency, withSymbol: false } : { withSymbol: false });
 }
 
 function formatMeasure(value: number | null | undefined): string {
@@ -95,45 +98,57 @@ export function ApiInwardViewForm({
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  const loadInward = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+
+    try {
+      const result = await fetchInwardById(inwardId);
+      setDetail(result);
+    } catch (error) {
+      setDetail(null);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load inward record.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let ignore = false;
-
-    const load = async () => {
-      setIsLoading(true);
-      setErrorMessage("");
-
-      try {
-        const result = await fetchInwardById(inwardId);
-        if (!ignore) {
-          setDetail(result);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setDetail(null);
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to load inward record.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      ignore = true;
-    };
+    void loadInward();
   }, [inwardId]);
 
   const overallQc = useMemo(
     () => normalizeQcLabel(detail?.qcStatus),
     [detail?.qcStatus],
   );
+
+  const qcCounts = useMemo(() => {
+    let passCount = 0;
+    let failCount = 0;
+    let pendingCount = 0;
+
+    for (const item of detail?.items ?? []) {
+      const normalized = (item.qcStatus ?? "").trim().toUpperCase();
+      if (normalized === "PASS") {
+        passCount += 1;
+      } else if (normalized === "FAIL") {
+        failCount += 1;
+      } else {
+        pendingCount += 1;
+      }
+    }
+
+    return {
+      passCount,
+      failCount,
+      pendingCount,
+      totalCount: (detail?.items ?? []).length,
+    };
+  }, [detail?.items]);
 
   const gstMode = useMemo(
     () =>
@@ -176,7 +191,7 @@ export function ApiInwardViewForm({
       ];
     }
 
-    if (inventorySlug === "plywood") {
+    if (inventorySlug === "plywood" || inventorySlug === "mdf") {
       return [
         "Item Name",
         "Sub Category",
@@ -379,8 +394,8 @@ export function ApiInwardViewForm({
               display: "flex",
               flexDirection: "column",
               justifyContent: "center",
-              gap: 0.75,
-              minWidth: 120,
+              gap: 0.5,
+              minWidth: 140,
             }}
           >
             <Typography
@@ -394,12 +409,32 @@ export function ApiInwardViewForm({
             >
               QC Status
             </Typography>
-            <Chip
-              label={overallQc}
-              color={qcChipColor(overallQc)}
-              size="small"
-              sx={{ width: "fit-content", fontWeight: 600 }}
-            />
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+              <Chip
+                label={`${qcCounts.passCount} Pass`}
+                size="small"
+                variant="outlined"
+                color="success"
+                sx={{
+                  height: 22,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  "& .MuiChip-label": { px: 0.85 },
+                }}
+              />
+              <Chip
+                label={`${qcCounts.failCount} Fail`}
+                size="small"
+                variant="outlined"
+                color="error"
+                sx={{
+                  height: 22,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  "& .MuiChip-label": { px: 0.85 },
+                }}
+              />
+            </Stack>
           </Box>
           <SummaryMetric
             emphasize
@@ -466,6 +501,7 @@ export function ApiInwardViewForm({
                     {detail.items.map((item, index) => (
                       <ItemRow
                         key={item.id}
+                        currency={detail.currency || undefined}
                         gstMode={gstMode}
                         inventorySlug={inventorySlug}
                         item={item}
@@ -630,7 +666,7 @@ export function ApiInwardViewForm({
                 </Typography>
               )}
 
-              <Box sx={{ pt: 0.5, maxWidth: 360, minHeight: 120 }}>
+              <Box sx={{ pt: 0.5, maxWidth: 500, minHeight: 120 }}>
                 <FormSectionHeader title="Remark" />
                 <Typography
                   sx={{
@@ -666,20 +702,38 @@ export function ApiInwardViewForm({
               >
                 Cost Summary
               </Typography>
-              <TotalsLine label="Item Sub Total" value={detail.itemSubTotal} />
+              <TotalsLine
+                currency={detail.currency || undefined}
+                label="Item Sub Total"
+                value={detail.itemSubTotal}
+              />
               {gstMode === "intra" ? (
                 <>
-                  <TotalsLine label="CGST" value={detail.cgstTotal} />
-                  <TotalsLine label="SGST" value={detail.sgstTotal} />
+                  <TotalsLine
+                    currency={detail.currency || undefined}
+                    label="CGST"
+                    value={detail.cgstTotal}
+                  />
+                  <TotalsLine
+                    currency={detail.currency || undefined}
+                    label="SGST"
+                    value={detail.sgstTotal}
+                  />
                 </>
               ) : (
-                <TotalsLine label="IGST" value={detail.igstTotal} />
+                <TotalsLine
+                  currency={detail.currency || undefined}
+                  label="IGST"
+                  value={detail.igstTotal}
+                />
               )}
               <TotalsLine
+                currency={detail.currency || undefined}
                 label="Other Consumables"
                 value={detail.otherConsumablesTotal}
               />
               <TotalsLine
+                currency={detail.currency || undefined}
                 label="Additional Charges"
                 value={detail.additionalChargesTotal}
               />
@@ -691,6 +745,7 @@ export function ApiInwardViewForm({
                 }}
               >
                 <TotalsLine
+                  currency={detail.currency || undefined}
                   emphasize
                   label="Grand Total"
                   value={detail.grandTotal}
@@ -782,10 +837,12 @@ function DetailField({ label, value }: { label: string; value: string }) {
 }
 
 function TotalsLine({
+  currency,
   emphasize = false,
   label,
   value,
 }: {
+  currency?: string | undefined;
   emphasize?: boolean;
   label: string;
   value: number;
@@ -819,18 +876,20 @@ function TotalsLine({
           fontVariantNumeric: "tabular-nums",
         }}
       >
-        {formatMoney(value)}
+        {formatMoney(value, currency)}
       </Typography>
     </Box>
   );
 }
 
 function ItemRow({
+  currency,
   gstMode,
   inventorySlug,
   item,
   index,
 }: {
+  currency?: string | undefined;
   gstMode: "intra" | "inter";
   inventorySlug: ApiSupportedInwardSlug;
   item: InwardItemDetail;
@@ -839,7 +898,7 @@ function ItemRow({
   const theme = useTheme();
   const qcLabel = normalizeQcLabel(item.qcStatus);
   const isRawVeneer = inventorySlug === "raw-veneer";
-  const isPlywood = inventorySlug === "plywood";
+  const isSheetBased = inventorySlug === "plywood" || inventorySlug === "mdf";
 
   return (
     <TableRow
@@ -882,7 +941,7 @@ function ItemRow({
             {formatMeasure(item.totalSqMeter)}
           </TableCell>
         </>
-      ) : isPlywood ? (
+      ) : isSheetBased ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {item.batchNo || "—"}
@@ -929,24 +988,24 @@ function ItemRow({
         {formatMeasure(item.rate)}
       </TableCell>
       <TableCell sx={getMoneyCellSx(theme)}>
-        {formatMoney(item.amount)}
+        {formatMoney(item.amount, currency)}
       </TableCell>
       {gstMode === "intra" ? (
         <>
           <TableCell sx={getMoneyCellSx(theme)}>
-            {formatMoney(item.cgst)}
+            {formatMoney(item.cgst, currency)}
           </TableCell>
           <TableCell sx={getMoneyCellSx(theme)}>
-            {formatMoney(item.sgst)}
+            {formatMoney(item.sgst, currency)}
           </TableCell>
         </>
       ) : (
         <TableCell sx={getMoneyCellSx(theme)}>
-          {formatMoney(item.igst)}
+          {formatMoney(item.igst, currency)}
         </TableCell>
       )}
       <TableCell sx={{ ...getMoneyCellSx(theme), fontWeight: 700 }}>
-        {formatMoney(item.totalAmount)}
+        {formatMoney(item.totalAmount, currency)}
       </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
         <Chip

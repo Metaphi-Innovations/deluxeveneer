@@ -248,19 +248,22 @@ function formatAmount(value: number): string {
   });
 }
 
-function normalizeListingQcStatus(value: string): "done" | "pending" {
+function normalizeListingQcStatus(value: string): "QC Done" | "Partially Done" | "Pending" {
   const normalized = value.trim().toLowerCase();
   if (
+    normalized === "qc done" ||
+    normalized === "done" ||
     normalized === "pass" ||
     normalized === "fail" ||
-    normalized === "done" ||
-    normalized === "qc done" ||
     normalized === "qc pass" ||
     normalized === "qc fail"
   ) {
-    return "done";
+    return "QC Done";
   }
-  return "pending";
+  if (normalized === "partially done" || normalized === "partial") {
+    return "Partially Done";
+  }
+  return "Pending";
 }
 
 export function mapInwardListItemToRow(
@@ -310,7 +313,7 @@ export function mapInwardListItemToRow(
     qcStatus: listingQcStatus,
     qcRemark: item.qcRemark ?? "",
     remark: item.remark ?? "",
-    status: listingQcStatus === "done" ? "QC Done" : "Pending",
+    status: listingQcStatus,
     veneerSrNo: "",
     itemSrNo: "",
     mdfSrNo: "",

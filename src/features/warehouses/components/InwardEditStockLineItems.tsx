@@ -138,7 +138,6 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
     { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
-    { key: "color", label: "Color", minWidth: 160, options: ["Natural Oak", "Walnut Brown", "Teak Gold", "Ash Grey"], placeholder: "Color", type: "select" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
@@ -158,7 +157,6 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
@@ -281,10 +279,10 @@ export const InwardEditStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode),
+        values: applyTaxCalculations(row.values, gstMode, slug),
       })),
     );
-  }, [gstMode]);
+  }, [gstMode, slug]);
 
   useEffect(() => {
     onTotalsChange?.(summarizeLineItemTotals(lineItems));
@@ -342,7 +340,7 @@ export const InwardEditStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
 
         return {
           ...row,
@@ -364,7 +362,7 @@ export const InwardEditStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
@@ -657,10 +655,90 @@ function isActiveMasterRecord(row: MasterRecord) {
 function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
+  slug?: WarehouseAAddStockSlug,
 ) {
-  const productAmount = parseAmountValue(values.productAmount ?? "");
+  let nextValues = { ...values };
+
+  const length = parseAmountValue(nextValues.length ?? "");
+  const width = parseAmountValue(nextValues.width ?? "");
+  const thickness = parseAmountValue(nextValues.thickness ?? nextValues.height ?? "");
+  const sheets = parseAmountValue(
+    nextValues.sheets ?? nextValues.noOfSheets ?? nextValues.noOfLeaves ?? "1",
+  );
+  const qty = sheets > 0 ? sheets : 1;
+  const rate = parseAmountValue(nextValues.rate ?? "");
+
+  // Auto-calculate CBM for veneer blocks: length * width * height (always recompute dynamically)
+  if (slug === "veneer-blocks") {
+    if (length > 0 && width > 0 && thickness > 0) {
+      const isCentimeters = length > 20 && width > 20 && thickness > 20;
+      const computedCbm = isCentimeters
+        ? (length * width * thickness) / 1000000
+        : length * width * thickness;
+      nextValues.cbm = Number(computedCbm.toFixed(4)).toString();
+    }
+  }
+
+  // Auto-calculate totalSqMeter for sheet goods: length * width * leaves/sheets (always recompute dynamically)
+  if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+    if (length > 0 && width > 0) {
+      const isMillimeters = length > 500 && width > 200;
+      const isCentimeters = !isMillimeters && length > 50 && width > 20;
+      const sqmPerUnit = isMillimeters
+        ? (length * width) / 1000000
+        : isCentimeters
+          ? (length * width) / 10000
+          : length * width;
+      const computedTotalSqm = sqmPerUnit * qty;
+      nextValues.totalSqMeter = Number(computedTotalSqm.toFixed(3)).toString();
+    }
+  }
+
+  // Calculate productAmount cleanly based on slug / units
+  if (rate > 0) {
+    const area = parseAmountValue(nextValues.totalSqMeter ?? "");
+    const cubic = parseAmountValue(nextValues.cbm ?? "");
+    const sqf = parseAmountValue(nextValues.totalSqf ?? "");
+    const qtyVal = parseAmountValue(nextValues.quantity ?? "");
+
+    let calcAmt: number | null = null;
+
+    if (slug === "veneer-blocks") {
+      if (cubic > 0) {
+        calcAmt = cubic * rate;
+      }
+    } else if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+      if (area > 0) {
+        calcAmt = area * rate;
+      } else if (sqf > 0) {
+        calcAmt = sqf * rate;
+      }
+    } else if (slug === "consumables") {
+      if (qtyVal > 0) {
+        calcAmt = qtyVal * rate;
+      }
+    } else {
+      if (cubic > 0) {
+        calcAmt = cubic * rate;
+      } else if (area > 0) {
+        calcAmt = area * rate;
+      } else if (sqf > 0) {
+        calcAmt = sqf * rate;
+      }
+    }
+
+    if (calcAmt !== null) {
+      const rounded = Math.round(calcAmt * 100) / 100;
+      nextValues.productAmount = rounded.toFixed(2);
+      nextValues.amount = rounded.toFixed(2);
+    }
+  }
+
+  const productAmount = parseAmountValue(
+    nextValues.productAmount ?? nextValues.amount ?? "",
+  );
   const gstPercentage = parseAmountValue(
-    (values.gstPercentage ?? "").replace(/%/g, ""),
+    (nextValues.gstPercentage ?? "").replace(/%/g, ""),
   );
   const gstAmount = productAmount * (gstPercentage / 100);
 
@@ -678,7 +756,7 @@ function applyTaxCalculations(
   const totalAmount = productAmount + cgst + sgst + igst;
 
   return {
-    ...values,
+    ...nextValues,
     cgst: formatAmount(cgst),
     sgst: formatAmount(sgst),
     igst: formatAmount(igst),
@@ -737,7 +815,7 @@ function createInitialLineItems(
 
     return {
       id,
-      values: applyTaxCalculations(mergedValues, gstMode),
+      values: applyTaxCalculations(mergedValues, gstMode, slug),
     };
   });
 }
