@@ -10,6 +10,7 @@ export interface StorageInventoryItem {
   inwardWarehouseId: string;
   inwardWarehouseName: string;
   inventoryType: string;
+  storageSrNo?: string | null;
   inwardSrNo: string | null;
   inwardDate: string;
   invoiceNo: string;
@@ -80,6 +81,14 @@ function formatAmount(value: number | null | undefined): string {
   });
 }
 
+export function formatStorageDisplaySrNo(srNo: string | null | undefined): string {
+  if (!srNo) return "";
+  if (srNo.startsWith("STR-")) return srNo;
+  if (srNo.startsWith("STG-")) return srNo.replace(/^STG-/, "STR-");
+  if (srNo.startsWith("INW-")) return srNo.replace(/^INW-/, "STR-");
+  return srNo;
+}
+
 export function mapStorageItemToRow(
   item: StorageInventoryItem,
   inventorySlug: WarehouseInventoryRow["inventorySlug"] = "veneer-blocks"
@@ -88,15 +97,17 @@ export function mapStorageItemToRow(
     ? new Date(`${item.inwardDate}T00:00:00`)
     : new Date();
 
+  const formattedSrNo = formatStorageDisplaySrNo(item.storageSrNo || item.inwardSrNo);
+
   return {
     id: item.id,
     inventoryRecordId: item.id,
     inventorySlug,
-    inwardSrNo: item.inwardSrNo ?? "",
+    inwardSrNo: formattedSrNo,
     inwardType: item.inventoryType,
     inwardDate,
     invoiceNo: item.invoiceNo ?? "",
-    referenceSrNo: "",
+    referenceSrNo: item.inwardId ?? "",
     supplierName: item.supplierName ?? "",
     supplierItemName: "",
     supplierCode: "",
@@ -235,6 +246,52 @@ export async function revertStorageItemApi(
   const endpoint = `${BASE_PATH}/${tabSlug}/${id}/revert`;
   await apiRequest<ApiResponse<{ id: string }>>(endpoint, {
     method: "POST",
-    body: JSON.stringify({ remark }),
+    body: { remark },
+  });
+}
+
+export interface StorageProductionWarehouseOption {
+  id: string;
+  name: string;
+  code: string;
+  city: string | null;
+  state: string | null;
+}
+
+export interface StorageProductionWarehousesResponse {
+  storageWarehouseId: string;
+  storageCity: string | null;
+  storageState: string | null;
+  suggestedWarehouseId: string | null;
+  items: StorageProductionWarehouseOption[];
+}
+
+export async function fetchStorageProductionWarehouses(
+  warehouseId: string
+): Promise<StorageProductionWarehousesResponse> {
+  const query = new URLSearchParams({
+    storageWarehouseId: warehouseId,
+    warehouseId,
+  });
+  const endpoint = `${BASE_PATH}/production-warehouses?${query.toString()}`;
+  const response = await apiRequest<ApiResponse<StorageProductionWarehousesResponse>>(
+    endpoint,
+    { method: "GET" }
+  );
+  return response.data;
+}
+
+export async function moveStorageItemToProductionApi(
+  tabSlug: string,
+  id: string,
+  data: {
+    productionWarehouseId: string;
+    remark?: string | null;
+  }
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/${tabSlug}/${id}/move-to-production`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: data,
   });
 }

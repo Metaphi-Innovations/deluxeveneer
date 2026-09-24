@@ -1,3 +1,5 @@
+import type { WarehouseInventoryRow } from "../shared/warehouseTableData";
+
 export type StorageInventoryTab =
   | "veneer-blocks"
   | "raw-veneer"
@@ -31,11 +33,18 @@ export const STORAGE_INVENTORY_TITLES: Record<StorageInventoryTab, string> = {
   mdf: "MDF",
 };
 
+export type StorageRawVeneerSourceTab = "all" | "purchase" | "production";
+
 export interface StorageInventoryPanelProps {
   warehouseId: string;
   warehouseName: string;
   warehouseRootPath: string;
   section: StorageSectionTab;
+  searchValue?: string;
+  onRefreshTrigger?: number;
+  rawTab?: StorageRawVeneerSourceTab;
+  onSelectionChange?: (rows: WarehouseInventoryRow[]) => void;
+  selectionResetKey?: string | number;
 }
 
 export function isStorageInventoryTab(

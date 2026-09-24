@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Stack } from "@mui/material";
 import {
   EnterpriseDataTable,
+  type EnterpriseTableAction,
   type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
 import {
@@ -53,8 +54,8 @@ function toApiColumnFilters(
 }
 
 interface StorageRawVeneerInventoryProps extends StorageInventoryPanelProps {
-  searchValue?: string;
-  onRefreshTrigger?: number;
+  actions?: readonly EnterpriseTableAction<WarehouseInventoryRow>[];
+  getRowActions?: (row: WarehouseInventoryRow) => readonly EnterpriseTableAction<WarehouseInventoryRow>[];
 }
 
 export function StorageRawVeneerInventory({
@@ -62,6 +63,11 @@ export function StorageRawVeneerInventory({
   section,
   searchValue = "",
   onRefreshTrigger = 0,
+  rawTab = "all",
+  onSelectionChange,
+  selectionResetKey,
+  actions,
+  getRowActions,
 }: StorageRawVeneerInventoryProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -96,11 +102,26 @@ export function StorageRawVeneerInventory({
         ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
       });
 
-      setRows(
-        result.items.map((item) =>
-          mapStorageItemToRow(item, "raw-veneer")
-        )
+      let mappedRows = result.items.map((item) =>
+        mapStorageItemToRow(item, "raw-veneer")
       );
+
+      // Client-side filter for raw veneer source tab (Purchase vs Production)
+      if (rawTab === "purchase") {
+        mappedRows = mappedRows.filter(
+          (r) =>
+            !r.inwardType?.toLowerCase().includes("prod") &&
+            !r.referenceSrNo?.toLowerCase().includes("prd")
+        );
+      } else if (rawTab === "production") {
+        mappedRows = mappedRows.filter(
+          (r) =>
+            r.inwardType?.toLowerCase().includes("prod") ||
+            r.referenceSrNo?.toLowerCase().includes("prd")
+        );
+      }
+
+      setRows(mappedRows);
       setTotalCount(result.pagination.total);
     } catch (error) {
       setRows([]);
@@ -111,7 +132,7 @@ export function StorageRawVeneerInventory({
     } finally {
       setIsLoading(false);
     }
-  }, [warehouseId, section, page, rowsPerPage, searchValue, sortBy, sortOrder, columnFilters, onRefreshTrigger]);
+  }, [warehouseId, section, page, rowsPerPage, searchValue, sortBy, sortOrder, columnFilters, onRefreshTrigger, rawTab]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -141,7 +162,7 @@ export function StorageRawVeneerInventory({
         }));
       }
     },
-    [warehouseId]
+    [warehouseId, section]
   );
 
   const emptyLabel =
@@ -183,6 +204,11 @@ export function StorageRawVeneerInventory({
           },
         }}
         emptyStateLabel={emptyLabel}
+        selectable={section === "inventory"}
+        {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
+        {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
+        {...(actions !== undefined ? { actions } : {})}
+        {...(getRowActions !== undefined ? { getRowActions } : {})}
       />
     </Stack>
   );

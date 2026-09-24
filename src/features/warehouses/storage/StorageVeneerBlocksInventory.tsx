@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, Stack } from "@mui/material";
 import {
   EnterpriseDataTable,
+  type EnterpriseTableAction,
   type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
 import {
@@ -49,8 +50,8 @@ function toApiColumnFilters(
 }
 
 interface StorageVeneerBlocksInventoryProps extends StorageInventoryPanelProps {
-  searchValue?: string;
-  onRefreshTrigger?: number;
+  actions?: readonly EnterpriseTableAction<WarehouseInventoryRow>[];
+  getRowActions?: (row: WarehouseInventoryRow) => readonly EnterpriseTableAction<WarehouseInventoryRow>[];
 }
 
 export function StorageVeneerBlocksInventory({
@@ -58,6 +59,10 @@ export function StorageVeneerBlocksInventory({
   section,
   searchValue = "",
   onRefreshTrigger = 0,
+  onSelectionChange,
+  selectionResetKey,
+  actions,
+  getRowActions,
 }: StorageVeneerBlocksInventoryProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -137,7 +142,7 @@ export function StorageVeneerBlocksInventory({
         }));
       }
     },
-    [warehouseId]
+    [warehouseId, section]
   );
 
   const emptyLabel =
@@ -179,6 +184,11 @@ export function StorageVeneerBlocksInventory({
           },
         }}
         emptyStateLabel={emptyLabel}
+        selectable={section === "inventory"}
+        {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
+        {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
+        {...(actions !== undefined ? { actions } : {})}
+        {...(getRowActions !== undefined ? { getRowActions } : {})}
       />
     </Stack>
   );
