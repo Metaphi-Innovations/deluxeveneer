@@ -9,7 +9,7 @@ export type InwardInventoryType =
   | "PLYWOOD"
   | "MDF";
 
-export type InwardQcStatus = "PENDING" | "PASS" | "FAIL";
+export type InwardQcStatus = "PENDING" | "PARTIAL_DONE" | "PASS" | "FAIL";
 
 export interface InwardListItem {
   id: string;
@@ -160,7 +160,12 @@ export interface InwardDetail {
   id: string;
   warehouseId: string;
   warehouseName: string;
+  warehouseCity?: string | null;
   warehouseState?: string | null;
+  storageWarehouseId?: string | null;
+  storageWarehouseName?: string | null;
+  storageWarehouseCity?: string | null;
+  storageWarehouseState?: string | null;
   inventoryType: string;
   inwardSrNo: string | null;
   inwardDate: string;
@@ -260,7 +265,11 @@ function normalizeListingQcStatus(value: string): "QC Done" | "Partially Done" |
   ) {
     return "QC Done";
   }
-  if (normalized === "partially done" || normalized === "partial") {
+  if (
+    normalized === "partially done" ||
+    normalized === "partial" ||
+    normalized === "partial_done"
+  ) {
     return "Partially Done";
   }
   return "Pending";
@@ -452,6 +461,7 @@ export async function updateInwardQcStatusApi(
     qcStatus: InwardQcStatus;
     qcRemark?: string | null;
     qcAttachmentUrl?: string | null;
+    storageWarehouseId?: string | null;
   },
 ) {
   const res = await apiRequest<ApiResponse<unknown>>(

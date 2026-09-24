@@ -279,7 +279,7 @@ export const InwardEditStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode, slug),
+        values: applyTaxCalculations(row.values, gstMode),
       })),
     );
   }, [gstMode, slug]);
@@ -340,7 +340,7 @@ export const InwardEditStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
+        nextValues = applyTaxCalculations(nextValues, gstMode);
 
         return {
           ...row,
@@ -362,7 +362,7 @@ export const InwardEditStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
+        nextValues = applyTaxCalculations(nextValues, gstMode);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
@@ -765,7 +765,7 @@ function createInitialLineItems(
 
     return {
       id,
-      values: applyTaxCalculations(mergedValues, gstMode, slug),
+      values: applyTaxCalculations(mergedValues, gstMode),
     };
   });
 }

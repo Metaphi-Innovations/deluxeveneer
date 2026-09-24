@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -10,14 +12,47 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
-import { BadgeCheck, CircleX, ClipboardCheck, Paperclip, Upload } from "lucide-react";
+import { useTheme } from "@mui/material/styles";
+import {
+  BadgeCheck,
+  CircleX,
+  ClipboardCheck,
+  ExternalLink,
+  MoreHorizontal,
+  Paperclip,
+  Upload,
+} from "lucide-react";
 
+import { fetchWarehouseMasterPaginated } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
+import { actionMenuTriggerSx } from "../../shared/actionMenuStyles";
 import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
+import {
+  getAutocompleteListboxSx,
+  getAutocompletePaperSx,
+  getAutocompletePopperSlotProps,
+} from "../../shared/dropdownMenuStyles";
+import {
+  listingTableBodyCellSx,
+  listingTableContainerSx,
+  listingTableHeaderCellSx,
+} from "../../shared/listingTableStyles";
 import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
+import {
+  portalIconSize,
+  portalIconStroke,
+} from "../../shared/portalIconStandards";
+import { RowActionsMenu } from "../../shared/RowActionsMenu";
 import {
   fetchInwardById,
   updateInwardQcStatusApi,
@@ -31,12 +66,70 @@ type QcConfirmState = {
   mode: "PASS" | "FAIL";
 } | null;
 
+const QC_REMARK_MAX_LENGTH = 150;
+
+type StorageWarehouseOption = {
+  id: string;
+  name: string;
+  city: string;
+  state: string;
+};
+
 type InwardQcUpdateDialogProps = {
   inwardId: string | null;
   open: boolean;
   onClose: () => void;
   onUpdated: () => void;
 };
+
+function normalizeLocation(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function formatWarehouseLocationLabel(
+  name: string,
+  city?: string | null,
+  state?: string | null,
+): string {
+  const cityLabel = city?.trim() || "—";
+  const stateLabel = state?.trim() || "—";
+  return `${name} (${cityLabel}, ${stateLabel})`;
+}
+
+function pickDefaultStorageWarehouseId(
+  warehouses: readonly StorageWarehouseOption[],
+  inwardCity: string | null | undefined,
+  inwardState: string | null | undefined,
+  preferredId?: string | null,
+): string | null {
+  if (!warehouses.length) return null;
+
+  if (preferredId && warehouses.some((warehouse) => warehouse.id === preferredId)) {
+    return preferredId;
+  }
+
+  const sorted = [...warehouses].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+  const city = normalizeLocation(inwardCity);
+  const state = normalizeLocation(inwardState);
+
+  if (city) {
+    const cityMatch = sorted.find(
+      (warehouse) => normalizeLocation(warehouse.city) === city,
+    );
+    if (cityMatch) return cityMatch.id;
+  }
+
+  if (state) {
+    const stateMatch = sorted.find(
+      (warehouse) => normalizeLocation(warehouse.state) === state,
+    );
+    if (stateMatch) return stateMatch.id;
+  }
+
+  return sorted[0]?.id ?? null;
+}
 
 function formatDateDisplay(value: string | null | undefined): string {
   if (!value) return "—";
@@ -79,11 +172,22 @@ export function InwardQcUpdateDialog({
   onClose,
   onUpdated,
 }: InwardQcUpdateDialogProps) {
+  const theme = useTheme();
   const [detail, setDetail] = useState<InwardDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [confirmState, setConfirmState] = useState<QcConfirmState>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [storageWarehouses, setStorageWarehouses] = useState<
+    StorageWarehouseOption[]
+  >([]);
+  const [storageWarehousesLoading, setStorageWarehousesLoading] =
+    useState(false);
+  const [selectedStorageWarehouseId, setSelectedStorageWarehouseId] = useState<
+    string | null
+  >(null);
+  const [hasUserPickedStorageWarehouse, setHasUserPickedStorageWarehouse] =
+    useState(false);
 
   const loadDetail = useCallback(async (id: string) => {
     setIsLoading(true);
@@ -103,6 +207,37 @@ export function InwardQcUpdateDialog({
     }
   }, []);
 
+  const loadStorageWarehouses = useCallback(async () => {
+    setStorageWarehousesLoading(true);
+    try {
+      const result = await fetchWarehouseMasterPaginated({
+        type: "Storage",
+        status: true,
+        limit: 200,
+        sortBy: "name",
+        sortOrder: "asc",
+      });
+      const options: StorageWarehouseOption[] = result.items
+        .map((record) => ({
+          id: String(record.id ?? ""),
+          name: String(record.warehouseName ?? "").trim(),
+          city: String(record.city ?? "").trim(),
+          state: String(record.state ?? "").trim(),
+        }))
+        .filter((option) => option.id && option.name);
+      setStorageWarehouses(options);
+    } catch (error) {
+      setStorageWarehouses([]);
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to load storage warehouses.",
+      );
+    } finally {
+      setStorageWarehousesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open || !inwardId) {
       return;
@@ -110,10 +245,43 @@ export function InwardQcUpdateDialog({
 
     setConfirmState(null);
     setIsSubmitting(false);
+    setHasUserPickedStorageWarehouse(false);
+    setSelectedStorageWarehouseId(null);
     void loadDetail(inwardId);
-  }, [inwardId, loadDetail, open]);
+    void loadStorageWarehouses();
+  }, [inwardId, loadDetail, loadStorageWarehouses, open]);
+
+  useEffect(() => {
+    if (!open || hasUserPickedStorageWarehouse || !storageWarehouses.length) {
+      return;
+    }
+
+    setSelectedStorageWarehouseId(
+      pickDefaultStorageWarehouseId(
+        storageWarehouses,
+        detail?.warehouseCity,
+        detail?.warehouseState,
+        detail?.storageWarehouseId ?? null,
+      ),
+    );
+  }, [
+    detail?.storageWarehouseId,
+    detail?.warehouseCity,
+    detail?.warehouseState,
+    hasUserPickedStorageWarehouse,
+    open,
+    storageWarehouses,
+  ]);
 
   const items = useMemo(() => detail?.items ?? [], [detail]);
+
+  const selectedStorageWarehouse = useMemo(
+    () =>
+      storageWarehouses.find(
+        (warehouse) => warehouse.id === selectedStorageWarehouseId,
+      ) ?? null,
+    [selectedStorageWarehouseId, storageWarehouses],
+  );
 
   const qcCounts = useMemo(() => {
     let passCount = 0;
@@ -142,6 +310,14 @@ export function InwardQcUpdateDialog({
       return;
     }
 
+    if (confirmState.mode === "PASS" && !selectedStorageWarehouseId) {
+      setErrorMessage(
+        "Select a storage warehouse before marking an item as Pass.",
+      );
+      setConfirmState(null);
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
@@ -150,6 +326,8 @@ export function InwardQcUpdateDialog({
         qcStatus: confirmState.mode as InwardQcStatus,
         qcRemark: details.remark.trim() || null,
         qcAttachmentUrl: details.attachmentUrl,
+        storageWarehouseId:
+          confirmState.mode === "PASS" ? selectedStorageWarehouseId : null,
       });
       setConfirmState(null);
       if (inwardId) {
@@ -180,13 +358,16 @@ export function InwardQcUpdateDialog({
     <>
       <Dialog
         fullWidth
-        maxWidth="md"
+        maxWidth="lg"
         onClose={handleClose}
         open={open}
         PaperProps={{
           sx: (theme) => ({
             borderRadius: `${theme.customTokens.radius.lg}px`,
             overflow: "hidden",
+            maxHeight: "90vh",
+            display: "flex",
+            flexDirection: "column",
           }),
         }}
       >
@@ -195,6 +376,7 @@ export function InwardQcUpdateDialog({
             borderBottom: `1px solid ${theme.customTokens.borders.default}`,
             px: 2.5,
             py: 1.75,
+            flexShrink: 0,
           })}
         >
           <Stack direction="row" alignItems="center" spacing={1.25}>
@@ -257,11 +439,16 @@ export function InwardQcUpdateDialog({
         </DialogTitle>
 
         <DialogContent
-          sx={{
+          sx={(theme) => ({
             px: 2.5,
-            py: 2,
-            backgroundColor: (theme) => theme.customTokens.surfaces.alt,
-          }}
+            pt: `${theme.spacing(2.5)} !important`,
+            pb: 2,
+            backgroundColor: theme.customTokens.surfaces.alt,
+            overflowX: "hidden",
+            overflowY: "auto",
+            flex: "1 1 auto",
+            minHeight: 0,
+          })}
         >
           <Stack spacing={2}>
             {detail ? (
@@ -271,7 +458,8 @@ export function InwardQcUpdateDialog({
                   border: `1px solid ${theme.customTokens.borders.default}`,
                   borderRadius: `${theme.customTokens.radius.md}px`,
                   px: 2,
-                  py: 1.5,
+                  pt: 2,
+                  pb: 1.75,
                 })}
               >
                 <Stack
@@ -311,6 +499,133 @@ export function InwardQcUpdateDialog({
               </Box>
             ) : null}
 
+            <Box
+              sx={(theme) => ({
+                backgroundColor: theme.customTokens.surfaces.surface,
+                border: `1px solid ${theme.customTokens.borders.default}`,
+                borderRadius: `${theme.customTokens.radius.md}px`,
+                px: 2,
+                py: 1.75,
+              })}
+            >
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                alignItems={{ xs: "stretch", sm: "flex-end" }}
+              >
+                <Autocomplete
+                  disabled={isSubmitting || storageWarehousesLoading}
+                  getOptionLabel={(option) =>
+                    formatWarehouseLocationLabel(
+                      option.name,
+                      option.city,
+                      option.state,
+                    )
+                  }
+                  isOptionEqualToValue={(option, value) =>
+                    option.id === value.id
+                  }
+                  loading={storageWarehousesLoading}
+                  onChange={(_event, value) => {
+                    setHasUserPickedStorageWarehouse(true);
+                    setSelectedStorageWarehouseId(value?.id ?? null);
+                    setErrorMessage("");
+                  }}
+                  options={storageWarehouses}
+                  size="small"
+                  sx={{
+                    width: { xs: "100%", sm: 420 },
+                    maxWidth: "100%",
+                    flexShrink: 0,
+                    "& .MuiInputBase-root": {
+                      minHeight: 32,
+                      height: 32,
+                      py: 0,
+                    },
+                    "& .MuiInputBase-input": {
+                      py: "4px !important",
+                      fontSize: "0.8125rem",
+                    },
+                    "& .MuiInputLabel-root": {
+                      fontSize: "0.8125rem",
+                    },
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Storage warehouse"
+                      placeholder="Select storage"
+                      required
+                      size="small"
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <Box component="li" {...props} key={option.id}>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography
+                          sx={{ fontSize: "0.8125rem", fontWeight: 600 }}
+                        >
+                          {option.name}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            color: theme.customTokens.text.secondary,
+                            fontSize: "0.6875rem",
+                          }}
+                        >
+                          {[option.city || "—", option.state || "—"].join(", ")}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                  slotProps={{
+                    popper: getAutocompletePopperSlotProps(theme, 460),
+                    paper: {
+                      sx: getAutocompletePaperSx(theme),
+                    },
+                    listbox: {
+                      sx: getAutocompleteListboxSx(theme, true),
+                    },
+                  }}
+                  value={selectedStorageWarehouse}
+                />
+
+                <Box
+                  sx={{
+                    minWidth: 0,
+                    pb: { xs: 0, sm: 0.35 },
+                    flex: 1,
+                  }}
+                >
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.customTokens.text.secondary,
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      mb: 0.25,
+                    })}
+                  >
+                    Inward location
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "0.8125rem",
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {[
+                      detail?.warehouseCity?.trim() || "—",
+                      detail?.warehouseState?.trim() || "—",
+                    ].join(", ")}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+
             {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
             {isLoading ? (
@@ -342,24 +657,24 @@ export function InwardQcUpdateDialog({
                 </Typography>
               </Box>
             ) : (
-              <Stack spacing={1.25}>
-                {items.map((item, index) => (
-                  <ItemQcCard
-                    key={item.id}
-                    disabled={isSubmitting}
-                    index={index}
-                    item={item}
-                    onFail={() => {
-                      setErrorMessage("");
-                      setConfirmState({ item, mode: "FAIL" });
-                    }}
-                    onPass={() => {
-                      setErrorMessage("");
-                      setConfirmState({ item, mode: "PASS" });
-                    }}
-                  />
-                ))}
-              </Stack>
+              <ItemQcTable
+                disabled={isSubmitting}
+                items={items}
+                onFail={(item) => {
+                  setErrorMessage("");
+                  setConfirmState({ item, mode: "FAIL" });
+                }}
+                onPass={(item) => {
+                  if (!selectedStorageWarehouseId) {
+                    setErrorMessage(
+                      "Select a storage warehouse before marking an item as Pass.",
+                    );
+                    return;
+                  }
+                  setErrorMessage("");
+                  setConfirmState({ item, mode: "PASS" });
+                }}
+              />
             )}
           </Stack>
         </DialogContent>
@@ -370,6 +685,7 @@ export function InwardQcUpdateDialog({
             px: 2.5,
             py: 1.5,
             backgroundColor: theme.customTokens.surfaces.surface,
+            flexShrink: 0,
           })}
         >
           <Button
@@ -430,144 +746,225 @@ function SummaryField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ItemQcCard({
-  item,
-  index,
+function ItemQcTable({
+  items,
   disabled,
   onPass,
   onFail,
 }: {
-  item: InwardItemDetail;
-  index: number;
+  items: readonly InwardItemDetail[];
   disabled: boolean;
-  onPass: () => void;
-  onFail: () => void;
+  onPass: (item: InwardItemDetail) => void;
+  onFail: (item: InwardItemDetail) => void;
 }) {
-  const qcLabel = normalizeQcLabel(item.qcStatus);
-  const isPending = qcLabel === "Pending";
-  const dimension = item.thickness ?? item.height ?? null;
-  const batchOrLog = item.batchNo || item.logCode || "—";
-  const remark = item.qcRemark?.trim() || "";
-  const attachmentUrl = item.qcAttachmentUrl?.trim() || "";
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<HTMLElement | null>(
+    null,
+  );
+  const [activeItemId, setActiveItemId] = useState<string | null>(null);
+
+  const activeItem =
+    items.find((item) => item.id === activeItemId) ?? null;
+
+  const handleOpenActionMenu = (
+    itemId: string,
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    event.stopPropagation();
+    setActiveItemId(itemId);
+    setActionMenuAnchor(event.currentTarget);
+  };
+
+  const handleCloseActionMenu = () => {
+    setActionMenuAnchor(null);
+    setActiveItemId(null);
+  };
 
   return (
-    <Box
-      sx={(theme) => ({
-        backgroundColor: theme.customTokens.surfaces.surface,
-        border: `1px solid ${theme.customTokens.borders.default}`,
-        borderRadius: `${theme.customTokens.radius.md}px`,
-        px: 2,
-        py: 1.5,
-      })}
-    >
-      <Stack
-        direction={{ xs: "column", md: "row" }}
-        alignItems={{ xs: "stretch", md: "flex-start" }}
-        justifyContent="space-between"
-        spacing={1.5}
+    <>
+      <TableContainer
+        sx={(theme) => ({
+          ...listingTableContainerSx(theme),
+          borderRadius: `${theme.customTokens.radius.md}px`,
+          maxHeight: "min(52vh, 420px)",
+          overflow: "auto",
+        })}
       >
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={1}
-            sx={{ mb: 0.75, flexWrap: "wrap", rowGap: 0.75 }}
-          >
-            <Typography
-              sx={(theme) => ({
-                color: theme.customTokens.text.secondary,
-                fontSize: "0.75rem",
-                fontWeight: 700,
-              })}
-            >
-              #{index + 1}
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "0.9375rem",
-                fontWeight: 700,
-                lineHeight: 1.3,
-              }}
-            >
-              {item.itemName || "Untitled item"}
-            </Typography>
-            <Chip
-              label={qcLabel}
-              color={qcChipColor(qcLabel)}
-              size="small"
-              sx={{ fontWeight: 700, height: 22 }}
-            />
-          </Stack>
-
-          <Stack
-            direction="row"
-            spacing={2}
-            useFlexGap
-            sx={{ flexWrap: "wrap", rowGap: 0.5 }}
-          >
-            <DetailPill
-              label="Sub category"
-              value={item.itemSubCategoryName || "—"}
-            />
-            <DetailPill label="HSN" value={item.hsnCode || "—"} />
-            <DetailPill label="Batch / Log" value={batchOrLog} />
-            <DetailPill
-              label="Size"
-              value={`${formatMeasure(item.length)} × ${formatMeasure(item.width)} × ${formatMeasure(dimension)}`}
-            />
-            <DetailPill label="Amount" value={formatMoney(item.amount)} />
-          </Stack>
-        </Box>
-
-        <Stack
-          direction="column"
-          spacing={1}
-          sx={{ flexShrink: 0, alignSelf: { xs: "stretch", md: "center" }, minWidth: { md: 200 } }}
-        >
-          <Stack direction="row" spacing={1}>
-            <Button
-              disabled={disabled}
-              size="small"
-              startIcon={<BadgeCheck size={15} />}
-              variant={qcLabel === "Pass" ? "contained" : "outlined"}
-              color="success"
-              onClick={onPass}
-              sx={{ minWidth: 92, flex: 1 }}
-            >
-              Pass
-            </Button>
-            <Button
-              disabled={disabled}
-              size="small"
-              startIcon={<CircleX size={15} />}
-              variant={qcLabel === "Fail" ? "contained" : "outlined"}
-              color="error"
-              onClick={onFail}
-              sx={{ minWidth: 92, flex: 1 }}
-            >
-              Fail
-            </Button>
-          </Stack>
-          {remark || attachmentUrl ? (
-            <Box sx={{ mt: 0.5 }}>
-              {remark ? (
-                <Typography
-                  sx={{
-                    fontSize: "0.75rem",
-                    color: (theme) => theme.customTokens.text.secondary,
-                    wordBreak: "break-word",
-                  }}
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              {[
+                "#",
+                "Item Name",
+                "Sub Category",
+                "HSN",
+                "Batch / Log",
+                "Size",
+                "Amount",
+                "QC",
+                "Remark",
+                "Attachment",
+                "Actions",
+              ].map((label) => (
+                <TableCell
+                  key={label}
+                  sx={(theme) => ({
+                    ...listingTableHeaderCellSx(theme),
+                    whiteSpace: "nowrap",
+                    ...(label === "Actions"
+                      ? { textAlign: "center", width: 56 }
+                      : null),
+                  })}
                 >
-                  <Box component="span" sx={{ fontWeight: 600 }}>QC Remark: </Box>
-                  {remark}
-                </Typography>
-              ) : null}
-              {attachmentUrl ? <QcAttachmentPreview url={attachmentUrl} /> : null}
-            </Box>
-          ) : null}
-        </Stack>
-      </Stack>
-    </Box>
+                  {label}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {items.map((item, index) => {
+              const qcLabel = normalizeQcLabel(item.qcStatus);
+              const dimension = item.thickness ?? item.height ?? null;
+              const batchOrLog = item.batchNo || item.logCode || "—";
+              const remark = item.qcRemark?.trim() || "";
+              const attachmentUrl = item.qcAttachmentUrl?.trim() || "";
+
+              return (
+                <TableRow key={item.id} hover>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {index + 1}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      fontWeight: 600,
+                      minWidth: 140,
+                      maxWidth: 220,
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                    })}
+                  >
+                    {item.itemName || "Untitled item"}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {item.itemSubCategoryName || "—"}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {item.hsnCode || "—"}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {batchOrLog}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                    })}
+                  >
+                    {`${formatMeasure(item.length)} × ${formatMeasure(item.width)} × ${formatMeasure(dimension)}`}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                    })}
+                  >
+                    {formatMoney(item.amount)}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    <Chip
+                      label={qcLabel}
+                      color={qcChipColor(qcLabel)}
+                      size="small"
+                      sx={{ fontWeight: 700, height: 22 }}
+                    />
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      minWidth: 140,
+                      maxWidth: 240,
+                      overflowWrap: "anywhere",
+                      wordBreak: "break-word",
+                      whiteSpace: "pre-wrap",
+                      color: theme.customTokens.text.secondary,
+                      fontSize: "0.75rem",
+                    })}
+                  >
+                    {remark || "—"}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {attachmentUrl ? (
+                      <QcAttachmentPreview url={attachmentUrl} compact />
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      width: 56,
+                      textAlign: "center",
+                    })}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <IconButton
+                        size="small"
+                        aria-label="Open row actions"
+                        disabled={disabled}
+                        onClick={(event) =>
+                          handleOpenActionMenu(item.id, event)
+                        }
+                        sx={(theme) => actionMenuTriggerSx(theme)}
+                      >
+                        <MoreHorizontal
+                          size={portalIconSize.md}
+                          strokeWidth={portalIconStroke.default}
+                        />
+                      </IconButton>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <RowActionsMenu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor && activeItem)}
+        onClose={handleCloseActionMenu}
+        minWidth={112}
+        maxWidth={140}
+        actions={
+          activeItem
+            ? [
+                {
+                  id: "pass",
+                  label: "Pass",
+                  icon: BadgeCheck,
+                  tone: "primary",
+                  disabled,
+                  onSelect: () => onPass(activeItem),
+                },
+                {
+                  id: "fail",
+                  label: "Fail",
+                  icon: CircleX,
+                  tone: "danger",
+                  disabled,
+                  onSelect: () => onFail(activeItem),
+                },
+              ]
+            : []
+        }
+      />
+    </>
   );
 }
 
@@ -583,115 +980,201 @@ function isPdfAttachment(url: string): boolean {
   return /\.pdf(\?|$)/i.test(normalized);
 }
 
-function QcAttachmentPreview({ url }: { url: string }) {
+function QcAttachmentPreview({
+  url,
+  compact = false,
+}: {
+  url: string;
+  compact?: boolean;
+}) {
+  const [viewerOpen, setViewerOpen] = useState(false);
+
   if (!url) {
     return (
-      <Box
-        sx={(theme) => ({
-          flex: 1,
-          minHeight: 88,
-          px: 1,
-          py: 0.75,
-          borderRadius: `${theme.customTokens.radius.sm}px`,
-          border: `1px solid ${theme.customTokens.borders.default}`,
-          backgroundColor: theme.customTokens.surfaces.alt,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        })}
-      >
-        <Typography sx={{ fontSize: "0.8125rem", fontWeight: 500 }}>
-          None
-        </Typography>
-      </Box>
+      <Typography sx={{ fontSize: "0.8125rem", fontWeight: 500 }}>
+        None
+      </Typography>
     );
   }
 
-  if (isImageAttachment(url)) {
-    return (
-      <Box
-        component="a"
-        href={url}
-        rel="noopener noreferrer"
-        target="_blank"
-        sx={(theme) => ({
-          display: "block",
-          flex: 1,
-          width: "100%",
-          minHeight: 88,
-          height: 88,
-          borderRadius: `${theme.customTokens.radius.sm}px`,
-          border: `1px solid ${theme.customTokens.borders.default}`,
-          overflow: "hidden",
-          backgroundColor: theme.customTokens.surfaces.alt,
-          "&:hover": {
-            borderColor: theme.customTokens.brand.primary,
-          },
-        })}
-      >
-        <Box
-          component="img"
-          src={url}
-          alt="QC attachment preview"
-          sx={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-          }}
-        />
-      </Box>
-    );
-  }
+  const isImage = isImageAttachment(url);
+  const isPdf = isPdfAttachment(url);
 
   return (
-    <Box
-      sx={(theme) => ({
-        flex: 1,
-        minHeight: 88,
-        px: 1,
-        py: 0.75,
-        borderRadius: `${theme.customTokens.radius.sm}px`,
-        border: `1px solid ${theme.customTokens.borders.default}`,
-        backgroundColor: theme.customTokens.surfaces.alt,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      })}
-    >
-      <Button
-        component="a"
-        href={url}
-        rel="noopener noreferrer"
-        size="small"
-        startIcon={<Paperclip size={14} />}
-        target="_blank"
-        variant="text"
-        sx={{ textTransform: "none" }}
-      >
-        {isPdfAttachment(url) ? "Open PDF" : "Open attachment"}
-      </Button>
-    </Box>
+    <>
+      {isImage ? (
+        <Box
+          component="button"
+          type="button"
+          onClick={() => setViewerOpen(true)}
+          sx={(theme) => ({
+            display: "block",
+            width: compact ? 56 : "100%",
+            maxWidth: compact ? 56 : 280,
+            minHeight: compact ? 40 : 88,
+            height: compact ? 40 : 88,
+            p: 0,
+            borderRadius: `${theme.customTokens.radius.sm}px`,
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            overflow: "hidden",
+            backgroundColor: theme.customTokens.surfaces.alt,
+            cursor: "pointer",
+            "&:hover": {
+              borderColor: theme.customTokens.brand.primary,
+            },
+          })}
+        >
+          <Box
+            component="img"
+            src={url}
+            alt="QC attachment preview"
+            sx={{
+              width: "100%",
+              height: "100%",
+              maxWidth: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        </Box>
+      ) : (
+        <Button
+          size="small"
+          startIcon={<Paperclip size={14} />}
+          variant="text"
+          onClick={() => setViewerOpen(true)}
+          sx={{ textTransform: "none", px: compact ? 0.5 : 1 }}
+        >
+          {isPdf ? "View PDF" : "View"}
+        </Button>
+      )}
+
+      <QcAttachmentViewerDialog
+        open={viewerOpen}
+        url={url}
+        onClose={() => setViewerOpen(false)}
+      />
+    </>
   );
 }
 
-function DetailPill({ label, value }: { label: string; value: string }) {
+function QcAttachmentViewerDialog({
+  open,
+  url,
+  onClose,
+}: {
+  open: boolean;
+  url: string;
+  onClose: () => void;
+}) {
+  const isImage = isImageAttachment(url);
+  const isPdf = isPdfAttachment(url);
+  const title = isImage ? "QC Attachment" : isPdf ? "QC PDF" : "QC Attachment";
+
+  const openInNewTab = () => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
-    <Typography
-      component="span"
-      sx={(theme) => ({
-        fontSize: "0.75rem",
-        color: theme.customTokens.text.secondary,
-      })}
+    <Dialog
+      fullWidth
+      maxWidth="md"
+      open={open}
+      onClose={onClose}
+      PaperProps={{
+        sx: {
+          maxHeight: "90vh",
+        },
+      }}
     >
-      <Box
-        component="span"
-        sx={{ fontWeight: 600, color: "text.primary", mr: 0.5 }}
+      <DialogTitle
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1,
+          pr: 1.5,
+        }}
       >
-        {label}:
-      </Box>
-      {value}
-    </Typography>
+        <Typography component="span" sx={{ fontSize: "1rem", fontWeight: 700 }}>
+          {title}
+        </Typography>
+        <Button
+          size="small"
+          startIcon={<ExternalLink size={14} />}
+          variant="outlined"
+          onClick={openInNewTab}
+          sx={(theme) => ({
+            ...getListingToolbarOutlinedButtonSx(theme),
+            minHeight: 32,
+            px: 1.25,
+            fontSize: "0.75rem",
+          })}
+        >
+          Open in new tab
+        </Button>
+      </DialogTitle>
+      <DialogContent
+        sx={{
+          px: 2.5,
+          pb: 2.5,
+          pt: 1,
+          overflow: "auto",
+          display: "flex",
+          justifyContent: "center",
+          backgroundColor: (theme) => theme.customTokens.surfaces.alt,
+        }}
+      >
+        {isImage ? (
+          <Box
+            component="img"
+            src={url}
+            alt="QC attachment"
+            sx={{
+              display: "block",
+              maxWidth: "100%",
+              maxHeight: "70vh",
+              width: "auto",
+              height: "auto",
+              objectFit: "contain",
+              borderRadius: 1,
+              backgroundColor: (theme) => theme.customTokens.surfaces.surface,
+            }}
+          />
+        ) : isPdf ? (
+          <Box
+            component="iframe"
+            src={url}
+            title="QC PDF attachment"
+            sx={{
+              width: "100%",
+              height: "70vh",
+              border: 0,
+              borderRadius: 1,
+              backgroundColor: (theme) => theme.customTokens.surfaces.surface,
+            }}
+          />
+        ) : (
+          <Stack spacing={1.5} alignItems="center" sx={{ py: 4 }}>
+            <Typography sx={{ fontSize: "0.875rem" }}>
+              Preview is not available for this file type.
+            </Typography>
+            <Button
+              startIcon={<ExternalLink size={14} />}
+              variant="contained"
+              onClick={openInNewTab}
+            >
+              Open in new tab
+            </Button>
+          </Stack>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 2.5, py: 1.5 }}>
+        <Button onClick={onClose} variant="outlined">
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -724,7 +1207,7 @@ export function InwardQcConfirmDialog({
 
   useEffect(() => {
     if (open) {
-      setRemark(initialRemark?.trim() ?? "");
+      setRemark((initialRemark?.trim() ?? "").slice(0, QC_REMARK_MAX_LENGTH));
       setFileName("");
       setAttachmentUrl(initialAttachmentUrl ?? null);
       setFileError("");
@@ -758,7 +1241,14 @@ export function InwardQcConfirmDialog({
             label="Remark"
             multiline
             minRows={3}
-            onChange={(event) => setRemark(event.target.value)}
+            inputProps={{ maxLength: QC_REMARK_MAX_LENGTH }}
+            helperText={`${remark.length}/${QC_REMARK_MAX_LENGTH}`}
+            FormHelperTextProps={{
+              sx: { textAlign: "right", mx: 0 },
+            }}
+            onChange={(event) =>
+              setRemark(event.target.value.slice(0, QC_REMARK_MAX_LENGTH))
+            }
             value={remark}
           />
 
