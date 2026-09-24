@@ -7,7 +7,6 @@ import { Eye, Pencil } from "lucide-react";
 import { useNavigate } from "react-router";
 import { getInventoryPaths } from "../../../inventory/shared";
 import { mdfColumns, type MdfRow } from "../types/productionWarehouseTypes";
-import { warehouseCInventoryConfigs } from "../../shared/warehouseTableData";
 import { fetchProductionWarehouseInventory, type ProductionInventoryItem } from "../api/productionWarehouseApi";
 
 export interface MdfTabProps {
@@ -19,6 +18,28 @@ export interface MdfTabProps {
   onExportReady?: Dispatch<SetStateAction<MdfRow[]>> | ((rows: MdfRow[]) => void) | undefined;
 }
 
+function mapApiItem(item: ProductionInventoryItem): MdfRow {
+  return {
+    id: String(item.id),
+    inwardDate: item.inwardDate,
+    itemName: String(item.itemName ?? ""),
+    mdfType: String(item.mdfType ?? ""),
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? ""),
+    noOfLeaves: String(item.noOfLeaves ?? ""),
+    sqm: String(item.sqm ?? item.totalSqm ?? ""),
+    sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    currency: String(item.currency ?? ""),
+    amount: String(item.amount ?? ""),
+    remark: String(item.remark ?? ""),
+    inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "mdf",
+    inventoryRecordId: item.inventoryRecordId
+      ? String(item.inventoryRecordId)
+      : String(item.id),
+  };
+}
+
 export function MdfTab({
   warehouseId,
   searchValue,
@@ -27,35 +48,23 @@ export function MdfTab({
   onExportReady,
 }: MdfTabProps) {
   const navigate = useNavigate();
-  const [apiRows, setApiRows] = useState<MdfRow[] | null>(null);
+  const [apiRows, setApiRows] = useState<MdfRow[]>([]);
 
   useEffect(() => {
     let ignore = false;
     async function loadData() {
+      if (!warehouseId) {
+        if (!ignore) setApiRows([]);
+        return;
+      }
       const data = await fetchProductionWarehouseInventory({
         warehouseId,
         tab: "mdf",
         search: searchValue,
       });
-      if (!ignore && data && Array.isArray(data.items) && data.items.length > 0) {
+      if (!ignore) {
         setApiRows(
-          data.items.map((item: ProductionInventoryItem) => ({
-            id: String(item.id),
-            inwardDate: item.inwardDate,
-            itemName: String(item.itemName ?? ""),
-            mdfType: String(item.mdfType ?? ""),
-            length: String(item.length ?? ""),
-            width: String(item.width ?? ""),
-            thickness: String(item.thickness ?? ""),
-            noOfLeaves: String(item.noOfLeaves ?? ""),
-            sqm: String(item.sqm ?? item.totalSqm ?? ""),
-            sqf: String(item.sqf ?? item.totalSqf ?? ""),
-            currency: String(item.currency ?? ""),
-            amount: String(item.amount ?? ""),
-            remark: String(item.remark ?? ""),
-            inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "mdf",
-            inventoryRecordId: item.inventoryRecordId ? String(item.inventoryRecordId) : String(item.id),
-          }))
+          data && Array.isArray(data.items) ? data.items.map(mapApiItem) : [],
         );
       }
     }
@@ -65,42 +74,18 @@ export function MdfTab({
     };
   }, [warehouseId, searchValue]);
 
-  const defaultRows = useMemo<MdfRow[]>(() => {
-    const mdfConfigs = warehouseCInventoryConfigs["mdf"];
-    const base = mdfConfigs?.rows ?? [];
-    return base.map((r) => ({
-      id: String(r.id),
-      inwardDate: r.inwardDate,
-      itemName: r.itemName,
-      mdfType: r.mdfType ?? "",
-      length: r.length,
-      width: r.width,
-      thickness: r.thickness,
-      noOfLeaves: r.noOfLeaves ?? "",
-      sqm: r.totalSqm ?? "",
-      sqf: r.totalSqf ?? "",
-      currency: r.currency ?? "",
-      amount: r.amount ?? "",
-      remark: r.remark ?? "",
-      inventorySlug: r.inventorySlug,
-      inventoryRecordId: r.inventoryRecordId,
-    }));
-  }, []);
-
-  const allRows = apiRows ?? defaultRows;
-
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
     if (!normalizedSearch) {
-      return allRows;
+      return apiRows;
     }
 
-    return allRows.filter((row) =>
+    return apiRows.filter((row) =>
       Object.values(row).some((val) =>
         String(val ?? "").toLowerCase().includes(normalizedSearch),
       ),
     );
-  }, [allRows, searchValue]);
+  }, [apiRows, searchValue]);
 
   useEffect(() => {
     onExportReady?.(filteredRows);
@@ -116,9 +101,11 @@ export function MdfTab({
         icon: Eye,
         onSelect: (row: MdfRow) =>
           navigate(
-            getInventoryPaths((row.inventorySlug as any) || "mdf", "issued", "warehouse-c").view(
-              row.inventoryRecordId || String(row.id),
-            ),
+            getInventoryPaths(
+              (row.inventorySlug as "mdf") || "mdf",
+              "issued",
+              "warehouse-c",
+            ).view(row.inventoryRecordId || String(row.id)),
           ),
       });
     }
@@ -130,9 +117,11 @@ export function MdfTab({
         icon: Pencil,
         onSelect: (row: MdfRow) =>
           navigate(
-            getInventoryPaths((row.inventorySlug as any) || "mdf", "issued", "warehouse-c").edit(
-              row.inventoryRecordId || String(row.id),
-            ),
+            getInventoryPaths(
+              (row.inventorySlug as "mdf") || "mdf",
+              "issued",
+              "warehouse-c",
+            ).edit(row.inventoryRecordId || String(row.id)),
           ),
       });
     }
@@ -146,6 +135,7 @@ export function MdfTab({
       actions={actions}
       columns={mdfColumns}
       defaultRowsPerPage={10}
+      emptyStateLabel="No MDF inventory records are available."
       initialSort={{ key: "inwardDate", direction: "desc" }}
       rows={canView ? filteredRows : []}
     />

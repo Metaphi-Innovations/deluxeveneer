@@ -31,6 +31,7 @@ export type WarehouseInventoryRow = {
   id: string;
   inventoryRecordId: string;
   inventorySlug: WarehouseAInventorySlug;
+  storageSrNo?: string;
   inwardSrNo: string;
   inwardType: string;
   inwardDate: Date;
@@ -371,6 +372,7 @@ function normalizeRawVeneerRow(
     id: `${idPrefix}-${String(row.id ?? "")}`,
     inventoryRecordId: String(row.id ?? ""),
     inventorySlug: "raw-veneer",
+    storageSrNo: "",
     inwardSrNo: String(row.inwardSrNo ?? ""),
     inwardType: String(row.inwardType ?? ""),
     inwardDate: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
@@ -446,6 +448,7 @@ function normalizeStockRow(
         : idPrefix === "plywood"
           ? "plywood"
           : "mdf",
+    storageSrNo: "",
     inwardSrNo: String(row.inwardSrNo ?? ""),
     inwardType: String(row.inwardType ?? ""),
     inwardDate: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
@@ -603,6 +606,7 @@ function mapWarehouseConsumableRow(
     id: `warehouse-a-consumables-${String(row.id ?? "")}-${index + 1}`,
     inventoryRecordId: String(row.id ?? ""),
     inventorySlug: "consumables",
+    storageSrNo: "",
     inwardSrNo: String(row.inwardSrNo ?? ""),
     inwardType: String(row.inwardType ?? ""),
     inwardDate: row.inwardDate instanceof Date ? row.inwardDate : new Date(),

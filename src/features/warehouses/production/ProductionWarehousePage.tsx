@@ -118,7 +118,7 @@ export function ProductionWarehousePage({
         inventoryType: activeInventory,
       });
     } catch {
-      // Backend api integration with local fallback
+      // Issue-order API failed; dialog still closes after attempt.
     }
 
     setIssueOrderDialogOpen(false);

@@ -18,6 +18,7 @@ import {
 import type { StorageInventoryPanelProps } from "./types";
 
 const rawVeneerColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] = [
+  { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardSrNo", label: "Inward Sr No" },
   { key: "inwardDate", label: "Inward Date" },
   { key: "invoiceNo", label: "Invoice No" },

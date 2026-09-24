@@ -7,7 +7,6 @@ import { Eye, Pencil, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import { getInventoryPaths } from "../../../inventory/shared";
 import { rawVeneerColumns, type RawVeneerRow } from "../types/productionWarehouseTypes";
-import { warehouseCInventoryConfigs } from "../../shared/warehouseTableData";
 import { useWarehouseCMovedRows } from "../../shared/warehouseCTransferStore";
 import { issueFactoryWork, useFactoryIssuedWorkItems } from "../../../factory/shared/factoryIssuedWorkStore";
 import type { FactoryRecord } from "../../../factory/shared/types";
@@ -22,6 +21,29 @@ export interface RawVeneerTabProps {
   onExportReady?: Dispatch<SetStateAction<RawVeneerRow[]>> | ((rows: RawVeneerRow[]) => void) | undefined;
 }
 
+function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
+  return {
+    id: String(item.id),
+    inwardDate: item.inwardDate,
+    itemName: String(item.itemName ?? ""),
+    subCategory: String(item.subCategory ?? ""),
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? ""),
+    noOfLeaves: String(item.noOfLeaves ?? ""),
+    sqm: String(item.sqm ?? item.totalSqm ?? ""),
+    sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    grade: String(item.grade ?? ""),
+    currency: String(item.currency ?? ""),
+    amount: String(item.amount ?? ""),
+    remark: String(item.remark ?? ""),
+    inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "raw-veneer",
+    inventoryRecordId: item.inventoryRecordId
+      ? String(item.inventoryRecordId)
+      : String(item.id),
+  };
+}
+
 export function RawVeneerTab({
   warehouseName,
   warehouseId,
@@ -34,37 +56,23 @@ export function RawVeneerTab({
   const [marquetryIssuedRowIds, setMarquetryIssuedRowIds] = useState<string[]>([]);
   const movedWarehouseCRows = useWarehouseCMovedRows();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
-  const [apiRows, setApiRows] = useState<RawVeneerRow[] | null>(null);
+  const [apiRows, setApiRows] = useState<RawVeneerRow[]>([]);
 
-  // Load from Backend API with fallback
   useEffect(() => {
     let ignore = false;
     async function loadData() {
+      if (!warehouseId) {
+        if (!ignore) setApiRows([]);
+        return;
+      }
       const data = await fetchProductionWarehouseInventory({
         warehouseId,
         tab: "raw-veneer",
         search: searchValue,
       });
-      if (!ignore && data && Array.isArray(data.items) && data.items.length > 0) {
+      if (!ignore) {
         setApiRows(
-          data.items.map((item: ProductionInventoryItem) => ({
-            id: String(item.id),
-            inwardDate: item.inwardDate,
-            itemName: String(item.itemName ?? ""),
-            subCategory: String(item.subCategory ?? ""),
-            length: String(item.length ?? ""),
-            width: String(item.width ?? ""),
-            thickness: String(item.thickness ?? ""),
-            noOfLeaves: String(item.noOfLeaves ?? ""),
-            sqm: String(item.sqm ?? item.totalSqm ?? ""),
-            sqf: String(item.sqf ?? item.totalSqf ?? ""),
-            grade: String(item.grade ?? ""),
-            currency: String(item.currency ?? ""),
-            amount: String(item.amount ?? ""),
-            remark: String(item.remark ?? ""),
-            inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "raw-veneer",
-            inventoryRecordId: item.inventoryRecordId ? String(item.inventoryRecordId) : String(item.id),
-          }))
+          data && Array.isArray(data.items) ? data.items.map(mapApiItem) : [],
         );
       }
     }
@@ -74,30 +82,38 @@ export function RawVeneerTab({
     };
   }, [warehouseId, searchValue]);
 
-  const defaultRows = useMemo<RawVeneerRow[]>(() => {
-    const rawConfigs = warehouseCInventoryConfigs["raw-veneer"];
-    const base = [...(rawConfigs?.rows ?? []), ...movedWarehouseCRows];
-    return base.map((r) => ({
-      id: String(r.id),
-      inwardDate: r.inwardDate,
-      itemName: r.itemName,
-      subCategory: r.subCategory,
-      length: r.length,
-      width: r.width,
-      thickness: r.thickness,
-      noOfLeaves: r.noOfLeaves ?? "",
-      sqm: r.totalSqm ?? "",
-      sqf: r.totalSqf ?? "",
-      grade: r.grade ?? "",
-      currency: r.currency ?? "",
-      amount: r.amount ?? "",
-      remark: r.remark ?? "",
-      inventorySlug: r.inventorySlug,
-      inventoryRecordId: r.inventoryRecordId,
-    }));
-  }, [movedWarehouseCRows]);
+  const movedFromLocal = useMemo<RawVeneerRow[]>(
+    () =>
+      movedWarehouseCRows
+        .filter((r) => r.inventorySlug === "raw-veneer")
+        .map((r) => ({
+          id: String(r.id),
+          inwardDate: r.inwardDate,
+          itemName: r.itemName,
+          subCategory: r.subCategory,
+          length: r.length,
+          width: r.width,
+          thickness: r.thickness,
+          noOfLeaves: r.noOfLeaves ?? "",
+          sqm: r.totalSqm ?? "",
+          sqf: r.totalSqf ?? "",
+          grade: r.grade ?? "",
+          currency: r.currency ?? "",
+          amount: r.amount ?? "",
+          remark: r.remark ?? "",
+          inventorySlug: r.inventorySlug,
+          inventoryRecordId: r.inventoryRecordId,
+        })),
+    [movedWarehouseCRows],
+  );
 
-  const allRows = apiRows ?? defaultRows;
+  const allRows = useMemo(() => {
+    const apiIds = new Set(apiRows.map((row) => String(row.id)));
+    return [
+      ...apiRows,
+      ...movedFromLocal.filter((row) => !apiIds.has(String(row.id))),
+    ];
+  }, [apiRows, movedFromLocal]);
 
   const movedWarehouseRowIds = useMemo(
     () =>
@@ -142,9 +158,11 @@ export function RawVeneerTab({
         icon: Eye,
         onSelect: (row: RawVeneerRow) =>
           navigate(
-            getInventoryPaths((row.inventorySlug as any) || "raw-veneer", "issued", "warehouse-c").view(
-              row.inventoryRecordId || String(row.id),
-            ),
+            getInventoryPaths(
+              (row.inventorySlug as "raw-veneer") || "raw-veneer",
+              "issued",
+              "warehouse-c",
+            ).view(row.inventoryRecordId || String(row.id)),
           ),
       });
     }
@@ -156,9 +174,11 @@ export function RawVeneerTab({
         icon: Pencil,
         onSelect: (row: RawVeneerRow) =>
           navigate(
-            getInventoryPaths((row.inventorySlug as any) || "raw-veneer", "issued", "warehouse-c").edit(
-              row.inventoryRecordId || String(row.id),
-            ),
+            getInventoryPaths(
+              (row.inventorySlug as "raw-veneer") || "raw-veneer",
+              "issued",
+              "warehouse-c",
+            ).edit(row.inventoryRecordId || String(row.id)),
           ),
       });
 
@@ -182,7 +202,9 @@ export function RawVeneerTab({
             } as FactoryRecord,
           });
           setMarquetryIssuedRowIds((current) =>
-            current.includes(String(row.id)) ? current : [...current, String(row.id)],
+            current.includes(String(row.id))
+              ? current
+              : [...current, String(row.id)],
           );
         },
       });
@@ -197,6 +219,7 @@ export function RawVeneerTab({
       actions={actions}
       columns={rawVeneerColumns}
       defaultRowsPerPage={10}
+      emptyStateLabel="No raw veneer inventory records are available."
       initialSort={{ key: "inwardDate", direction: "desc" }}
       rows={canView ? filteredRows : []}
     />

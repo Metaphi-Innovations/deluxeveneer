@@ -81,14 +81,6 @@ function formatAmount(value: number | null | undefined): string {
   });
 }
 
-export function formatStorageDisplaySrNo(srNo: string | null | undefined): string {
-  if (!srNo) return "";
-  if (srNo.startsWith("STR-")) return srNo;
-  if (srNo.startsWith("STG-")) return srNo.replace(/^STG-/, "STR-");
-  if (srNo.startsWith("INW-")) return srNo.replace(/^INW-/, "STR-");
-  return srNo;
-}
-
 export function mapStorageItemToRow(
   item: StorageInventoryItem,
   inventorySlug: WarehouseInventoryRow["inventorySlug"] = "veneer-blocks"
@@ -97,13 +89,12 @@ export function mapStorageItemToRow(
     ? new Date(`${item.inwardDate}T00:00:00`)
     : new Date();
 
-  const formattedSrNo = formatStorageDisplaySrNo(item.storageSrNo || item.inwardSrNo);
-
   return {
     id: item.id,
     inventoryRecordId: item.id,
     inventorySlug,
-    inwardSrNo: formattedSrNo,
+    storageSrNo: item.storageSrNo ?? "",
+    inwardSrNo: item.inwardSrNo ?? "",
     inwardType: item.inventoryType,
     inwardDate,
     invoiceNo: item.invoiceNo ?? "",

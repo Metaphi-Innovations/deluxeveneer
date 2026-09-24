@@ -291,6 +291,7 @@ export function StorageWarehousePage({
       exportRowsToCsv(
         items as any,
         [
+          { key: "storageSrNo", label: "Storage Sr No" },
           { key: "inwardSrNo", label: "Inward Sr No" },
           { key: "inwardDate", label: "Inward Date" },
           { key: "invoiceNo", label: "Invoice No" },
@@ -644,7 +645,7 @@ export function StorageWarehousePage({
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Typography variant="body2" color="text.secondary">
               Are you sure you want to revert item{" "}
-              <strong>{revertTargetRow?.inwardSrNo || revertTargetRow?.itemName}</strong> back to inward?
+              <strong>{revertTargetRow?.storageSrNo || revertTargetRow?.inwardSrNo || revertTargetRow?.itemName}</strong> back to inward?
             </Typography>
             <TextField
               size="small"

@@ -63,7 +63,7 @@ export async function fetchProductionWarehouseInventory(params: ProductionWareho
       return res.data;
     }
   } catch {
-    // Graceful fallback to local mock/synced inventory data if backend route is not available
+    // Backend unavailable — return null so callers show an empty list.
   }
   return null;
 }
