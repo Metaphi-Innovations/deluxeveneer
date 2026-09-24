@@ -12,6 +12,8 @@ import {
   portalButtonGroupGap,
 } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import { exportRowsToCsv } from "../../shared/exportToCsv";
+import { exportStorageInventoryApi } from "../storage/api/storageApi";
 import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
@@ -85,6 +87,58 @@ export function StorageWarehousePage({
     );
   }
 
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (!warehouseId || isExporting) return;
+    if (activeInventory !== "veneer-blocks" && activeInventory !== "raw-veneer") return;
+
+    setIsExporting(true);
+    try {
+      const items = await exportStorageInventoryApi(activeInventory, {
+        warehouseId,
+        section: activeSection,
+        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+      });
+
+      if (items.length === 0) {
+        alert("No records to export.");
+        return;
+      }
+
+      exportRowsToCsv(
+        items as any,
+        [
+          { key: "inwardSrNo", label: "Inward Sr No" },
+          { key: "inwardDate", label: "Inward Date" },
+          { key: "invoiceNo", label: "Invoice No" },
+          { key: "inwardWarehouseName", label: "Inward Warehouse" },
+          { key: "supplierName", label: "Supplier" },
+          { key: "itemName", label: "Item Name" },
+          { key: "itemCategoryName", label: "Category" },
+          { key: "itemSubCategoryName", label: "Sub Category" },
+          { key: "batchNo", label: "Batch No" },
+          { key: "logCode", label: "Log Code" },
+          { key: "bundleNumber", label: "Bundle No" },
+          { key: "palletNo", label: "Pallet No" },
+          { key: "cbm", label: "CBM" },
+          { key: "totalSqMeter", label: "Total SQM" },
+          { key: "rate", label: "Rate" },
+          { key: "amount", label: "Amount" },
+          { key: "totalAmount", label: "Total Amount" },
+          { key: "currency", label: "Currency" },
+          { key: "qcStatus", label: "QC Status" },
+          { key: "remark", label: "Remark" },
+        ],
+        `storage-${activeInventory}`
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <MasterPageShell
       breadcrumbs={[
@@ -146,19 +200,20 @@ export function StorageWarehousePage({
             <Button
               variant="outlined"
               startIcon={<FileOutput size={15} />}
-              disabled
+              disabled={isExporting || (activeInventory !== "veneer-blocks" && activeInventory !== "raw-veneer")}
+              onClick={handleExport}
               sx={(theme) => getListingToolbarOutlinedButtonSx(theme)}
             >
-              Export
+              {isExporting ? "Exporting..." : "Export"}
             </Button>
           </Stack>
         </Stack>
 
         {activeInventory === "veneer-blocks" ? (
-          <StorageVeneerBlocksInventory {...panelProps} />
+          <StorageVeneerBlocksInventory {...panelProps} searchValue={searchValue} />
         ) : null}
         {activeInventory === "raw-veneer" ? (
-          <StorageRawVeneerInventory {...panelProps} />
+          <StorageRawVeneerInventory {...panelProps} searchValue={searchValue} />
         ) : null}
         {activeInventory === "plywood" ? (
           <StoragePlywoodInventory {...panelProps} />
