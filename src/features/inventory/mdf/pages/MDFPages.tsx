@@ -5,15 +5,14 @@ import { canAccessPermission } from "../../../permissions";
 import { getDynamicWarehousePermissionKey } from "../../../shared/warehousePermission";
 import { ApiInwardEditForm } from "../../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../../warehouses/pages/ApiInwardViewForm";
+import { isProductionInventorySearch } from "../../../warehouses/production/productionInventoryPaths";
+import { ProductionInventoryRecordRoute } from "../../../warehouses/production/pages/ProductionInventoryRecordRoute";
 import { InventoryForm, InventoryPageShell, mdfDefinition } from "../../shared";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function MDFListPage() {
   return (
-    <Navigate
-      replace
-      to="/warehouse-b?section=inventory&inventory=mdf"
-    />
+    <Navigate replace to="/warehouse-b?section=inventory&inventory=mdf" />
   );
 }
 
@@ -36,18 +35,26 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
   const warehouseName =
     searchParams.get("warehouseName")?.trim() || "Warehouse";
   const returnTo = searchParams.get("returnTo");
-  const inwardId = params.id?.trim() || "";
+  const recordId = params.id?.trim() || "";
 
-  if (warehouseId && inwardId) {
-    const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
+  if (recordId && isProductionInventorySearch(searchParams)) {
+    return (
+      <ProductionInventoryRecordRoute mode={mode} inventorySlug="mdf" />
+    );
+  }
+
+  if (warehouseId && recordId) {
+    const warehousePermissionKey =
+      getDynamicWarehousePermissionKey(warehouseId);
     const canOpen =
-      (mode === "view" && canAccessPermission(warehousePermissionKey, "view")) ||
-      (mode === "edit" && canAccessPermission(warehousePermissionKey, "edit"));
+      (mode === "view" &&
+        canAccessPermission(warehousePermissionKey, "view")) ||
+      (mode === "edit" &&
+        canAccessPermission(warehousePermissionKey, "edit"));
 
-    const listPath =
-      returnTo?.startsWith("/")
-        ? returnTo
-        : `/warehouses/${warehouseId}?section=inventory&inventory=mdf`;
+    const listPath = returnTo?.startsWith("/")
+      ? returnTo
+      : `/warehouses/${warehouseId}?section=inventory&inventory=mdf`;
     const warehouseRootPath = `/warehouses/${warehouseId}`;
 
     if (!canOpen) {
@@ -68,7 +75,7 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
     }
 
     const editUrl = new URL(
-      getInventoryPaths("mdf", "issued", "warehouse-a").edit(inwardId),
+      getInventoryPaths("mdf", "issued", "warehouse-a").edit(recordId),
       window.location.origin,
     );
     editUrl.searchParams.set("warehouse", "warehouse-a");
@@ -81,7 +88,7 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
       return (
         <ApiInwardViewForm
           editPath={editPath}
-          inwardId={inwardId}
+          inwardId={recordId}
           listPath={listPath}
           warehouseId={warehouseId}
           warehouseName={warehouseName}
@@ -92,7 +99,7 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
 
     return (
       <ApiInwardEditForm
-        inwardId={inwardId}
+        inwardId={recordId}
         listPath={listPath}
         warehouseId={warehouseId}
         warehouseName={warehouseName}

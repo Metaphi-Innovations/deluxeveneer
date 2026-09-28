@@ -3,7 +3,6 @@ import { Alert, Stack } from "@mui/material";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
-  type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
 import {
   isActiveColumnFilter,
@@ -15,29 +14,10 @@ import {
   fetchStorageInventoryPaginated,
   mapStorageItemToRow,
 } from "./api/storageApi";
-import type { StorageInventoryPanelProps } from "./types";
-
-const plywoodColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] = [
-  { key: "storageSrNo", label: "Storage Sr No" },
-  { key: "inwardSrNo", label: "Inward Sr No" },
-  { key: "inwardDate", label: "Inward Date" },
-  { key: "invoiceNo", label: "Invoice No" },
-  { key: "supplierName", label: "Supplier" },
-  { key: "itemName", label: "Item Name" },
-  { key: "subCategory", label: "Sub Category" },
-  { key: "length", label: "Length" },
-  { key: "width", label: "Width" },
-  { key: "thickness", label: "Thickness" },
-  { key: "totalNoOfSheets", label: "Total Sheets" },
-  { key: "totalSqm", label: "Total SQM" },
-  { key: "totalSqf", label: "Total SQF" },
-  { key: "rate" as any, label: "Rate" },
-  { key: "amount", label: "Amount" },
-  { key: "totalAmount", label: "Total Amount" },
-  { key: "currency", label: "Currency" },
-  { key: "qcStatus", label: "QC Status" },
-  { key: "remark", label: "Remark" },
-];
+import {
+  STORAGE_LISTING_COLUMNS,
+  type StorageInventoryPanelProps,
+} from "./types";
 
 function toApiColumnFilters(
   columnFilters: Partial<Record<string, ColumnFilterValue>>
@@ -77,11 +57,20 @@ export function StoragePlywoodInventory({
     Record<string, Array<{ value: string; label: string }>>
   >({});
   const [rows, setRows] = useState<WarehouseInventoryRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchValue, warehouseId, section]);
+
   const loadData = useCallback(async () => {
-    if (!warehouseId) return;
+    if (!warehouseId) {
+      setRows([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setErrorMessage("");
 
@@ -116,6 +105,7 @@ export function StoragePlywoodInventory({
   }, [warehouseId, section, page, rowsPerPage, searchValue, sortBy, sortOrder, columnFilters, onRefreshTrigger]);
 
   useEffect(() => {
+    setIsLoading(true);
     const timer = window.setTimeout(() => {
       void loadData();
     }, 250);
@@ -155,9 +145,12 @@ export function StoragePlywoodInventory({
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={plywoodColumns}
-        rows={isLoading ? [] : rows}
+        columns={STORAGE_LISTING_COLUMNS}
+        rows={rows}
+        loading={isLoading}
+        loadingLabel="Loading plywood inventory..."
         filterOptionsByColumn={filterOptionsByColumn}
+        columnFilters={columnFilters}
         onColumnFilterOpen={(columnKey) => {
           void loadDropdownOptions(columnKey);
         }}

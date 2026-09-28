@@ -111,6 +111,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC" },
     { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 interface InwardWarehousePageProps {
@@ -139,7 +140,7 @@ export function InwardWarehousePage({
     Record<string, Array<{ value: string; label: string }>>
   >({});
   const [rows, setRows] = useState<WarehouseInventoryRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [qcInwardId, setQcInwardId] = useState<string | null>(null);
@@ -218,6 +219,7 @@ export function InwardWarehousePage({
   ]);
 
   useEffect(() => {
+    setIsLoading(true);
     const timer = window.setTimeout(() => {
       void loadInwards();
     }, 300);
@@ -493,14 +495,14 @@ export function InwardWarehousePage({
           columnFilters={columnFilters}
           defaultRowsPerPage={10}
           emptyStateLabel={
-            isLoading
-              ? "Loading inward records..."
-              : isApiSupportedInventory
-                ? `No ${activeTitle.toLowerCase()} records are available.`
-                : `${activeTitle} inward will be available soon.`
+            isApiSupportedInventory
+              ? `No ${activeTitle.toLowerCase()} records are available.`
+              : `${activeTitle} inward will be available soon.`
           }
           filterOptionsByColumn={filterOptionsByColumn}
           getRowActions={isApiSupportedInventory ? getRowActions : () => []}
+          loading={isLoading}
+          loadingLabel="Loading inward records..."
           onColumnFilterOpen={(columnKey) => {
             void loadColumnDropdown(columnKey);
           }}
@@ -518,7 +520,7 @@ export function InwardWarehousePage({
               setPage(1);
             },
           }}
-          rows={isLoading ? [] : rows}
+          rows={rows}
           sorting={{
             sortBy,
             sortOrder,

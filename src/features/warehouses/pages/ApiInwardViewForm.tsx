@@ -20,6 +20,7 @@ import { useNavigate } from "react-router";
 import { MasterSectionCard } from "../../masters/shared";
 import { getInwardGstMode } from "../../masters/shared/masterDefinitions";
 import { canAccessPermission } from "../../permissions";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
@@ -68,6 +69,17 @@ function formatMoney(value: number | null | undefined, currency?: string | undef
 function formatMeasure(value: number | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return String(value);
+}
+
+function formatAuditUserName(
+  user?: {
+    firstName: string | null;
+    lastName: string | null;
+  } | null,
+): string {
+  if (!user) return "—";
+  const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  return name || "—";
 }
 
 function normalizeQcLabel(value: string | null | undefined): string {
@@ -254,11 +266,12 @@ export function ApiInwardViewForm({
             ? "—"
             : String(detail.exchangeRate),
       },
-      {
-        label: "Attachment",
-        value: detail.attachmentUrl?.trim() ? detail.attachmentUrl : "—",
-      },
+      { label: "Attachment", value: detail.attachmentUrl?.trim() ? detail.attachmentUrl : "—" },
       { label: "Inward Type", value: detail.inventoryType || "—" },
+      {
+        label: "Updated By",
+        value: formatAuditUserName(detail.updatedBy),
+      },
     ];
   }, [detail]);
 
@@ -278,9 +291,7 @@ export function ApiInwardViewForm({
         subtitle="Review supplier invoice and inward stock details."
       >
         <MasterSectionCard>
-          <Typography variant="body2" color="text.secondary">
-            Loading inward record...
-          </Typography>
+          <ContentLoader label="Loading inward record..." minHeight={220} />
         </MasterSectionCard>
       </InventoryPageShell>
     );

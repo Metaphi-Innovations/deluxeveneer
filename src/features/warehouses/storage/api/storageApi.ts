@@ -43,6 +43,7 @@ export interface StorageInventoryItem {
   qcStatus: string;
   qcRemark: string | null;
   remark: string | null;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -157,6 +158,7 @@ export function mapStorageItemToRow(
         : "",
     plywoodType: "",
     mdfType: "",
+    updatedBy: item.updatedBy ?? "",
   };
 }
 
@@ -277,6 +279,7 @@ export async function moveStorageItemToProductionApi(
   id: string,
   data: {
     productionWarehouseId: string;
+    gradeId: string;
     remark?: string | null;
   }
 ): Promise<void> {

@@ -102,8 +102,27 @@ const buildWarehouseNavigationItems = (
     warehouseType: warehouse.warehouseType,
     permissionKey: warehouse.permissionKey,
     to: `/warehouses/${warehouse.id}`,
-    match: (location: SidebarMatchLocation) =>
-      matchesPath(location, `/warehouses/${warehouse.id}`),
+    match: (location: SidebarMatchLocation) => {
+      if (matchesPath(location, `/warehouses/${warehouse.id}`)) {
+        return true;
+      }
+
+      // Keep warehouse highlighted on inventory view/edit routes.
+      if (!location.pathname.startsWith("/inventory/")) {
+        return false;
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.get("warehouseId") === warehouse.id) {
+        return true;
+      }
+
+      const returnTo = params.get("returnTo") ?? "";
+      return (
+        returnTo === `/warehouses/${warehouse.id}` ||
+        returnTo.startsWith(`/warehouses/${warehouse.id}?`)
+      );
+    },
   }));
 
 const buildWarehousesNavigationEntry = (

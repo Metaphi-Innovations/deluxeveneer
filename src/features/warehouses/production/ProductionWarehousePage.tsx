@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FileOutput, Plus } from "lucide-react";
 import { Button, Stack } from "@mui/material";
 import { useSearchParams } from "react-router";
@@ -9,6 +9,8 @@ import { canAccessPermission } from "../../permissions";
 import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
+import { useDebouncedValue } from "../../shared/useDebouncedValue";
 import {
   getOrderLineItems,
   useOrderRecords,
@@ -26,16 +28,21 @@ import {
   mdfColumns,
   sampleSheetColumns,
   type ProductionWarehouseTabSlug,
-  type RawVeneerRow,
-  type PlywoodRow,
-  type MdfRow,
   type SampleSheetTableRow,
 } from "../production/types/productionWarehouseTypes";
 import { RawVeneerTab } from "../production/tabs/RawVeneerTab";
 import { PlywoodTab } from "../production/tabs/PlywoodTab";
 import { MdfTab } from "../production/tabs/MdfTab";
 import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
-import { issueOrderToProduction } from "../production/api/productionWarehouseApi";
+import {
+  exportProductionInventoryApi,
+  issueOrderToProduction,
+  type ProductionInventoryItem,
+} from "../production/api/productionWarehouseApi";
+import {
+  EMPTY_PRODUCTION_LIST_QUERY,
+  type ProductionListQueryState,
+} from "../production/productionListQuery";
 
 export interface ProductionWarehousePageProps {
   warehouseId?: string | undefined;
@@ -49,22 +56,28 @@ export function ProductionWarehousePage({
 }: ProductionWarehousePageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState("");
+  const debouncedSearchValue = useDebouncedValue(searchValue, 450);
   const [issueOrderDialogOpen, setIssueOrderDialogOpen] = useState(false);
   const [issueOrderValues, setIssueOrderValues] = useState<IssueOrderValues>({
     orderItemNo: "",
     orderNo: "",
   });
-
-  const [currentRawRows, setCurrentRawRows] = useState<RawVeneerRow[]>([]);
-  const [currentPlywoodRows, setCurrentPlywoodRows] = useState<PlywoodRow[]>([]);
-  const [currentMdfRows, setCurrentMdfRows] = useState<MdfRow[]>([]);
-  const [currentSampleRows, setCurrentSampleRows] = useState<SampleSheetTableRow[]>([]);
+  const [listQuery, setListQuery] = useState<ProductionListQueryState>(
+    EMPTY_PRODUCTION_LIST_QUERY,
+  );
+  const [currentSampleRows, setCurrentSampleRows] = useState<
+    SampleSheetTableRow[]
+  >([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   const activeInventory = getActiveTab(searchParams.get("inventory"));
   const isSampleSheetsTab = activeInventory === "sample-sheets";
 
-  const canEditWarehouseC = canAccessPermission("warehouseC", "edit");
-  const canViewWarehouseC = canAccessPermission("warehouseC", "view");
+  const warehousePermissionKey = warehouseId
+    ? getDynamicWarehousePermissionKey(warehouseId)
+    : "warehouseC";
+  const canEditWarehouseC = canAccessPermission(warehousePermissionKey, "edit");
+  const canViewWarehouseC = canAccessPermission(warehousePermissionKey, "view");
 
   const orderRecords = useOrderRecords();
   const rawOrderRecords = useMemo(
@@ -124,25 +137,79 @@ export function ProductionWarehousePage({
     setIssueOrderDialogOpen(false);
   };
 
-  const handleExport = () => {
-    if (activeInventory === "raw-veneer") {
-      exportRowsToCsv(currentRawRows, rawVeneerColumns, `${warehouseName}-raw-veneer`);
-    } else if (activeInventory === "plywood") {
-      exportRowsToCsv(currentPlywoodRows, plywoodColumns, `${warehouseName}-plywood`);
-    } else if (activeInventory === "mdf") {
-      exportRowsToCsv(currentMdfRows, mdfColumns, `${warehouseName}-mdf`);
-    } else if (activeInventory === "sample-sheets") {
-      exportRowsToCsv(currentSampleRows, sampleSheetColumns, `${warehouseName}-sample-sheets`);
+  const handleListQueryChange = useCallback((query: ProductionListQueryState) => {
+    setListQuery(query);
+  }, []);
+
+  const handleExport = async () => {
+    if (isSampleSheetsTab) {
+      exportRowsToCsv(
+        currentSampleRows,
+        sampleSheetColumns,
+        `${warehouseName}-sample-sheets`,
+      );
+      return;
+    }
+
+    if (!warehouseId || isExporting) return;
+
+    const tab =
+      activeInventory === "plywood" || activeInventory === "mdf"
+        ? activeInventory
+        : "raw-veneer";
+
+    setIsExporting(true);
+    try {
+      const items = await exportProductionInventoryApi({
+        warehouseId,
+        tab,
+        ...(debouncedSearchValue.trim()
+          ? { search: debouncedSearchValue.trim() }
+          : {}),
+        ...(listQuery.sortBy ? { sortBy: listQuery.sortBy } : {}),
+        ...(listQuery.sortOrder ? { sortOrder: listQuery.sortOrder } : {}),
+        ...(Object.keys(listQuery.filters).length > 0
+          ? { filters: listQuery.filters }
+          : {}),
+      });
+
+      if (items.length === 0) {
+        alert("No records to export.");
+        return;
+      }
+
+      const rows = items.map(mapExportItem) as Array<
+        Record<string, string | Date>
+      >;
+      if (tab === "plywood") {
+        exportRowsToCsv(rows, plywoodColumns, `${warehouseName}-plywood`);
+      } else if (tab === "mdf") {
+        exportRowsToCsv(rows, mdfColumns, `${warehouseName}-mdf`);
+      } else {
+        exportRowsToCsv(rows, rawVeneerColumns, `${warehouseName}-raw-veneer`);
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to export production inventory.",
+      );
+    } finally {
+      setIsExporting(false);
     }
   };
 
   const exportDisabled = useMemo(() => {
-    if (activeInventory === "raw-veneer") return currentRawRows.length === 0;
-    if (activeInventory === "plywood") return currentPlywoodRows.length === 0;
-    if (activeInventory === "mdf") return currentMdfRows.length === 0;
-    if (activeInventory === "sample-sheets") return currentSampleRows.length === 0;
-    return true;
-  }, [activeInventory, currentRawRows, currentPlywoodRows, currentMdfRows, currentSampleRows]);
+    if (isExporting) return true;
+    if (isSampleSheetsTab) return currentSampleRows.length === 0;
+    return !warehouseId || listQuery.totalCount === 0;
+  }, [
+    isExporting,
+    isSampleSheetsTab,
+    currentSampleRows.length,
+    warehouseId,
+    listQuery.totalCount,
+  ]);
 
   return (
     <MasterPageShell
@@ -151,8 +218,8 @@ export function ProductionWarehousePage({
         { label: "Inventory" },
         {
           label:
-            productionWarehouseTabs.find((t) => t.value === activeInventory)?.label ??
-            "Raw Veneer",
+            productionWarehouseTabs.find((t) => t.value === activeInventory)
+              ?.label ?? "Raw Veneer",
         },
       ]}
       subtitle={
@@ -169,6 +236,7 @@ export function ProductionWarehousePage({
       >
         <ModuleProcessTabs
           onChange={(value) => {
+            setListQuery(EMPTY_PRODUCTION_LIST_QUERY);
             setSearchParams(
               {
                 section: "inventory",
@@ -191,7 +259,9 @@ export function ProductionWarehousePage({
             value={searchValue}
             onChange={setSearchValue}
             placeholder={
-              isSampleSheetsTab ? "Search sample sheets..." : "Search inventory..."
+              isSampleSheetsTab
+                ? "Search sample sheets..."
+                : "Search inventory..."
             }
             sx={{
               width: { xs: "100%", sm: 300 },
@@ -219,13 +289,13 @@ export function ProductionWarehousePage({
               variant="outlined"
               startIcon={<FileOutput size={15} />}
               disabled={exportDisabled}
-              onClick={handleExport}
+              onClick={() => void handleExport()}
               sx={(theme) => ({
                 ...getListingToolbarOutlinedButtonSx(theme),
                 alignSelf: "center",
               })}
             >
-              Export
+              {isExporting ? "Exporting..." : "Export"}
             </Button>
           </Stack>
         </Stack>
@@ -234,8 +304,8 @@ export function ProductionWarehousePage({
           <RawVeneerTab
             canEdit={canEditWarehouseC}
             canView={canViewWarehouseC}
-            onExportReady={setCurrentRawRows}
-            searchValue={searchValue}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
             warehouseId={warehouseId}
             warehouseName={warehouseName}
           />
@@ -245,8 +315,8 @@ export function ProductionWarehousePage({
           <PlywoodTab
             canEdit={canEditWarehouseC}
             canView={canViewWarehouseC}
-            onExportReady={setCurrentPlywoodRows}
-            searchValue={searchValue}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
             warehouseId={warehouseId}
             warehouseName={warehouseName}
           />
@@ -256,8 +326,8 @@ export function ProductionWarehousePage({
           <MdfTab
             canEdit={canEditWarehouseC}
             canView={canViewWarehouseC}
-            onExportReady={setCurrentMdfRows}
-            searchValue={searchValue}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
             warehouseId={warehouseId}
             warehouseName={warehouseName}
           />
@@ -268,7 +338,7 @@ export function ProductionWarehousePage({
             canEdit={canEditWarehouseC}
             canView={canViewWarehouseC}
             onExportReady={setCurrentSampleRows}
-            searchValue={searchValue}
+            searchValue={debouncedSearchValue}
             warehouseId={warehouseId}
             warehouseName={warehouseName}
           />
@@ -286,6 +356,32 @@ export function ProductionWarehousePage({
       />
     </MasterPageShell>
   );
+}
+
+function mapExportItem(item: ProductionInventoryItem) {
+  return {
+    id: String(item.id),
+    productionSrNo: String(item.productionSrNo ?? ""),
+    storageSrNo: String(item.storageSrNo ?? ""),
+    inwardDate: item.inwardDate,
+    itemName: String(item.itemName ?? ""),
+    subCategory: String(item.subCategory ?? ""),
+    color: String(item.color ?? ""),
+    mdfType: String(item.mdfType ?? ""),
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? ""),
+    noOfLeaves: String(item.noOfLeaves ?? ""),
+    noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
+    sqm: String(item.sqm ?? item.totalSqm ?? ""),
+    sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    grade: String(item.grade ?? ""),
+    currency: String(item.currency ?? ""),
+    amount: String(item.amount ?? ""),
+    totalAmount: String(item.totalAmount ?? item.amount ?? ""),
+    remark: String(item.remark ?? ""),
+    updatedBy: String(item.updatedBy ?? ""),
+  };
 }
 
 function getActiveTab(value: string | null): ProductionWarehouseTabSlug {

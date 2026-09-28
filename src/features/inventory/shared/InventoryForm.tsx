@@ -77,6 +77,7 @@ import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInward
 import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
+import { ProductionInventoryRecordPage } from "../../warehouses/production/pages/ProductionInventoryRecordPage";
 import { refreshSupplierMasterCache } from "../../masters/supplier-master/api/supplierMasterApi";
 import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import {
@@ -377,6 +378,46 @@ function InventoryFormContent<Row extends InventoryRecord>({
   }, [apiWarehouseId]);
 
   if ((mode === "edit" || mode === "view") && !row) {
+    // Production warehouse stock must never use inward or mock lookup.
+    if (
+      activeWarehouse === "warehouse-c" &&
+      params.id &&
+      (definition.slug === "raw-veneer" ||
+        definition.slug === "plywood" ||
+        definition.slug === "mdf")
+    ) {
+      const productionListPath = returnToPath?.startsWith("/")
+        ? returnToPath
+        : apiWarehouseId
+          ? `/warehouses/${apiWarehouseId}?inventory=${definition.slug}`
+          : `/warehouse-c?section=inventory&inventory=${definition.slug}`;
+      const productionEditUrl = new URL(
+        paths.edit(params.id),
+        window.location.origin,
+      );
+      productionEditUrl.searchParams.set("warehouse", "warehouse-c");
+      if (apiWarehouseId) {
+        productionEditUrl.searchParams.set("warehouseId", apiWarehouseId);
+      }
+      productionEditUrl.searchParams.set("warehouseName", warehouseLabel);
+      productionEditUrl.searchParams.set("returnTo", productionListPath);
+      productionEditUrl.searchParams.set("source", "production");
+      const productionEditPath = `${productionEditUrl.pathname}?${productionEditUrl.searchParams.toString()}`;
+
+      return (
+        <ProductionInventoryRecordPage
+          inventoryId={params.id}
+          inventorySlug={definition.slug}
+          listPath={productionListPath}
+          mode={mode}
+          warehouseId={apiWarehouseId}
+          warehouseName={warehouseLabel}
+          warehouseRootPath={warehouseRootPath}
+          {...(mode === "view" ? { editPath: productionEditPath } : {})}
+        />
+      );
+    }
+
     // API inward view/edit must never fall through to mock lookup.
     if (
       isApiInward &&

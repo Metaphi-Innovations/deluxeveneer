@@ -9,6 +9,7 @@ import {
   hasFormFieldErrors,
   type MasterFieldValue,
 } from "../../masters/shared";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { refreshSupplierMasterCache } from "../../masters/supplier-master/api/supplierMasterApi";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { FormSectionHeader } from "../../shared/formSectionStyles";
@@ -352,9 +353,7 @@ export function ApiInwardEditForm({
         title="Edit Stock"
       >
         <MasterSectionCard>
-          <Typography variant="body2" color="text.secondary">
-            Loading inward record...
-          </Typography>
+          <ContentLoader label="Loading inward record..." minHeight={220} />
         </MasterSectionCard>
       </InventoryPageShell>
     );

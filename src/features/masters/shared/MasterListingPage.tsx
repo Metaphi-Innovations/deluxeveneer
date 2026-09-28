@@ -9,6 +9,7 @@ import { Link as RouterLink } from "react-router";
 
 import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import {
   canAccessAnyAction,
   canAccessPermission,
@@ -206,7 +207,10 @@ export function MasterListingPage({
         })}
       >
         {loading && sourceRows.length === 0 ? (
-          <Alert severity="info">Loading {entityLabel.toLowerCase()}s...</Alert>
+          <ContentLoader
+            label={`Loading ${entityLabel.toLowerCase()}s...`}
+            minHeight={220}
+          />
         ) : (
           <MasterTable
             canChangeStatus={canEdit}

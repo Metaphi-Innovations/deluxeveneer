@@ -8,6 +8,7 @@ import {
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { MasterFormFields, hasFormFieldErrors } from "./MasterFormFields";
 import { MasterPageShell } from "./MasterPageShell";
 import { MasterSectionCard } from "./MasterSectionCard";
@@ -165,7 +166,7 @@ export function MasterFormPage({
         ]}
         title={getMasterPageTitle(localDefinition, mode)}
       >
-        <Alert severity="info">Loading record...</Alert>
+        <ContentLoader label="Loading record..." minHeight={240} />
       </MasterPageShell>
     );
   }

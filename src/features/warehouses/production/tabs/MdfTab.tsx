@@ -1,13 +1,27 @@
-import { useState, useMemo, useEffect, type Dispatch, type SetStateAction } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
 import { Eye, Pencil } from "lucide-react";
 import { useNavigate } from "react-router";
-import { getInventoryPaths } from "../../../inventory/shared";
+import {
+  isActiveColumnFilter,
+  type ColumnFilterValue,
+} from "../../../shared/columnFilters";
 import { mdfColumns, type MdfRow } from "../types/productionWarehouseTypes";
-import { fetchProductionWarehouseInventory, type ProductionInventoryItem } from "../api/productionWarehouseApi";
+import {
+  fetchProductionColumnDropdown,
+  fetchProductionWarehouseInventory,
+  type ProductionInventoryItem,
+} from "../api/productionWarehouseApi";
+import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
+import type { ProductionListQueryState } from "../productionListQuery";
 
 export interface MdfTabProps {
   warehouseName: string;
@@ -15,12 +29,25 @@ export interface MdfTabProps {
   searchValue: string;
   canView: boolean;
   canEdit: boolean;
-  onExportReady?: Dispatch<SetStateAction<MdfRow[]>> | ((rows: MdfRow[]) => void) | undefined;
+  onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
+}
+
+function toApiColumnFilters(
+  columnFilters: Partial<Record<string, ColumnFilterValue>>,
+): Record<string, string[]> {
+  const filters: Record<string, string[]> = {};
+  for (const [key, filter] of Object.entries(columnFilters)) {
+    if (!isActiveColumnFilter(filter)) continue;
+    filters[key] = filter.values;
+  }
+  return filters;
 }
 
 function mapApiItem(item: ProductionInventoryItem): MdfRow {
   return {
     id: String(item.id),
+    productionSrNo: String(item.productionSrNo ?? ""),
+    storageSrNo: String(item.storageSrNo ?? ""),
     inwardDate: item.inwardDate,
     itemName: String(item.itemName ?? ""),
     mdfType: String(item.mdfType ?? ""),
@@ -30,9 +57,12 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
     noOfLeaves: String(item.noOfLeaves ?? ""),
     sqm: String(item.sqm ?? item.totalSqm ?? ""),
     sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    grade: String(item.grade ?? ""),
     currency: String(item.currency ?? ""),
     amount: String(item.amount ?? ""),
+    totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
+    updatedBy: String(item.updatedBy ?? ""),
     inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "mdf",
     inventoryRecordId: item.inventoryRecordId
       ? String(item.inventoryRecordId)
@@ -42,102 +72,196 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
 
 export function MdfTab({
   warehouseId,
+  warehouseName = "Production Warehouse",
   searchValue,
   canView,
   canEdit,
-  onExportReady,
+  onListQueryChange,
 }: MdfTabProps) {
   const navigate = useNavigate();
-  const [apiRows, setApiRows] = useState<MdfRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState<string | null>("inwardDate");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
+  const [columnFilters, setColumnFilters] = useState<
+    Partial<Record<string, ColumnFilterValue>>
+  >({});
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+  const [rows, setRows] = useState<MdfRow[]>([]);
+  const [isLoading, setIsLoading] = useState(Boolean(warehouseId));
 
   useEffect(() => {
-    let ignore = false;
-    async function loadData() {
-      if (!warehouseId) {
-        if (!ignore) setApiRows([]);
-        return;
-      }
+    setPage(1);
+  }, [searchValue, warehouseId]);
+
+  const loadData = useCallback(async () => {
+    if (!warehouseId) {
+      setRows([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const apiFilters = toApiColumnFilters(columnFilters);
       const data = await fetchProductionWarehouseInventory({
         warehouseId,
         tab: "mdf",
-        search: searchValue,
+        page,
+        limit: rowsPerPage,
+        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
       });
-      if (!ignore) {
-        setApiRows(
-          data && Array.isArray(data.items) ? data.items.map(mapApiItem) : [],
-        );
-      }
-    }
-    void loadData();
-    return () => {
-      ignore = true;
-    };
-  }, [warehouseId, searchValue]);
 
-  const filteredRows = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
-    if (!normalizedSearch) {
-      return apiRows;
+      setRows(
+        data && Array.isArray(data.items) ? data.items.map(mapApiItem) : [],
+      );
+      setTotalCount(data?.total ?? 0);
+    } catch {
+      setRows([]);
+      setTotalCount(0);
+    } finally {
+      setIsLoading(false);
     }
-
-    return apiRows.filter((row) =>
-      Object.values(row).some((val) =>
-        String(val ?? "").toLowerCase().includes(normalizedSearch),
-      ),
-    );
-  }, [apiRows, searchValue]);
+  }, [
+    warehouseId,
+    page,
+    rowsPerPage,
+    searchValue,
+    sortBy,
+    sortOrder,
+    columnFilters,
+  ]);
 
   useEffect(() => {
-    onExportReady?.(filteredRows);
-  }, [filteredRows, onExportReady]);
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [loadData]);
+
+  useEffect(() => {
+    onListQueryChange?.({
+      sortBy,
+      sortOrder,
+      filters: toApiColumnFilters(columnFilters),
+      totalCount,
+    });
+  }, [sortBy, sortOrder, columnFilters, totalCount, onListQueryChange]);
+
+  const loadDropdownOptions = useCallback(
+    async (columnKey: string) => {
+      if (!warehouseId) return;
+      try {
+        const result = await fetchProductionColumnDropdown({
+          warehouseId,
+          tab: "mdf",
+          column: columnKey,
+        });
+        setFilterOptionsByColumn((prev) => ({
+          ...prev,
+          [columnKey]: result.options,
+        }));
+      } catch {
+        setFilterOptionsByColumn((prev) => ({
+          ...prev,
+          [columnKey]: [],
+        }));
+      }
+    },
+    [warehouseId],
+  );
 
   const actions = useMemo<ReadonlyArray<EnterpriseTableAction<MdfRow>>>(() => {
     const list: EnterpriseTableAction<MdfRow>[] = [];
+    const returnTo = warehouseId
+      ? `/warehouses/${warehouseId}?inventory=mdf`
+      : "/warehouse-c?section=inventory&inventory=mdf";
 
-    if (canView) {
+    if (canView && warehouseId) {
       list.push({
         id: "view",
         label: "View",
         icon: Eye,
         onSelect: (row: MdfRow) =>
           navigate(
-            getInventoryPaths(
-              (row.inventorySlug as "mdf") || "mdf",
-              "issued",
-              "warehouse-c",
-            ).view(row.inventoryRecordId || String(row.id)),
+            getProductionInventoryRecordPath({
+              slug: "mdf",
+              id: row.inventoryRecordId || String(row.id),
+              mode: "view",
+              warehouseId,
+              warehouseName,
+              returnTo,
+            }),
           ),
       });
     }
 
-    if (canEdit) {
+    if (canEdit && warehouseId) {
       list.push({
         id: "edit",
         label: "Edit",
         icon: Pencil,
         onSelect: (row: MdfRow) =>
           navigate(
-            getInventoryPaths(
-              (row.inventorySlug as "mdf") || "mdf",
-              "issued",
-              "warehouse-c",
-            ).edit(row.inventoryRecordId || String(row.id)),
+            getProductionInventoryRecordPath({
+              slug: "mdf",
+              id: row.inventoryRecordId || String(row.id),
+              mode: "edit",
+              warehouseId,
+              warehouseName,
+              returnTo,
+            }),
           ),
       });
     }
 
     return list;
-  }, [canView, canEdit, navigate]);
+  }, [canView, canEdit, navigate, warehouseId, warehouseName]);
 
   return (
     <EnterpriseDataTable
       key="production-mdf"
       actions={actions}
       columns={mdfColumns}
-      defaultRowsPerPage={10}
+      columnFilters={columnFilters}
       emptyStateLabel="No MDF inventory records are available."
-      initialSort={{ key: "inwardDate", direction: "desc" }}
-      rows={canView ? filteredRows : []}
+      filterOptionsByColumn={filterOptionsByColumn}
+      loading={isLoading}
+      loadingLabel="Loading MDF inventory..."
+      onColumnFilterOpen={(columnKey) => {
+        void loadDropdownOptions(columnKey);
+      }}
+      onColumnFiltersChange={(next) => {
+        setColumnFilters(next);
+        setPage(1);
+      }}
+      pagination={{
+        page,
+        rowsPerPage,
+        totalCount,
+        onPageChange: setPage,
+        onRowsPerPageChange: (newPerPage: number) => {
+          setRowsPerPage(newPerPage);
+          setPage(1);
+        },
+      }}
+      rows={canView ? rows : []}
+      sorting={{
+        sortBy,
+        sortOrder,
+        onSortChange: (key: string, order: "asc" | "desc") => {
+          setSortBy(key);
+          setSortOrder(order);
+          setPage(1);
+        },
+      }}
     />
   );
 }

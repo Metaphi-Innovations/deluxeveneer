@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, MouseEvent, ReactNode, SetStateAction, WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownWideNarrow,
@@ -33,6 +33,7 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 
+import { ContentLoader } from "../feedback/ContentLoader";
 import { ErpToggleSwitch } from "../inputs/ErpToggleSwitch";
 import type { ColumnFilterOption } from "../../features/shared/SearchableMultiSelectColumnFilter";
 import { formatDisplayValueByField } from "../../features/shared/numberFormat";
@@ -128,6 +129,9 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   columns: readonly EnterpriseTableColumn<Row>[];
   defaultRowsPerPage?: number;
   emptyStateLabel?: string;
+  /** When true, shows a branded loader in the table body instead of rows/empty state. */
+  loading?: boolean;
+  loadingLabel?: string;
   getRowActions?: (row: Row) => readonly EnterpriseTableAction<Row>[];
   hidePagination?: boolean;
   initialSort?: EnterpriseTableSortConfig<Row>;
@@ -173,6 +177,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   columns,
   defaultRowsPerPage = 10,
   emptyStateLabel = "No records found.",
+  loading = false,
+  loadingLabel = "Loading...",
   getRowActions,
   hidePagination = false,
   initialSort = null,
@@ -440,14 +446,26 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     setSelectedRowIds([]);
   }, [selectable, selectionResetKey]);
 
-  const handleHorizontalWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!event.shiftKey || Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
-      return;
-    }
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
-    event.currentTarget.scrollLeft += event.deltaY;
-    event.preventDefault();
-  };
+  useEffect(() => {
+    const element = tableScrollRef.current;
+    if (!element) return;
+
+    const handleHorizontalWheel = (event: globalThis.WheelEvent) => {
+      if (!event.shiftKey || Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
+        return;
+      }
+
+      element.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+
+    element.addEventListener("wheel", handleHorizontalWheel, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", handleHorizontalWheel);
+    };
+  }, []);
 
   const handleSort = (columnKey: keyof Row & string) => {
     const nextDirection: EnterpriseTableSortDirection =
@@ -600,7 +618,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
       <Box sx={listingTableContainerSx(theme)}>
         <TableContainer
-          onWheel={handleHorizontalWheel}
+          ref={tableScrollRef}
           sx={{
             maxHeight: rowsPerPage === defaultRowsPerPage ? "none" : maxBodyHeight,
             overflowX: "auto",
@@ -790,7 +808,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
             </TableHead>
 
             <TableBody>
-              {currentPageRows.length === 0 ? (
+              {loading || currentPageRows.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={
@@ -800,12 +818,21 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     }
                     sx={emptyStateCellSx(theme)}
                   >
-                    {emptyStateLabel}
+                    {loading ? (
+                      <ContentLoader
+                        label={loadingLabel}
+                        minHeight={160}
+                        size={32}
+                      />
+                    ) : (
+                      emptyStateLabel
+                    )}
                   </TableCell>
                 </TableRow>
               ) : null}
 
-              {currentPageRows.map((row) => {
+              {!loading
+                ? currentPageRows.map((row) => {
                 const isSelected = selectedRowIds.includes(row.id);
 
                 return (
@@ -916,12 +943,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     ) : null}
                   </TableRow>
                 );
-              })}
+              })
+                : null}
             </TableBody>
           </Table>
         </TableContainer>
 
-        {!hidePagination ? (
+        {!hidePagination && !loading ? (
           <Box
             sx={{
               display: "flex",

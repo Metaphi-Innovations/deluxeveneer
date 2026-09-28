@@ -1,3 +1,4 @@
+import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import type { WarehouseInventoryRow } from "../shared/warehouseTableData";
 
 export type StorageInventoryTab =
@@ -7,6 +8,36 @@ export type StorageInventoryTab =
   | "mdf";
 
 export type StorageSectionTab = "inventory" | "history";
+
+/** Listing columns for QC-pass stock stored in a storage warehouse. */
+export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+export const STORAGE_EXPORT_COLUMNS = [
+  { key: "storageSrNo", label: "Storage Sr No" },
+  { key: "inwardSrNo", label: "Inward Sr No" },
+  { key: "inwardDate", label: "Inward Date" },
+  { key: "invoiceNo", label: "Invoice No" },
+  { key: "supplierName", label: "Supplier Name" },
+  { key: "currency", label: "Currency" },
+  { key: "amount", label: "Amount" },
+  { key: "totalAmount", label: "Total Amount" },
+  { key: "qcStatus", label: "QC Status" },
+  { key: "remark", label: "Remark" },
+  { key: "updatedBy", label: "Updated By" },
+] as const;
 
 export const STORAGE_INVENTORY_TABS = [
   { label: "Veneer Blocks", value: "veneer-blocks" },

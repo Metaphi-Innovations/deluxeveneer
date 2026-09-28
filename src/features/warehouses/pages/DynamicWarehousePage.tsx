@@ -2,6 +2,7 @@ import { Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import {
   MasterPageShell,
   MasterSectionCard,
@@ -117,13 +118,17 @@ export function DynamicWarehousePage() {
       title={isLoading ? "Warehouse" : warehouseName}
     >
       <MasterSectionCard>
-        <Typography variant="body2" color="text.secondary">
-          {errorMessage
-            ? errorMessage
-            : isLoading
-              ? "Loading warehouse..."
-              : "Warehouse workspace will be configured based on warehouse type."}
-        </Typography>
+        {errorMessage ? (
+          <Typography variant="body2" color="text.secondary">
+            {errorMessage}
+          </Typography>
+        ) : isLoading ? (
+          <ContentLoader label="Loading warehouse..." minHeight={200} />
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            Warehouse workspace will be configured based on warehouse type.
+          </Typography>
+        )}
       </MasterSectionCard>
     </MasterPageShell>
   );

@@ -28,6 +28,7 @@ import {
   portalButtonGroupGap,
 } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import { useDebouncedValue } from "../../shared/useDebouncedValue";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
@@ -38,11 +39,14 @@ import {
   revertStorageItemApi,
   type StorageProductionWarehouseOption,
 } from "../storage/api/storageApi";
+import { fetchGradesApi } from "../../masters/grade-master/gradeMasterApi";
+import type { MasterRecord } from "../../masters/shared/types";
 import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
 import { StorageVeneerBlocksInventory } from "../storage/StorageVeneerBlocksInventory";
 import {
+  STORAGE_EXPORT_COLUMNS,
   STORAGE_INVENTORY_TABS,
   STORAGE_SECTION_TABS,
   getActiveStorageInventoryTab,
@@ -84,6 +88,7 @@ export function StorageWarehousePage({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState("");
+  const debouncedSearchValue = useDebouncedValue(searchValue, 450);
 
   const activeInventory = getActiveStorageInventoryTab(
     searchParams.get("inventory")
@@ -110,8 +115,12 @@ export function StorageWarehousePage({
   const [moveTargetRows, setMoveTargetRows] = useState<WarehouseInventoryRow[]>([]);
   const [productionWarehouses, setProductionWarehouses] = useState<StorageProductionWarehouseOption[]>([]);
   const [selectedProductionWarehouseId, setSelectedProductionWarehouseId] = useState("");
+  const [gradeOptions, setGradeOptions] = useState<MasterRecord[]>([]);
+  const [selectedGradeId, setSelectedGradeId] = useState("");
   const [moveRemark, setMoveRemark] = useState("");
   const [isMoving, setIsMoving] = useState(false);
+  const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
+  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
 
   const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
   const canView = canAccessPermission(warehousePermissionKey, "view");
@@ -154,43 +163,69 @@ export function StorageWarehousePage({
     setSelectionResetKey((current) => current + 1);
   };
 
-  const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
-
   // Move to production logic
   const handleOpenMoveDialog = useCallback(
     async (rowsToMove: WarehouseInventoryRow[]) => {
       setMoveTargetRows(rowsToMove);
       setMoveRemark("");
       setSelectedProductionWarehouseId("");
+      setSelectedGradeId("");
       setIsLoadingWarehouses(true);
+      setIsLoadingGrades(true);
       setMoveDialogOpen(true);
 
       try {
-        const result = await fetchStorageProductionWarehouses(warehouseId);
-        const items = result?.items ?? [];
+        const [warehouseResult, gradeRecords] = await Promise.all([
+          fetchStorageProductionWarehouses(warehouseId),
+          fetchGradesApi({ status: true, limit: 1000 }),
+        ]);
+
+        const items = warehouseResult?.items ?? [];
         setProductionWarehouses(items);
-        if (result?.suggestedWarehouseId && items.some((i) => i.id === result.suggestedWarehouseId)) {
-          setSelectedProductionWarehouseId(result.suggestedWarehouseId);
+        if (
+          warehouseResult?.suggestedWarehouseId &&
+          items.some((i) => i.id === warehouseResult.suggestedWarehouseId)
+        ) {
+          setSelectedProductionWarehouseId(warehouseResult.suggestedWarehouseId);
         } else if (items.length > 0 && items[0]) {
           setSelectedProductionWarehouseId(items[0].id);
         }
+
+        const activeGrades = gradeRecords.filter(
+          (record) =>
+            String(record.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        setGradeOptions(activeGrades);
+        if (activeGrades.length > 0 && activeGrades[0]?.id) {
+          setSelectedGradeId(String(activeGrades[0].id));
+        }
       } catch (err) {
-        console.error("Failed to load production warehouses", err);
+        console.error("Failed to load move-to-production options", err);
         setProductionWarehouses([]);
+        setGradeOptions([]);
       } finally {
         setIsLoadingWarehouses(false);
+        setIsLoadingGrades(false);
       }
     },
-    [warehouseId]
+    [warehouseId],
   );
 
   const handleConfirmMove = async () => {
-    if (!selectedProductionWarehouseId || moveTargetRows.length === 0 || isMoving) return;
+    if (
+      !selectedProductionWarehouseId ||
+      !selectedGradeId ||
+      moveTargetRows.length === 0 ||
+      isMoving
+    ) {
+      return;
+    }
     setIsMoving(true);
     try {
       for (const row of moveTargetRows) {
         await moveStorageItemToProductionApi(activeInventory, row.id, {
           productionWarehouseId: selectedProductionWarehouseId,
+          gradeId: selectedGradeId,
           remark: moveRemark || null,
         });
       }
@@ -199,7 +234,11 @@ export function StorageWarehousePage({
       setSelectionResetKey((c) => c + 1);
       setRefreshTrigger((c) => c + 1);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to move to production warehouse");
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Failed to move to production warehouse",
+      );
     } finally {
       setIsMoving(false);
     }
@@ -280,7 +319,9 @@ export function StorageWarehousePage({
       const items = await exportStorageInventoryApi(activeInventory, {
         warehouseId,
         section: activeSection,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(debouncedSearchValue.trim()
+          ? { search: debouncedSearchValue.trim() }
+          : {}),
       });
 
       if (items.length === 0) {
@@ -290,30 +331,7 @@ export function StorageWarehousePage({
 
       exportRowsToCsv(
         items as any,
-        [
-          { key: "storageSrNo", label: "Storage Sr No" },
-          { key: "inwardSrNo", label: "Inward Sr No" },
-          { key: "inwardDate", label: "Inward Date" },
-          { key: "invoiceNo", label: "Invoice No" },
-          { key: "inwardWarehouseName", label: "Inward Warehouse" },
-          { key: "supplierName", label: "Supplier" },
-          { key: "itemName", label: "Item Name" },
-          { key: "itemCategoryName", label: "Category" },
-          { key: "itemSubCategoryName", label: "Sub Category" },
-          { key: "batchNo", label: "Batch No" },
-          { key: "logCode", label: "Log Code" },
-          { key: "bundleNumber", label: "Bundle No" },
-          { key: "palletNo", label: "Pallet No" },
-          { key: "sheets", label: "Sheets" },
-          { key: "cbm", label: "CBM" },
-          { key: "totalSqMeter", label: "Total SQM" },
-          { key: "rate", label: "Rate" },
-          { key: "amount", label: "Amount" },
-          { key: "totalAmount", label: "Total Amount" },
-          { key: "currency", label: "Currency" },
-          { key: "qcStatus", label: "QC Status" },
-          { key: "remark", label: "Remark" },
-        ],
+        [...STORAGE_EXPORT_COLUMNS],
         `storage-${activeInventory}`
       );
     } catch (err) {
@@ -526,28 +544,28 @@ export function StorageWarehousePage({
         {activeInventory === "veneer-blocks" ? (
           <StorageVeneerBlocksInventory
             {...panelProps}
-            searchValue={searchValue}
+            searchValue={debouncedSearchValue}
             getRowActions={getRowActions}
           />
         ) : null}
         {activeInventory === "raw-veneer" ? (
           <StorageRawVeneerInventory
             {...panelProps}
-            searchValue={searchValue}
+            searchValue={debouncedSearchValue}
             getRowActions={getRowActions}
           />
         ) : null}
         {activeInventory === "plywood" ? (
           <StoragePlywoodInventory
             {...panelProps}
-            searchValue={searchValue}
+            searchValue={debouncedSearchValue}
             getRowActions={getRowActions}
           />
         ) : null}
         {activeInventory === "mdf" ? (
           <StorageMdfInventory
             {...panelProps}
-            searchValue={searchValue}
+            searchValue={debouncedSearchValue}
             getRowActions={getRowActions}
           />
         ) : null}
@@ -599,6 +617,41 @@ export function StorageWarehousePage({
 
             <Stack spacing={1}>
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                Grade
+              </Typography>
+              <Select
+                size="small"
+                fullWidth
+                displayEmpty
+                value={selectedGradeId}
+                onChange={(e) => setSelectedGradeId(e.target.value)}
+                disabled={isLoadingGrades || gradeOptions.length === 0}
+              >
+                {isLoadingGrades ? (
+                  <MenuItem value="" disabled>
+                    Loading grades...
+                  </MenuItem>
+                ) : gradeOptions.length === 0 ? (
+                  <MenuItem value="" disabled>
+                    No active grades in Grade Master
+                  </MenuItem>
+                ) : (
+                  gradeOptions.map((grade) => {
+                    const label = String(
+                      grade.gradeName || grade.name || "Grade",
+                    );
+                    return (
+                      <MenuItem key={String(grade.id)} value={String(grade.id)}>
+                        {label}
+                      </MenuItem>
+                    );
+                  })
+                )}
+              </Select>
+            </Stack>
+
+            <Stack spacing={1}>
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Remark (Optional)
               </Typography>
               <TextField
@@ -625,7 +678,11 @@ export function StorageWarehousePage({
           <Button
             variant="contained"
             onClick={() => void handleConfirmMove()}
-            disabled={isMoving || !selectedProductionWarehouseId}
+            disabled={
+              isMoving ||
+              !selectedProductionWarehouseId ||
+              !selectedGradeId
+            }
             sx={bulkPrimaryButtonSx}
           >
             {isMoving ? "Moving..." : "Confirm Move"}

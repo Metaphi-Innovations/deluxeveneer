@@ -88,6 +88,14 @@ export const WarehouseAAddStockWorkspace = forwardRef<
   const [additionalCharges, setAdditionalCharges] = useState<
     AdditionalChargeRow[]
   >([]);
+  const [consumableRowErrors, setConsumableRowErrors] = useState<
+    Record<string, { name?: string; price?: string }>
+  >({});
+  const [chargeRowErrors, setChargeRowErrors] = useState<
+    Record<string, { name?: string; amount?: string }>
+  >({});
+  const [consumableAddMessage, setConsumableAddMessage] = useState("");
+  const [chargeAddMessage, setChargeAddMessage] = useState("");
 
   const gstMode = useMemo(
     () => getWarehouseAGstMode(supplierName, warehouseState),
@@ -134,6 +142,17 @@ export const WarehouseAAddStockWorkspace = forwardRef<
   }, [additionalChargesTotal, lineTotals, otherConsumablesTotal]);
 
   const handleAddConsumable = () => {
+    const nextErrors = collectConsumableErrors(otherConsumables);
+    if (Object.keys(nextErrors).length > 0) {
+      setConsumableRowErrors(nextErrors);
+      setConsumableAddMessage(
+        "Fill the current consumable before adding another.",
+      );
+      return;
+    }
+
+    setConsumableRowErrors({});
+    setConsumableAddMessage("");
     const id = `consumable-${nextConsumableId.current}`;
     nextConsumableId.current += 1;
     setOtherConsumables((current) => [
@@ -157,13 +176,43 @@ export const WarehouseAAddStockWorkspace = forwardRef<
           : row,
       ),
     );
+    setConsumableRowErrors((current) => {
+      const rowError = current[id];
+      if (!rowError || !value.trim()) return current;
+      const nextRow = { ...rowError };
+      delete nextRow[key];
+      const next = { ...current };
+      if (!nextRow.name && !nextRow.price) {
+        delete next[id];
+      } else {
+        next[id] = nextRow;
+      }
+      return next;
+    });
+    setConsumableAddMessage("");
   };
 
   const handleRemoveConsumable = (id: string) => {
     setOtherConsumables((current) => current.filter((row) => row.id !== id));
+    setConsumableRowErrors((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setConsumableAddMessage("");
   };
 
   const handleAddCharge = () => {
+    const nextErrors = collectChargeErrors(additionalCharges);
+    if (Object.keys(nextErrors).length > 0) {
+      setChargeRowErrors(nextErrors);
+      setChargeAddMessage("Fill the current charge before adding another.");
+      return;
+    }
+
+    setChargeRowErrors({});
+    setChargeAddMessage("");
     const id = `charge-${nextChargeId.current}`;
     nextChargeId.current += 1;
     setAdditionalCharges((current) => [
@@ -187,10 +236,31 @@ export const WarehouseAAddStockWorkspace = forwardRef<
           : row,
       ),
     );
+    setChargeRowErrors((current) => {
+      const rowError = current[id];
+      if (!rowError || !value.trim()) return current;
+      const nextRow = { ...rowError };
+      delete nextRow[key];
+      const next = { ...current };
+      if (!nextRow.name && !nextRow.amount) {
+        delete next[id];
+      } else {
+        next[id] = nextRow;
+      }
+      return next;
+    });
+    setChargeAddMessage("");
   };
 
   const handleRemoveCharge = (id: string) => {
     setAdditionalCharges((current) => current.filter((row) => row.id !== id));
+    setChargeRowErrors((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setChargeAddMessage("");
   };
 
   useImperativeHandle(
@@ -211,7 +281,26 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             price: row.price.trim(),
           })),
       getLineItems: () => lineItemsRef.current?.getFilledLineItems() ?? [],
-      validate: () => lineItemsRef.current?.validate() ?? true,
+      validate: () => {
+        const itemsValid = lineItemsRef.current?.validate() ?? true;
+        const nextConsumableErrors = collectConsumableErrors(otherConsumables);
+        const nextChargeErrors = collectChargeErrors(additionalCharges);
+        const consumablesValid = Object.keys(nextConsumableErrors).length === 0;
+        const chargesValid = Object.keys(nextChargeErrors).length === 0;
+
+        setConsumableRowErrors(nextConsumableErrors);
+        setChargeRowErrors(nextChargeErrors);
+        setConsumableAddMessage(
+          consumablesValid
+            ? ""
+            : "Fill the current consumable before saving.",
+        );
+        setChargeAddMessage(
+          chargesValid ? "" : "Fill the current charge before saving.",
+        );
+
+        return itemsValid && consumablesValid && chargesValid;
+      },
     }),
     [additionalCharges, otherConsumables],
   );
@@ -280,6 +369,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     <TextField
                       fullWidth
+                      error={Boolean(consumableRowErrors[row.id]?.name)}
                       placeholder="Enter consumable name"
                       size="small"
                       value={row.name}
@@ -290,6 +380,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     />
                     <TextField
                       fullWidth
+                      error={Boolean(consumableRowErrors[row.id]?.price)}
                       placeholder="Price"
                       size="small"
                       value={row.price}
@@ -330,6 +421,11 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     Add Consumable
                   </Button>
+                  {consumableAddMessage ? (
+                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+                      {consumableAddMessage}
+                    </Typography>
+                  ) : null}
                 </Box>
               </Stack>
             </Box>
@@ -394,6 +490,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     <TextField
                       fullWidth
+                      error={Boolean(chargeRowErrors[row.id]?.name)}
                       placeholder="Enter charge name"
                       size="small"
                       value={row.name}
@@ -404,6 +501,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     />
                     <TextField
                       fullWidth
+                      error={Boolean(chargeRowErrors[row.id]?.amount)}
                       placeholder="Amount"
                       size="small"
                       value={row.amount}
@@ -444,6 +542,11 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     Add Charge
                   </Button>
+                  {chargeAddMessage ? (
+                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+                      {chargeAddMessage}
+                    </Typography>
+                  ) : null}
                 </Box>
               </Stack>
 
@@ -593,6 +696,36 @@ function SummaryLine({
         {formatAmount(value)}
       </Typography>
     </Box>
+  );
+}
+
+function collectConsumableErrors(rows: readonly OtherConsumableRow[]) {
+  return rows.reduce<Record<string, { name?: string; price?: string }>>(
+    (errors, row) => {
+      const rowErrors: { name?: string; price?: string } = {};
+      if (!row.name.trim()) rowErrors.name = "Consumable name is required.";
+      if (!row.price.trim()) rowErrors.price = "Price is required.";
+      if (rowErrors.name || rowErrors.price) {
+        errors[row.id] = rowErrors;
+      }
+      return errors;
+    },
+    {},
+  );
+}
+
+function collectChargeErrors(rows: readonly AdditionalChargeRow[]) {
+  return rows.reduce<Record<string, { name?: string; amount?: string }>>(
+    (errors, row) => {
+      const rowErrors: { name?: string; amount?: string } = {};
+      if (!row.name.trim()) rowErrors.name = "Charge name is required.";
+      if (!row.amount.trim()) rowErrors.amount = "Amount is required.";
+      if (rowErrors.name || rowErrors.amount) {
+        errors[row.id] = rowErrors;
+      }
+      return errors;
+    },
+    {},
   );
 }
 

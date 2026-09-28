@@ -102,7 +102,7 @@ export function UserManagementListing() {
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [passwordDialogUser, setPasswordDialogUser] =
     useState<UserManagementRecord | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -128,9 +128,9 @@ export function UserManagementListing() {
 
   useEffect(() => {
     let ignore = false;
+    setIsLoading(true);
 
     const timer = setTimeout(async () => {
-      setIsLoading(true);
       setErrorMessage("");
 
       try {

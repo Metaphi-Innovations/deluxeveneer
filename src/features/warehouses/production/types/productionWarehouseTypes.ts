@@ -14,6 +14,8 @@ export const productionWarehouseTabs = [
 ] as const;
 
 export interface RawVeneerRow extends EnterpriseTableRow {
+  productionSrNo: string;
+  storageSrNo: string;
   inwardDate: string | Date;
   itemName: string;
   subCategory: string;
@@ -26,12 +28,16 @@ export interface RawVeneerRow extends EnterpriseTableRow {
   grade: string;
   currency: string;
   amount: string;
+  totalAmount: string;
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  updatedBy: string;
 }
 
 export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = [
+  { key: "productionSrNo", label: "Production Sr No" },
+  { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -44,10 +50,14 @@ export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = 
   { key: "grade", label: "Grade" },
   { key: "currency", label: "Currency" },
   { key: "amount", label: "Amount" },
+  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "updatedBy", label: "Updated By" },
 ];
 
 export interface PlywoodRow extends EnterpriseTableRow {
+  productionSrNo: string;
+  storageSrNo: string;
   inwardDate: string | Date;
   itemName: string;
   subCategory: string;
@@ -58,13 +68,19 @@ export interface PlywoodRow extends EnterpriseTableRow {
   noOfSheets: string;
   sqm: string;
   sqf: string;
+  grade: string;
+  currency: string;
   amount: string;
+  totalAmount: string;
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  updatedBy: string;
 }
 
 export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
+  { key: "productionSrNo", label: "Production Sr No" },
+  { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -75,11 +91,17 @@ export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
   { key: "noOfSheets", label: "No of Sheets" },
   { key: "sqm", label: "SQM" },
   { key: "sqf", label: "SQF" },
+  { key: "grade", label: "Grade" },
+  { key: "currency", label: "Currency" },
   { key: "amount", label: "Amount" },
+  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "updatedBy", label: "Updated By" },
 ];
 
 export interface MdfRow extends EnterpriseTableRow {
+  productionSrNo: string;
+  storageSrNo: string;
   inwardDate: string | Date;
   itemName: string;
   mdfType: string;
@@ -89,14 +111,19 @@ export interface MdfRow extends EnterpriseTableRow {
   noOfLeaves: string;
   sqm: string;
   sqf: string;
+  grade: string;
   currency: string;
   amount: string;
+  totalAmount: string;
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  updatedBy: string;
 }
 
 export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
+  { key: "productionSrNo", label: "Production Sr No" },
+  { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
   { key: "itemName", label: "Item Name" },
   { key: "mdfType", label: "MDF Type" },
@@ -106,9 +133,12 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "noOfLeaves", label: "No of Leaves" },
   { key: "sqm", label: "SQM" },
   { key: "sqf", label: "SQF" },
+  { key: "grade", label: "Grade" },
   { key: "currency", label: "Currency" },
   { key: "amount", label: "Amount" },
-  { key: "remark", label: "Remarks" },
+  { key: "totalAmount", label: "Total Amount" },
+  { key: "remark", label: "Remark" },
+  { key: "updatedBy", label: "Updated By" },
 ];
 
 export interface SampleSheetTableRow extends EnterpriseTableRow {

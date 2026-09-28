@@ -247,6 +247,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
     createEmptyRow(slug, nextRowId, columnConfig),
   ]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [addItemMessage, setAddItemMessage] = useState("");
   const [rowErrors, setRowErrors] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -258,6 +259,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
     nextRowId.current = 1;
     setLineItems([createEmptyRow(slug, nextRowId, columnConfig)]);
     setSubmitAttempted(false);
+    setAddItemMessage("");
     setRowErrors({});
   }, [columnConfig, slug]);
 
@@ -335,7 +337,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
       }),
     );
 
-    if (submitAttempted) {
+    if (submitAttempted || addItemMessage) {
       setRowErrors((current) => {
         const next = { ...current };
         const row = lineItems.find((item) => item.id === rowId);
@@ -355,6 +357,9 @@ export const WarehouseAAddStockLineItems = forwardRef<
           next[rowId] = errors;
         } else {
           delete next[rowId];
+          if (Object.keys(next).length === 0) {
+            setAddItemMessage("");
+          }
         }
 
         return next;
@@ -363,6 +368,24 @@ export const WarehouseAAddStockLineItems = forwardRef<
   };
 
   const handleAddLineItem = () => {
+    const nextErrors: Record<string, Record<string, string>> = {};
+    let canAdd = true;
+
+    lineItems.forEach((row) => {
+      const errors = getLineItemValidationErrors(columnConfig, row.values);
+      if (hasValidationErrors(errors)) {
+        nextErrors[row.id] = errors;
+        canAdd = false;
+      }
+    });
+
+    if (!canAdd) {
+      setRowErrors(nextErrors);
+      setAddItemMessage("Fill the current item before adding another.");
+      return;
+    }
+
+    setAddItemMessage("");
     const newRow = createEmptyRow(slug, nextRowId, columnConfig);
     setLineItems((current) => [...current, newRow]);
     setPendingFocusRowId(newRow.id);
@@ -541,7 +564,11 @@ export const WarehouseAAddStockLineItems = forwardRef<
         </Button>
       </Box>
 
-      {submitAttempted && Object.keys(rowErrors).length > 0 ? (
+      {addItemMessage ? (
+        <Typography variant="caption" color="error">
+          {addItemMessage}
+        </Typography>
+      ) : submitAttempted && Object.keys(rowErrors).length > 0 ? (
         <Typography variant="caption" color="error">
           Complete required item fields before saving.
         </Typography>
@@ -791,8 +818,8 @@ function getFieldValidationError(
   return "";
 }
 
-function isDynamicColumnRequired(_column: DynamicFieldConfig) {
-  return false;
+function isDynamicColumnRequired(column: DynamicFieldConfig) {
+  return Boolean(column.required);
 }
 
 function ColumnLabel({

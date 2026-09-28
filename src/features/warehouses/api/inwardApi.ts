@@ -34,6 +34,7 @@ export interface InwardListItem {
   remark: string | null;
   status: boolean;
   sortOrder: number;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -196,6 +197,16 @@ export interface InwardDetail {
   items: InwardItemDetail[];
   otherConsumables: InwardOtherConsumableDetail[];
   additionalCharges: InwardAdditionalChargeDetail[];
+  createdBy?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  updatedBy?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -343,6 +354,7 @@ export function mapInwardListItemToRow(
     avSqf: "",
     plywoodType: "",
     mdfType: "",
+    updatedBy: item.updatedBy ?? "",
   };
 }
 
