@@ -5,3 +5,4 @@ export * from "./MasterPageShell";
 export * from "./MasterSectionCard";
 export * from "./types";
 export * from "./utils";
+export * from "./masterDocumentValue";

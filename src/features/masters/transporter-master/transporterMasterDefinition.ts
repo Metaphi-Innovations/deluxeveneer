@@ -1,0 +1,43 @@
+import type { MasterDefinition } from "../shared/types";
+
+export const transporterMasterDefinition: MasterDefinition = {
+  slug: "transporter-master",
+  title: "Transporter Master",
+  gridColumns: 3,
+  columns: [
+    { key: "transporterName", label: "Transporter Name" },
+    { key: "branchName", label: "Branch Name" },
+    { key: "transporterId", label: "Transporter Id" },
+    { key: "type", label: "Type" },
+    { key: "areaOfOperation", label: "Area Of Operation" },
+    { key: "status", label: "Status" },
+    { key: "createdBy", label: "Created By" },
+    { key: "editedBy", label: "Updated By" },
+    { key: "createdDate", label: "Created Date" },
+    { key: "updatedDate", label: "Updated Date" },
+  ],
+  filters: [
+    { key: "type", label: "Type", options: ["Road", "Air", "Rail"] },
+    { key: "areaOfOperation", label: "Area Of Operation", options: [] },
+    { key: "status", label: "Status", options: ["Active", "Inactive"] },
+  ],
+  fields: [
+    { key: "transporterName", label: "Transporter Name", type: "text" },
+    { key: "branchName", label: "Branch Name", type: "text" },
+    { key: "transporterId", label: "Transporter Id", type: "text" },
+    {
+      key: "type",
+      label: "Type",
+      type: "select",
+      options: ["Road", "Air", "Rail"],
+    },
+    {
+      key: "areaOfOperation",
+      label: "Area Of Operation",
+      type: "text",
+    },
+    { key: "remark", label: "Remark", type: "text" },
+    { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
+  ],
+  rows: [],
+};

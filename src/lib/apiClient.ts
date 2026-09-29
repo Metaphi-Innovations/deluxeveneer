@@ -42,7 +42,10 @@ export async function apiRequest<TResponse>(
   };
 
   if (options.body !== undefined) {
-    requestInit.body = JSON.stringify(options.body);
+    requestInit.body =
+      typeof options.body === 'string'
+        ? options.body
+        : JSON.stringify(options.body);
   }
 
   let response = await fetch(url, requestInit);

@@ -15,7 +15,7 @@ import {
   ErpSelectField,
 } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { transporterMasterOptions } from "../../masters/shared/masterDefinitions";
+import { getTransporterMasterOptions } from "../../masters/shared/masterDefinitions";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import {
   markDispatchDone,
@@ -35,7 +35,7 @@ export function DispatchMarkDoneDialog({
 }) {
   const [dispatchDate, setDispatchDate] = useState<Date | null>(new Date());
   const [transporter, setTransporter] = useState(
-    transporterMasterOptions[0] ?? "",
+    getTransporterMasterOptions()[0] ?? "",
   );
   const [transportMode, setTransportMode] = useState<string>("Road");
   const [remark, setRemark] = useState("");
@@ -47,7 +47,7 @@ export function DispatchMarkDoneDialog({
 
     setDispatchDate(new Date());
     setTransporter(
-      record.dispatchTransporter || transporterMasterOptions[0] || "",
+      record.dispatchTransporter || getTransporterMasterOptions()[0] || "",
     );
     setTransportMode(record.dispatchTransportMode || "Road");
     setRemark("");
@@ -101,7 +101,7 @@ export function DispatchMarkDoneDialog({
             <FieldLabel>Transporter</FieldLabel>
             <ErpSelectField
               onChange={setTransporter}
-              options={[...transporterMasterOptions]}
+              options={[...getTransporterMasterOptions()]}
               size="dense"
               value={transporter}
             />

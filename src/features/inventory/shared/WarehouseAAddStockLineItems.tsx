@@ -101,9 +101,10 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
+    { key: "thickness", label: "Height", minWidth: 90, placeholder: "Height", type: "text", required: true },
     { key: "cbm", label: "CBM", minWidth: 100, placeholder: "CBM", type: "text", required: true },
-    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -123,7 +124,8 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
     { key: "noOfLeaves", label: "No of Leaves", minWidth: 110, placeholder: "Leaves", type: "text", required: true },
     { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
-    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -135,14 +137,13 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
-    { key: "color", label: "Color", minWidth: 160, options: ["Natural Oak", "Walnut Brown", "Teak Gold", "Ash Grey"], placeholder: "Color", type: "select" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
     { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
     { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
     { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
@@ -155,20 +156,20 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
     { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
-    { key: "noOfSheets", label: "No of Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
-    { key: "totalSqm", label: "Total SQM", minWidth: 100, placeholder: "SQM", type: "text", required: true },
+    { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
+    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
     { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remarks", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
   ],
   consumables: [
     { key: "supplierItemName", label: "Supplier Item Name", minWidth: 220, placeholder: "Supplier Item", type: "text", required: true },
@@ -199,6 +200,19 @@ export function getWarehouseAAddStockTableConfig(
   return warehouseAAddStockTableConfigs[slug];
 }
 
+export function getWarehouseAVisibleColumns(
+  columns: readonly WarehouseAAddStockFieldConfig[],
+  gstMode: WarehouseAGstMode,
+  _slug?: WarehouseAAddStockSlug,
+) {
+  return columns.filter((column) => {
+    if (gstMode === "inter") {
+      return column.key !== "cgst" && column.key !== "sgst";
+    }
+    return column.key !== "igst";
+  });
+}
+
 export function getWarehouseAAddStockTableMinWidth(
   columns: readonly WarehouseAAddStockFieldConfig[],
   includeActions = true,
@@ -223,12 +237,17 @@ export const WarehouseAAddStockLineItems = forwardRef<
 }, ref) {
   const theme = useTheme();
   const columnConfig = warehouseAAddStockTableConfigs[slug];
+  const visibleColumns = useMemo(
+    () => getWarehouseAVisibleColumns(columnConfig, gstMode, slug),
+    [columnConfig, gstMode, slug],
+  );
   const nextRowId = useRef(1);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [lineItems, setLineItems] = useState<DynamicLineItem[]>(() => [
     createEmptyRow(slug, nextRowId, columnConfig),
   ]);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [addItemMessage, setAddItemMessage] = useState("");
   const [rowErrors, setRowErrors] = useState<
     Record<string, Record<string, string>>
   >({});
@@ -240,6 +259,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
     nextRowId.current = 1;
     setLineItems([createEmptyRow(slug, nextRowId, columnConfig)]);
     setSubmitAttempted(false);
+    setAddItemMessage("");
     setRowErrors({});
   }, [columnConfig, slug]);
 
@@ -247,10 +267,10 @@ export const WarehouseAAddStockLineItems = forwardRef<
     setLineItems((current) =>
       current.map((row) => ({
         ...row,
-        values: applyTaxCalculations(row.values, gstMode),
+        values: applyTaxCalculations(row.values, gstMode, slug),
       })),
     );
-  }, [gstMode]);
+  }, [gstMode, slug]);
 
   useEffect(() => {
     onTotalsChange?.(summarizeLineItemTotals(lineItems));
@@ -281,8 +301,8 @@ export const WarehouseAAddStockLineItems = forwardRef<
   }, [lineItems, pendingFocusRowId]);
 
   const tableMinWidth = useMemo(
-    () => getWarehouseAAddStockTableMinWidth(columnConfig),
-    [columnConfig],
+    () => getWarehouseAAddStockTableMinWidth(visibleColumns),
+    [visibleColumns],
   );
 
   const handleFieldChange = (rowId: string, key: string, value: string) => {
@@ -308,7 +328,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           }
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
 
         return {
           ...row,
@@ -317,7 +337,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
       }),
     );
 
-    if (submitAttempted) {
+    if (submitAttempted || addItemMessage) {
       setRowErrors((current) => {
         const next = { ...current };
         const row = lineItems.find((item) => item.id === rowId);
@@ -330,13 +350,16 @@ export const WarehouseAAddStockLineItems = forwardRef<
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
 
-        nextValues = applyTaxCalculations(nextValues, gstMode);
+        nextValues = applyTaxCalculations(nextValues, gstMode, slug);
         const errors = getLineItemValidationErrors(columnConfig, nextValues);
 
         if (hasValidationErrors(errors)) {
           next[rowId] = errors;
         } else {
           delete next[rowId];
+          if (Object.keys(next).length === 0) {
+            setAddItemMessage("");
+          }
         }
 
         return next;
@@ -345,6 +368,24 @@ export const WarehouseAAddStockLineItems = forwardRef<
   };
 
   const handleAddLineItem = () => {
+    const nextErrors: Record<string, Record<string, string>> = {};
+    let canAdd = true;
+
+    lineItems.forEach((row) => {
+      const errors = getLineItemValidationErrors(columnConfig, row.values);
+      if (hasValidationErrors(errors)) {
+        nextErrors[row.id] = errors;
+        canAdd = false;
+      }
+    });
+
+    if (!canAdd) {
+      setRowErrors(nextErrors);
+      setAddItemMessage("Fill the current item before adding another.");
+      return;
+    }
+
+    setAddItemMessage("");
     const newRow = createEmptyRow(slug, nextRowId, columnConfig);
     setLineItems((current) => [...current, newRow]);
     setPendingFocusRowId(newRow.id);
@@ -443,7 +484,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
           >
             <TableHead>
               <TableRow>
-                {columnConfig.map((column) => (
+                {visibleColumns.map((column) => (
                   <TableCell
                     key={column.key}
                     sx={getHeaderCellSx(theme, column.minWidth)}
@@ -474,7 +515,7 @@ export const WarehouseAAddStockLineItems = forwardRef<
                       },
                     }}
                   >
-                    {columnConfig.map((column) => (
+                    {visibleColumns.map((column) => (
                       <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                         {renderEditableField({
                           column,
@@ -523,7 +564,11 @@ export const WarehouseAAddStockLineItems = forwardRef<
         </Button>
       </Box>
 
-      {submitAttempted && Object.keys(rowErrors).length > 0 ? (
+      {addItemMessage ? (
+        <Typography variant="caption" color="error">
+          {addItemMessage}
+        </Typography>
+      ) : submitAttempted && Object.keys(rowErrors).length > 0 ? (
         <Typography variant="caption" color="error">
           Complete required item fields before saving.
         </Typography>
@@ -616,10 +661,41 @@ function isActiveMasterRecord(row: MasterRecord) {
 function applyTaxCalculations(
   values: Record<string, string>,
   gstMode: WarehouseAGstMode,
+  slug?: WarehouseAAddStockSlug,
 ) {
-  const productAmount = parseAmountValue(values.productAmount ?? "");
+  const nextValues = { ...values };
+  const rate = parseAmountValue(nextValues.rate ?? "");
+  const hasCbm = Object.prototype.hasOwnProperty.call(nextValues, "cbm");
+  const hasSqMeter = Object.prototype.hasOwnProperty.call(
+    nextValues,
+    "totalSqMeter",
+  );
+
+  // Veneer blocks: Amount = CBM × Rate
+  // Raw veneer (and sheet goods): Amount = Total Sq Meter × Rate
+  if (rate > 0) {
+    if (hasCbm) {
+      const cbm = parseAmountValue(nextValues.cbm ?? "");
+      if (cbm > 0) {
+        const calculatedAmount = Math.round(cbm * rate * 100) / 100;
+        nextValues.productAmount = calculatedAmount.toFixed(2);
+        nextValues.amount = calculatedAmount.toFixed(2);
+      }
+    } else if (hasSqMeter) {
+      const area = parseAmountValue(nextValues.totalSqMeter ?? "");
+      if (area > 0) {
+        const calculatedAmount = Math.round(area * rate * 100) / 100;
+        nextValues.productAmount = calculatedAmount.toFixed(2);
+        nextValues.amount = calculatedAmount.toFixed(2);
+      }
+    }
+  }
+
+  const productAmount = parseAmountValue(
+    nextValues.productAmount ?? nextValues.amount ?? "",
+  );
   const gstPercentage = parseAmountValue(
-    (values.gstPercentage ?? "").replace(/%/g, ""),
+    (nextValues.gstPercentage ?? "").replace(/%/g, ""),
   );
   const gstAmount = productAmount * (gstPercentage / 100);
 
@@ -637,7 +713,7 @@ function applyTaxCalculations(
   const totalAmount = productAmount + cgst + sgst + igst;
 
   return {
-    ...values,
+    ...nextValues,
     cgst: formatAmount(cgst),
     sgst: formatAmount(sgst),
     igst: formatAmount(igst),
@@ -697,7 +773,11 @@ function createEmptyValues(columns: readonly DynamicFieldConfig[]) {
 
 function allValuesEmpty(values: Record<string, string>) {
   return Object.entries(values).every(([key, value]) => {
-    if (["cgst", "sgst", "igst", "totalAmount"].includes(key)) {
+    if (
+      ["cgst", "sgst", "igst", "totalAmount", "productAmount", "amount"].includes(
+        key,
+      )
+    ) {
       return true;
     }
 
@@ -738,8 +818,8 @@ function getFieldValidationError(
   return "";
 }
 
-function isDynamicColumnRequired(_column: DynamicFieldConfig) {
-  return false;
+function isDynamicColumnRequired(column: DynamicFieldConfig) {
+  return Boolean(column.required);
 }
 
 function ColumnLabel({

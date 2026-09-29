@@ -1,4 +1,9 @@
 import type { MasterFieldValue } from "../../masters/shared";
+import { getCurrentUser } from "../../auth";
+import {
+  applyWarehouseScopedCodesToPermissions,
+  collectWarehouseScopedCodesFromPermissions,
+} from "../../shared/warehousePermission";
 import {
   buildDefaultUserPermissions,
   type UserPermissionFlags,
@@ -248,8 +253,6 @@ export async function updateUserManagementRecord(
     (d) => d.name.toLowerCase() === deptName.toLowerCase()
   );
 
-  const permissionCodes = convertUiPermissionsToCodes(permissions);
-
   const [aadhaarDocumentUrl, panDocumentUrl] = await Promise.all([
     getFilePayloadValue(values.aadhaarUpload),
     getFilePayloadValue(values.panUpload),
@@ -276,8 +279,13 @@ export async function updateUserManagementRecord(
     panNo: getStringValue(values.panNo) || null,
     panDocumentUrl: panDocumentUrl || null,
     remarks: getStringValue(values.remarks) || null,
-    permissionCodes,
   };
+
+  // Only sync permissions when the caller explicitly provides them (Permissions step).
+  // Omitting permissionCodes keeps existing DB permissions intact on basic-info edits.
+  if (permissions !== undefined) {
+    payload.permissionCodes = convertUiPermissionsToCodes(permissions);
+  }
 
   const res = await apiRequest<ApiResponse<BackendUserDetail>>(`/users/${id}`, {
     method: "PATCH",
@@ -327,7 +335,7 @@ export async function updateUserManagementStatus(
     try {
       const current = getCurrentUser();
       const name = `${current.firstName || ""} ${current.lastName || ""}`.trim();
-      updatedByName = name || current.username || current.email || "System";
+      updatedByName = name || current.userName || current.email || "System";
     } catch {
       updatedByName = "System";
     }
@@ -393,6 +401,98 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("USER_MANAGEMENT_UPDATE"),
   };
 
+  permissions.customerMaster = {
+    view: codes.includes("CUSTOMER_MASTER_VIEW"),
+    create: codes.includes("CUSTOMER_MASTER_CREATE"),
+    edit: codes.includes("CUSTOMER_MASTER_UPDATE"),
+  };
+
+  permissions.supplierMaster = {
+    view: codes.includes("SUPPLIER_MASTER_VIEW"),
+    create: codes.includes("SUPPLIER_MASTER_CREATE"),
+    edit: codes.includes("SUPPLIER_MASTER_UPDATE"),
+  };
+
+  permissions.transporterMaster = {
+    view: codes.includes("TRANSPORTER_MASTER_VIEW"),
+    create: codes.includes("TRANSPORTER_MASTER_CREATE"),
+    edit: codes.includes("TRANSPORTER_MASTER_UPDATE"),
+  };
+
+  permissions.colorMaster = {
+    view: codes.includes("COLOR_MASTER_VIEW"),
+    create: codes.includes("COLOR_MASTER_CREATE"),
+    edit: codes.includes("COLOR_MASTER_UPDATE"),
+  };
+
+  permissions.currencyMaster = {
+    view: codes.includes("CURRENCY_MASTER_VIEW"),
+    create: codes.includes("CURRENCY_MASTER_CREATE"),
+    edit: codes.includes("CURRENCY_MASTER_UPDATE"),
+  };
+
+  permissions.cutMaster = {
+    view: codes.includes("CUT_MASTER_VIEW"),
+    create: codes.includes("CUT_MASTER_CREATE"),
+    edit: codes.includes("CUT_MASTER_UPDATE"),
+  };
+
+  permissions.departmentMaster = {
+    view: codes.includes("DEPARTMENT_MASTER_VIEW"),
+    create: codes.includes("DEPARTMENT_MASTER_CREATE"),
+    edit: codes.includes("DEPARTMENT_MASTER_UPDATE"),
+  };
+
+  permissions.gradeMaster = {
+    view: codes.includes("GRADE_MASTER_VIEW"),
+    create: codes.includes("GRADE_MASTER_CREATE"),
+    edit: codes.includes("GRADE_MASTER_UPDATE"),
+  };
+
+  permissions.gstMaster = {
+    view: codes.includes("GST_MASTER_VIEW"),
+    create: codes.includes("GST_MASTER_CREATE"),
+    edit: codes.includes("GST_MASTER_UPDATE"),
+  };
+
+  permissions.hsnMaster = {
+    view: codes.includes("HSN_MASTER_VIEW"),
+    create: codes.includes("HSN_MASTER_CREATE"),
+    edit: codes.includes("HSN_MASTER_UPDATE"),
+  };
+
+  permissions.itemCategoryMaster = {
+    view: codes.includes("ITEM_CATEGORY_MASTER_VIEW"),
+    create: codes.includes("ITEM_CATEGORY_MASTER_CREATE"),
+    edit: codes.includes("ITEM_CATEGORY_MASTER_UPDATE"),
+  };
+
+  permissions.itemMaster = {
+    view: codes.includes("ITEM_MASTER_VIEW"),
+    create: codes.includes("ITEM_MASTER_CREATE"),
+    edit: codes.includes("ITEM_MASTER_UPDATE"),
+  };
+
+  permissions.itemSubCategoryMaster = {
+    view: codes.includes("ITEM_SUB_CATEGORY_MASTER_VIEW"),
+    create: codes.includes("ITEM_SUB_CATEGORY_MASTER_CREATE"),
+    edit: codes.includes("ITEM_SUB_CATEGORY_MASTER_UPDATE"),
+  };
+
+  permissions.unitMaster = {
+    view: codes.includes("UNIT_MASTER_VIEW"),
+    create: codes.includes("UNIT_MASTER_CREATE"),
+    edit: codes.includes("UNIT_MASTER_UPDATE"),
+  };
+
+  permissions.warehouseLocationMaster = {
+    view: codes.includes("WAREHOUSE_MASTER_VIEW"),
+    create: codes.includes("WAREHOUSE_MASTER_CREATE"),
+    edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
+  };
+
+  applyWarehouseScopedCodesToPermissions(codes, permissions);
+
   return {
     id: item.id,
     userName: item.username,
@@ -452,6 +552,62 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
   if (um?.create || um?.edit) {
     codes.push("USER_MANAGEMENT_STATUS_CHANGE");
   }
+
+  const customer = permissions.customerMaster;
+  if (customer?.view) codes.push("CUSTOMER_MASTER_VIEW");
+  if (customer?.create) codes.push("CUSTOMER_MASTER_CREATE");
+  if (customer?.edit) codes.push("CUSTOMER_MASTER_UPDATE");
+  if (customer?.create || customer?.edit) {
+    codes.push("CUSTOMER_MASTER_STATUS_CHANGE");
+  }
+
+  const supplier = permissions.supplierMaster;
+  if (supplier?.view) codes.push("SUPPLIER_MASTER_VIEW");
+  if (supplier?.create) codes.push("SUPPLIER_MASTER_CREATE");
+  if (supplier?.edit) codes.push("SUPPLIER_MASTER_UPDATE");
+  if (supplier?.create || supplier?.edit) {
+    codes.push("SUPPLIER_MASTER_STATUS_CHANGE");
+  }
+
+  const transporter = permissions.transporterMaster;
+  if (transporter?.view) codes.push("TRANSPORTER_MASTER_VIEW");
+  if (transporter?.create) codes.push("TRANSPORTER_MASTER_CREATE");
+  if (transporter?.edit) codes.push("TRANSPORTER_MASTER_UPDATE");
+  if (transporter?.create || transporter?.edit) {
+    codes.push("TRANSPORTER_MASTER_STATUS_CHANGE");
+  }
+
+  // 12 Masters Modules
+  const masterMappings: Array<{ key: string; prefix: string }> = [
+    { key: "colorMaster", prefix: "COLOR_MASTER" },
+    { key: "currencyMaster", prefix: "CURRENCY_MASTER" },
+    { key: "cutMaster", prefix: "CUT_MASTER" },
+    { key: "departmentMaster", prefix: "DEPARTMENT_MASTER" },
+    { key: "gradeMaster", prefix: "GRADE_MASTER" },
+    { key: "gstMaster", prefix: "GST_MASTER" },
+    { key: "hsnMaster", prefix: "HSN_MASTER" },
+    { key: "itemCategoryMaster", prefix: "ITEM_CATEGORY_MASTER" },
+    { key: "itemMaster", prefix: "ITEM_MASTER" },
+    { key: "itemSubCategoryMaster", prefix: "ITEM_SUB_CATEGORY_MASTER" },
+    { key: "unitMaster", prefix: "UNIT_MASTER" },
+  ];
+
+  for (const { key, prefix } of masterMappings) {
+    const perm = permissions[key];
+    if (perm?.view) codes.push(`${prefix}_VIEW`);
+    if (perm?.create) codes.push(`${prefix}_CREATE`);
+    if (perm?.edit) codes.push(`${prefix}_UPDATE`);
+  }
+
+  const warehouse = permissions.warehouseLocationMaster;
+  if (warehouse?.view) codes.push("WAREHOUSE_MASTER_VIEW");
+  if (warehouse?.create) codes.push("WAREHOUSE_MASTER_CREATE");
+  if (warehouse?.edit) codes.push("WAREHOUSE_MASTER_UPDATE");
+  if (warehouse?.create || warehouse?.edit) {
+    codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
+  }
+
+  codes.push(...collectWarehouseScopedCodesFromPermissions(permissions));
 
   return Array.from(new Set(codes));
 }

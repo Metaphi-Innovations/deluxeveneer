@@ -69,11 +69,19 @@ export function ProfilePage() {
               country: detail.country || activeUser.country,
               state: detail.state || activeUser.state,
               city: detail.city || activeUser.city,
-              aadhaarNo: detail.aadhaarNo || activeUser.aadhaarNo,
-              aadhaarUpload: detail.aadhaarUpload || activeUser.aadhaarUpload,
-              panNo: detail.panNo || activeUser.panNo,
-              panUpload: detail.panUpload || activeUser.panUpload,
               remarks: detail.remarks || activeUser.remarks,
+              ...(detail.aadhaarNo || activeUser.aadhaarNo
+                ? { aadhaarNo: detail.aadhaarNo || activeUser.aadhaarNo }
+                : {}),
+              ...(detail.aadhaarUpload || activeUser.aadhaarUpload
+                ? { aadhaarUpload: detail.aadhaarUpload || activeUser.aadhaarUpload }
+                : {}),
+              ...(detail.panNo || activeUser.panNo
+                ? { panNo: detail.panNo || activeUser.panNo }
+                : {}),
+              ...(detail.panUpload || activeUser.panUpload
+                ? { panUpload: detail.panUpload || activeUser.panUpload }
+                : {}),
             };
             setCurrentUser(syncedUser);
             saveCurrentUser(syncedUser);
@@ -163,10 +171,34 @@ export function ProfilePage() {
           nextUser.country = updatedDetail.country || nextUser.country;
           nextUser.state = updatedDetail.state || nextUser.state;
           nextUser.city = updatedDetail.city || nextUser.city;
-          nextUser.aadhaarNo = updatedDetail.aadhaarNo || nextUser.aadhaarNo;
-          nextUser.aadhaarUpload = updatedDetail.aadhaarUpload || nextUser.aadhaarUpload;
-          nextUser.panNo = updatedDetail.panNo || nextUser.panNo;
-          nextUser.panUpload = updatedDetail.panUpload || nextUser.panUpload;
+          const aadhaarNo = updatedDetail.aadhaarNo || nextUser.aadhaarNo;
+          if (aadhaarNo) {
+            nextUser.aadhaarNo = aadhaarNo;
+          } else {
+            delete nextUser.aadhaarNo;
+          }
+
+          const aadhaarUpload = updatedDetail.aadhaarUpload || nextUser.aadhaarUpload;
+          if (aadhaarUpload) {
+            nextUser.aadhaarUpload = aadhaarUpload;
+          } else {
+            delete nextUser.aadhaarUpload;
+          }
+
+          const panNo = updatedDetail.panNo || nextUser.panNo;
+          if (panNo) {
+            nextUser.panNo = panNo;
+          } else {
+            delete nextUser.panNo;
+          }
+
+          const panUpload = updatedDetail.panUpload || nextUser.panUpload;
+          if (panUpload) {
+            nextUser.panUpload = panUpload;
+          } else {
+            delete nextUser.panUpload;
+          }
+
           nextUser.remarks = updatedDetail.remarks || nextUser.remarks;
         }
       }

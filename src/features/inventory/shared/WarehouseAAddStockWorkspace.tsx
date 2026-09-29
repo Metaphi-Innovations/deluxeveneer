@@ -38,6 +38,12 @@ type AdditionalChargeRow = {
   name: string;
 };
 
+type OtherConsumableRow = {
+  id: string;
+  name: string;
+  price: string;
+};
+
 const emptyLineTotals: WarehouseALineItemsTotals = {
   cgst: 0,
   igst: 0,
@@ -47,6 +53,8 @@ const emptyLineTotals: WarehouseALineItemsTotals = {
 };
 
 export interface WarehouseAAddStockWorkspaceHandle {
+  getAdditionalCharges: () => Array<{ chargeName: string; amount: string }>;
+  getOtherConsumables: () => Array<{ consumableName: string; price: string }>;
   getLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
 }
@@ -55,25 +63,52 @@ export const WarehouseAAddStockWorkspace = forwardRef<
   WarehouseAAddStockWorkspaceHandle,
   {
     invoiceDate?: Date | null;
+    onRemarkChange?: (value: string) => void;
+    remark?: string;
     slug: WarehouseAAddStockSlug;
     supplierName?: string;
+    warehouseState?: string;
   }
 >(function WarehouseAAddStockWorkspace({
+  onRemarkChange,
+  remark = "",
   slug,
   supplierName = "",
+  warehouseState = "",
 }, ref) {
   const theme = useTheme();
   const lineItemsRef = useRef<WarehouseAAddStockLineItemsHandle>(null);
   const nextChargeId = useRef(1);
+  const nextConsumableId = useRef(1);
   const [lineTotals, setLineTotals] =
     useState<WarehouseALineItemsTotals>(emptyLineTotals);
+  const [otherConsumables, setOtherConsumables] = useState<OtherConsumableRow[]>(
+    [],
+  );
   const [additionalCharges, setAdditionalCharges] = useState<
     AdditionalChargeRow[]
   >([]);
+  const [consumableRowErrors, setConsumableRowErrors] = useState<
+    Record<string, { name?: string; price?: string }>
+  >({});
+  const [chargeRowErrors, setChargeRowErrors] = useState<
+    Record<string, { name?: string; amount?: string }>
+  >({});
+  const [consumableAddMessage, setConsumableAddMessage] = useState("");
+  const [chargeAddMessage, setChargeAddMessage] = useState("");
 
   const gstMode = useMemo(
-    () => getWarehouseAGstMode(supplierName),
-    [supplierName],
+    () => getWarehouseAGstMode(supplierName, warehouseState),
+    [supplierName, warehouseState],
+  );
+
+  const otherConsumablesTotal = useMemo(
+    () =>
+      otherConsumables.reduce(
+        (total, row) => total + parseNumber(row.price),
+        0,
+      ),
+    [otherConsumables],
   );
 
   const additionalChargesTotal = useMemo(
@@ -91,19 +126,93 @@ export const WarehouseAAddStockWorkspace = forwardRef<
     const sgst = lineTotals.sgst;
     const igst = lineTotals.igst;
     const itemSubTotalWithTax = itemSubTotal + cgst + sgst + igst;
-    const grandTotal = itemSubTotalWithTax + additionalChargesTotal;
+    const grandTotal =
+      itemSubTotalWithTax + otherConsumablesTotal + additionalChargesTotal;
 
     return {
       additionalCharges: additionalChargesTotal,
       cgst,
       grandTotal,
+      igst,
       itemSubTotal,
       itemSubTotalWithTax,
+      otherConsumables: otherConsumablesTotal,
       sgst,
     };
-  }, [additionalChargesTotal, lineTotals]);
+  }, [additionalChargesTotal, lineTotals, otherConsumablesTotal]);
+
+  const handleAddConsumable = () => {
+    const nextErrors = collectConsumableErrors(otherConsumables);
+    if (Object.keys(nextErrors).length > 0) {
+      setConsumableRowErrors(nextErrors);
+      setConsumableAddMessage(
+        "Fill the current consumable before adding another.",
+      );
+      return;
+    }
+
+    setConsumableRowErrors({});
+    setConsumableAddMessage("");
+    const id = `consumable-${nextConsumableId.current}`;
+    nextConsumableId.current += 1;
+    setOtherConsumables((current) => [
+      ...current,
+      { id, name: "", price: "" },
+    ]);
+  };
+
+  const handleConsumableChange = (
+    id: string,
+    key: keyof Omit<OtherConsumableRow, "id">,
+    value: string,
+  ) => {
+    setOtherConsumables((current) =>
+      current.map((row) =>
+        row.id === id
+          ? {
+              ...row,
+              [key]: value,
+            }
+          : row,
+      ),
+    );
+    setConsumableRowErrors((current) => {
+      const rowError = current[id];
+      if (!rowError || !value.trim()) return current;
+      const nextRow = { ...rowError };
+      delete nextRow[key];
+      const next = { ...current };
+      if (!nextRow.name && !nextRow.price) {
+        delete next[id];
+      } else {
+        next[id] = nextRow;
+      }
+      return next;
+    });
+    setConsumableAddMessage("");
+  };
+
+  const handleRemoveConsumable = (id: string) => {
+    setOtherConsumables((current) => current.filter((row) => row.id !== id));
+    setConsumableRowErrors((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setConsumableAddMessage("");
+  };
 
   const handleAddCharge = () => {
+    const nextErrors = collectChargeErrors(additionalCharges);
+    if (Object.keys(nextErrors).length > 0) {
+      setChargeRowErrors(nextErrors);
+      setChargeAddMessage("Fill the current charge before adding another.");
+      return;
+    }
+
+    setChargeRowErrors({});
+    setChargeAddMessage("");
     const id = `charge-${nextChargeId.current}`;
     nextChargeId.current += 1;
     setAdditionalCharges((current) => [
@@ -127,19 +236,73 @@ export const WarehouseAAddStockWorkspace = forwardRef<
           : row,
       ),
     );
+    setChargeRowErrors((current) => {
+      const rowError = current[id];
+      if (!rowError || !value.trim()) return current;
+      const nextRow = { ...rowError };
+      delete nextRow[key];
+      const next = { ...current };
+      if (!nextRow.name && !nextRow.amount) {
+        delete next[id];
+      } else {
+        next[id] = nextRow;
+      }
+      return next;
+    });
+    setChargeAddMessage("");
   };
 
   const handleRemoveCharge = (id: string) => {
     setAdditionalCharges((current) => current.filter((row) => row.id !== id));
+    setChargeRowErrors((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setChargeAddMessage("");
   };
 
   useImperativeHandle(
     ref,
     () => ({
+      getAdditionalCharges: () =>
+        additionalCharges
+          .filter((row) => row.name.trim() || row.amount.trim())
+          .map((row) => ({
+            chargeName: row.name.trim(),
+            amount: row.amount.trim(),
+          })),
+      getOtherConsumables: () =>
+        otherConsumables
+          .filter((row) => row.name.trim() || row.price.trim())
+          .map((row) => ({
+            consumableName: row.name.trim(),
+            price: row.price.trim(),
+          })),
       getLineItems: () => lineItemsRef.current?.getFilledLineItems() ?? [],
-      validate: () => lineItemsRef.current?.validate() ?? true,
+      validate: () => {
+        const itemsValid = lineItemsRef.current?.validate() ?? true;
+        const nextConsumableErrors = collectConsumableErrors(otherConsumables);
+        const nextChargeErrors = collectChargeErrors(additionalCharges);
+        const consumablesValid = Object.keys(nextConsumableErrors).length === 0;
+        const chargesValid = Object.keys(nextChargeErrors).length === 0;
+
+        setConsumableRowErrors(nextConsumableErrors);
+        setChargeRowErrors(nextChargeErrors);
+        setConsumableAddMessage(
+          consumablesValid
+            ? ""
+            : "Fill the current consumable before saving.",
+        );
+        setChargeAddMessage(
+          chargesValid ? "" : "Fill the current charge before saving.",
+        );
+
+        return itemsValid && consumablesValid && chargesValid;
+      },
     }),
-    [],
+    [additionalCharges, otherConsumables],
   );
 
   return (
@@ -157,7 +320,128 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             onTotalsChange={setLineTotals}
           />
 
-          <Stack spacing={2}>
+          {slug !== "plywood" && slug !== "mdf" ? (
+            <Box>
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  mb: 1,
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                }}
+              >
+                Other Consumables
+              </Typography>
+
+              <Stack spacing={1}>
+                {otherConsumables.length > 0 ? (
+                  <Box
+                    sx={{
+                      display: { xs: "none", md: "grid" },
+                      gap: 1,
+                      gridTemplateColumns:
+                        "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                      px: 0.25,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Consumable Name
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      Price
+                    </Typography>
+                    <span />
+                  </Box>
+                ) : null}
+
+                {otherConsumables.map((row) => (
+                  <Box
+                    key={row.id}
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      alignItems: "center",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
+                      },
+                    }}
+                  >
+                    <TextField
+                      fullWidth
+                      error={Boolean(consumableRowErrors[row.id]?.name)}
+                      placeholder="Enter consumable name"
+                      size="small"
+                      value={row.name}
+                      onChange={(event) =>
+                        handleConsumableChange(row.id, "name", event.target.value)
+                      }
+                      sx={getCompactFieldSx(theme, "default", { dense: true })}
+                    />
+                    <TextField
+                      fullWidth
+                      error={Boolean(consumableRowErrors[row.id]?.price)}
+                      placeholder="Price"
+                      size="small"
+                      value={row.price}
+                      onChange={(event) =>
+                        handleConsumableChange(row.id, "price", event.target.value)
+                      }
+                      sx={getCompactFieldSx(theme, "default", { dense: true })}
+                    />
+                    <IconButton
+                      aria-label="Remove consumable"
+                      onClick={() => handleRemoveConsumable(row.id)}
+                      size="small"
+                      sx={{
+                        color: theme.customTokens.text.secondary,
+                        "&:hover": {
+                          color: theme.palette.error.main,
+                        },
+                      }}
+                    >
+                      <Trash2 size={15} />
+                    </IconButton>
+                  </Box>
+                ))}
+
+                <Box>
+                  <Button
+                    disableElevation
+                    onClick={handleAddConsumable}
+                    startIcon={<Plus size={14} />}
+                    size="small"
+                    sx={{
+                      minHeight: 32,
+                      textTransform: "none",
+                      fontWeight: 600,
+                      color: theme.customTokens.brand.primary,
+                    }}
+                    variant="text"
+                  >
+                    Add Consumable
+                  </Button>
+                  {consumableAddMessage ? (
+                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+                      {consumableAddMessage}
+                    </Typography>
+                  ) : null}
+                </Box>
+              </Stack>
+            </Box>
+          ) : null}
+
+          <Box
+            sx={{
+              display: "grid",
+              gap: theme.spacing(2),
+              alignItems: "start",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(0, 1fr) minmax(260px, 320px)",
+              },
+            }}
+          >
             <Box>
               <Typography
                 variant="subtitle2"
@@ -206,6 +490,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     <TextField
                       fullWidth
+                      error={Boolean(chargeRowErrors[row.id]?.name)}
                       placeholder="Enter charge name"
                       size="small"
                       value={row.name}
@@ -216,6 +501,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                     />
                     <TextField
                       fullWidth
+                      error={Boolean(chargeRowErrors[row.id]?.amount)}
                       placeholder="Amount"
                       size="small"
                       value={row.amount}
@@ -256,11 +542,37 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   >
                     Add Charge
                   </Button>
+                  {chargeAddMessage ? (
+                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
+                      {chargeAddMessage}
+                    </Typography>
+                  ) : null}
                 </Box>
               </Stack>
-            </Box>
 
-            <Divider sx={{ borderColor: theme.customTokens.borders.divider }} />
+              <Box sx={{ mt: 2, maxWidth: 360 }}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    mb: 1,
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Remark
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  minRows={5}
+                  placeholder="Enter remark"
+                  size="small"
+                  value={remark}
+                  onChange={(event) => onRemarkChange?.(event.target.value)}
+                  sx={getCompactFieldSx(theme, "default", { dense: true })}
+                />
+              </Box>
+            </Box>
 
             <Box
               sx={{
@@ -269,8 +581,6 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                 backgroundColor: theme.customTokens.surfaces.alt,
                 px: theme.spacing(2),
                 py: theme.spacing(1.5),
-                maxWidth: 420,
-                ml: "auto",
                 width: "100%",
               }}
             >
@@ -285,7 +595,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   color: theme.customTokens.text.secondary,
                 }}
               >
-                Invoice Totals
+                INVOICE TOTALS
               </Typography>
 
               <Stack spacing={0.75}>
@@ -293,12 +603,20 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   label="Item Sub Total"
                   value={invoiceSummary.itemSubTotal}
                 />
-                <SummaryLine label="CGST" value={invoiceSummary.cgst} />
-                <SummaryLine label="SGST" value={invoiceSummary.sgst} />
-                <SummaryLine
-                  label="Item Sub Total"
-                  value={invoiceSummary.itemSubTotalWithTax}
-                />
+                {gstMode === "intra" ? (
+                  <>
+                    <SummaryLine label="CGST" value={invoiceSummary.cgst} />
+                    <SummaryLine label="SGST" value={invoiceSummary.sgst} />
+                  </>
+                ) : (
+                  <SummaryLine label="IGST" value={invoiceSummary.igst} />
+                )}
+                {otherConsumables.length > 0 && (
+                  <SummaryLine
+                    label="Other Consumables"
+                    value={invoiceSummary.otherConsumables}
+                  />
+                )}
                 <SummaryLine
                   label="Additional Charges"
                   value={invoiceSummary.additionalCharges}
@@ -311,7 +629,7 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                 />
               </Stack>
             </Box>
-          </Stack>
+          </Box>
         </Stack>
       </SectionBlock>
     </Stack>
@@ -378,6 +696,36 @@ function SummaryLine({
         {formatAmount(value)}
       </Typography>
     </Box>
+  );
+}
+
+function collectConsumableErrors(rows: readonly OtherConsumableRow[]) {
+  return rows.reduce<Record<string, { name?: string; price?: string }>>(
+    (errors, row) => {
+      const rowErrors: { name?: string; price?: string } = {};
+      if (!row.name.trim()) rowErrors.name = "Consumable name is required.";
+      if (!row.price.trim()) rowErrors.price = "Price is required.";
+      if (rowErrors.name || rowErrors.price) {
+        errors[row.id] = rowErrors;
+      }
+      return errors;
+    },
+    {},
+  );
+}
+
+function collectChargeErrors(rows: readonly AdditionalChargeRow[]) {
+  return rows.reduce<Record<string, { name?: string; amount?: string }>>(
+    (errors, row) => {
+      const rowErrors: { name?: string; amount?: string } = {};
+      if (!row.name.trim()) rowErrors.name = "Charge name is required.";
+      if (!row.amount.trim()) rowErrors.amount = "Amount is required.";
+      if (rowErrors.name || rowErrors.amount) {
+        errors[row.id] = rowErrors;
+      }
+      return errors;
+    },
+    {},
   );
 }
 

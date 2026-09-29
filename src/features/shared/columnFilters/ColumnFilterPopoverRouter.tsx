@@ -6,6 +6,8 @@ import {
   type ColumnFilterValue,
 } from "./types";
 
+const EMPTY_SELECTED_VALUES: readonly string[] = [];
+
 /**
  * Shared column filter popover — always Excel-style value multiselect.
  */
@@ -33,7 +35,7 @@ export function ColumnFilterPopoverRouter({
   onClear: () => void;
 }) {
   const selectedValues =
-    value?.type === "multiSelect" ? value.values : [];
+    value?.type === "multiSelect" ? value.values : EMPTY_SELECTED_VALUES;
 
   return (
     <SearchableMultiSelectColumnFilter

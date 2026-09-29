@@ -137,5 +137,5 @@ function AppRedirect() {
 }
 
 export function AppRouter() {
-  return <RouterProvider router={router} />;
+  return <RouterProvider router={router} useTransitions={false} />;
 }

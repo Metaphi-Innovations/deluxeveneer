@@ -3,6 +3,7 @@ import {
   type UserPermissionFlags,
   type UserManagementDetail,
 } from "../user-management/shared/userManagementConfig";
+import { applyWarehouseScopedCodesToPermissions } from "../shared/warehousePermission";
 import { apiRequest, type ApiResponse } from "../../lib/apiClient";
 
 const AUTH_STORAGE_KEY = "deluxe-veneers-erp-authenticated";
@@ -90,32 +91,29 @@ export function isAuthenticated() {
 
 /**
  * Sign in against backend POST /api/auth/login
+ * @throws Error with backend message (e.g. inactive account)
  */
 export async function signIn(email: string, password: string): Promise<boolean> {
   if (typeof window === "undefined") {
     return false;
   }
 
-  try {
-    const res = await apiRequest<ApiResponse<{ accessToken: string; user: any }>>(
-      "/auth/login",
-      {
-        method: "POST",
-        body: { email: email.trim().toLowerCase(), password },
-      }
-    );
+  const res = await apiRequest<ApiResponse<{ accessToken: string; user: any }>>(
+    "/auth/login",
+    {
+      method: "POST",
+      body: { email: email.trim().toLowerCase(), password },
+    },
+  );
 
-    if (res?.success && res?.data?.accessToken) {
-      const backendUser = res.data.user;
-      const profile = mapBackendUserToProfile(backendUser);
-      persistAuthenticatedSession(res.data.accessToken, profile);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error("[Auth] Login error:", error);
-    return false;
+  if (res?.success && res?.data?.accessToken) {
+    const backendUser = res.data.user;
+    const profile = mapBackendUserToProfile(backendUser);
+    persistAuthenticatedSession(res.data.accessToken, profile);
+    return true;
   }
+
+  return false;
 }
 
 /**
@@ -229,7 +227,22 @@ export function getDefaultAuthenticatedRoute() {
     hasAnyPermission(user, permissionKey),
   );
 
-  return route?.path ?? "/profile";
+  if (route) {
+    return route.path;
+  }
+
+  const warehousePermissionKey = Object.keys(user.permissions ?? {}).find(
+    (key) => key.startsWith("warehouse:") && hasAnyPermission(user, key),
+  );
+
+  if (warehousePermissionKey) {
+    const warehouseId = warehousePermissionKey.slice("warehouse:".length);
+    if (warehouseId) {
+      return `/warehouses/${warehouseId}`;
+    }
+  }
+
+  return "/dashboard";
 }
 
 export async function refreshCurrentUserPermissions() {
@@ -267,7 +280,9 @@ export function syncCurrentUserFromUserManagementDetail(
     return;
   }
 
-  persistCurrentUser(mapUserManagementDetailToProfile(detail));
+  // Always reload from /auth/me. User-management detail mapping drops
+  // isSuperAdmin and can wipe session permissions until a hard refresh.
+  void refreshCurrentUserPermissions();
 }
 
 export function getUserDisplayName(profile: AuthenticatedUserProfile) {
@@ -329,6 +344,98 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       create: userPerms.includes("USER_MANAGEMENT_CREATE"),
       edit: userPerms.includes("USER_MANAGEMENT_UPDATE"),
     };
+
+    permissions.customerMaster = {
+      view: userPerms.includes("CUSTOMER_MASTER_VIEW"),
+      create: userPerms.includes("CUSTOMER_MASTER_CREATE"),
+      edit: userPerms.includes("CUSTOMER_MASTER_UPDATE"),
+    };
+
+    permissions.supplierMaster = {
+      view: userPerms.includes("SUPPLIER_MASTER_VIEW"),
+      create: userPerms.includes("SUPPLIER_MASTER_CREATE"),
+      edit: userPerms.includes("SUPPLIER_MASTER_UPDATE"),
+    };
+
+    permissions.transporterMaster = {
+      view: userPerms.includes("TRANSPORTER_MASTER_VIEW"),
+      create: userPerms.includes("TRANSPORTER_MASTER_CREATE"),
+      edit: userPerms.includes("TRANSPORTER_MASTER_UPDATE"),
+    };
+
+    permissions.colorMaster = {
+      view: userPerms.includes("COLOR_MASTER_VIEW"),
+      create: userPerms.includes("COLOR_MASTER_CREATE"),
+      edit: userPerms.includes("COLOR_MASTER_UPDATE"),
+    };
+
+    permissions.currencyMaster = {
+      view: userPerms.includes("CURRENCY_MASTER_VIEW"),
+      create: userPerms.includes("CURRENCY_MASTER_CREATE"),
+      edit: userPerms.includes("CURRENCY_MASTER_UPDATE"),
+    };
+
+    permissions.cutMaster = {
+      view: userPerms.includes("CUT_MASTER_VIEW"),
+      create: userPerms.includes("CUT_MASTER_CREATE"),
+      edit: userPerms.includes("CUT_MASTER_UPDATE"),
+    };
+
+    permissions.departmentMaster = {
+      view: userPerms.includes("DEPARTMENT_MASTER_VIEW"),
+      create: userPerms.includes("DEPARTMENT_MASTER_CREATE"),
+      edit: userPerms.includes("DEPARTMENT_MASTER_UPDATE"),
+    };
+
+    permissions.gradeMaster = {
+      view: userPerms.includes("GRADE_MASTER_VIEW"),
+      create: userPerms.includes("GRADE_MASTER_CREATE"),
+      edit: userPerms.includes("GRADE_MASTER_UPDATE"),
+    };
+
+    permissions.gstMaster = {
+      view: userPerms.includes("GST_MASTER_VIEW"),
+      create: userPerms.includes("GST_MASTER_CREATE"),
+      edit: userPerms.includes("GST_MASTER_UPDATE"),
+    };
+
+    permissions.hsnMaster = {
+      view: userPerms.includes("HSN_MASTER_VIEW"),
+      create: userPerms.includes("HSN_MASTER_CREATE"),
+      edit: userPerms.includes("HSN_MASTER_UPDATE"),
+    };
+
+    permissions.itemCategoryMaster = {
+      view: userPerms.includes("ITEM_CATEGORY_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_CATEGORY_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_CATEGORY_MASTER_UPDATE"),
+    };
+
+    permissions.itemMaster = {
+      view: userPerms.includes("ITEM_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_MASTER_UPDATE"),
+    };
+
+    permissions.itemSubCategoryMaster = {
+      view: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_VIEW"),
+      create: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_CREATE"),
+      edit: userPerms.includes("ITEM_SUB_CATEGORY_MASTER_UPDATE"),
+    };
+
+    permissions.unitMaster = {
+      view: userPerms.includes("UNIT_MASTER_VIEW"),
+      create: userPerms.includes("UNIT_MASTER_CREATE"),
+      edit: userPerms.includes("UNIT_MASTER_UPDATE"),
+    };
+
+    permissions.warehouseLocationMaster = {
+      view: userPerms.includes("WAREHOUSE_MASTER_VIEW"),
+      create: userPerms.includes("WAREHOUSE_MASTER_CREATE"),
+      edit: userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
+    };
+
+    applyWarehouseScopedCodesToPermissions(userPerms, permissions);
   }
 
   return {
@@ -421,9 +528,6 @@ function hasAnyPermission(
 const defaultPermissionRoutes = [
   { permissionKey: "dashboard", path: "/dashboard" },
   { permissionKey: "userManagement", path: "/user-management" },
-  { permissionKey: "warehouseA", path: "/warehouse-a" },
-  { permissionKey: "warehouseB", path: "/warehouse-b" },
-  { permissionKey: "warehouseC", path: "/warehouse-c" },
   { permissionKey: "colorMaster", path: "/masters/color-master" },
   { permissionKey: "currencyMaster", path: "/masters/currency-master" },
   { permissionKey: "customerMaster", path: "/masters/customer-master" },

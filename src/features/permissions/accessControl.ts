@@ -1,4 +1,7 @@
 import {
+  getDynamicWarehousePermissionKey,
+} from "../shared/warehousePermission";
+import {
   getCurrentUser,
   type AuthenticatedUserProfile,
 } from "../auth/authSession";
@@ -36,23 +39,17 @@ export const factoryPermissionKeyBySlug: Record<string, string> = {
   splicing: "splicing",
 };
 
-export const warehousePermissionKeyById: Record<string, string> = {
-  "warehouse-a": "warehouseA",
-  "warehouse-b": "warehouseB",
-  "warehouse-c": "warehouseC",
-};
-
 export function canAccessPermission(
   permissionKey: string | undefined,
   action: UserPermissionAction,
   user: AuthenticatedUserProfile = getCurrentUser(),
 ) {
-  if (!permissionKey) {
-    return false;
-  }
-
   if (isSuperAdminUser(user)) {
     return true;
+  }
+
+  if (!permissionKey) {
+    return false;
   }
 
   const permission = user.permissions?.[permissionKey];
@@ -88,12 +85,22 @@ export function getFactoryPermissionKey(slug: string) {
 }
 
 export function getWarehousePermissionKey(warehouseId: string) {
-  return warehousePermissionKeyById[warehouseId];
+  if (warehouseId.startsWith("warehouse:")) {
+    return warehouseId;
+  }
+
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      warehouseId,
+    )
+  ) {
+    return getDynamicWarehousePermissionKey(warehouseId);
+  }
+
+  return undefined;
 }
 
 export function isSuperAdminUser(user: AuthenticatedUserProfile) {
-  return (
-    user.accountRole === "Super Admin" ||
-    user.role.trim().toLowerCase() === "super admin"
-  );
+  const roleText = `${user.accountRole} ${user.role} ${user.userType}`.toLowerCase();
+  return roleText.includes("super admin");
 }

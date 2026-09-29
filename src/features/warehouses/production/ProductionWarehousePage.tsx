@@ -1,0 +1,396 @@
+import { useCallback, useMemo, useState } from "react";
+import { FileOutput, Plus } from "lucide-react";
+import { Button, Stack } from "@mui/material";
+import { useSearchParams } from "react-router";
+
+import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
+import { MasterPageShell } from "../../masters/shared";
+import { canAccessPermission } from "../../permissions";
+import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
+import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import { exportRowsToCsv } from "../../shared/exportToCsv";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
+import { useDebouncedValue } from "../../shared/useDebouncedValue";
+import {
+  getOrderLineItems,
+  useOrderRecords,
+  type OrderRecord,
+} from "../../orders/shared/ordersStore";
+import {
+  IssueOrderDialog,
+  type IssueOrderValues,
+} from "../shared/IssueOrderDialog";
+
+import {
+  productionWarehouseTabs,
+  rawVeneerColumns,
+  plywoodColumns,
+  mdfColumns,
+  sampleSheetColumns,
+  type ProductionWarehouseTabSlug,
+  type SampleSheetTableRow,
+} from "../production/types/productionWarehouseTypes";
+import { RawVeneerTab } from "../production/tabs/RawVeneerTab";
+import { PlywoodTab } from "../production/tabs/PlywoodTab";
+import { MdfTab } from "../production/tabs/MdfTab";
+import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
+import {
+  exportProductionInventoryApi,
+  issueOrderToProduction,
+  type ProductionInventoryItem,
+} from "../production/api/productionWarehouseApi";
+import {
+  EMPTY_PRODUCTION_LIST_QUERY,
+  type ProductionListQueryState,
+} from "../production/productionListQuery";
+
+export interface ProductionWarehousePageProps {
+  warehouseId?: string | undefined;
+  warehouseName?: string;
+  warehouseRootPath?: string | undefined;
+}
+
+export function ProductionWarehousePage({
+  warehouseId,
+  warehouseName = "Warehouse C",
+}: ProductionWarehousePageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchValue, setSearchValue] = useState("");
+  const debouncedSearchValue = useDebouncedValue(searchValue, 450);
+  const [issueOrderDialogOpen, setIssueOrderDialogOpen] = useState(false);
+  const [issueOrderValues, setIssueOrderValues] = useState<IssueOrderValues>({
+    orderItemNo: "",
+    orderNo: "",
+  });
+  const [listQuery, setListQuery] = useState<ProductionListQueryState>(
+    EMPTY_PRODUCTION_LIST_QUERY,
+  );
+  const [currentSampleRows, setCurrentSampleRows] = useState<
+    SampleSheetTableRow[]
+  >([]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const activeInventory = getActiveTab(searchParams.get("inventory"));
+  const isSampleSheetsTab = activeInventory === "sample-sheets";
+
+  const warehousePermissionKey = warehouseId
+    ? getDynamicWarehousePermissionKey(warehouseId)
+    : "warehouseC";
+  const canEditWarehouseC = canAccessPermission(warehousePermissionKey, "edit");
+  const canViewWarehouseC = canAccessPermission(warehousePermissionKey, "view");
+
+  const orderRecords = useOrderRecords();
+  const rawOrderRecords = useMemo(
+    () => orderRecords.filter(isRawOrderRecord),
+    [orderRecords],
+  );
+
+  const issueOrderNoOptions = useMemo(
+    () =>
+      rawOrderRecords
+        .filter((record) => getOrderLineItems(record.id).length > 0)
+        .map((record) => record.orderNo),
+    [rawOrderRecords],
+  );
+
+  const selectedIssueOrder = useMemo(
+    () =>
+      rawOrderRecords.find(
+        (record) => record.orderNo === issueOrderValues.orderNo,
+      ) ?? null,
+    [issueOrderValues.orderNo, rawOrderRecords],
+  );
+
+  const issueOrderItemNoOptions = useMemo(
+    () =>
+      selectedIssueOrder
+        ? getOrderLineItems(selectedIssueOrder.id).map((_, index) =>
+            String(index + 1),
+          )
+        : [],
+    [selectedIssueOrder],
+  );
+
+  const showIssueOrderButton = !isSampleSheetsTab && canEditWarehouseC;
+
+  const handleOpenIssueOrderDialog = () => {
+    setIssueOrderValues({ orderItemNo: "", orderNo: "" });
+    setIssueOrderDialogOpen(true);
+  };
+
+  const handleSubmitIssueOrder = async () => {
+    if (!issueOrderValues.orderNo || !issueOrderValues.orderItemNo) {
+      return;
+    }
+
+    try {
+      await issueOrderToProduction({
+        orderNo: issueOrderValues.orderNo,
+        orderItemNo: issueOrderValues.orderItemNo,
+        warehouseId,
+        inventoryType: activeInventory,
+      });
+    } catch {
+      // Issue-order API failed; dialog still closes after attempt.
+    }
+
+    setIssueOrderDialogOpen(false);
+  };
+
+  const handleListQueryChange = useCallback((query: ProductionListQueryState) => {
+    setListQuery(query);
+  }, []);
+
+  const handleExport = async () => {
+    if (isSampleSheetsTab) {
+      exportRowsToCsv(
+        currentSampleRows,
+        sampleSheetColumns,
+        `${warehouseName}-sample-sheets`,
+      );
+      return;
+    }
+
+    if (!warehouseId || isExporting) return;
+
+    const tab =
+      activeInventory === "plywood" || activeInventory === "mdf"
+        ? activeInventory
+        : "raw-veneer";
+
+    setIsExporting(true);
+    try {
+      const items = await exportProductionInventoryApi({
+        warehouseId,
+        tab,
+        ...(debouncedSearchValue.trim()
+          ? { search: debouncedSearchValue.trim() }
+          : {}),
+        ...(listQuery.sortBy ? { sortBy: listQuery.sortBy } : {}),
+        ...(listQuery.sortOrder ? { sortOrder: listQuery.sortOrder } : {}),
+        ...(Object.keys(listQuery.filters).length > 0
+          ? { filters: listQuery.filters }
+          : {}),
+      });
+
+      if (items.length === 0) {
+        alert("No records to export.");
+        return;
+      }
+
+      const rows = items.map(mapExportItem) as Array<
+        Record<string, string | Date>
+      >;
+      if (tab === "plywood") {
+        exportRowsToCsv(rows, plywoodColumns, `${warehouseName}-plywood`);
+      } else if (tab === "mdf") {
+        exportRowsToCsv(rows, mdfColumns, `${warehouseName}-mdf`);
+      } else {
+        exportRowsToCsv(rows, rawVeneerColumns, `${warehouseName}-raw-veneer`);
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to export production inventory.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const exportDisabled = useMemo(() => {
+    if (isExporting) return true;
+    if (isSampleSheetsTab) return currentSampleRows.length === 0;
+    return !warehouseId || listQuery.totalCount === 0;
+  }, [
+    isExporting,
+    isSampleSheetsTab,
+    currentSampleRows.length,
+    warehouseId,
+    listQuery.totalCount,
+  ]);
+
+  return (
+    <MasterPageShell
+      breadcrumbs={[
+        { label: warehouseName },
+        { label: "Inventory" },
+        {
+          label:
+            productionWarehouseTabs.find((t) => t.value === activeInventory)
+              ?.label ?? "Raw Veneer",
+        },
+      ]}
+      subtitle={
+        isSampleSheetsTab
+          ? "Master tracking for sample material moving through Factory processes."
+          : "Processed stock ready for Factory and fulfilment."
+      }
+      title={warehouseName}
+    >
+      <Stack
+        sx={(theme) => ({
+          gap: theme.spacing(2),
+        })}
+      >
+        <ModuleProcessTabs
+          onChange={(value) => {
+            setListQuery(EMPTY_PRODUCTION_LIST_QUERY);
+            setSearchParams(
+              {
+                section: "inventory",
+                inventory: value,
+              },
+              { replace: true },
+            );
+          }}
+          tabs={productionWarehouseTabs}
+          value={activeInventory}
+        />
+
+        <Stack
+          direction={{ xs: "column", lg: "row" }}
+          alignItems={{ xs: "stretch", lg: "center" }}
+          justifyContent="space-between"
+          spacing={2}
+        >
+          <ClearableSearchField
+            value={searchValue}
+            onChange={setSearchValue}
+            placeholder={
+              isSampleSheetsTab
+                ? "Search sample sheets..."
+                : "Search inventory..."
+            }
+            sx={{
+              width: { xs: "100%", sm: 300 },
+              maxWidth: "100%",
+            }}
+          />
+
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            {showIssueOrderButton ? (
+              <Button
+                variant="contained"
+                startIcon={<Plus size={15} />}
+                onClick={handleOpenIssueOrderDialog}
+                sx={(theme) => ({
+                  ...getListingToolbarOutlinedButtonSx(theme),
+                  backgroundColor: theme.palette.primary.main,
+                  color: theme.palette.primary.contrastText,
+                })}
+              >
+                Issue Order
+              </Button>
+            ) : null}
+
+            <Button
+              variant="outlined"
+              startIcon={<FileOutput size={15} />}
+              disabled={exportDisabled}
+              onClick={() => void handleExport()}
+              sx={(theme) => ({
+                ...getListingToolbarOutlinedButtonSx(theme),
+                alignSelf: "center",
+              })}
+            >
+              {isExporting ? "Exporting..." : "Export"}
+            </Button>
+          </Stack>
+        </Stack>
+
+        {activeInventory === "raw-veneer" && (
+          <RawVeneerTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+
+        {activeInventory === "plywood" && (
+          <PlywoodTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+
+        {activeInventory === "mdf" && (
+          <MdfTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+
+        {activeInventory === "sample-sheets" && (
+          <SampleSheetsTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onExportReady={setCurrentSampleRows}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+      </Stack>
+
+      <IssueOrderDialog
+        itemNoOptions={issueOrderItemNoOptions}
+        onChange={setIssueOrderValues}
+        onClose={() => setIssueOrderDialogOpen(false)}
+        onSubmit={handleSubmitIssueOrder}
+        open={issueOrderDialogOpen}
+        orderNoOptions={issueOrderNoOptions}
+        values={issueOrderValues}
+      />
+    </MasterPageShell>
+  );
+}
+
+function mapExportItem(item: ProductionInventoryItem) {
+  return {
+    id: String(item.id),
+    productionSrNo: String(item.productionSrNo ?? ""),
+    storageSrNo: String(item.storageSrNo ?? ""),
+    inwardDate: item.inwardDate,
+    itemName: String(item.itemName ?? ""),
+    subCategory: String(item.subCategory ?? ""),
+    color: String(item.color ?? ""),
+    mdfType: String(item.mdfType ?? ""),
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? ""),
+    noOfLeaves: String(item.noOfLeaves ?? ""),
+    noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
+    sqm: String(item.sqm ?? item.totalSqm ?? ""),
+    sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    grade: String(item.grade ?? ""),
+    currency: String(item.currency ?? ""),
+    amount: String(item.amount ?? ""),
+    totalAmount: String(item.totalAmount ?? item.amount ?? ""),
+    remark: String(item.remark ?? ""),
+    updatedBy: String(item.updatedBy ?? ""),
+  };
+}
+
+function getActiveTab(value: string | null): ProductionWarehouseTabSlug {
+  if (value === "plywood" || value === "mdf" || value === "sample-sheets") {
+    return value;
+  }
+  return "raw-veneer";
+}
+
+function isRawOrderRecord(record: OrderRecord) {
+  return record.orderType.trim().toLowerCase().includes("raw");
+}

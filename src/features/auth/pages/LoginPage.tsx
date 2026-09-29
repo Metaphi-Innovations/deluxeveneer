@@ -69,6 +69,13 @@ export function LoginPage() {
 
       setLoginNotice("");
       setErrorMessage("Invalid email or password.");
+    } catch (error) {
+      setLoginNotice("");
+      setErrorMessage(
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Invalid email or password.",
+      );
     } finally {
       setIsSubmitting(false);
     }

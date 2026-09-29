@@ -11,7 +11,11 @@ import {
 import { Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { syncCurrentUserFromUserManagementDetail } from "../../auth";
+import {
+  getCurrentUser,
+  refreshCurrentUserPermissions,
+  syncCurrentUserFromUserManagementDetail,
+} from "../../auth";
 import {
   MasterFormFields,
   MasterPageShell,
@@ -384,6 +388,7 @@ export function UserManagementFormPage({
 
     try {
       let savedUser: UserManagementDetail | undefined;
+      const syncPermissions = activeStep === "permissions";
 
       if (mode === "add") {
         savedUser = await createUserManagementRecord(values, permissions);
@@ -391,12 +396,29 @@ export function UserManagementFormPage({
         savedUser = await updateUserManagementRecord(
           params.id,
           values,
-          permissions,
+          // Basic-info save must not rewrite permission rows (especially for self /
+          // super-admin, where UI permission state is incomplete).
+          syncPermissions ? permissions : undefined,
         );
       }
 
       if (savedUser) {
-        syncCurrentUserFromUserManagementDetail(savedUser);
+        const currentUser = getCurrentUser();
+        const isSelfEdit =
+          Boolean(currentUser.id && currentUser.id === savedUser.id) ||
+          Boolean(
+            currentUser.email &&
+              savedUser.email &&
+              currentUser.email.trim().toLowerCase() ===
+                savedUser.email.trim().toLowerCase(),
+          );
+
+        if (isSelfEdit) {
+          // Reload from /auth/me so isSuperAdmin and full permission mapping are preserved.
+          await refreshCurrentUserPermissions();
+        } else {
+          syncCurrentUserFromUserManagementDetail(savedUser);
+        }
       }
 
       navigate(paths.list);
@@ -564,16 +586,15 @@ export function UserManagementFormPage({
   const identityDocumentGridSx = {
     ...compactFieldChromeSx,
     width: "100%",
-    overflowX: "auto",
+    overflowX: "hidden",
     "& > div": {
       display: "grid !important",
       width: "100%",
-      minWidth: { xs: 0, lg: 800 },
+      minWidth: 0,
       gridTemplateColumns: {
         xs: "1fr !important",
-        sm: "repeat(2, 1fr) !important",
-        md: "repeat(4, minmax(0, 1fr)) !important",
-        lg: "repeat(4, minmax(0, 1fr)) !important",
+        sm: "minmax(0, 1.15fr) minmax(0, 1fr) !important",
+        md: "minmax(0, 1.15fr) minmax(0, 1fr) !important",
       },
       columnGap: "16px !important",
       rowGap: "16px !important",
@@ -587,8 +608,10 @@ export function UserManagementFormPage({
     "& > div > .MuiStack-root .MuiFormControl-root": {
       width: "100% !important",
     },
-    "& .MuiBox-root": {
+    // Stretch only the field value container, not nested upload thumbnails.
+    "& > div > .MuiStack-root > .MuiBox-root": {
       width: "100%",
+      minWidth: 0,
     },
   };
 
@@ -772,7 +795,7 @@ export function UserManagementFormPage({
                         <MasterFormFields
                           definition={{
                             fields: identityDocumentFields,
-                            gridColumns: 4,
+                            gridColumns: 3,
                           }}
                           onChange={handleFieldChange}
                           readOnly={mode === "view"}

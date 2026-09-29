@@ -237,7 +237,7 @@ export const departmentMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
   ],
-  rows: departmentRowsForDefinition.slice(0, 2),
+  rows: [],
 };
 
 export function getDepartmentMasterDetail(id: string) {
