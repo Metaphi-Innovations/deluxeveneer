@@ -264,6 +264,33 @@ function formatAmount(value: number): string {
   });
 }
 
+export function isInwardEditLockedByQc(input: {
+  qcStatus?: string | null | undefined;
+  items?: ReadonlyArray<{ qcStatus?: string | null | undefined }> | undefined;
+}): boolean {
+  if (isQcDecisionStatus(input.qcStatus)) return true;
+  return (input.items ?? []).some((item) => isQcDecisionStatus(item.qcStatus));
+}
+
+function isQcDecisionStatus(value: string | null | undefined): boolean {
+  const normalized = (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  return (
+    normalized === "pass" ||
+    normalized === "fail" ||
+    normalized === "qc_pass" ||
+    normalized === "qc_fail" ||
+    normalized === "qc_done" ||
+    normalized === "done" ||
+    normalized === "partially_done" ||
+    normalized === "partial" ||
+    normalized === "partial_done"
+  );
+}
+
 function normalizeListingQcStatus(value: string): "QC Done" | "Partially Done" | "Pending" {
   const normalized = value.trim().toLowerCase();
   if (

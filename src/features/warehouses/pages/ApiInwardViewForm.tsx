@@ -31,6 +31,7 @@ import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
 import { InventoryPageShell } from "../../inventory/shared/InventoryPageShell";
 import {
   fetchInwardById,
+  isInwardEditLockedByQc,
   type InwardDetail,
   type InwardItemDetail,
 } from "../api/inwardApi";
@@ -142,6 +143,10 @@ export function ApiInwardViewForm({
     () => normalizeQcLabel(detail?.qcStatus),
     [detail?.qcStatus],
   );
+  const editLocked = isInwardEditLockedByQc({
+    qcStatus: detail?.qcStatus,
+    items: detail?.items,
+  });
 
   const qcCounts = useMemo(() => {
     let passCount = 0;
@@ -340,7 +345,7 @@ export function ApiInwardViewForm({
           >
             Back
           </Button>
-          {canEdit ? (
+          {canEdit && !editLocked ? (
             <Button
               variant="contained"
               startIcon={<Pencil size={16} />}

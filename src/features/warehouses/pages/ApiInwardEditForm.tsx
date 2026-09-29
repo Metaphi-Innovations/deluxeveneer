@@ -24,6 +24,7 @@ import {
 import { InventoryPageShell } from "../../inventory/shared/InventoryPageShell";
 import {
   fetchInwardById,
+  isInwardEditLockedByQc,
   updateInwardApi,
   type InwardDetail,
   type InwardItemDetail,
@@ -253,6 +254,16 @@ export function ApiInwardEditForm({
       return;
     }
 
+    if (
+      isInwardEditLockedByQc({
+        qcStatus: detail.qcStatus,
+        items: detail.items,
+      })
+    ) {
+      setErrorMessage("This inward cannot be edited after QC pass or fail.");
+      return;
+    }
+
     setHasSubmitted(true);
     const workspaceIsValid = workspaceRef.current?.validate() ?? true;
     if (hasFormFieldErrors(fields, values) || !workspaceIsValid) {
@@ -372,6 +383,35 @@ export function ApiInwardEditForm({
         <MasterSectionCard>
           <Alert severity="error">
             {errorMessage || "The requested inward record could not be found."}
+          </Alert>
+          <Box sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={closeForm}>
+              Back
+            </Button>
+          </Box>
+        </MasterSectionCard>
+      </InventoryPageShell>
+    );
+  }
+
+  if (
+    isInwardEditLockedByQc({
+      qcStatus: detail.qcStatus,
+      items: detail.items,
+    })
+  ) {
+    return (
+      <InventoryPageShell
+        breadcrumbs={[
+          { label: "Warehouses" },
+          { label: warehouseName, to: warehouseRootPath },
+          { label: "Edit Stock" },
+        ]}
+        title="Edit Stock"
+      >
+        <MasterSectionCard>
+          <Alert severity="info">
+            This inward cannot be edited after QC pass or fail.
           </Alert>
           <Box sx={{ mt: 2 }}>
             <Button variant="outlined" onClick={closeForm}>
