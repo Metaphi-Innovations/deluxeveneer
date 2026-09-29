@@ -31,6 +31,7 @@ import {
   canAccessPermission,
   getWarehousePermissionKey,
 } from "../../permissions";
+import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import {
   recordFormActionButtonSx,
   recordViewActionButtonSx,
@@ -71,6 +72,14 @@ import {
   isInrCurrency,
 } from "./warehouseAAddStockConfig";
 import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
+import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
+import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
+import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
+import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
+import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
+import { ProductionInventoryRecordPage } from "../../warehouses/production/pages/ProductionInventoryRecordPage";
+import { refreshSupplierMasterCache } from "../../masters/supplier-master/api/supplierMasterApi";
+import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import {
   buildInventoryInitialValues,
   getInventoryPageTitle,
@@ -106,13 +115,114 @@ export function InventoryForm<Row extends InventoryRecord>({
   definition,
   mode,
 }: InventoryFormProps<Row>) {
+  const params = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const activeWarehouse = getInventoryWarehouseContext(
+    searchParams.get("warehouse"),
+  );
+  const apiWarehouseId = searchParams.get("warehouseId")?.trim() || "";
+  const apiWarehouseName = searchParams.get("warehouseName")?.trim() || "";
+  const activeProcessTab = getInventoryProcessTab(searchParams.get("tab"));
+  const paths = getInventoryPaths(
+    definition.slug,
+    activeProcessTab,
+    activeWarehouse,
+  );
+  const returnToPath = searchParams.get("returnTo");
+  const listPath = returnToPath?.startsWith("/") ? returnToPath : paths.list;
+  const warehouseLabel = apiWarehouseName || getWarehouseLabel(activeWarehouse);
+  const warehouseRootPath = apiWarehouseId
+    ? `/warehouses/${apiWarehouseId}`
+    : getWarehouseRootPath(activeWarehouse);
+
+  // Inward warehouses pass warehouseId — never resolve from local mock rows.
+  if (
+    apiWarehouseId &&
+    (mode === "view" || mode === "edit") &&
+    isApiSupportedInwardSlug(definition.slug) &&
+    params.id
+  ) {
+    const warehousePermissionKey = getDynamicWarehousePermissionKey(apiWarehouseId);
+    const canOpen =
+      (mode === "view" && canAccessPermission(warehousePermissionKey, "view")) ||
+      (mode === "edit" && canAccessPermission(warehousePermissionKey, "edit"));
+
+    if (!canOpen) {
+      return (
+        <InventoryPageShell
+          breadcrumbs={[
+            { label: "Warehouses" },
+            { label: warehouseLabel, to: warehouseRootPath },
+            { label: mode === "edit" ? "Edit" : "View" },
+          ]}
+          title={mode === "edit" ? "Edit Stock" : "View Stock"}
+        >
+          <Alert severity="warning">
+            You do not have permission to {mode} this inward record.
+          </Alert>
+        </InventoryPageShell>
+      );
+    }
+
+    const editUrl = new URL(
+      paths.edit(params.id),
+      window.location.origin,
+    );
+    editUrl.searchParams.set("warehouse", "warehouse-a");
+    editUrl.searchParams.set("warehouseId", apiWarehouseId);
+    editUrl.searchParams.set("warehouseName", warehouseLabel);
+    editUrl.searchParams.set("returnTo", listPath);
+    const editPath = `${editUrl.pathname}?${editUrl.searchParams.toString()}`;
+
+    if (mode === "view") {
+      return (
+        <ApiInwardViewForm
+          editPath={editPath}
+          inwardId={params.id}
+          listPath={listPath}
+          warehouseId={apiWarehouseId}
+          warehouseName={warehouseLabel}
+          warehouseRootPath={warehouseRootPath}
+        />
+      );
+    }
+
+    return (
+      <ApiInwardEditForm
+        inwardId={params.id}
+        listPath={listPath}
+        warehouseId={apiWarehouseId}
+        warehouseName={warehouseLabel}
+        warehouseRootPath={warehouseRootPath}
+      />
+    );
+  }
+
+  return (
+    <InventoryFormContent
+      definition={definition}
+      mode={mode}
+    />
+  );
+}
+
+function InventoryFormContent<Row extends InventoryRecord>({
+  definition,
+  mode,
+}: InventoryFormProps<Row>) {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const activeWarehouse = getInventoryWarehouseContext(
     searchParams.get("warehouse"),
   );
-  const permissionKey = getWarehousePermissionKey(activeWarehouse);
+  const apiWarehouseId = searchParams.get("warehouseId")?.trim() || "";
+  const apiWarehouseName = searchParams.get("warehouseName")?.trim() || "";
+  const isApiInward = Boolean(apiWarehouseId);
+  const isApiInwardAdd = isApiInward && mode === "add";
+  const permissionKey = apiWarehouseId
+    ? getDynamicWarehousePermissionKey(apiWarehouseId)
+    : getWarehousePermissionKey(activeWarehouse);
   const canCreate = canAccessPermission(permissionKey, "create");
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
@@ -128,17 +238,21 @@ export function InventoryForm<Row extends InventoryRecord>({
   );
   const returnToPath = searchParams.get("returnTo");
   const listPath = returnToPath?.startsWith("/") ? returnToPath : paths.list;
-  const warehouseLabel = getWarehouseLabel(activeWarehouse);
-  const warehouseRootPath = getWarehouseRootPath(activeWarehouse);
+  const warehouseLabel = apiWarehouseName || getWarehouseLabel(activeWarehouse);
+  const warehouseRootPath = apiWarehouseId
+    ? `/warehouses/${apiWarehouseId}`
+    : getWarehouseRootPath(activeWarehouse);
   const inventoryListPath = getWarehouseInventoryListPath(
     activeWarehouse,
     definition.slug,
     activeProcessTab,
   );
-  const inventoryRows = getInventoryContextRows(definition, activeWarehouse);
+  const inventoryRows = isApiInward
+    ? []
+    : getInventoryContextRows(definition, activeWarehouse);
 
   const row =
-    mode === "add"
+    mode === "add" || isApiInward
       ? undefined
       : findInventoryContextRow(inventoryRows, params.id);
   const warehouseAAddStockSlug =
@@ -205,6 +319,10 @@ export function InventoryForm<Row extends InventoryRecord>({
       : [];
 
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [supplierOptionsRevision, setSupplierOptionsRevision] = useState(0);
+  const [warehouseState, setWarehouseState] = useState("");
   const warehouseAWorkspaceRef = useRef<WarehouseAAddStockWorkspaceHandle>(null);
 
   useEffect(() => {
@@ -222,7 +340,125 @@ export function InventoryForm<Row extends InventoryRecord>({
     );
   }, [baseFields, row, warehouseAAddStockSlug, warehouseRecordDetailSlug]);
 
+  useEffect(() => {
+    if (!isApiInwardAdd) {
+      return;
+    }
+
+    void refreshSupplierMasterCache()
+      .then(() => {
+        setSupplierOptionsRevision((current) => current + 1);
+      })
+      .catch(() => undefined);
+  }, [isApiInwardAdd]);
+
+  useEffect(() => {
+    if (!apiWarehouseId) {
+      setWarehouseState("");
+      return;
+    }
+
+    let ignore = false;
+
+    void fetchWarehouseMasterDetail(apiWarehouseId)
+      .then((warehouse) => {
+        if (!ignore) {
+          setWarehouseState(String(warehouse.state ?? ""));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setWarehouseState("");
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [apiWarehouseId]);
+
   if ((mode === "edit" || mode === "view") && !row) {
+    // Production warehouse stock must never use inward or mock lookup.
+    if (
+      activeWarehouse === "warehouse-c" &&
+      params.id &&
+      (definition.slug === "raw-veneer" ||
+        definition.slug === "plywood" ||
+        definition.slug === "mdf")
+    ) {
+      const productionListPath = returnToPath?.startsWith("/")
+        ? returnToPath
+        : apiWarehouseId
+          ? `/warehouses/${apiWarehouseId}?inventory=${definition.slug}`
+          : `/warehouse-c?section=inventory&inventory=${definition.slug}`;
+      const productionEditUrl = new URL(
+        paths.edit(params.id),
+        window.location.origin,
+      );
+      productionEditUrl.searchParams.set("warehouse", "warehouse-c");
+      if (apiWarehouseId) {
+        productionEditUrl.searchParams.set("warehouseId", apiWarehouseId);
+      }
+      productionEditUrl.searchParams.set("warehouseName", warehouseLabel);
+      productionEditUrl.searchParams.set("returnTo", productionListPath);
+      productionEditUrl.searchParams.set("source", "production");
+      const productionEditPath = `${productionEditUrl.pathname}?${productionEditUrl.searchParams.toString()}`;
+
+      return (
+        <ProductionInventoryRecordPage
+          inventoryId={params.id}
+          inventorySlug={definition.slug}
+          listPath={productionListPath}
+          mode={mode}
+          warehouseId={apiWarehouseId}
+          warehouseName={warehouseLabel}
+          warehouseRootPath={warehouseRootPath}
+          {...(mode === "view" ? { editPath: productionEditPath } : {})}
+        />
+      );
+    }
+
+    // API inward view/edit must never fall through to mock lookup.
+    if (
+      isApiInward &&
+      apiWarehouseId &&
+      isApiSupportedInwardSlug(definition.slug) &&
+      params.id
+    ) {
+      const editUrl = new URL(
+        paths.edit(params.id),
+        window.location.origin,
+      );
+      editUrl.searchParams.set("warehouse", "warehouse-a");
+      editUrl.searchParams.set("warehouseId", apiWarehouseId);
+      editUrl.searchParams.set("warehouseName", warehouseLabel);
+      editUrl.searchParams.set("returnTo", listPath);
+      const editPath = `${editUrl.pathname}?${editUrl.searchParams.toString()}`;
+
+      if (mode === "view") {
+        return (
+          <ApiInwardViewForm
+            editPath={editPath}
+            inwardId={params.id}
+            listPath={listPath}
+            warehouseId={apiWarehouseId}
+            warehouseName={warehouseLabel}
+            warehouseRootPath={warehouseRootPath}
+          />
+        );
+      }
+
+      return (
+        <ApiInwardEditForm
+          inwardId={params.id}
+          listPath={listPath}
+          warehouseId={apiWarehouseId}
+          warehouseName={warehouseLabel}
+          warehouseRootPath={warehouseRootPath}
+        />
+      );
+    }
+
     return (
       <InventoryPageShell
         breadcrumbs={getInventoryBreadcrumbs({
@@ -236,7 +472,7 @@ export function InventoryForm<Row extends InventoryRecord>({
       >
         <MasterSectionCard>
           <Typography variant="body2" color="text.secondary">
-            The requested inventory record could not be found in the mock dataset.
+            The requested inventory record could not be found.
           </Typography>
         </MasterSectionCard>
       </InventoryPageShell>
@@ -408,7 +644,7 @@ export function InventoryForm<Row extends InventoryRecord>({
                 <Stack spacing={1.15}>
                   <FormSectionHeader title="Inward Details" />
                   <MasterFormFields
-                    key={`${definition.slug}-${mode}-${warehouseAAddStockSlug}`}
+                    key={`${definition.slug}-${mode}-${warehouseAAddStockSlug}-${supplierOptionsRevision}`}
                     compact
                     definition={{
                       gridColumns: 5,
@@ -447,15 +683,28 @@ export function InventoryForm<Row extends InventoryRecord>({
               invoiceDate={
                 values.inwardDate instanceof Date ? values.inwardDate : null
               }
+              onRemarkChange={(value) =>
+                setValues((current) => ({ ...current, remark: value }))
+              }
               ref={warehouseAWorkspaceRef}
+              remark={
+                typeof values.remark === "string"
+                  ? values.remark
+                  : typeof values.remarks === "string"
+                    ? values.remarks
+                    : ""
+              }
               slug={warehouseAAddStockSlug}
               supplierName={
                 typeof values.supplierName === "string"
                   ? values.supplierName
                   : ""
               }
+              warehouseState={warehouseState}
             />
           ) : null}
+
+          {saveError ? <Alert severity="error">{saveError}</Alert> : null}
 
           <Box
             sx={(theme) => ({
@@ -506,32 +755,40 @@ export function InventoryForm<Row extends InventoryRecord>({
                   type="button"
                   variant="contained"
                   startIcon={<Save size={16} />}
+                  disabled={isSaving}
                   sx={recordFormActionButtonSx}
                   onClick={() => {
-                    setHasSubmitted(true);
+                    void (async () => {
+                      setHasSubmitted(true);
+                      setSaveError("");
 
-                    const workspaceIsValid = warehouseAAddStockSlug
-                      ? warehouseAWorkspaceRef.current?.validate() ?? true
-                      : true;
+                      const workspaceIsValid = warehouseAAddStockSlug
+                        ? warehouseAWorkspaceRef.current?.validate() ?? true
+                        : true;
 
-                    const hasBaseFieldErrors = hasFormFieldErrors(
-                      fields,
-                      values,
-                    );
+                      const hasBaseFieldErrors = hasFormFieldErrors(
+                        fields,
+                        values,
+                      );
 
-                    if (hasBaseFieldErrors || !workspaceIsValid) {
-                      return;
-                    }
+                      if (hasBaseFieldErrors || !workspaceIsValid) {
+                        return;
+                      }
 
-                    if (
-                      warehouseAAddStockSlug &&
-                      warehouseAAddStockSlug !== "consumables"
-                    ) {
-                      const lineItems =
-                        warehouseAWorkspaceRef.current?.getLineItems() ?? [];
+                      if (
+                        warehouseAAddStockSlug &&
+                        warehouseAAddStockSlug !== "consumables"
+                      ) {
+                        const lineItems =
+                          warehouseAWorkspaceRef.current?.getLineItems() ?? [];
+                        const otherConsumables =
+                          warehouseAWorkspaceRef.current?.getOtherConsumables() ??
+                          [];
+                        const additionalCharges =
+                          warehouseAWorkspaceRef.current?.getAdditionalCharges() ??
+                          [];
 
-                      saveWarehouseAInwardItems({
-                        header: {
+                        const header = {
                           currency:
                             typeof values.currency === "string"
                               ? values.currency
@@ -542,7 +799,7 @@ export function InventoryForm<Row extends InventoryRecord>({
                               : values.attachment &&
                                   typeof values.attachment === "object" &&
                                   "name" in values.attachment
-                                ? values.attachment.name
+                                ? String(values.attachment.name)
                                 : "",
                           eta:
                             values.eta instanceof Date ? values.eta : null,
@@ -566,16 +823,63 @@ export function InventoryForm<Row extends InventoryRecord>({
                             typeof values.supplierName === "string"
                               ? values.supplierName
                               : "",
-                        },
-                        lineItems,
-                        slug: warehouseAAddStockSlug,
-                      });
-                    }
+                          exchangeRate:
+                            typeof values.exchangeRate === "string"
+                              ? values.exchangeRate
+                              : "",
+                          remarks:
+                            typeof values.remark === "string"
+                              ? values.remark
+                              : typeof values.remarks === "string"
+                                ? values.remarks
+                                : "",
+                        };
 
-                    closeInventoryForm();
+                        if (apiWarehouseId) {
+                          if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
+                            setSaveError(
+                              "Only Veneer Blocks, Raw Veneer, and Plywood inward are supported currently.",
+                            );
+                            return;
+                          }
+
+                          setIsSaving(true);
+                          try {
+                            const payload = await buildCreateInwardPayload({
+                              warehouseId: apiWarehouseId,
+                              inventorySlug: warehouseAAddStockSlug,
+                              header,
+                              lineItems,
+                              otherConsumables,
+                              additionalCharges,
+                            });
+                            await createInwardApi(payload);
+                            closeInventoryForm();
+                          } catch (error) {
+                            setSaveError(
+                              error instanceof Error
+                                ? error.message
+                                : "Failed to save inward.",
+                            );
+                          } finally {
+                            setIsSaving(false);
+                          }
+                          return;
+                        }
+
+                        // Legacy local-only path (no warehouseId query).
+                        saveWarehouseAInwardItems({
+                          header,
+                          lineItems,
+                          slug: warehouseAAddStockSlug,
+                        });
+                      }
+
+                      closeInventoryForm();
+                    })();
                   }}
                 >
-                  {primaryLabel}
+                  {isSaving ? "Saving..." : primaryLabel}
                 </Button>
               </>
             )}

@@ -1,126 +1,22 @@
 import type { MasterDefinition, MasterRecord } from "./types";
 import { createMasterRows } from "./utils";
 import { getCachedSupplierMasterRows } from "../supplier-master/api/supplierMasterApi";
+import { getCachedTransporterMasterRows } from "../transporter-master/api/transporterMasterApi";
 
 export { customerMasterDefinition } from "../customer-master/customerMasterDefinition";
 export { supplierMasterDefinition } from "../supplier-master/supplierMasterDefinition";
 export { transporterMasterDefinition } from "../transporter-master/transporterMasterDefinition";
+export { warehouseLocationMasterDefinition } from "../warehouse-location-master/warehouseLocationMasterDefinition";
 
 const asDate = (value: string) => new Date(value);
 
 const demoListingRowCount = 12;
 
 function limitDemoListingRows<T extends MasterRecord>(
-  rows: ReadonlyArray<T>,
-  options: { count?: number; uniqueKey?: string } = {},
+  _rows: ReadonlyArray<T>,
+  _options: { count?: number; uniqueKey?: string } = {},
 ) {
-  if (rows.length === 0) {
-    return [] as T[];
-  }
-
-  const count = options.count ?? demoListingRowCount;
-  const usedUniqueValues = new Set(
-    options.uniqueKey
-      ? rows
-          .map((row) => row[options.uniqueKey!])
-          .filter((value): value is string => typeof value === "string")
-      : [],
-  );
-
-  return Array.from({ length: count }, (_, index) => {
-    const sourceRow = rows[index % rows.length]!;
-
-    if (index < rows.length) {
-      return sourceRow;
-    }
-
-    return createMasterDemoRow(
-      sourceRow,
-      index,
-      options.uniqueKey,
-      usedUniqueValues,
-    );
-  });
-}
-
-function createMasterDemoRow<T extends MasterRecord>(
-  row: T,
-  index: number,
-  uniqueKey?: string,
-  usedUniqueValues?: Set<string>,
-) {
-  const sequence = String(index + 1).padStart(2, "0");
-  const clonedRow = {
-    ...row,
-    id: `${row.id}-demo-${sequence}`,
-  } as MasterRecord;
-  const identityKeys = [
-    "itemName",
-    "itemCode",
-    "categoryName",
-    "itemSubCategory",
-    "colorName",
-    "cutName",
-    "gradeName",
-    "customerName",
-    "companyName",
-    "unitName",
-    "symbolicName",
-    "supplierName",
-    "transporterName",
-    "branchName",
-    "warehouseName",
-    "warehouseCode",
-    "currencyName",
-    "currencyCode",
-    "hsnCodeDescription",
-  ] as const;
-
-  identityKeys.forEach((key) => {
-    const value = clonedRow[key];
-
-    if (typeof value === "string" && value.trim()) {
-      clonedRow[key] = `${value} ${sequence}`;
-    }
-  });
-
-  if (uniqueKey && usedUniqueValues) {
-    const uniqueValue = getNextUniqueMasterValue(
-      uniqueKey,
-      index,
-      usedUniqueValues,
-    );
-    clonedRow[uniqueKey] = uniqueValue;
-    usedUniqueValues.add(uniqueValue);
-  }
-
-  if (typeof clonedRow.remark === "string" && clonedRow.remark.trim()) {
-    clonedRow.remark = `${clonedRow.remark} Demo entry ${sequence}.`;
-  }
-
-  return clonedRow as T;
-}
-
-function getNextUniqueMasterValue(
-  key: string,
-  index: number,
-  usedValues: Set<string>,
-) {
-  let sequence = index;
-  let candidate =
-    key === "hsnCode"
-      ? String(4400 + sequence)
-      : `${key.toUpperCase()}-${String(sequence + 1).padStart(2, "0")}`;
-
-  while (usedValues.has(candidate)) {
-    sequence += 1;
-    candidate =
-      key === "hsnCode"
-        ? String(4400 + sequence)
-        : `${key.toUpperCase()}-${String(sequence + 1).padStart(2, "0")}`;
-  }
-
-  return candidate;
+  return [] as T[];
 }
 
 function withAuditFields<T extends MasterRecord>(rows: ReadonlyArray<T>) {
@@ -466,152 +362,6 @@ const unitRows = withAuditFields(createMasterRows("unit-master", [
   },
 ]));
 
-const supplierRows = withAuditFields(createMasterRows("supplier-master", [
-  {
-    supplierName: "Arihant Veneers LLP",
-    supplierType: "Domestic",
-    contactPersonName: "Karan Shah",
-    designation: "Sales Manager",
-    mobileNumber: "+91 98250 11223",
-    emailAddress: "karan@arihantveneers.in",
-    address: "Narol Industrial Estate",
-    pincode: "380051",
-    city: "Ahmedabad",
-    state: "Gujarat",
-    country: "India",
-    msmeType: "Small",
-    msmeNo: "UDYAM-GJ-10-1122334",
-    gstNo: "24AAWFA2214F1Z5",
-    gstUpload: "arihant-gst.pdf",
-    panNo: "AAWFA2214F",
-    panUpload: "arihant-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-04-12"),
-    updatedDate: asDate("2026-05-07"),
-  },
-  {
-    supplierName: "Baltic Timber Supply",
-    supplierType: "Import",
-    contactPersonName: "Elina Markova",
-    designation: "Export Coordinator",
-    mobileNumber: "+371 22 455 881",
-    emailAddress: "elina@baltictimber.eu",
-    address: "Riga Export Terminal",
-    pincode: "100001",
-    city: "Riga",
-    state: "Riga",
-    country: "Latvia",
-    msmeType: "Corporate",
-    msmeNo: "EU-CORP-771092",
-    gstNo: "LT-EXIM-771092",
-    gstUpload: "baltic-gst.pdf",
-    panNo: "BTSUP7710K",
-    panUpload: "baltic-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-04-27"),
-    updatedDate: asDate("2026-05-20"),
-  },
-  {
-    supplierName: "City Timber Traders",
-    supplierType: "Domestic",
-    contactPersonName: "Nitin Arora",
-    designation: "Proprietor",
-    mobileNumber: "+91 98101 44770",
-    emailAddress: "nitin@citytimber.in",
-    address: "Karol Bagh Timber Market",
-    pincode: "110001",
-    city: "Delhi",
-    state: "Delhi",
-    country: "India",
-    msmeType: "Medium",
-    msmeNo: "UDYAM-DL-05-7784510",
-    gstNo: "07AAKFC5561N1Z8",
-    gstUpload: "city-timber-gst.pdf",
-    panNo: "AAKFC5561N",
-    panUpload: "city-timber-pan.pdf",
-    status: "Active",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-10"),
-    updatedDate: asDate("2026-05-29"),
-  },
-  {
-    supplierName: "Nordic Veneer House",
-    supplierType: "Import",
-    contactPersonName: "Mikael Sorensen",
-    designation: "Account Director",
-    mobileNumber: "+45 31 77 9821",
-    emailAddress: "mikael@nordicveneer.dk",
-    address: "Aarhus Port",
-    pincode: "800000",
-    city: "Aarhus",
-    state: "Central Denmark",
-    country: "Denmark",
-    msmeType: "Corporate",
-    msmeNo: "EU-CORP-883214",
-    gstNo: "DK-EXIM-883214",
-    gstUpload: "nordic-gst.pdf",
-    panNo: "NVHOU8832Q",
-    panUpload: "nordic-pan.pdf",
-    status: "Inactive",
-    createdEditedBy: "Aditi Desai",
-    updatedBy: "Atharva Patil",
-    createdEditedDate: asDate("2026-05-24"),
-    updatedDate: asDate("2026-06-08"),
-  },
-]));
-
-const transporterRows = withAuditFields(createMasterRows("transporter-master", [
-  {
-    transporterName: "Amardeep Cargo Logistic",
-    branchName: "Ahmedabad",
-    transporterId: "TRN-AMD-001",
-    type: "Road",
-    areaOfOperation: "Ahmedabad",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-05-04"),
-    updatedDate: asDate("2026-06-02"),
-  },
-  {
-    transporterName: "National Freight Carrier",
-    branchName: "Mumbai",
-    transporterId: "TRN-NFC-014",
-    type: "Road",
-    areaOfOperation: "Mumbai",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-05-12"),
-    updatedDate: asDate("2026-06-08"),
-  },
-  {
-    transporterName: "Deluxe Transport Services",
-    branchName: "Surat",
-    transporterId: "TRN-DTS-021",
-    type: "Road",
-    areaOfOperation: "Surat",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-21"),
-    updatedDate: asDate("2026-06-15"),
-  },
-  {
-    transporterName: "Blue Sky Air Cargo",
-    branchName: "Delhi",
-    transporterId: "TRN-BSA-032",
-    type: "Air",
-    areaOfOperation: "Delhi",
-    createdEditedBy: "Aditi Desai",
-    updatedBy: "Atharva Patil",
-    createdEditedDate: asDate("2026-06-01"),
-    updatedDate: asDate("2026-06-20"),
-  },
-]));
-
 const gstRows = withAuditFields(createMasterRows("gst-master", [
   {
     gstPercentage: "5%",
@@ -691,57 +441,6 @@ const hsnRows = withAuditFields(createMasterRows("hsn-master", [
     updatedBy: "Atharva Patil",
     createdEditedDate: asDate("2026-05-25"),
     updatedDate: asDate("2026-06-08"),
-  },
-]));
-
-const warehouseRows = withAuditFields(createMasterRows("warehouse-location-master", [
-  {
-    warehouseName: "Warehouse A",
-    warehouseCode: "WH-A-01",
-    warehouseType: "Inward",
-    status: "Active",
-    address: "Plot 18, GIDC Estate, Changodar",
-    city: "Ahmedabad",
-    pincode: "382213",
-    state: "Gujarat",
-    country: "India",
-    remark: "Primary inward warehouse for veneer receipts.",
-    createdEditedBy: "Atharva Patil",
-    updatedBy: "Neha Shah",
-    createdEditedDate: asDate("2026-04-13"),
-    updatedDate: asDate("2026-05-05"),
-  },
-  {
-    warehouseName: "Warehouse B",
-    warehouseCode: "WH-B-02",
-    warehouseType: "Storage",
-    status: "Active",
-    address: "Shed 9, Timber Market Road, Narol",
-    city: "Ahmedabad",
-    pincode: "382405",
-    state: "Gujarat",
-    country: "India",
-    remark: "Finished inspected stock storage location.",
-    createdEditedBy: "Neha Shah",
-    updatedBy: "Rohit Jain",
-    createdEditedDate: asDate("2026-04-26"),
-    updatedDate: asDate("2026-05-18"),
-  },
-  {
-    warehouseName: "Warehouse C",
-    warehouseCode: "WH-C-03",
-    warehouseType: "Production",
-    status: "Active",
-    address: "Unit 4, Industrial Layout, Sanand",
-    city: "Sanand",
-    pincode: "382110",
-    state: "Gujarat",
-    country: "India",
-    remark: "Production stage transfer warehouse.",
-    createdEditedBy: "Rohit Jain",
-    updatedBy: "Aditi Desai",
-    createdEditedDate: asDate("2026-05-09"),
-    updatedDate: asDate("2026-05-28"),
   },
 ]));
 
@@ -825,28 +524,32 @@ export const itemMasterDefinition: MasterDefinition = {
   fields: [
     { key: "itemName", label: "Item Name", type: "text" },
     { key: "itemCode", label: "Factory Item Code", type: "text" },
-    { key: "category", label: "Category", type: "select", options: activeOptions(itemCategoryRows, "categoryName") },
-    { key: "subCategory", label: "Sub Category", type: "select", options: activeOptions(itemSubCategoryRows, "itemSubCategory") },
-    { key: "color", label: "Color", type: "select", options: activeOptions(colorRows, "colorName") },
-    { key: "hsn", label: "HSN Code", type: "select", options: activeOptions(hsnRows, "hsnCode") },
+    { key: "category", label: "Category", type: "select", options: [] },
+    {
+      key: "subCategory",
+      label: "Sub Category",
+      type: "select",
+      options: [],
+    },
+    { key: "color", label: "Color", type: "select", options: [] },
+    {
+      key: "hsn",
+      label: "HSN Code",
+      type: "select",
+      options: [],
+      readOnly: true,
+    },
     {
       key: "gst",
       label: "GST No",
       type: "select",
-      options: activeOptions(gstRows, "gstPercentage"),
+      options: [],
       readOnly: true,
-      autoFillFrom: {
-        rows: limitDemoListingRows(hsnRows),
-        sourceSlug: "hsn-master",
-        sourceKey: "hsn",
-        sourceMatchKey: "hsnCode",
-        sourceValueKey: "gstPercentage",
-      },
     },
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemRows),
+  rows: [],
 };
 
 export const itemCategoryMasterDefinition: MasterDefinition = {
@@ -891,7 +594,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemCategoryRows),
+  rows: [],
 };
 
 export const itemSubCategoryMasterDefinition: MasterDefinition = {
@@ -917,7 +620,7 @@ export const itemSubCategoryMasterDefinition: MasterDefinition = {
     { key: "category", label: "Category", type: "select", options: activeOptions(itemCategoryRows, "categoryName") },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(itemSubCategoryRows),
+  rows: [],
 };
 
 export const colorMasterDefinition: MasterDefinition = {
@@ -942,18 +645,22 @@ export const colorMasterDefinition: MasterDefinition = {
     { key: "colorName", label: "Color Name", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(colorRows),
+  rows: [],
 };
 
 export const cutMasterOptions = uniqueOptions(cutRows, "cutName");
 export const gradeMasterOptions = uniqueOptions(gradeRows, "gradeName");
 export const gstMasterOptions = uniqueOptions(gstRows, "gstPercentage");
-export const supplierMasterOptions = activeOptions(supplierRows, "supplierName");
+export function getSupplierMasterOptions() {
+  return activeOptions(getCachedSupplierMasterRows(), "supplierName");
+}
+
+/** @deprecated Prefer getSupplierMasterOptions() for live API cache values. */
+export const supplierMasterOptions = getSupplierMasterOptions();
+
 export const currencyMasterOptions = activeOptions(currencyRows, "currencyName");
 export const itemMasterOptions = activeOptions(itemRows, "itemName");
 export const hsnMasterOptions = activeOptions(hsnRows, "hsnCode");
-
-export const warehouseABillingState = "Gujarat";
 
 export function getItemMasterRecord(itemName: string) {
   const normalizedName = itemName.trim().toLowerCase();
@@ -999,30 +706,33 @@ export function getSupplierState(supplierName: string) {
       String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
   );
 
-  if (cachedMatch) {
-    return String(cachedMatch.state ?? "");
+  return cachedMatch ? String(cachedMatch.state ?? "") : "";
+}
+
+function normalizeStateValue(state: string) {
+  return state.trim().toLowerCase();
+}
+
+/** Same warehouse & supplier state → CGST+SGST; different → IGST. */
+export function getInwardGstMode(
+  warehouseState: string,
+  supplierState: string,
+): "intra" | "inter" {
+  const warehouse = normalizeStateValue(warehouseState);
+  const supplier = normalizeStateValue(supplierState);
+
+  if (!warehouse || !supplier) {
+    return "intra";
   }
 
-  const match = (supplierRows as readonly MasterRecord[]).find(
-    (row) =>
-      String(row.supplierName ?? "").trim().toLowerCase() === normalizedName,
-  );
-
-  return match ? String(match.state ?? "") : "";
+  return warehouse === supplier ? "intra" : "inter";
 }
 
 export function getWarehouseAGstMode(
   supplierName: string,
+  warehouseState = "",
 ): "intra" | "inter" {
-  const supplierState = getSupplierState(supplierName).trim().toLowerCase();
-
-  if (!supplierState) {
-    return "intra";
-  }
-
-  return supplierState === warehouseABillingState.toLowerCase()
-    ? "intra"
-    : "inter";
+  return getInwardGstMode(warehouseState, getSupplierState(supplierName));
 }
 
 export const cutMasterDefinition: MasterDefinition = {
@@ -1048,7 +758,7 @@ export const cutMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(cutRows),
+  rows: [],
 };
 
 export const gradeMasterDefinition: MasterDefinition = {
@@ -1074,7 +784,7 @@ export const gradeMasterDefinition: MasterDefinition = {
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(gradeRows),
+  rows: [],
 };
 
 export const unitMasterDefinition: MasterDefinition = {
@@ -1085,9 +795,10 @@ export const unitMasterDefinition: MasterDefinition = {
     { key: "srNo", label: "Sr No" },
     { key: "unitName", label: "Unit Name" },
     { key: "symbolicName", label: "Symbolic Name" },
+    { key: "remark", label: "Remark" },
+    { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },
-    { key: "status", label: "Status" },
     { key: "createdDate", label: "Created Date" },
     { key: "updatedDate", label: "Updated Date" },
   ],
@@ -1099,8 +810,9 @@ export const unitMasterDefinition: MasterDefinition = {
     { key: "unitName", label: "Unit Name", type: "text" },
     { key: "symbolicName", label: "Symbolic Name", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
+    { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: limitDemoListingRows(unitRows),
+  rows: [],
 };
 
 export const gstMasterDefinition: MasterDefinition = {
@@ -1127,7 +839,7 @@ export const gstMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", type: "select", options: statusOptions },
     { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: gstRows,
+  rows: [],
 };
 
 export const hsnMasterDefinition: MasterDefinition = {
@@ -1156,51 +868,7 @@ export const hsnMasterDefinition: MasterDefinition = {
     { key: "gstPercentage", label: "GST%", type: "select", options: activeOptions(gstRows, "gstPercentage") },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],
-  rows: limitDemoListingRows(hsnRows, { uniqueKey: "hsnCode" }),
-};
-
-export const warehouseLocationMasterDefinition: MasterDefinition = {
-  slug: "warehouse-location-master",
-  title: "Warehouse / Location Master",
-  gridColumns: 4,
-  columns: [
-    { key: "srNo", label: "Sr No" },
-    { key: "warehouseName", label: "Warehouse Name" },
-    { key: "warehouseCode", label: "Warehouse Code" },
-    { key: "status", label: "Status" },
-    { key: "address", label: "Address" },
-    { key: "pincode", label: "Pincode" },
-    { key: "country", label: "Country" },
-    { key: "state", label: "State" },
-    { key: "city", label: "City" },
-    { key: "createdBy", label: "Created By" },
-    { key: "editedBy", label: "Updated By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-  ],
-  filters: [
-    { key: "country", label: "Country", options: uniqueOptions(warehouseRows, "country") },
-    { key: "state", label: "State", options: uniqueOptions(warehouseRows, "state") },
-    { key: "status", label: "Status", options: statusOptions },
-  ],
-  fields: [
-    { key: "warehouseName", label: "Warehouse Name", type: "text" },
-    { key: "warehouseCode", label: "Warehouse Code", type: "text" },
-    {
-      key: "warehouseType",
-      label: "Warehouse Type",
-      type: "select",
-      options: ["Inward", "Storage", "Production"],
-    },
-    { key: "status", label: "Status", type: "select", options: statusOptions },
-    { key: "address", label: "Address", type: "text" },
-    { key: "pincode", label: "Pincode", type: "text" },
-    { key: "country", label: "Country", type: "select", options: uniqueOptions(warehouseRows, "country") },
-    { key: "state", label: "State", type: "select", options: uniqueOptions(warehouseRows, "state") },
-    { key: "city", label: "City", type: "text" },
-    { key: "remark", label: "Remark", type: "text" },
-  ],
-  rows: warehouseRows,
+  rows: [],
 };
 
 export const currencyMasterDefinition: MasterDefinition = {
@@ -1227,19 +895,28 @@ export const currencyMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", type: "select", options: statusOptions },
     { key: "remark", label: "Remark", type: "text" },
   ],
-  rows: currencyRows,
+  rows: [],
 };
 
 export const unitMasterOptions = uniqueOptions(unitRows, "unitName");
 
-export const transporterMasterOptions = uniqueOptions(
-  transporterRows,
-  "transporterName",
-);
+export function getTransporterMasterOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "transporterName");
+}
 
-export const transporterTypeOptions = uniqueOptions(transporterRows, "type");
+/** @deprecated Prefer getTransporterMasterOptions() for live API cache values. */
+export const transporterMasterOptions = getTransporterMasterOptions();
 
-export const transporterAreaOfOperationOptions = uniqueOptions(
-  transporterRows,
-  "areaOfOperation",
-);
+export const transporterTypeOptions = ["Road", "Air", "Rail"];
+
+export function getTransporterAreaOfOperationOptions() {
+  return uniqueOptions(
+    getCachedTransporterMasterRows(),
+    "areaOfOperation",
+  );
+}
+
+/** @deprecated Prefer getTransporterAreaOfOperationOptions(). */
+export const transporterAreaOfOperationOptions =
+  getTransporterAreaOfOperationOptions();
+

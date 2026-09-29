@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 
 import {
@@ -11,8 +11,9 @@ import { isActiveColumnFilter } from "../../../shared/columnFilters";
 import { transporterMasterDefinition } from "../transporterMasterDefinition";
 import {
   createTransporterMasterRecord,
+  fetchTransporterMasterColumnDropdown,
   fetchTransporterMasterDetail,
-  fetchTransporterMasterDropdowns,
+  fetchTransporterMasterMeta,
   fetchTransporterMasterPaginated,
   refreshTransporterMasterCache,
   updateTransporterMasterRecord,
@@ -39,6 +40,8 @@ const TRANSPORTER_SORT_FIELD_MAP: Record<string, string> = {
   editedBy: "updatedAt",
   updatedBy: "updatedAt",
 };
+
+const STATIC_TRANSPORTER_TYPE_OPTIONS = ["Road", "Air", "Rail"];
 
 function mapTransporterSortField(columnKey: string | null): string | undefined {
   if (!columnKey) {
@@ -81,44 +84,55 @@ export function TransporterMasterListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [typeOptions, setTypeOptions] = useState<string[]>([
-    "Road",
-    "Air",
-    "Rail",
-  ]);
-  const [areaOptions, setAreaOptions] = useState<string[]>([]);
+  const hasLoadedRowsRef = useRef(false);
+  const columnDropdownRequestIdRef = useRef(0);
 
   const definition = useMemo(
     () => ({
       ...transporterMasterDefinition,
       filters: transporterMasterDefinition.filters.map((filter) => {
         if (filter.key === "type") {
-          return { ...filter, options: typeOptions };
+          return { ...filter, options: STATIC_TRANSPORTER_TYPE_OPTIONS };
         }
         if (filter.key === "areaOfOperation") {
-          return { ...filter, options: areaOptions };
+          return {
+            ...filter,
+            options: (filterOptionsByColumn.areaOfOperation ?? []).map(
+              (entry) => entry.label,
+            ),
+          };
         }
         return filter;
       }),
     }),
-    [areaOptions, typeOptions],
+    [filterOptionsByColumn],
   );
 
-  useEffect(() => {
-    void fetchTransporterMasterDropdowns().then((dropdowns) => {
-      if (dropdowns.types.length > 0) {
-        setTypeOptions(dropdowns.types.map((entry) => entry.label));
+  const loadColumnDropdown = useCallback(async (columnKey: string) => {
+    const requestId = ++columnDropdownRequestIdRef.current;
+    setFilterOptionsByColumn({});
+
+    try {
+      const result = await fetchTransporterMasterColumnDropdown(columnKey);
+      if (requestId !== columnDropdownRequestIdRef.current) {
+        return;
       }
-      setAreaOptions(dropdowns.areaOfOperations.map((entry) => entry.label));
-      setFilterOptionsByColumn(dropdowns.columnFilters ?? {});
-    });
-  }, [reloadKey]);
+
+      setFilterOptionsByColumn({
+        [result.column]: result.options,
+      });
+    } catch {
+      // Keep page usable; filter menus can fall back to page-local options.
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
 
     const timer = window.setTimeout(async () => {
-      setIsLoading(true);
+      if (!hasLoadedRowsRef.current) {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       try {
@@ -138,6 +152,7 @@ export function TransporterMasterListPage() {
         if (!ignore) {
           setRows(result.items);
           setTotalCount(result.pagination.total);
+          hasLoadedRowsRef.current = true;
           void refreshTransporterMasterCache(result.items);
         }
       } catch (error) {
@@ -239,6 +254,9 @@ export function TransporterMasterListPage() {
         onSortChange: handleSortChange,
       }}
       columnFilters={columnFilters}
+      onColumnFilterOpen={(columnKey) => {
+        void loadColumnDropdown(columnKey);
+      }}
       onColumnFiltersChange={handleColumnFiltersChange}
       filterOptionsByColumn={filterOptionsByColumn}
       rows={rows}
@@ -269,11 +287,9 @@ function TransporterMasterFormPage({
   const [record, setRecord] = useState<TransporterMasterDetail | undefined>();
   const [isLoading, setIsLoading] = useState(mode !== "add");
   const [errorMessage, setErrorMessage] = useState("");
-  const [typeOptions, setTypeOptions] = useState<string[]>([
-    "Road",
-    "Air",
-    "Rail",
-  ]);
+  const [typeOptions, setTypeOptions] = useState<string[]>(
+    STATIC_TRANSPORTER_TYPE_OPTIONS,
+  );
   const [areaOptions, setAreaOptions] = useState<string[]>([]);
 
   const definition = useMemo(
@@ -298,11 +314,11 @@ function TransporterMasterFormPage({
   );
 
   useEffect(() => {
-    void fetchTransporterMasterDropdowns().then((dropdowns) => {
-      if (dropdowns.types.length > 0) {
-        setTypeOptions(dropdowns.types.map((entry) => entry.label));
+    void fetchTransporterMasterMeta().then((meta) => {
+      if (meta.types.length > 0) {
+        setTypeOptions(meta.types.map((entry) => entry.label));
       }
-      setAreaOptions(dropdowns.areaOfOperations.map((entry) => entry.label));
+      setAreaOptions(meta.areaOfOperations.map((entry) => entry.label));
     });
   }, []);
 

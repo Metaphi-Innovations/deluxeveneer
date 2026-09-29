@@ -6,7 +6,6 @@ import { warehouseLocationMasterDefinition } from "../../masters/shared/masterDe
 import type {
   MasterDefinition,
   MasterFieldValue,
-  MasterFilterDefinition,
   MasterRecord,
 } from "../../masters/shared/types";
 
@@ -95,31 +94,6 @@ function toSlug(value: string) {
 
 function toTextValue(value: MasterFieldValue) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function getUniqueFilterOptions(
-  rows: ReadonlyArray<MasterRecord>,
-  key: string,
-) {
-  return Array.from(
-    new Set(
-      rows
-        .map((row) => row[key])
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
-function buildFilterDefinitions(
-  filters: readonly MasterFilterDefinition[],
-  rows: ReadonlyArray<MasterRecord>,
-) {
-  return filters.map((filter) => ({
-    ...filter,
-    options: getUniqueFilterOptions(rows, filter.key),
-  }));
 }
 
 function serializeWarehouseRecord(
@@ -336,30 +310,12 @@ export function updateLocalWarehouse(
 }
 
 export function buildWarehouseLocationMasterDefinition(): MasterDefinition {
-  const mergedRows = [
-    ...warehouseLocationMasterDefinition.rows,
-    ...getLocalWarehouseRecords(),
-  ]
-    .slice()
-    .sort((left, right) => {
-      const leftTime =
-        left.createdDate instanceof Date ? left.createdDate.getTime() : 0;
-      const rightTime =
-        right.createdDate instanceof Date ? right.createdDate.getTime() : 0;
-
-      return rightTime - leftTime;
-    })
-    .map((row, index) => ({
-      ...row,
-      srNo: String(index + 1),
-    }));
-
   return {
     ...warehouseLocationMasterDefinition,
-    rows: mergedRows,
-    filters: buildFilterDefinitions(
-      warehouseLocationMasterDefinition.filters,
-      mergedRows,
-    ),
+    rows: [],
+    filters: warehouseLocationMasterDefinition.filters.map((filter) => ({
+      ...filter,
+      options: filter.options ?? [],
+    })),
   };
 }

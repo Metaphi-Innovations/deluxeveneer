@@ -1,5 +1,5 @@
 import {
-  supplierMasterOptions,
+  getSupplierMasterOptions,
 } from "../../masters/shared/masterDefinitions";
 import type { MasterFieldDefinition } from "../../masters/shared";
 import type { WarehouseAAddStockSlug } from "./WarehouseAAddStockLineItems";
@@ -76,7 +76,7 @@ export function createWarehouseAAddStockHeaderFields(
       key: "supplierName",
       label: "Supplier Name",
       type: "select",
-      options: supplierMasterOptions,
+      options: getSupplierMasterOptions(),
       required: true,
     },
     {
@@ -141,5 +141,6 @@ export function buildWarehouseAAddStockInitialValues(
     mode: "",
     attachment: "",
     supplierName: "",
+    remark: "",
   };
 }

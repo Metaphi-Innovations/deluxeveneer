@@ -14,11 +14,13 @@ import {
   buildUserPermissionSections,
   userPermissionSections,
 } from "./userManagementConfig";
-import {
-  getDynamicSidebarWarehouses,
-  LOCAL_WAREHOUSES_UPDATED_EVENT,
-} from "../../warehouses/shared/localWarehouseStore";
 import type { UserPermissionItem } from "./userManagementConfig";
+import type { DynamicWarehousePermissionItem } from "../../shared/warehousePermission";
+import { WAREHOUSE_TYPE_ICONS } from "../../../layouts/sidebarNavigation";
+import {
+  fetchSidebarWarehouses,
+  MASTER_WAREHOUSES_UPDATED_EVENT,
+} from "../../warehouses/shared/warehouseSidebarStore";
 
 export type PermissionBulkUpdate = {
   itemKey: string;
@@ -52,17 +54,61 @@ export function UserPermissionMatrix({
   readOnly = false,
 }: UserPermissionMatrixProps) {
   const theme = useTheme();
-  const [dynamicWarehouses, setDynamicWarehouses] = useState(() =>
-    getDynamicSidebarWarehouses(),
-  );
+  const [dynamicWarehouses, setDynamicWarehouses] = useState<
+    DynamicWarehousePermissionItem[]
+  >([]);
   const permissionSections = useMemo(
-    () => buildUserPermissionSections(dynamicWarehouses),
+    () => buildUserPermissionSections(dynamicWarehouses, WAREHOUSE_TYPE_ICONS),
     [dynamicWarehouses],
   );
   const [selectedSectionId, setSelectedSectionId] = useState(
     userPermissionSections[0]?.id ?? "",
   );
   const [viewFilter, setViewFilter] = useState<"all" | "granted">("granted");
+
+  useEffect(() => {
+    let ignore = false;
+
+    const loadWarehouses = async () => {
+      try {
+        const warehouses = await fetchSidebarWarehouses();
+        if (ignore) {
+          return;
+        }
+
+        setDynamicWarehouses(
+          warehouses.map((warehouse) => ({
+            id: warehouse.id,
+            label: warehouse.label,
+            warehouseType: warehouse.warehouseType,
+          })),
+        );
+      } catch {
+        if (!ignore) {
+          setDynamicWarehouses([]);
+        }
+      }
+    };
+
+    void loadWarehouses();
+
+    const onWarehousesUpdated = () => {
+      void loadWarehouses();
+    };
+
+    window.addEventListener(
+      MASTER_WAREHOUSES_UPDATED_EVENT,
+      onWarehousesUpdated,
+    );
+
+    return () => {
+      ignore = true;
+      window.removeEventListener(
+        MASTER_WAREHOUSES_UPDATED_EVENT,
+        onWarehousesUpdated,
+      );
+    };
+  }, []);
 
   const totals = useMemo(
     () => countPermissionBreakdown(permissions),
@@ -100,26 +146,6 @@ export function UserPermissionMatrix({
       }
     }
   }, [permissionSections, selectedSectionId]);
-
-  useEffect(() => {
-    const handleWarehousesUpdate = () => {
-      setDynamicWarehouses(getDynamicSidebarWarehouses());
-    };
-
-    window.addEventListener(
-      LOCAL_WAREHOUSES_UPDATED_EVENT,
-      handleWarehousesUpdate,
-    );
-    window.addEventListener("storage", handleWarehousesUpdate);
-
-    return () => {
-      window.removeEventListener(
-        LOCAL_WAREHOUSES_UPDATED_EVENT,
-        handleWarehousesUpdate,
-      );
-      window.removeEventListener("storage", handleWarehousesUpdate);
-    };
-  }, []);
 
   const applyUpdates = (updates: PermissionBulkUpdate[]) => {
     if (updates.length === 0 || readOnly) {
@@ -479,8 +505,17 @@ export function UserPermissionMatrix({
                 px: 2,
                 display: "flex",
                 alignItems: "center",
+                gap: 1,
               }}
             >
+              {item.icon ? (
+                <item.icon
+                  size={16}
+                  strokeWidth={1.75}
+                  aria-hidden
+                  style={{ flexShrink: 0 }}
+                />
+              ) : null}
               {item.label}
             </Typography>
 

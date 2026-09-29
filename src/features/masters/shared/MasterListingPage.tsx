@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -9,6 +9,7 @@ import { Link as RouterLink } from "react-router";
 
 import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import {
   canAccessAnyAction,
   canAccessPermission,
@@ -60,6 +61,8 @@ interface MasterListingPageProps {
     string,
     Array<{ value: string; label: string }>
   >;
+  /** Called when a column filter menu is opened (lazy-load options). */
+  onColumnFilterOpen?: (columnKey: string) => void;
 }
 
 export function MasterListingPage({
@@ -76,6 +79,7 @@ export function MasterListingPage({
   columnFilters,
   onColumnFiltersChange,
   filterOptionsByColumn,
+  onColumnFilterOpen,
 }: MasterListingPageProps) {
   const localDefinition = useMemo(
     () => buildLocalMasterDefinition(definition),
@@ -91,6 +95,32 @@ export function MasterListingPage({
   const searchValue = controlledSearch ?? internalSearch;
   const setSearchValue = onSearchChange ?? setInternalSearch;
   const sourceRows = remoteRows ?? localDefinition.rows;
+
+  // Local input state and debounce effect to avoid immediate API firing on every keystroke
+  const [inputValue, setInputValue] = useState(searchValue);
+
+  useEffect(() => {
+    setInputValue(searchValue);
+  }, [searchValue]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (inputValue !== searchValue) {
+        setSearchValue(inputValue);
+      }
+    }, 450);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [inputValue, searchValue, setSearchValue]);
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val);
+    if (val === "") {
+      setSearchValue("");
+    }
+  };
 
   const filteredRows = useMemo(() => {
     if (serverSearch) {
@@ -149,8 +179,8 @@ export function MasterListingPage({
         spacing={1.5}
       >
         <ClearableSearchField
-          value={searchValue}
-          onChange={setSearchValue}
+          value={inputValue}
+          onChange={handleInputChange}
           placeholder={searchPlaceholder}
           sx={{
             width: { xs: "100%", sm: 300 },
@@ -176,8 +206,11 @@ export function MasterListingPage({
           pt: theme.spacing(0.5),
         })}
       >
-        {loading ? (
-          <Alert severity="info">Loading {entityLabel.toLowerCase()}s...</Alert>
+        {loading && sourceRows.length === 0 ? (
+          <ContentLoader
+            label={`Loading ${entityLabel.toLowerCase()}s...`}
+            minHeight={220}
+          />
         ) : (
           <MasterTable
             canChangeStatus={canEdit}
@@ -192,6 +225,7 @@ export function MasterListingPage({
             {...(columnFilters ? { columnFilters } : {})}
             {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
             {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
+            {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
             rows={canView ? filteredRows : []}
           />
         )}

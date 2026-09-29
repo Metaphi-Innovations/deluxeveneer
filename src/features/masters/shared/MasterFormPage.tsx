@@ -8,6 +8,7 @@ import {
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { MasterFormFields, hasFormFieldErrors } from "./MasterFormFields";
 import { MasterPageShell } from "./MasterPageShell";
 import { MasterSectionCard } from "./MasterSectionCard";
@@ -44,6 +45,7 @@ interface MasterFormPageProps {
   mode: "add" | "edit" | "view";
   /** When provided, used instead of looking up the row from local mock store. */
   record?: MasterRecord;
+  onFieldChange?: (key: string, value: MasterFieldValue) => void;
   onSave?: (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -91,6 +93,7 @@ export function MasterFormPage({
   errorMessage = "",
   loading = false,
   mode,
+  onFieldChange,
   onSave,
   record,
 }: MasterFormPageProps) {
@@ -129,17 +132,29 @@ export function MasterFormPage({
   };
 
   useEffect(() => {
-    const nextValues = buildMasterInitialValues(localDefinition, row);
+    setValues((current) => {
+      const nextValues = buildMasterInitialValues(localDefinition, row);
 
-    if (row) {
-      const phoneCountryCode = row.phoneNumberCountryCode;
-      if (typeof phoneCountryCode === "string" && phoneCountryCode.trim()) {
-        nextValues.phoneNumberCountryCode = phoneCountryCode;
+      if (row) {
+        const phoneCountryCode = row.phoneNumberCountryCode;
+        if (typeof phoneCountryCode === "string" && phoneCountryCode.trim()) {
+          nextValues.phoneNumberCountryCode = phoneCountryCode;
+        }
       }
-    }
 
-    setValues(nextValues);
-  }, [localDefinition, row]);
+      if (mode === "add" || mode === "edit") {
+        const merged = { ...nextValues };
+        Object.keys(current).forEach((key) => {
+          if (current[key] !== undefined && current[key] !== "") {
+            merged[key] = current[key];
+          }
+        });
+        return merged;
+      }
+
+      return nextValues;
+    });
+  }, [localDefinition, row, mode]);
 
   if (loading) {
     return (
@@ -151,7 +166,7 @@ export function MasterFormPage({
         ]}
         title={getMasterPageTitle(localDefinition, mode)}
       >
-        <Alert severity="info">Loading record...</Alert>
+        <ContentLoader label="Loading record..." minHeight={240} />
       </MasterPageShell>
     );
   }
@@ -251,11 +266,15 @@ export function MasterFormPage({
   };
 
   const handleFieldChange = (key: string, value: MasterFieldValue) => {
+    onFieldChange?.(key, value);
     setValues((current) => {
       const nextValues = {
         ...current,
         [key]: value,
       };
+
+      // First pass: resolve direct auto-fills for the changed key
+      const autoFilledKeys = new Set<string>();
 
       formDefinition.fields.forEach((field) => {
         const autoFillConfig = field.autoFillFrom;
@@ -266,6 +285,7 @@ export function MasterFormPage({
 
         if (typeof value !== "string") {
           nextValues[field.key] = "";
+          autoFilledKeys.add(field.key);
           return;
         }
 
@@ -276,6 +296,35 @@ export function MasterFormPage({
         nextValues[field.key] = matchedRow
           ? String(matchedRow[autoFillConfig.sourceValueKey] ?? "")
           : "";
+        autoFilledKeys.add(field.key);
+      });
+
+      // Second pass: resolve chained auto-fills for any field that was just auto-filled
+      autoFilledKeys.forEach((autoFilledKey) => {
+        const autoFilledValue = nextValues[autoFilledKey];
+
+        formDefinition.fields.forEach((field) => {
+          const autoFillConfig = field.autoFillFrom;
+
+          if (!autoFillConfig || autoFillConfig.sourceKey !== autoFilledKey) {
+            return;
+          }
+
+          if (typeof autoFilledValue !== "string") {
+            nextValues[field.key] = "";
+            return;
+          }
+
+          const matchedRow = autoFillConfig.rows.find(
+            (row) =>
+              String(row[autoFillConfig.sourceMatchKey] ?? "") ===
+              autoFilledValue,
+          );
+
+          nextValues[field.key] = matchedRow
+            ? String(matchedRow[autoFillConfig.sourceValueKey] ?? "")
+            : "";
+        });
       });
 
       return nextValues;

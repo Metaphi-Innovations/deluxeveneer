@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, MouseEvent, ReactNode, SetStateAction, WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowDownWideNarrow,
@@ -33,6 +33,7 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 
+import { ContentLoader } from "../feedback/ContentLoader";
 import { ErpToggleSwitch } from "../inputs/ErpToggleSwitch";
 import type { ColumnFilterOption } from "../../features/shared/SearchableMultiSelectColumnFilter";
 import { formatDisplayValueByField } from "../../features/shared/numberFormat";
@@ -128,6 +129,9 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   columns: readonly EnterpriseTableColumn<Row>[];
   defaultRowsPerPage?: number;
   emptyStateLabel?: string;
+  /** When true, shows a branded loader in the table body instead of rows/empty state. */
+  loading?: boolean;
+  loadingLabel?: string;
   getRowActions?: (row: Row) => readonly EnterpriseTableAction<Row>[];
   hidePagination?: boolean;
   initialSort?: EnterpriseTableSortConfig<Row>;
@@ -140,6 +144,30 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   rowsPerPageOptions?: readonly number[];
   selectionResetKey?: string | number;
   selectable?: boolean;
+  /** When set, pagination is controlled by the parent (server-side). */
+  pagination?: {
+    page: number;
+    rowsPerPage: number;
+    totalCount: number;
+    onPageChange: (page: number) => void;
+    onRowsPerPageChange: (rowsPerPage: number) => void;
+  };
+  /** When set, sorting is controlled by the parent (server-side). */
+  sorting?: {
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+  };
+  /** When set with onColumnFiltersChange, filters are controlled (server-side). */
+  columnFilters?: Partial<Record<string, ColumnFilterValue>>;
+  onColumnFiltersChange?: (
+    nextFilters: Partial<Record<string, ColumnFilterValue>>,
+  ) => void;
+  filterOptionsByColumn?: Record<
+    string,
+    Array<{ value: string; label: string }>
+  >;
+  onColumnFilterOpen?: (columnKey: string) => void;
 }
 
 export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
@@ -149,6 +177,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   columns,
   defaultRowsPerPage = 10,
   emptyStateLabel = "No records found.",
+  loading = false,
+  loadingLabel = "Loading...",
   getRowActions,
   hidePagination = false,
   initialSort = null,
@@ -161,15 +191,22 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   rowsPerPageOptions = [10, 25, 50, 75, 100, 200],
   selectionResetKey,
   selectable = false,
+  pagination,
+  sorting,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
+  filterOptionsByColumn,
+  onColumnFilterOpen,
 }: EnterpriseDataTableProps<Row>) {
   const theme = useTheme();
-  const [sortConfig, setSortConfig] =
+  const [internalSortConfig, setInternalSortConfig] =
     useState<EnterpriseTableSortConfig<Row>>(initialSort);
-  const [filters, setFilters] = useState<
+  const [internalFilters, setInternalFilters] = useState<
     Partial<Record<keyof Row & string, ColumnFilterValue>>
   >({});
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
+  const [internalPage, setInternalPage] = useState(1);
+  const [internalRowsPerPage, setInternalRowsPerPage] =
+    useState(defaultRowsPerPage);
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<HTMLElement | null>(
     null,
@@ -194,6 +231,65 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     [columns],
   );
 
+  const isServerPagination = Boolean(pagination);
+  const isServerSorting = Boolean(sorting);
+  const isServerFiltering = Boolean(onColumnFiltersChange);
+
+  const page = pagination?.page ?? internalPage;
+  const rowsPerPage = pagination?.rowsPerPage ?? internalRowsPerPage;
+  const sortConfig: EnterpriseTableSortConfig<Row> = sorting
+    ? sorting.sortBy && sorting.sortOrder
+      ? {
+          key: sorting.sortBy as keyof Row & string,
+          direction: sorting.sortOrder,
+        }
+      : null
+    : internalSortConfig;
+  const filters =
+    (controlledColumnFilters as Partial<
+      Record<keyof Row & string, ColumnFilterValue>
+    >) ?? internalFilters;
+
+  const goToPage = (nextPage: number | ((current: number) => number)) => {
+    const resolved =
+      typeof nextPage === "function" ? nextPage(page) : nextPage;
+
+    if (pagination) {
+      pagination.onPageChange(resolved);
+      return;
+    }
+
+    setInternalPage(resolved);
+  };
+
+  const changeRowsPerPage = (nextRowsPerPage: number) => {
+    if (pagination) {
+      pagination.onRowsPerPageChange(nextRowsPerPage);
+      pagination.onPageChange(1);
+      return;
+    }
+
+    setInternalRowsPerPage(nextRowsPerPage);
+    setInternalPage(1);
+  };
+
+  const setFilters = (
+    next:
+      | Partial<Record<keyof Row & string, ColumnFilterValue>>
+      | ((
+          current: Partial<Record<keyof Row & string, ColumnFilterValue>>,
+        ) => Partial<Record<keyof Row & string, ColumnFilterValue>>),
+  ) => {
+    const resolved = typeof next === "function" ? next(filters) : next;
+
+    if (onColumnFiltersChange) {
+      onColumnFiltersChange(resolved);
+      return;
+    }
+
+    setInternalFilters(resolved);
+  };
+
   const columnFilterMeta = useMemo(() => {
     const meta: Partial<
       Record<
@@ -214,10 +310,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         sampleValues,
         ...(column.filterType ? { override: column.filterType } : {}),
       });
+      const serverOptions = filterOptionsByColumn?.[column.key] ?? [];
       const formattedValues = rows.map((row) =>
         formatEnterpriseValue(row[column.key], column.key, column.label),
       );
-      const options = buildDistinctColumnFilterOptions(formattedValues);
+      const options =
+        serverOptions.length > 0
+          ? serverOptions
+          : buildDistinctColumnFilterOptions(formattedValues);
 
       meta[column.key] = {
         filterType,
@@ -227,13 +327,19 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     });
 
     return meta;
-  }, [displayColumns, rows]);
+  }, [displayColumns, filterOptionsByColumn, rows]);
 
   useEffect(() => {
-    setSortConfig(initialSort);
-  }, [initialSort]);
+    if (!sorting) {
+      setInternalSortConfig(initialSort);
+    }
+  }, [initialSort, sorting]);
 
   const filteredRows = useMemo(() => {
+    if (isServerFiltering) {
+      return rows;
+    }
+
     return rows.filter((row) =>
       Object.entries(filters).every(([key, filterValue]) => {
         const typedFilter = filterValue as ColumnFilterValue | undefined;
@@ -251,7 +357,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         return matchColumnFilter(rawValue, cellValue, typedFilter);
       }),
     );
-  }, [filters, rows]);
+  }, [displayColumns, filters, isServerFiltering, rows]);
 
   const activeFilterChips = useMemo(
     () => buildActiveFilterChips(filters, displayColumns),
@@ -261,7 +367,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const hasActiveFilters = activeFilterChips.length > 0;
 
   const sortedRows = useMemo(() => {
-    if (!sortConfig) {
+    if (isServerSorting || !sortConfig) {
       return filteredRows;
     }
 
@@ -279,14 +385,22 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
       return 0;
     });
-  }, [filteredRows, sortConfig]);
+  }, [filteredRows, isServerSorting, sortConfig]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / rowsPerPage));
+  const totalCount = isServerPagination
+    ? pagination?.totalCount ?? sortedRows.length
+    : sortedRows.length;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalCount / Math.max(rowsPerPage, 1)),
+  );
   const safePage = Math.min(page, totalPages);
   const pageStartIndex = (safePage - 1) * rowsPerPage;
   const currentPageRows = hidePagination
     ? sortedRows
-    : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
+    : isServerPagination
+      ? sortedRows
+      : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(totalPages);
   const currentPageIds = currentPageRows.map((row) => row.id);
   const allCurrentPageSelected =
@@ -297,11 +411,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     selectable &&
     currentPageIds.some((rowId) => selectedRowIds.includes(rowId)) &&
     !allCurrentPageSelected;
-  const rangeStart =
-    sortedRows.length === 0 ? 0 : pageStartIndex + 1;
+  const rangeStart = totalCount === 0 ? 0 : pageStartIndex + 1;
   const rangeEnd = hidePagination
-    ? sortedRows.length
-    : Math.min(pageStartIndex + rowsPerPage, sortedRows.length);
+    ? totalCount
+    : Math.min(pageStartIndex + rowsPerPage, totalCount);
 
   const selectedRows = useMemo(
     () => rows.filter((row) => selectedRowIds.includes(row.id)),
@@ -316,10 +429,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     : undefined;
 
   useEffect(() => {
-    if (page !== safePage) {
-      setPage(safePage);
+    if (!isServerPagination && page !== safePage) {
+      setInternalPage(safePage);
     }
-  }, [page, safePage]);
+  }, [isServerPagination, page, safePage]);
 
   useEffect(() => {
     onSelectionChange?.(selectedRows);
@@ -333,27 +446,40 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     setSelectedRowIds([]);
   }, [selectable, selectionResetKey]);
 
-  const handleHorizontalWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!event.shiftKey || Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const element = tableScrollRef.current;
+    if (!element) return;
+
+    const handleHorizontalWheel = (event: globalThis.WheelEvent) => {
+      if (!event.shiftKey || Math.abs(event.deltaY) < Math.abs(event.deltaX)) {
+        return;
+      }
+
+      element.scrollLeft += event.deltaY;
+      event.preventDefault();
+    };
+
+    element.addEventListener("wheel", handleHorizontalWheel, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", handleHorizontalWheel);
+    };
+  }, []);
+
+  const handleSort = (columnKey: keyof Row & string) => {
+    const nextDirection: EnterpriseTableSortDirection =
+      sortConfig?.key === columnKey && sortConfig.direction === "asc"
+        ? "desc"
+        : "asc";
+
+    if (sorting) {
+      sorting.onSortChange(columnKey, nextDirection);
       return;
     }
 
-    event.currentTarget.scrollLeft += event.deltaY;
-    event.preventDefault();
-  };
-
-  const handleSort = (columnKey: keyof Row & string) => {
-    setPage(1);
-    setSortConfig((current) => {
-      if (!current || current.key !== columnKey) {
-        return { key: columnKey, direction: "asc" };
-      }
-
-      return {
-        key: columnKey,
-        direction: current.direction === "asc" ? "desc" : "asc",
-      };
-    });
+    setInternalPage(1);
+    setInternalSortConfig({ key: columnKey, direction: nextDirection });
   };
 
   const handleOpenFilter = (
@@ -362,6 +488,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   ) => {
     setActiveFilterColumn(columnKey);
     setFilterMenuAnchor(event.currentTarget);
+    onColumnFilterOpen?.(columnKey);
   };
 
   const handleCloseFilter = () => {
@@ -385,7 +512,12 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
       return nextFilters;
     });
-    setPage(1);
+
+    if (!isServerPagination) {
+      setInternalPage(1);
+    } else {
+      pagination?.onPageChange(1);
+    }
   };
 
   const handleApplyMultiSelectFilter = (values: string[]) => {
@@ -411,12 +543,21 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       delete nextFilters[targetKey];
       return nextFilters;
     });
-    setPage(1);
+
+    if (!isServerPagination) {
+      setInternalPage(1);
+    } else {
+      pagination?.onPageChange(1);
+    }
   };
 
   const handleClearAllFilters = () => {
     setFilters({});
-    setPage(1);
+    if (!isServerPagination) {
+      setInternalPage(1);
+    } else {
+      pagination?.onPageChange(1);
+    }
   };
 
   const handleToggleRowSelection = (rowId: string) => {
@@ -477,7 +618,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
       <Box sx={listingTableContainerSx(theme)}>
         <TableContainer
-          onWheel={handleHorizontalWheel}
+          ref={tableScrollRef}
           sx={{
             maxHeight: rowsPerPage === defaultRowsPerPage ? "none" : maxBodyHeight,
             overflowX: "auto",
@@ -667,7 +808,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
             </TableHead>
 
             <TableBody>
-              {currentPageRows.length === 0 ? (
+              {loading || currentPageRows.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={
@@ -677,12 +818,21 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     }
                     sx={emptyStateCellSx(theme)}
                   >
-                    {emptyStateLabel}
+                    {loading ? (
+                      <ContentLoader
+                        label={loadingLabel}
+                        minHeight={160}
+                        size={32}
+                      />
+                    ) : (
+                      emptyStateLabel
+                    )}
                   </TableCell>
                 </TableRow>
               ) : null}
 
-              {currentPageRows.map((row) => {
+              {!loading
+                ? currentPageRows.map((row) => {
                 const isSelected = selectedRowIds.includes(row.id);
 
                 return (
@@ -793,12 +943,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     ) : null}
                   </TableRow>
                 );
-              })}
+              })
+                : null}
             </TableBody>
           </Table>
         </TableContainer>
 
-        {!hidePagination ? (
+        {!hidePagination && !loading ? (
           <Box
             sx={{
               display: "flex",
@@ -818,7 +969,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               color="text.secondary"
               sx={{ fontSize: "12px", lineHeight: 1.35 }}
             >
-              Showing {rangeStart}–{rangeEnd} of {sortedRows.length}
+              Showing {rangeStart}–{rangeEnd} of {totalCount}
               {hasActiveFilters ? " matching records" : " records"}
             </Typography>
 
@@ -842,8 +993,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   size="small"
                   value={String(rowsPerPage)}
                   onChange={(event) => {
-                    setRowsPerPage(Number(event.target.value));
-                    setPage(1);
+                    changeRowsPerPage(Number(event.target.value));
+                    goToPage(1);
                   }}
                   sx={{
                     minWidth: 64,
@@ -876,7 +1027,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   aria-label="Previous page"
                   size="small"
                   disabled={safePage === 1}
-                  onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                  onClick={() => goToPage((current) => Math.max(current - 1, 1))}
                   sx={listingPaginationIconButtonSx(theme)}
                 >
                   <ChevronLeft size={16} />
@@ -896,7 +1047,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     <Button
                       key={pageItem}
                       size="small"
-                      onClick={() => setPage(pageItem)}
+                      onClick={() => goToPage(pageItem)}
                       sx={listingPageNumberButtonSx(
                         theme,
                         pageItem === safePage,
@@ -912,7 +1063,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   size="small"
                   disabled={safePage === totalPages}
                   onClick={() =>
-                    setPage((current) => Math.min(current + 1, totalPages))
+                    goToPage((current) => Math.min(current + 1, totalPages))
                   }
                   sx={listingPaginationIconButtonSx(theme)}
                 >
@@ -1434,38 +1585,53 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
 function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
   const normalizedValue = formatEnterpriseValue(value).trim().toLowerCase();
   const isInspectionStatus = normalizedValue.includes("inspection");
-  const isPass =
-    normalizedValue === "pass" ||
-    normalizedValue === "qc pass" ||
-    normalizedValue === "inspection pass" ||
+  const isDone =
     normalizedValue === "done" ||
     normalizedValue === "qc done" ||
     normalizedValue === "inspection done";
+  const isPass =
+    normalizedValue === "pass" ||
+    normalizedValue === "qc pass" ||
+    normalizedValue === "inspection pass";
   const isFail =
     normalizedValue === "fail" ||
     normalizedValue === "qc fail" ||
     normalizedValue === "inspection fail" ||
     normalizedValue === "failed";
 
+  const isPartial =
+    normalizedValue === "partially done" ||
+    normalizedValue === "partial" ||
+    normalizedValue === "qc partial" ||
+    normalizedValue === "inspection partial";
+
   const label = normalizedValue === "inspection pass"
     ? "Inspection Pass"
     : normalizedValue === "inspection fail"
       ? "Inspection Fail"
       : isInspectionStatus
-        ? isPass
+        ? isDone || isPass
           ? "Inspection Done"
-          : "Inspection Pending"
-    : isPass
-      ? "QC Pass"
-      : isFail
-        ? "QC Fail"
-        : "Pending";
+          : isPartial
+            ? "Partially Done"
+            : "Inspection Pending"
+    : isDone
+      ? "QC Done"
+      : isPartial
+        ? "Partially Done"
+        : isPass
+          ? "QC Pass"
+          : isFail
+            ? "QC Fail"
+            : "Pending";
 
-  const palette = isPass
+  const palette = isDone || isPass
     ? theme.customTokens.semanticScale.success
-    : isFail
-      ? theme.customTokens.semanticScale.error
-      : theme.customTokens.semanticScale.warning;
+    : isPartial
+      ? theme.customTokens.semanticScale.info
+      : isFail
+        ? theme.customTokens.semanticScale.error
+        : theme.customTokens.semanticScale.warning;
 
   return (
     <Chip

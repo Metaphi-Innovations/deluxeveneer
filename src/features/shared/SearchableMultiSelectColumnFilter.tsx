@@ -53,9 +53,13 @@ export function SearchableMultiSelectColumnFilter({
       return;
     }
 
+    // Only sync draft when the popover opens. Do not depend on selectedValues
+    // identity — parents often pass a new `[]` each render, which would wipe
+    // checkbox selections (e.g. after async filter options load).
     setDraftValues([...selectedValues]);
     setSearchValue("");
-  }, [open, selectedValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally open-only
+  }, [open]);
 
   const filteredOptions = useMemo(() => {
     const query = searchValue.trim().toLowerCase();

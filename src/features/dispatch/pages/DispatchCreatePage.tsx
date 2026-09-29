@@ -25,7 +25,7 @@ import {
   MasterPageShell,
   MasterSectionCard,
 } from "../../masters/shared";
-import { transporterMasterOptions } from "../../masters/shared/masterDefinitions";
+import { getTransporterMasterOptions } from "../../masters/shared/masterDefinitions";
 import {
   createDispatchEntry,
   packingOrderTypeOptions,
@@ -493,7 +493,7 @@ export function DispatchCreatePage({
               disabled={readOnly}
               error={false}
               label="Transporter"
-              options={transporterMasterOptions}
+              options={getTransporterMasterOptions()}
               value={values.transporter}
               onChange={(nextValue) =>
                 setValues((current) => ({ ...current, transporter: nextValue }))
@@ -992,7 +992,7 @@ function buildDispatchInitialValues(
     buyerAddress: record.dispatchBuyerAddress ?? "",
     sellerAddress: record.dispatchSellerAddress ?? "",
     transactionType: record.dispatchTransactionType ?? transactionTypeOptions[0] ?? "",
-    transporter: record.dispatchTransporter ?? transporterMasterOptions[0] ?? "",
+    transporter: record.dispatchTransporter ?? getTransporterMasterOptions()[0] ?? "",
     transportMode: record.dispatchTransportMode ?? transportModeOptions[0] ?? "",
     remark: record.remark,
   };

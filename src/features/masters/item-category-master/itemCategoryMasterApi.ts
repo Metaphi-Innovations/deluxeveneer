@@ -87,32 +87,83 @@ export function mapBackendItemCategoryToMasterRecord(
   };
 }
 
-export async function fetchItemCategoriesApi(params?: {
+export interface ItemCategoryQueryParams {
   page?: number;
   limit?: number;
   search?: string;
   status?: boolean;
   hsn?: string;
-}): Promise<MasterRecord[]> {
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
+}
+
+export interface PaginatedItemCategoryResult {
+  items: MasterRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function fetchItemCategoriesPaginated(
+  params: ItemCategoryQueryParams = {},
+): Promise<PaginatedItemCategoryResult> {
   try {
     const query = new URLSearchParams();
-    if (params?.page) query.set("page", String(params.page));
-    if (params?.limit) query.set("limit", String(params.limit));
-    if (params?.search) query.set("search", params.search);
-    if (params?.status !== undefined) query.set("status", String(params.status));
-    if (params?.hsn) query.set("hsn", params.hsn);
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.search?.trim()) query.set("search", params.search.trim());
+    if (params.status !== undefined) query.set("status", String(params.status));
+    if (params.hsn) query.set("hsn", params.hsn);
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      query.set("filters", encodeURIComponent(JSON.stringify(params.filters)));
+    }
 
     const queryString = query.toString();
     const endpoint = queryString ? `/masters/item-categories?${queryString}` : "/masters/item-categories";
 
     const res = await apiRequest<ApiResponse<BackendItemCategoryListResponse>>(endpoint);
     if (res?.success && Array.isArray(res?.data?.items)) {
-      return res.data.items.map((item, idx) => mapBackendItemCategoryToMasterRecord(item, idx));
+      return {
+        items: res.data.items.map((item, idx) => mapBackendItemCategoryToMasterRecord(item, idx)),
+        pagination: {
+          page: res.data.pagination.page,
+          limit: res.data.pagination.limit,
+          total: res.data.pagination.total,
+          totalPages: res.data.pagination.totalPages,
+        },
+      };
     }
   } catch (error) {
-    console.warn("Failed to fetch item categories from backend API, using local records:", error);
+    console.warn("Failed to fetch item categories from backend API:", error);
   }
-  return [];
+  return {
+    items: [],
+    pagination: {
+      page: params.page || 1,
+      limit: params.limit || 10,
+      total: 0,
+      totalPages: 1,
+    },
+  };
+}
+
+export async function fetchItemCategoriesApi(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: boolean;
+  hsn?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}): Promise<MasterRecord[]> {
+  const result = await fetchItemCategoriesPaginated(params);
+  return result.items;
 }
 
 export async function getItemCategoryByIdApi(id: string): Promise<MasterRecord | null> {
@@ -252,6 +303,21 @@ export async function deleteItemCategoryApi(id: string): Promise<boolean> {
 
 const LOCAL_MASTER_RECORDS_STORAGE_KEY = "deluxe-veneers-local-master-records";
 
+export async function fetchItemCategoryColumnDropdown(
+  column: string,
+): Promise<{ column: string; options: Array<{ value: string; label: string }> }> {
+  try {
+    const res = await apiRequest<ApiResponse<{ column: string; options: Array<{ value: string; label: string }> }>>(
+      `/masters/item-categories/dropdowns?column=${encodeURIComponent(column)}`,
+    );
+    if (res?.success && res.data) {
+      return { column: res.data.column ?? column, options: res.data.options ?? [] };
+    }
+  } catch (error) {
+    console.warn('Failed to fetch column dropdown:', error);
+  }
+  return { column, options: [] };
+}
 export function syncItemCategoryMasterToStorage(rows: MasterRecord[]) {
   if (typeof window === "undefined") return;
   try {

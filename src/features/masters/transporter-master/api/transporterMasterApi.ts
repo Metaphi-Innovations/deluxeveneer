@@ -41,6 +41,14 @@ export interface TransporterMasterMetaResponse {
 
 export type TransporterMasterDropdownsResponse = TransporterMasterMetaResponse;
 
+export interface TransporterMasterColumnDropdownResponse {
+  column: string;
+  options: Array<{
+    value: string;
+    label: string;
+  }>;
+}
+
 export interface TransporterMasterQueryParams {
   page?: number;
   limit?: number;
@@ -125,26 +133,24 @@ export async function fetchTransporterMasterMeta(): Promise<TransporterMasterMet
 }
 
 export async function fetchTransporterMasterDropdowns(): Promise<TransporterMasterDropdownsResponse> {
-  try {
-    const res = await apiRequest<
-      ApiResponse<TransporterMasterDropdownsResponse>
-    >(`${BASE_PATH}/dropdowns`);
-    if (res?.success && res.data) {
-      return {
-        types: res.data.types ?? [],
-        areaOfOperations: res.data.areaOfOperations ?? [],
-        branchNames: res.data.branchNames ?? [],
-        columnFilters: res.data.columnFilters ?? {},
-      };
-    }
-  } catch (error) {
-    console.error(
-      "[TransporterMasterApi] fetchTransporterMasterDropdowns error:",
-      error,
-    );
+  return fetchTransporterMasterMeta();
+}
+
+export async function fetchTransporterMasterColumnDropdown(
+  column: string,
+): Promise<TransporterMasterColumnDropdownResponse> {
+  const res = await apiRequest<
+    ApiResponse<TransporterMasterColumnDropdownResponse>
+  >(`${BASE_PATH}/dropdowns?column=${encodeURIComponent(column)}`);
+
+  if (!res?.success || !res.data) {
+    throw new Error(res?.message || "Unable to load column filter options.");
   }
 
-  return fetchTransporterMasterMeta();
+  return {
+    column: res.data.column ?? column,
+    options: res.data.options ?? [],
+  };
 }
 
 export async function fetchTransporterMasterPaginated(

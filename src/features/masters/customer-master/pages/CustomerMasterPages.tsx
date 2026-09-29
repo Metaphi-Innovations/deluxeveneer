@@ -31,8 +31,8 @@ import { isActiveColumnFilter } from "../../../shared/columnFilters";
 import { customerMasterDefinition } from "../customerMasterDefinition";
 import {
   createCustomerMasterRecord,
+  fetchCustomerMasterColumnDropdown,
   fetchCustomerMasterDetail,
-  fetchCustomerMasterDropdowns,
   fetchCustomerMasterMeta,
   fetchCustomerMasterPaginated,
   refreshCustomerMasterCache,
@@ -56,6 +56,8 @@ const EMPTY_ADDRESS: CustomerAddress = {
   state: "",
   city: "",
 };
+
+const STATIC_CUSTOMER_TYPE_OPTIONS = ["Platinum", "Gold", "Silver"];
 
 const CUSTOMER_SORT_FIELD_MAP: Record<string, string> = {
   customerName: "customerName",
@@ -117,48 +119,55 @@ export function CustomerMasterListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [companyNameOptions, setCompanyNameOptions] = useState<string[]>([]);
-  const [customerTypeOptions, setCustomerTypeOptions] = useState<string[]>([
-    "Platinum",
-    "Gold",
-    "Silver",
-  ]);
+  const hasLoadedRowsRef = useRef(false);
+  const columnDropdownRequestIdRef = useRef(0);
 
   const definition = useMemo(
     () => ({
       ...customerMasterDefinition,
       filters: customerMasterDefinition.filters.map((filter) => {
         if (filter.key === "companyName") {
-          return { ...filter, options: companyNameOptions };
+          return {
+            ...filter,
+            options: (filterOptionsByColumn.companyName ?? []).map(
+              (entry) => entry.label,
+            ),
+          };
         }
         if (filter.key === "customerType") {
-          return { ...filter, options: customerTypeOptions };
+          return { ...filter, options: STATIC_CUSTOMER_TYPE_OPTIONS };
         }
         return filter;
       }),
     }),
-    [companyNameOptions, customerTypeOptions],
+    [filterOptionsByColumn],
   );
 
-  useEffect(() => {
-    void fetchCustomerMasterDropdowns().then((dropdowns) => {
-      if (dropdowns.customerTypes.length > 0) {
-        setCustomerTypeOptions(
-          dropdowns.customerTypes.map((entry) => entry.label),
-        );
+  const loadColumnDropdown = useCallback(async (columnKey: string) => {
+    const requestId = ++columnDropdownRequestIdRef.current;
+    setFilterOptionsByColumn({});
+
+    try {
+      const result = await fetchCustomerMasterColumnDropdown(columnKey);
+      if (requestId !== columnDropdownRequestIdRef.current) {
+        return;
       }
-      setCompanyNameOptions(
-        dropdowns.companyNames.map((entry) => entry.label),
-      );
-      setFilterOptionsByColumn(dropdowns.columnFilters ?? {});
-    });
-  }, [reloadKey]);
+
+      setFilterOptionsByColumn({
+        [result.column]: result.options,
+      });
+    } catch {
+      // Keep page usable; filter menus can fall back to page-local options.
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
 
     const timer = window.setTimeout(async () => {
-      setIsLoading(true);
+      if (!hasLoadedRowsRef.current) {
+        setIsLoading(true);
+      }
       setErrorMessage("");
 
       try {
@@ -178,6 +187,7 @@ export function CustomerMasterListPage() {
         if (!ignore) {
           setRows(result.items);
           setTotalCount(result.pagination.total);
+          hasLoadedRowsRef.current = true;
           void refreshCustomerMasterCache(result.items);
         }
       } catch (error) {
@@ -279,6 +289,9 @@ export function CustomerMasterListPage() {
         onSortChange: handleSortChange,
       }}
       columnFilters={columnFilters}
+      onColumnFilterOpen={(columnKey) => {
+        void loadColumnDropdown(columnKey);
+      }}
       onColumnFiltersChange={handleColumnFiltersChange}
       filterOptionsByColumn={filterOptionsByColumn}
       rows={rows}

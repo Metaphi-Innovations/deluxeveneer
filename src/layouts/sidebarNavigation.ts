@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowDownToLine,
   Award,
+  Boxes,
   Building2,
   CircleDollarSign,
   ClipboardCheck,
@@ -31,58 +33,25 @@ import {
   Wind,
 } from "lucide-react";
 
-import { getDynamicWarehousePermissionKey } from "../features/shared/warehousePermission";
+import type {
+  SidebarWarehouseItem,
+  WarehouseMasterType,
+} from "../features/warehouses/shared/warehouseSidebarStore";
 
 export type SidebarMatchLocation = {
   pathname: string;
   search: string;
 };
 
-const inventorySlugs = [
-  "veneer-blocks",
-  "raw-veneer",
-  "plywood",
-  "mdf",
-  "consumables",
-] as const;
-
 const matchesPath = (location: SidebarMatchLocation, routePath: string) =>
   location.pathname === routePath ||
   location.pathname.startsWith(`${routePath}/`);
-
-const getSearchParam = (location: SidebarMatchLocation, key: string) =>
-  new URLSearchParams(location.search).get(key);
-
-const matchesInventoryRecordRoute = (
-  location: SidebarMatchLocation,
-  slug: (typeof inventorySlugs)[number],
-  warehouse: "warehouse-a" | "warehouse-b" | "warehouse-c",
-) => {
-  if (!matchesPath(location, `/inventory/${slug}`)) {
-    return false;
-  }
-
-  const activeWarehouse = getSearchParam(location, "warehouse");
-
-  if (warehouse === "warehouse-b") {
-    return !activeWarehouse || activeWarehouse === "warehouse-b";
-  }
-
-  return activeWarehouse === warehouse;
-};
-
-const matchesAnyWarehouseInventoryRecordRoute = (
-  location: SidebarMatchLocation,
-  warehouse: "warehouse-a" | "warehouse-c",
-) =>
-  inventorySlugs.some((slug) =>
-    matchesInventoryRecordRoute(location, slug, warehouse),
-  );
 
 export type SidebarNavigationItem = {
   id: string;
   label: string;
   icon?: LucideIcon;
+  warehouseType?: WarehouseMasterType;
   permissionKey?: string;
   to: string;
   match: (location: SidebarMatchLocation) => boolean;
@@ -115,65 +84,54 @@ export type SidebarNavigationEntry =
   | SidebarNavigationLink
   | SidebarNavigationGroup;
 
-export interface DynamicWarehouseSidebarItem {
-  id: string;
-  label: string;
-  slug: string;
-  warehouseType: string;
-}
+export type { SidebarWarehouseItem as DynamicWarehouseSidebarItem };
+
+export const WAREHOUSE_TYPE_ICONS: Record<WarehouseMasterType, LucideIcon> = {
+  Inward: ArrowDownToLine,
+  Storage: Boxes,
+  Production: Factory,
+};
 
 const buildWarehouseNavigationItems = (
-  dynamicWarehouses: readonly DynamicWarehouseSidebarItem[] = [],
-): SidebarNavigationItem[] => [
-    {
-      id: "warehouse-a",
-      label: "Warehouse A",
-      icon: Warehouse,
-      to: "/warehouse-a",
-      match: (location) =>
-        matchesPath(location, "/warehouse-a") ||
-        matchesAnyWarehouseInventoryRecordRoute(location, "warehouse-a"),
+  warehouses: readonly SidebarWarehouseItem[] = [],
+): SidebarNavigationItem[] =>
+  warehouses.map((warehouse) => ({
+    id: `master-warehouse-${warehouse.id}`,
+    label: warehouse.label,
+    icon: WAREHOUSE_TYPE_ICONS[warehouse.warehouseType] ?? Warehouse,
+    warehouseType: warehouse.warehouseType,
+    permissionKey: warehouse.permissionKey,
+    to: `/warehouses/${warehouse.id}`,
+    match: (location: SidebarMatchLocation) => {
+      if (matchesPath(location, `/warehouses/${warehouse.id}`)) {
+        return true;
+      }
+
+      // Keep warehouse highlighted on inventory view/edit routes.
+      if (!location.pathname.startsWith("/inventory/")) {
+        return false;
+      }
+
+      const params = new URLSearchParams(location.search);
+      if (params.get("warehouseId") === warehouse.id) {
+        return true;
+      }
+
+      const returnTo = params.get("returnTo") ?? "";
+      return (
+        returnTo === `/warehouses/${warehouse.id}` ||
+        returnTo.startsWith(`/warehouses/${warehouse.id}?`)
+      );
     },
-    {
-      id: "warehouse-b",
-      label: "Warehouse B",
-      icon: Warehouse,
-      to: "/warehouse-b",
-      match: (location) =>
-        matchesPath(location, "/warehouse-b") ||
-        inventorySlugs
-          .filter((slug) => slug !== "consumables")
-          .some((slug) =>
-            matchesInventoryRecordRoute(location, slug, "warehouse-b"),
-          ),
-    },
-    {
-      id: "warehouse-c",
-      label: "Warehouse C",
-      icon: Warehouse,
-      to: "/warehouse-c",
-      match: (location) =>
-        matchesPath(location, "/warehouse-c") ||
-        matchesAnyWarehouseInventoryRecordRoute(location, "warehouse-c"),
-    },
-    ...dynamicWarehouses.map<SidebarNavigationItem>((warehouse) => ({
-      id: `dynamic-warehouse-${warehouse.slug}`,
-      label: warehouse.label,
-      icon: Warehouse,
-      permissionKey: getDynamicWarehousePermissionKey(warehouse.slug),
-      to: `/warehouses/${warehouse.slug}`,
-      match: (location: SidebarMatchLocation) =>
-        matchesPath(location, `/warehouses/${warehouse.slug}`),
-    })),
-  ];
+  }));
 
 const buildWarehousesNavigationEntry = (
-  dynamicWarehouses: readonly DynamicWarehouseSidebarItem[] = [],
+  warehouses: readonly SidebarWarehouseItem[] = [],
 ): SidebarNavigationGroup => ({
   id: "warehouses",
   label: "Warehouses",
   icon: Warehouse,
-  items: buildWarehouseNavigationItems(dynamicWarehouses),
+  items: buildWarehouseNavigationItems(warehouses),
 });
 
 const staticSidebarNavigation: SidebarNavigationEntry[] = [
@@ -419,7 +377,7 @@ const staticSidebarNavigation: SidebarNavigationEntry[] = [
 ];
 
 export function getSidebarNavigation(
-  dynamicWarehouses: readonly DynamicWarehouseSidebarItem[] = [],
+  warehouses: readonly SidebarWarehouseItem[] = [],
 ): SidebarNavigationEntry[] {
   const warehouseInsertIndex =
     staticSidebarNavigation.findIndex((entry) => entry.id === "masters") + 1;
@@ -427,7 +385,7 @@ export function getSidebarNavigation(
 
   return [
     ...staticSidebarNavigation.slice(0, insertIndex),
-    buildWarehousesNavigationEntry(dynamicWarehouses),
+    buildWarehousesNavigationEntry(warehouses),
     ...staticSidebarNavigation.slice(insertIndex),
   ];
 }

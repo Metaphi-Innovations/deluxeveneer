@@ -118,6 +118,8 @@ interface MasterTableProps {
     string,
     Array<{ value: string; label: string }>
   >;
+  /** Called when a column filter menu is opened (lazy-load options). */
+  onColumnFilterOpen?: (columnKey: string) => void;
 }
 
 const actionColumnWidth = 64;
@@ -135,6 +137,7 @@ export function MasterTable({
   columnFilters: controlledColumnFilters,
   onColumnFiltersChange,
   filterOptionsByColumn,
+  onColumnFilterOpen,
   rows,
 }: MasterTableProps) {
   const theme = useTheme();
@@ -353,6 +356,7 @@ export function MasterTable({
     event.stopPropagation();
     setActiveFilterColumn(columnKey);
     setFilterMenuAnchor(event.currentTarget);
+    onColumnFilterOpen?.(columnKey);
   };
 
   const handleCloseFilter = () => {
@@ -481,10 +485,15 @@ export function MasterTable({
                     getColumnFilterBadgeCount(columnFilter);
                   const columnMeta = columnFilterMeta[column.key];
                   const uniqueCount = columnMeta?.uniqueCount ?? 0;
+                  // Server filtering: show always-filterable columns even before
+                  // dropdown options are lazy-loaded (uniqueCount may still be 0).
+                  const uniqueCountForVisibility = isServerFiltering
+                    ? Math.max(uniqueCount, 1)
+                    : uniqueCount;
                   const showFilter = isFilterableListingColumn(
                     column.key,
                     column.label,
-                    uniqueCount,
+                    uniqueCountForVisibility,
                     undefined,
                     columnMeta?.filterType,
                   );

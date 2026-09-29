@@ -9,56 +9,6 @@ import type { InventoryDefinition, InventoryRecord } from "./types";
 
 const asDate = (value: string) => new Date(value);
 
-const demoListingRowCount = 12;
-
-function limitDemoListingRows<T extends InventoryRecord>(rows: ReadonlyArray<T>) {
-  if (rows.length === 0) {
-    return [] as T[];
-  }
-
-  return Array.from({ length: demoListingRowCount }, (_, index) => {
-    const sourceRow = rows[index % rows.length]!;
-
-    if (index < rows.length) {
-      return sourceRow;
-    }
-
-    return createInventoryDemoRow(sourceRow, index);
-  });
-}
-
-function createInventoryDemoRow<T extends InventoryRecord>(row: T, index: number) {
-  const sequence = String(index + 1).padStart(2, "0");
-  const clonedRow = {
-    ...row,
-    id: `${row.id}-demo-${sequence}`,
-    srNo: String(index + 1),
-  } as InventoryRecord;
-  const identityKeys = [
-    "inwardSrNo",
-    "invoiceNo",
-    "itemSrNo",
-    "veneerSrNo",
-    "palletNo",
-    "bundleNumber",
-    "batchNo",
-  ] as const;
-
-  identityKeys.forEach((key) => {
-    const value = clonedRow[key];
-
-    if (typeof value === "string" && value.trim()) {
-      clonedRow[key] = `${value}-D${sequence}`;
-    }
-  });
-
-  if (typeof clonedRow.remark === "string" && clonedRow.remark.trim()) {
-    clonedRow.remark = `${clonedRow.remark} Demo entry ${sequence}.`;
-  }
-
-  return clonedRow as T;
-}
-
 type RawVeneerRecord = InventoryRecord & {
   amount: string;
   approvalStatus: string;
@@ -1641,7 +1591,8 @@ export const rawVeneerDefinition: InventoryDefinition<RawVeneerRecord> = {
   editFields: createInventoryEditFields(rawVeneerColumns, rawVeneerRows),
   formFields: createInventoryFormFields(rawVeneerRows),
   viewFields: createInventoryViewFields(rawVeneerViewColumns),
-  rows: limitDemoListingRows(rawVeneerRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
@@ -1652,7 +1603,8 @@ export const veneerBlocksDefinition: InventoryDefinition<StockRecord> = {
   editFields: createInventoryEditFields(stockColumns, veneerBlocksRows),
   formFields: createInventoryFormFields(veneerBlocksRows),
   viewFields: createInventoryViewFields(stockColumns),
-  rows: limitDemoListingRows(veneerBlocksRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
@@ -1663,7 +1615,8 @@ export const plywoodDefinition: InventoryDefinition<StockRecord> = {
   editFields: createInventoryEditFields(stockColumns, plywoodRows),
   formFields: createInventoryFormFields(plywoodRows),
   viewFields: createInventoryViewFields(stockColumns),
-  rows: limitDemoListingRows(plywoodRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
@@ -1674,7 +1627,8 @@ export const mdfDefinition: InventoryDefinition<StockRecord> = {
   editFields: createInventoryEditFields(stockColumns, mdfRows),
   formFields: createInventoryFormFields(mdfRows),
   viewFields: createInventoryViewFields(stockColumns),
-  rows: limitDemoListingRows(mdfRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };
 
@@ -1685,6 +1639,7 @@ export const consumablesDefinition: InventoryDefinition<ConsumableRecord> = {
   editFields: createInventoryEditFields(consumableColumns, consumablesRows),
   formFields: createInventoryFormFields(consumablesRows),
   viewFields: createInventoryViewFields(consumableColumns),
-  rows: limitDemoListingRows(consumablesRows),
+  // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
+  rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },
 };

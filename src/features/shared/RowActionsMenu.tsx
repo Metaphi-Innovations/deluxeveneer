@@ -3,6 +3,8 @@ import { Plus } from "lucide-react";
 import { Box, Menu, MenuItem } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import {
+  ACTION_MENU_MAX_WIDTH,
+  ACTION_MENU_MIN_WIDTH,
   actionMenuIconProps,
   actionMenuIconSlotSx,
   actionMenuItemSx,
@@ -25,6 +27,9 @@ type RowActionsMenuProps = {
   open: boolean;
   onClose: () => void;
   actions: readonly RowActionsMenuItem[];
+  /** Override default menu min width (useful for short labels like Pass/Fail). */
+  minWidth?: number;
+  maxWidth?: number;
   anchorOrigin?: {
     vertical: "top" | "bottom" | "center";
     horizontal: "left" | "right" | "center";
@@ -52,6 +57,8 @@ export function RowActionsMenu({
   open,
   onClose,
   actions,
+  minWidth = ACTION_MENU_MIN_WIDTH,
+  maxWidth = ACTION_MENU_MAX_WIDTH,
   anchorOrigin = { vertical: "bottom", horizontal: "right" },
   transformOrigin = { vertical: "top", horizontal: "right" },
 }: RowActionsMenuProps) {
@@ -73,7 +80,11 @@ export function RowActionsMenu({
       }}
       slotProps={{
         paper: {
-          sx: (theme: Theme) => actionMenuPaperSx(theme),
+          sx: (theme: Theme) => ({
+            ...actionMenuPaperSx(theme),
+            minWidth,
+            maxWidth,
+          }),
         },
       }}
     >
