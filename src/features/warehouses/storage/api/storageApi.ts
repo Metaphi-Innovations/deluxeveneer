@@ -32,6 +32,7 @@ export interface StorageInventoryItem {
   noOfLeaves: number | null;
   sheets: number | null;
   totalSqMeter: number | null;
+  totalReceivedStock?: number | null;
   length: number | null;
   width: number | null;
   height: number | null;
@@ -111,7 +112,16 @@ export function mapStorageItemToRow(
     length: item.length != null ? `${item.length} mm` : "",
     width: item.width != null ? `${item.width} mm` : "",
     thickness: item.thickness != null ? `${item.thickness} mm` : "",
-    totalUnits: item.sheets != null ? String(item.sheets) : item.noOfLeaves != null ? String(item.noOfLeaves) : item.cbm != null ? String(item.cbm) : "",
+    totalUnits:
+      item.totalReceivedStock != null
+        ? String(item.totalReceivedStock)
+        : item.sheets != null
+        ? String(item.sheets)
+        : item.noOfLeaves != null
+        ? String(item.noOfLeaves)
+        : item.cbm != null
+        ? String(item.cbm)
+        : "",
     availableUnits: item.sheets != null ? String(item.sheets) : item.noOfLeaves != null ? String(item.noOfLeaves) : item.cbm != null ? String(item.cbm) : "",
     totalSqm: item.totalSqMeter != null ? String(item.totalSqMeter) : "",
     totalSqf:
@@ -280,6 +290,7 @@ export async function moveStorageItemToProductionApi(
   data: {
     productionWarehouseId: string;
     gradeId: string;
+    quantity?: number | null;
     remark?: string | null;
   }
 ): Promise<void> {

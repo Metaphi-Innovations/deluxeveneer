@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, FileOutput, RotateCcw, Truck } from "lucide-react";
 import {
+  Alert,
+  AlertTitle,
   Box,
   Button,
   Dialog,
@@ -9,6 +11,7 @@ import {
   DialogTitle,
   MenuItem,
   Select,
+  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -118,10 +121,45 @@ export function StorageWarehousePage({
   const [selectedProductionWarehouseId, setSelectedProductionWarehouseId] = useState("");
   const [gradeOptions, setGradeOptions] = useState<MasterRecord[]>([]);
   const [selectedGradeId, setSelectedGradeId] = useState("");
+  const [moveQuantity, setMoveQuantity] = useState<string>("");
   const [moveRemark, setMoveRemark] = useState("");
   const [isMoving, setIsMoving] = useState(false);
   const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
   const [isLoadingGrades, setIsLoadingGrades] = useState(false);
+  const [moveDialogError, setMoveDialogError] = useState<string | null>(null);
+  const [revertDialogError, setRevertDialogError] = useState<string | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  const formatErrorMessage = (error: unknown, fallback: string): string => {
+    if (!error) return fallback;
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!msg || msg.trim().length === 0) return fallback;
+
+    const lower = msg.toLowerCase();
+    if (lower.includes("already_moved") || lower.includes("already been moved")) {
+      return "This item has already been transferred to a production warehouse.";
+    }
+    if (lower.includes("invalid_quantity") || lower.includes("quantity must be greater")) {
+      return "Please enter a valid quantity greater than 0 that does not exceed available stock.";
+    }
+    if (lower.includes("destination must be a production")) {
+      return "The destination warehouse must be an active Production warehouse.";
+    }
+    if (lower.includes("warehouse is inactive") || lower.includes("inactive")) {
+      return "The selected destination warehouse or grade is currently inactive.";
+    }
+    if (lower.includes("network") || lower.includes("failed to fetch")) {
+      return "Network connection issue. Please check your connection and try again.";
+    }
+    if (lower.includes("status 403") || lower.includes("forbidden") || lower.includes("permission")) {
+      return "You do not have permission to perform this warehouse transfer.";
+    }
+
+    return msg.replace(/^Error:\s*/i, "");
+  };
 
   const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
   const canView = canAccessPermission(warehousePermissionKey, "view");
@@ -173,6 +211,14 @@ export function StorageWarehousePage({
       setSelectedGradeId("");
       setIsLoadingWarehouses(true);
       setIsLoadingGrades(true);
+
+      const firstRow = rowsToMove[0];
+      const initialQty =
+        rowsToMove.length === 1 && firstRow
+          ? firstRow.availableUnits || firstRow.totalUnits || ""
+          : "";
+      setMoveQuantity(initialQty ? String(initialQty) : "");
+
       setMoveDialogOpen(true);
 
       try {
@@ -202,6 +248,9 @@ export function StorageWarehousePage({
         }
       } catch (err) {
         console.error("Failed to load move-to-production options", err);
+        setMoveDialogError(
+          formatErrorMessage(err, "Failed to load production warehouses or grades. Please try again.")
+        );
         setProductionWarehouses([]);
         setGradeOptions([]);
       } finally {
@@ -221,6 +270,22 @@ export function StorageWarehousePage({
     ) {
       return;
     }
+
+    setMoveDialogError(null);
+    const firstRow = moveTargetRows[0];
+    const parsedQty = moveQuantity ? Number(moveQuantity) : null;
+    if (moveTargetRows.length === 1 && firstRow && parsedQty !== null) {
+      const avail = Number(firstRow.availableUnits || firstRow.totalUnits || 0);
+      if (parsedQty <= 0) {
+        setMoveDialogError("Please enter a move quantity greater than 0.");
+        return;
+      }
+      if (avail > 0 && parsedQty > avail) {
+        setMoveDialogError(`Cannot move ${parsedQty} units. Maximum available stock is ${avail}.`);
+        return;
+      }
+    }
+
     setIsMoving(true);
     try {
       for (const row of moveTargetRows) {
@@ -228,17 +293,34 @@ export function StorageWarehousePage({
           productionWarehouseId: selectedProductionWarehouseId,
           gradeId: selectedGradeId,
           remark: moveRemark || null,
+          quantity: parsedQty,
         });
       }
       setMoveDialogOpen(false);
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
       setRefreshTrigger((c) => c + 1);
+
+      // If full move or multiple rows, show history; if partial move, stay in inventory
+      let isAllStockMoved = true;
+      if (moveTargetRows.length === 1 && firstRow && parsedQty !== null) {
+        const avail = Number(firstRow.availableUnits || firstRow.totalUnits || 0);
+        if (avail > 0 && parsedQty < avail) {
+          isAllStockMoved = false;
+        }
+      }
+
+      setToastNotification({
+        message: `${moveTargetRows.length} item(s) successfully moved to production warehouse!`,
+        severity: "success",
+      });
+
+      if (isAllStockMoved) {
+        updateParams({ section: "history" });
+      }
     } catch (err) {
-      alert(
-        err instanceof Error
-          ? err.message
-          : "Failed to move to production warehouse",
+      setMoveDialogError(
+        formatErrorMessage(err, "Failed to move stock to production warehouse. Please try again.")
       );
     } finally {
       setIsMoving(false);
@@ -249,11 +331,13 @@ export function StorageWarehousePage({
   const handleOpenRevertDialog = (row: WarehouseInventoryRow) => {
     setRevertTargetRow(row);
     setRevertRemark("");
+    setRevertDialogError(null);
     setRevertDialogOpen(true);
   };
 
   const handleConfirmRevert = async () => {
     if (!revertTargetRow || isReverting) return;
+    setRevertDialogError(null);
     setIsReverting(true);
     try {
       await revertStorageItemApi(activeInventory, revertTargetRow.id, revertRemark || null);
@@ -262,8 +346,14 @@ export function StorageWarehousePage({
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
       setRefreshTrigger((c) => c + 1);
+      setToastNotification({
+        message: "Item successfully reverted back to Inward Warehouse.",
+        severity: "success",
+      });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to revert item");
+      setRevertDialogError(
+        formatErrorMessage(err, "Failed to revert item back to inward warehouse. Please try again.")
+      );
     } finally {
       setIsReverting(false);
     }
@@ -609,6 +699,20 @@ export function StorageWarehousePage({
               Moving {moveTargetRows.length} {inventorySingularLabel} record(s) to production warehouse.
             </Typography>
 
+            {moveDialogError && (
+              <Alert
+                severity="error"
+                onClose={() => setMoveDialogError(null)}
+                sx={{
+                  borderRadius: 1.5,
+                  fontSize: "0.8125rem",
+                  "& .MuiAlert-message": { fontWeight: 500 },
+                }}
+              >
+                {moveDialogError}
+              </Alert>
+            )}
+
             <Stack spacing={1}>
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Destination Production Warehouse
@@ -674,6 +778,79 @@ export function StorageWarehousePage({
               </Select>
             </Stack>
 
+            {/* Stock Overview when moving a single item */}
+            {moveTargetRows.length === 1 && moveTargetRows[0] && (() => {
+              const row = moveTargetRows[0];
+              const unitName = activeInventory === "raw-veneer" ? "Leaves" : "Sheets";
+              const available = Number(row.availableUnits || row.totalUnits || 0);
+              const enteredQty = Number(moveQuantity || 0);
+              const remaining = Math.max(0, available - enteredQty);
+              const isInvalidQty = enteredQty <= 0 || (available > 0 && enteredQty > available);
+
+              return (
+                <Stack
+                  spacing={1.5}
+                  sx={{
+                    p: 2,
+                    borderRadius: 1.5,
+                    bgcolor: "action.hover",
+                    border: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.primary" }}>
+                    Stock Overview
+                  </Typography>
+                  <Stack direction="row" justifyContent="space-between" flexWrap="wrap" gap={1}>
+                    <div>
+                      <Typography variant="caption" color="text.secondary">Item / Batch</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {row.storageSrNo || row.inwardSrNo || row.itemName || "-"}
+                      </Typography>
+                    </div>
+                    <div>
+                      <Typography variant="caption" color="text.secondary">Available Stock</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "primary.main" }}>
+                        {available} {unitName}
+                      </Typography>
+                    </div>
+                    {row.totalSqm ? (
+                      <div>
+                        <Typography variant="caption" color="text.secondary">Total Area</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {row.totalSqm} SQM
+                        </Typography>
+                      </div>
+                    ) : null}
+                  </Stack>
+
+                  <Stack spacing={0.5} sx={{ mt: 1 }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                      Quantity to Move ({unitName}) *
+                    </Typography>
+                    <TextField
+                      size="small"
+                      type="number"
+                      fullWidth
+                      value={moveQuantity}
+                      onChange={(e) => setMoveQuantity(e.target.value)}
+                      error={Boolean(moveQuantity) && isInvalidQty}
+                      helperText={
+                        Boolean(moveQuantity) && isInvalidQty
+                          ? available > 0 && enteredQty > available
+                            ? `Cannot exceed available stock (${available} ${unitName})`
+                            : "Enter a valid quantity greater than 0"
+                          : available > 0
+                          ? `Remaining in Storage: ${remaining} ${unitName}${remaining === 0 ? " (Entire item will move to History)" : " (Item will stay in Inventory)"}`
+                          : undefined
+                      }
+                      inputProps={{ min: 1, max: available || undefined }}
+                    />
+                  </Stack>
+                </Stack>
+              );
+            })()}
+
             <Stack spacing={1}>
               <Typography variant="caption" sx={{ fontWeight: 600 }}>
                 Remark (Optional)
@@ -705,7 +882,13 @@ export function StorageWarehousePage({
             disabled={
               isMoving ||
               !selectedProductionWarehouseId ||
-              !selectedGradeId
+              !selectedGradeId ||
+              (moveTargetRows.length === 1 && Boolean(moveTargetRows[0]) && (
+                !moveQuantity ||
+                Number(moveQuantity) <= 0 ||
+                (Number(moveTargetRows[0]?.availableUnits || moveTargetRows[0]?.totalUnits || 0) > 0 &&
+                  Number(moveQuantity) > Number(moveTargetRows[0]?.availableUnits || moveTargetRows[0]?.totalUnits || 0))
+              ))
             }
             sx={bulkPrimaryButtonSx}
           >
@@ -728,6 +911,21 @@ export function StorageWarehousePage({
               Are you sure you want to revert item{" "}
               <strong>{revertTargetRow?.storageSrNo || revertTargetRow?.inwardSrNo || revertTargetRow?.itemName}</strong> back to inward?
             </Typography>
+
+            {revertDialogError && (
+              <Alert
+                severity="error"
+                onClose={() => setRevertDialogError(null)}
+                sx={{
+                  borderRadius: 1.5,
+                  fontSize: "0.8125rem",
+                  "& .MuiAlert-message": { fontWeight: 500 },
+                }}
+              >
+                {revertDialogError}
+              </Alert>
+            )}
+
             <TextField
               size="small"
               fullWidth
@@ -765,6 +963,30 @@ export function StorageWarehousePage({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Global readable toast notification */}
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{
+              width: "100%",
+              fontWeight: 600,
+              boxShadow: "0 8px 16px rgba(0,0,0,0.15)",
+              borderRadius: 1.5,
+            }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </MasterPageShell>
   );
 }

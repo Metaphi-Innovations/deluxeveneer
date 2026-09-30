@@ -10,7 +10,7 @@ export type StorageInventoryTab =
 
 export type StorageSectionTab = "inventory" | "history";
 
-/** Listing columns for QC-pass stock stored in a storage warehouse. */
+/** Listing columns for Veneer Blocks in storage warehouse. */
 export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   [
     { key: "storageSrNo", label: "Storage Sr No" },
@@ -18,6 +18,42 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    { key: "availableUnits", label: "Available Stock" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+
+export const STORAGE_RAW_VENEER_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Received Stock" },
+    { key: "availableUnits", label: "Available Stock" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+/** Listing columns for Plywood & MDF: Received Stock before Available Stock. */
+export const STORAGE_SHEET_GOODS_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Received Stock" },
     { key: "availableUnits", label: "Available Stock" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },

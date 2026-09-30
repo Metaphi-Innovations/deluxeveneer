@@ -15,7 +15,7 @@ import {
   mapStorageItemToRow,
 } from "./api/storageApi";
 import {
-  STORAGE_LISTING_COLUMNS,
+  STORAGE_SHEET_GOODS_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
 
@@ -145,7 +145,7 @@ export function StoragePlywoodInventory({
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={STORAGE_LISTING_COLUMNS}
+        columns={STORAGE_SHEET_GOODS_COLUMNS}
         rows={rows}
         loading={isLoading}
         loadingLabel="Loading plywood inventory..."

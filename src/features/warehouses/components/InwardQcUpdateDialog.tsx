@@ -707,7 +707,18 @@ export function InwardQcUpdateDialog({
         initialAttachmentUrl={confirmState?.item.qcAttachmentUrl ?? null}
         mode={confirmState?.mode ?? "PASS"}
         totalQuantity={confirmState?.item.noOfLeaves ?? confirmState?.item.sheets ?? null}
-        quantityUnit={confirmState?.item.noOfLeaves != null ? "Leaves" : "Sheets"}
+        quantityUnit={
+          (detail?.inventoryType ?? "").toUpperCase().includes("PLYWOOD") ||
+          (detail?.inventoryType ?? "").toUpperCase().includes("MDF") ||
+          (confirmState?.item.itemCategoryName ?? "").toUpperCase().includes("PLYWOOD") ||
+          (confirmState?.item.itemCategoryName ?? "").toUpperCase().includes("MDF") ||
+          confirmState?.item.sheets != null
+            ? "Sheets"
+            : (detail?.inventoryType ?? "").toUpperCase().includes("RAW") ||
+              confirmState?.item.noOfLeaves != null
+            ? "No of Leaves"
+            : "Sheets"
+        }
         open={Boolean(confirmState)}
         submitting={isSubmitting}
         onClose={() => {
@@ -803,6 +814,9 @@ function ItemQcTable({
                 "HSN",
                 "Batch / Log",
                 "Size",
+                "Total Stock",
+                "Passed",
+                "Failed",
                 "Amount",
                 "QC",
                 "Remark",
@@ -865,6 +879,43 @@ function ItemQcTable({
                     })}
                   >
                     {`${formatMeasure(item.length)} × ${formatMeasure(item.width)} × ${formatMeasure(dimension)}`}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                    })}
+                  >
+                    {formatMeasure(item.sheets ?? item.noOfLeaves ?? item.cbm)}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                      color: "success.main",
+                    })}
+                  >
+                    {qcLabel === "Pass"
+                      ? formatMeasure(item.availableStock ?? item.sheets ?? item.noOfLeaves ?? item.cbm)
+                      : qcLabel === "Fail"
+                      ? "0"
+                      : "—"}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                      fontWeight: 600,
+                      color: qcLabel === "Fail" || (item.rejectedStock != null && item.rejectedStock > 0) ? "error.main" : theme.customTokens.text.secondary,
+                    })}
+                  >
+                    {qcLabel === "Fail"
+                      ? formatMeasure(item.rejectedStock ?? item.sheets ?? item.noOfLeaves ?? item.cbm)
+                      : qcLabel === "Pass"
+                      ? formatMeasure(item.rejectedStock ?? 0)
+                      : "—"}
                   </TableCell>
                   <TableCell
                     sx={(theme) => ({
@@ -1266,7 +1317,7 @@ export function InwardQcConfirmDialog({
               sx={(theme) => ({
                 p: 2,
                 borderRadius: `${theme.customTokens.radius.md}px`,
-                backgroundColor: theme.customTokens.surfaces.alt,
+                backgroundColor: "transparent",
                 border: `1px solid ${theme.customTokens.borders.default}`,
               })}
             >
@@ -1280,13 +1331,40 @@ export function InwardQcConfirmDialog({
                 Stock Quantity Breakdown ({quantityUnit})
               </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
-                <TextField
-                  label={`Total ${quantityUnit}`}
-                  value={numTotal}
-                  size="small"
-                  slotProps={{ input: { readOnly: true } }}
-                  sx={{ width: { xs: "100%", sm: "33%" } }}
-                />
+                <Box
+                  sx={{
+                    width: { xs: "100%", sm: "33%" },
+                    p: "8.5px 14px",
+                    borderRadius: "4px",
+                    border: (theme) => `1px solid ${theme.customTokens.borders.default}`,
+                    backgroundColor: "transparent",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                      lineHeight: 1.2,
+                    })}
+                  >
+                    Total {quantityUnit}
+                  </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      lineHeight: 1.3,
+                      mt: 0.25,
+                    }}
+                  >
+                    {numTotal}
+                  </Typography>
+                </Box>
                 <TextField
                   label={`Passed ${quantityUnit}`}
                   type="number"
@@ -1305,17 +1383,6 @@ export function InwardQcConfirmDialog({
                   sx={{ width: { xs: "100%", sm: "33%" } }}
                 />
               </Stack>
-              <Typography
-                variant="caption"
-                sx={{
-                  display: "block",
-                  mt: 1,
-                  color: "text.secondary",
-                  fontSize: "0.75rem",
-                }}
-              >
-                Passed {quantityUnit.toLowerCase()} will become available stock in storage warehouse. Failed ones will be rejected.
-              </Typography>
             </Box>
           ) : null}
 
