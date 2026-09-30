@@ -208,6 +208,8 @@ export function ApiInwardViewForm({
         ...taxHeaders,
         "Total",
         "QC",
+        "Available Stock",
+        "Rejected Stock",
         "QC Remark",
         "Remark",
       ];
@@ -230,6 +232,8 @@ export function ApiInwardViewForm({
         ...taxHeaders,
         "Total",
         "QC",
+        "Available Stock",
+        "Rejected Stock",
         "QC Remark",
         "Remark",
       ];
@@ -249,6 +253,8 @@ export function ApiInwardViewForm({
       ...taxHeaders,
       "Total",
       "QC",
+      "Available Stock",
+      "Rejected Stock",
       "QC Remark",
       "Remark",
     ];
@@ -1035,6 +1041,16 @@ function ItemRow({
           size="small"
           sx={{ fontWeight: 600, height: 22 }}
         />
+      </TableCell>
+      <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: theme.customTokens.text.primary }}>
+        {item.availableStock !== undefined && item.availableStock !== null
+          ? formatMeasure(item.availableStock)
+          : "—"}
+      </TableCell>
+      <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: item.rejectedStock ? "error.main" : theme.customTokens.text.secondary }}>
+        {item.rejectedStock !== undefined && item.rejectedStock !== null
+          ? formatMeasure(item.rejectedStock)
+          : "—"}
       </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.qcRemark?.trim() || "—"}

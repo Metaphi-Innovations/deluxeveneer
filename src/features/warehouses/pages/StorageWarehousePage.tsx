@@ -45,6 +45,7 @@ import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
 import { StorageVeneerBlocksInventory } from "../storage/StorageVeneerBlocksInventory";
+import { StorageConsumablesInventory } from "../storage/StorageConsumablesInventory";
 import {
   STORAGE_EXPORT_COLUMNS,
   STORAGE_INVENTORY_TABS,
@@ -280,9 +281,23 @@ export function StorageWarehousePage({
         icon: Eye,
         onSelect: (r) => {
           const targetInwardId = r.referenceSrNo || r.id;
-          navigate(`/inventory/${activeInventory}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
+          let targetSlug: string = activeInventory;
+          if (activeInventory === "consumables") {
+            const rawType = (r.inwardType ?? "").toLowerCase();
+            if (rawType.includes("block")) targetSlug = "veneer-blocks";
+            else if (rawType.includes("raw")) targetSlug = "raw-veneer";
+            else if (rawType.includes("ply")) targetSlug = "plywood";
+            else if (rawType.includes("mdf")) targetSlug = "mdf";
+            else targetSlug = "veneer-blocks";
+          }
+          navigate(`/inventory/${targetSlug}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
         },
       });
+
+      // If viewing consumables, keep action to View only (no Revert, no Move)
+      if (activeInventory === "consumables") {
+        return actions;
+      }
 
       // In inventory mode, also show Revert and Move to Warehouse
       if (activeSection === "inventory" && canEdit) {
@@ -426,14 +441,16 @@ export function StorageWarehousePage({
           value={activeInventory}
         />
 
-        <ModuleProcessTabs
-          onChange={(value) => {
-            updateParams({ section: value });
-            setSearchValue("");
-          }}
-          tabs={STORAGE_SECTION_TABS}
-          value={activeSection}
-        />
+        {activeInventory !== "consumables" ? (
+          <ModuleProcessTabs
+            onChange={(value) => {
+              updateParams({ section: value });
+              setSearchValue("");
+            }}
+            tabs={STORAGE_SECTION_TABS}
+            value={activeSection}
+          />
+        ) : null}
 
         <Stack
           direction={{ xs: "column", lg: "row" }}
@@ -564,6 +581,13 @@ export function StorageWarehousePage({
         ) : null}
         {activeInventory === "mdf" ? (
           <StorageMdfInventory
+            {...panelProps}
+            searchValue={debouncedSearchValue}
+            getRowActions={getRowActions}
+          />
+        ) : null}
+        {activeInventory === "consumables" ? (
+          <StorageConsumablesInventory
             {...panelProps}
             searchValue={debouncedSearchValue}
             getRowActions={getRowActions}

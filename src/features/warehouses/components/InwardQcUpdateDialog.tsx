@@ -305,6 +305,7 @@ export function InwardQcUpdateDialog({
   const handleConfirmSubmit = async (details: {
     remark: string;
     attachmentUrl: string | null;
+    passQuantity?: number | null | undefined;
   }) => {
     if (!confirmState || isSubmitting) {
       return;
@@ -324,6 +325,7 @@ export function InwardQcUpdateDialog({
     try {
       await updateInwardQcStatusApi(confirmState.item.id, {
         qcStatus: confirmState.mode as InwardQcStatus,
+        passQuantity: details.passQuantity ?? null,
         qcRemark: details.remark.trim() || null,
         qcAttachmentUrl: details.attachmentUrl,
         storageWarehouseId:
@@ -704,6 +706,8 @@ export function InwardQcUpdateDialog({
         initialRemark={confirmState?.item.qcRemark ?? ""}
         initialAttachmentUrl={confirmState?.item.qcAttachmentUrl ?? null}
         mode={confirmState?.mode ?? "PASS"}
+        totalQuantity={confirmState?.item.noOfLeaves ?? confirmState?.item.sheets ?? null}
+        quantityUnit={confirmState?.item.noOfLeaves != null ? "Leaves" : "Sheets"}
         open={Boolean(confirmState)}
         submitting={isSubmitting}
         onClose={() => {
@@ -1183,6 +1187,8 @@ export function InwardQcConfirmDialog({
   open,
   submitting,
   itemName,
+  totalQuantity,
+  quantityUnit = "Qty",
   initialRemark,
   initialAttachmentUrl,
   onClose,
@@ -1192,18 +1198,22 @@ export function InwardQcConfirmDialog({
   open: boolean;
   submitting: boolean;
   itemName: string;
+  totalQuantity?: number | null;
+  quantityUnit?: string;
   initialRemark?: string | null;
   initialAttachmentUrl?: string | null;
   onClose: () => void;
   onSubmit: (details: {
     remark: string;
     attachmentUrl: string | null;
+    passQuantity?: number | null | undefined;
   }) => void;
 }) {
   const [remark, setRemark] = useState("");
   const [fileName, setFileName] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [fileError, setFileError] = useState("");
+  const [passQtyInput, setPassQtyInput] = useState<string>("");
 
   useEffect(() => {
     if (open) {
@@ -1211,11 +1221,26 @@ export function InwardQcConfirmDialog({
       setFileName("");
       setAttachmentUrl(initialAttachmentUrl ?? null);
       setFileError("");
+      setPassQtyInput(
+        mode === "PASS" && totalQuantity != null ? String(totalQuantity) : ""
+      );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const title = mode === "PASS" ? "Mark QC Pass" : "Mark QC Fail";
+
+  const numTotal = totalQuantity != null ? Number(totalQuantity) : null;
+  const numPass = passQtyInput !== "" ? Number(passQtyInput) : null;
+  const calculatedFail =
+    numTotal != null && numPass != null && !Number.isNaN(numPass)
+      ? Math.max(0, numTotal - numPass)
+      : 0;
+
+  const isQtyValid =
+    mode !== "PASS" ||
+    numTotal == null ||
+    (numPass != null && !Number.isNaN(numPass) && numPass >= 0 && numPass <= numTotal);
 
   return (
     <Dialog fullWidth maxWidth="sm" onClose={onClose} open={open}>
@@ -1234,6 +1259,64 @@ export function InwardQcConfirmDialog({
                 {itemName}
               </Box>
             </Typography>
+          ) : null}
+
+          {mode === "PASS" && numTotal != null ? (
+            <Box
+              sx={(theme) => ({
+                p: 2,
+                borderRadius: `${theme.customTokens.radius.md}px`,
+                backgroundColor: theme.customTokens.surfaces.alt,
+                border: `1px solid ${theme.customTokens.borders.default}`,
+              })}
+            >
+              <Typography
+                sx={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  mb: 1.5,
+                }}
+              >
+                Stock Quantity Breakdown ({quantityUnit})
+              </Typography>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
+                <TextField
+                  label={`Total ${quantityUnit}`}
+                  value={numTotal}
+                  size="small"
+                  slotProps={{ input: { readOnly: true } }}
+                  sx={{ width: { xs: "100%", sm: "33%" } }}
+                />
+                <TextField
+                  label={`Passed ${quantityUnit}`}
+                  type="number"
+                  size="small"
+                  value={passQtyInput}
+                  error={!isQtyValid}
+                  helperText={!isQtyValid ? `Max ${numTotal}` : undefined}
+                  onChange={(e) => setPassQtyInput(e.target.value)}
+                  sx={{ width: { xs: "100%", sm: "33%" } }}
+                />
+                <TextField
+                  label={`Failed ${quantityUnit}`}
+                  value={calculatedFail}
+                  size="small"
+                  slotProps={{ input: { readOnly: true } }}
+                  sx={{ width: { xs: "100%", sm: "33%" } }}
+                />
+              </Stack>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mt: 1,
+                  color: "text.secondary",
+                  fontSize: "0.75rem",
+                }}
+              >
+                Passed {quantityUnit.toLowerCase()} will become available stock in storage warehouse. Failed ones will be rejected.
+              </Typography>
+            </Box>
           ) : null}
 
           <TextField
@@ -1318,12 +1401,16 @@ export function InwardQcConfirmDialog({
           Cancel
         </Button>
         <Button
-          disabled={submitting || Boolean(fileError)}
+          disabled={submitting || Boolean(fileError) || !isQtyValid}
           color={mode === "FAIL" ? "error" : "primary"}
           onClick={() =>
             onSubmit({
               remark,
               attachmentUrl,
+              passQuantity:
+                mode === "PASS" && numPass != null && !Number.isNaN(numPass)
+                  ? numPass
+                  : undefined,
             })
           }
           variant="contained"

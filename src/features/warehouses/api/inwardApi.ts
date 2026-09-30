@@ -141,6 +141,8 @@ export interface InwardItemDetail {
   qcStatus: string;
   qcRemark: string | null;
   qcAttachmentUrl: string | null;
+  availableStock?: number | null;
+  rejectedStock?: number | null;
 }
 
 export interface InwardAdditionalChargeDetail {
@@ -498,6 +500,7 @@ export async function updateInwardQcStatusApi(
   itemId: string,
   payload: {
     qcStatus: InwardQcStatus;
+    passQuantity?: number | null;
     qcRemark?: string | null;
     qcAttachmentUrl?: string | null;
     storageWarehouseId?: string | null;

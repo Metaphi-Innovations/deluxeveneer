@@ -340,6 +340,38 @@ export const InwardEditStockLineItems = forwardRef<
           }
         }
 
+        // Dynamic CBM calculation for Veneer Blocks: Length * Width * Height
+        if (slug === "veneer-blocks" && ["length", "width", "thickness", "height"].includes(key)) {
+          const l = parseAmountValue(nextValues.length ?? "");
+          const w = parseAmountValue(nextValues.width ?? "");
+          const h = parseAmountValue(nextValues.thickness ?? nextValues.height ?? "");
+          if (l > 0 && w > 0 && h > 0) {
+            const isMm = l > 20 || w > 20 || h > 20;
+            const cbmVal = isMm ? (l * w * h) / 1_000_000_000 : l * w * h;
+            nextValues.cbm = Number(cbmVal.toFixed(4)).toString();
+          }
+        }
+
+        // Dynamic SQM calculation for Raw Veneer, Plywood, MDF:
+        if (
+          ["raw-veneer", "plywood", "mdf"].includes(slug) &&
+          ["length", "width", "noOfLeaves", "sheets", "noOfSheets"].includes(key)
+        ) {
+          const l = parseAmountValue(nextValues.length ?? "");
+          const w = parseAmountValue(nextValues.width ?? "");
+          const count = parseAmountValue(
+            nextValues.noOfLeaves ?? nextValues.sheets ?? nextValues.noOfSheets ?? ""
+          );
+          if (l > 0 && w > 0 && count > 0) {
+            const isMm = l > 20 || w > 20;
+            const sqmVal = isMm ? (l * w * count) / 1_000_000 : l * w * count;
+            nextValues.totalSqMeter = Number(sqmVal.toFixed(3)).toString();
+            if ("totalSqm" in nextValues) {
+              nextValues.totalSqm = Number(sqmVal.toFixed(3)).toString();
+            }
+          }
+        }
+
         nextValues = applyTaxCalculations(nextValues, gstMode);
 
         return {

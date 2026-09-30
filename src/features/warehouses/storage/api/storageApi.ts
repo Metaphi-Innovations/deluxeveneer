@@ -111,8 +111,8 @@ export function mapStorageItemToRow(
     length: item.length != null ? `${item.length} mm` : "",
     width: item.width != null ? `${item.width} mm` : "",
     thickness: item.thickness != null ? `${item.thickness} mm` : "",
-    totalUnits: item.sheets != null ? String(item.sheets) : "",
-    availableUnits: item.sheets != null ? String(item.sheets) : "",
+    totalUnits: item.sheets != null ? String(item.sheets) : item.noOfLeaves != null ? String(item.noOfLeaves) : item.cbm != null ? String(item.cbm) : "",
+    availableUnits: item.sheets != null ? String(item.sheets) : item.noOfLeaves != null ? String(item.noOfLeaves) : item.cbm != null ? String(item.cbm) : "",
     totalSqm: item.totalSqMeter != null ? String(item.totalSqMeter) : "",
     totalSqf:
       item.totalSqMeter != null
