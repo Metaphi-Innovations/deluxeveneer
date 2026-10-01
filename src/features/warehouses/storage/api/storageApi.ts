@@ -32,7 +32,8 @@ export interface StorageInventoryItem {
   noOfLeaves: number | null;
   sheets: number | null;
   totalSqMeter: number | null;
-  totalReceivedStock?: number | null;
+  receivedQuantity?: number | null;
+  availableQuantity?: number | null;
   length: number | null;
   width: number | null;
   height: number | null;
@@ -112,17 +113,40 @@ export function mapStorageItemToRow(
     length: item.length != null ? `${item.length} mm` : "",
     width: item.width != null ? `${item.width} mm` : "",
     thickness: item.thickness != null ? `${item.thickness} mm` : "",
-    totalUnits:
-      item.totalReceivedStock != null
-        ? String(item.totalReceivedStock)
-        : item.sheets != null
+    totalUnits: (() => {
+      // Received stock unit: raw veneer = leaves; plywood/mdf = sheets.
+      if (item.receivedQuantity != null) return String(item.receivedQuantity);
+      if (inventorySlug === "raw-veneer") {
+        return item.noOfLeaves != null ? String(item.noOfLeaves) : "";
+      }
+      if (inventorySlug === "plywood" || inventorySlug === "mdf") {
+        return item.sheets != null ? String(item.sheets) : "";
+      }
+      return item.sheets != null
         ? String(item.sheets)
         : item.noOfLeaves != null
-        ? String(item.noOfLeaves)
-        : item.cbm != null
-        ? String(item.cbm)
-        : "",
-    availableUnits: item.sheets != null ? String(item.sheets) : item.noOfLeaves != null ? String(item.noOfLeaves) : item.cbm != null ? String(item.cbm) : "",
+          ? String(item.noOfLeaves)
+          : item.cbm != null
+            ? String(item.cbm)
+            : "";
+    })(),
+    availableUnits: (() => {
+      // Available stock unit: raw veneer = leaves; plywood/mdf = sheets.
+      if (item.availableQuantity != null) return String(item.availableQuantity);
+      if (inventorySlug === "raw-veneer") {
+        return item.noOfLeaves != null ? String(item.noOfLeaves) : "";
+      }
+      if (inventorySlug === "plywood" || inventorySlug === "mdf") {
+        return item.sheets != null ? String(item.sheets) : "";
+      }
+      return item.sheets != null
+        ? String(item.sheets)
+        : item.noOfLeaves != null
+          ? String(item.noOfLeaves)
+          : item.cbm != null
+            ? String(item.cbm)
+            : "";
+    })(),
     totalSqm: item.totalSqMeter != null ? String(item.totalSqMeter) : "",
     totalSqf:
       item.totalSqMeter != null

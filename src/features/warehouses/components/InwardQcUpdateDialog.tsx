@@ -28,15 +28,14 @@ import {
   BadgeCheck,
   CircleX,
   ClipboardCheck,
-  ExternalLink,
   MoreHorizontal,
-  Paperclip,
   Upload,
 } from "lucide-react";
 
 import { fetchWarehouseMasterPaginated } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import { actionMenuTriggerSx } from "../../shared/actionMenuStyles";
 import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
+import { AttachmentPreview } from "./AttachmentPreview";
 import {
   getAutocompleteListboxSx,
   getAutocompletePaperSx,
@@ -60,6 +59,7 @@ import {
   type InwardItemDetail,
   type InwardQcStatus,
 } from "../api/inwardApi";
+import { slugFromInventoryTypeLabel } from "../inward/supportedInwardTypes";
 
 type QcConfirmState = {
   item: InwardItemDetail;
@@ -661,6 +661,7 @@ export function InwardQcUpdateDialog({
             ) : (
               <ItemQcTable
                 disabled={isSubmitting}
+                inventoryType={detail?.inventoryType}
                 items={items}
                 onFail={(item) => {
                   setErrorMessage("");
@@ -705,19 +706,26 @@ export function InwardQcUpdateDialog({
         itemName={confirmState?.item.itemName ?? ""}
         initialRemark={confirmState?.item.qcRemark ?? ""}
         initialAttachmentUrl={confirmState?.item.qcAttachmentUrl ?? null}
+        initialPassQuantity={
+          confirmState?.item.qcPassQuantity ??
+          confirmState?.item.availableStock ??
+          null
+        }
         mode={confirmState?.mode ?? "PASS"}
-        totalQuantity={confirmState?.item.noOfLeaves ?? confirmState?.item.sheets ?? null}
-        quantityUnit={
-          (detail?.inventoryType ?? "").toUpperCase().includes("PLYWOOD") ||
-          (detail?.inventoryType ?? "").toUpperCase().includes("MDF") ||
-          (confirmState?.item.itemCategoryName ?? "").toUpperCase().includes("PLYWOOD") ||
-          (confirmState?.item.itemCategoryName ?? "").toUpperCase().includes("MDF") ||
-          confirmState?.item.sheets != null
-            ? "Sheets"
-            : (detail?.inventoryType ?? "").toUpperCase().includes("RAW") ||
-              confirmState?.item.noOfLeaves != null
-            ? "No of Leaves"
-            : "Sheets"
+        totalQuantity={
+          confirmState?.item
+            ? Number(getLineQty(confirmState.item, detail?.inventoryType) ?? 0) ||
+              null
+            : null
+        }
+        quantityUnit={getQtyUnitLabel(detail?.inventoryType)}
+        allowPartialQuantity={
+          !(detail?.inventoryType ?? "")
+            .toUpperCase()
+            .includes("VENEER_BLOCK") &&
+          !(detail?.inventoryType ?? "")
+            .toUpperCase()
+            .includes("VENEER BLOCK")
         }
         open={Boolean(confirmState)}
         submitting={isSubmitting}
@@ -761,13 +769,70 @@ function SummaryField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getQtyUnitLabel(inventoryType: string | undefined): string {
+  const type = (inventoryType ?? "").toUpperCase();
+  if (type.includes("RAW")) return "Leaves";
+  if (type.includes("PLYWOOD") || type.includes("MDF")) return "Sheets";
+  if (type.includes("VENEER_BLOCK") || type.includes("VENEER BLOCK")) {
+    return "CBM";
+  }
+  return "Qty";
+}
+
+function getLineQty(item: InwardItemDetail, inventoryType: string | undefined) {
+  const type = (inventoryType ?? "").toUpperCase();
+  if (type.includes("RAW")) return item.noOfLeaves;
+  if (type.includes("PLYWOOD") || type.includes("MDF")) return item.sheets;
+  if (type.includes("VENEER_BLOCK") || type.includes("VENEER BLOCK")) {
+    return item.cbm;
+  }
+  return item.sheets ?? item.noOfLeaves ?? item.cbm;
+}
+
+function getQcTableHeaders(inventoryType: string | undefined): string[] {
+  const slug = slugFromInventoryTypeLabel(inventoryType);
+  const qtyLabel = getQtyUnitLabel(inventoryType);
+  const showPassFailQty = slug !== "veneer-blocks";
+
+  const identityHeaders =
+    slug === "raw-veneer"
+      ? ([
+          "Log Code",
+          "Bundle",
+          "Pallet No",
+          "L",
+          "W",
+          "Thk",
+          qtyLabel,
+        ] as const)
+      : slug === "plywood" || slug === "mdf"
+        ? (["Pallet No", "L", "W", "Thk", qtyLabel] as const)
+        : (["Batch No", "L", "W", "H", qtyLabel] as const);
+
+  return [
+    "#",
+    "Item Name",
+    "Sub Category",
+    "HSN",
+    ...identityHeaders,
+    ...(showPassFailQty ? (["Passed", "Failed"] as const) : []),
+    "Amount",
+    "QC",
+    "Remark",
+    "Attachment",
+    "Actions",
+  ];
+}
+
 function ItemQcTable({
   items,
+  inventoryType,
   disabled,
   onPass,
   onFail,
 }: {
   items: readonly InwardItemDetail[];
+  inventoryType?: string | undefined;
   disabled: boolean;
   onPass: (item: InwardItemDetail) => void;
   onFail: (item: InwardItemDetail) => void;
@@ -776,6 +841,13 @@ function ItemQcTable({
     null,
   );
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
+  const inventorySlug = slugFromInventoryTypeLabel(inventoryType);
+  const isRawVeneer = inventorySlug === "raw-veneer";
+  const isSheetBased =
+    inventorySlug === "plywood" || inventorySlug === "mdf";
+  /** Veneer blocks are whole units — no Passed/Failed qty columns. */
+  const showPassFailQtyColumns = inventorySlug !== "veneer-blocks";
+  const headers = getQcTableHeaders(inventoryType);
 
   const activeItem =
     items.find((item) => item.id === activeItemId) ?? null;
@@ -807,22 +879,7 @@ function ItemQcTable({
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {[
-                "#",
-                "Item Name",
-                "Sub Category",
-                "HSN",
-                "Batch / Log",
-                "Size",
-                "Total Stock",
-                "Passed",
-                "Failed",
-                "Amount",
-                "QC",
-                "Remark",
-                "Attachment",
-                "Actions",
-              ].map((label) => (
+              {headers.map((label) => (
                 <TableCell
                   key={label}
                   sx={(theme) => ({
@@ -841,8 +898,6 @@ function ItemQcTable({
           <TableBody>
             {items.map((item, index) => {
               const qcLabel = normalizeQcLabel(item.qcStatus);
-              const dimension = item.thickness ?? item.height ?? null;
-              const batchOrLog = item.batchNo || item.logCode || "—";
               const remark = item.qcRemark?.trim() || "";
               const attachmentUrl = item.qcAttachmentUrl?.trim() || "";
 
@@ -869,54 +924,133 @@ function ItemQcTable({
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                     {item.hsnCode || "—"}
                   </TableCell>
-                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                    {batchOrLog}
-                  </TableCell>
-                  <TableCell
-                    sx={(theme) => ({
-                      ...listingTableBodyCellSx(theme),
-                      whiteSpace: "nowrap",
-                    })}
-                  >
-                    {`${formatMeasure(item.length)} × ${formatMeasure(item.width)} × ${formatMeasure(dimension)}`}
-                  </TableCell>
-                  <TableCell
-                    sx={(theme) => ({
-                      ...listingTableBodyCellSx(theme),
-                      whiteSpace: "nowrap",
-                      fontWeight: 600,
-                    })}
-                  >
-                    {formatMeasure(item.sheets ?? item.noOfLeaves ?? item.cbm)}
-                  </TableCell>
-                  <TableCell
-                    sx={(theme) => ({
-                      ...listingTableBodyCellSx(theme),
-                      whiteSpace: "nowrap",
-                      fontWeight: 600,
-                      color: "success.main",
-                    })}
-                  >
-                    {qcLabel === "Pass"
-                      ? formatMeasure(item.availableStock ?? item.sheets ?? item.noOfLeaves ?? item.cbm)
-                      : qcLabel === "Fail"
-                      ? "0"
-                      : "—"}
-                  </TableCell>
-                  <TableCell
-                    sx={(theme) => ({
-                      ...listingTableBodyCellSx(theme),
-                      whiteSpace: "nowrap",
-                      fontWeight: 600,
-                      color: qcLabel === "Fail" || (item.rejectedStock != null && item.rejectedStock > 0) ? "error.main" : theme.customTokens.text.secondary,
-                    })}
-                  >
-                    {qcLabel === "Fail"
-                      ? formatMeasure(item.rejectedStock ?? item.sheets ?? item.noOfLeaves ?? item.cbm)
-                      : qcLabel === "Pass"
-                      ? formatMeasure(item.rejectedStock ?? 0)
-                      : "—"}
-                  </TableCell>
+
+                  {isRawVeneer ? (
+                    <>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.logCode || "—"}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.bundleNumber || "—"}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.palletNo || "—"}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.length)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.width)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.thickness)}
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                        })}
+                      >
+                        {formatMeasure(item.noOfLeaves)}
+                      </TableCell>
+                    </>
+                  ) : isSheetBased ? (
+                    <>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.palletNo || "—"}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.length)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.width)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.thickness)}
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                        })}
+                      >
+                        {formatMeasure(item.sheets)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.batchNo || "—"}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.length)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.width)}
+                      </TableCell>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {formatMeasure(item.height)}
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                        })}
+                      >
+                        {formatMeasure(item.cbm)}
+                      </TableCell>
+                    </>
+                  )}
+
+                  {showPassFailQtyColumns ? (
+                    <>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                          color: "success.main",
+                        })}
+                      >
+                        {qcLabel === "Pass"
+                          ? formatMeasure(
+                              item.qcPassQuantity ??
+                                item.availableStock ??
+                                getLineQty(item, inventoryType),
+                            )
+                          : qcLabel === "Fail"
+                          ? "0"
+                          : "—"}
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                          color:
+                            qcLabel === "Fail" ||
+                            (item.rejectedStock != null && item.rejectedStock > 0)
+                              ? "error.main"
+                              : theme.customTokens.text.secondary,
+                        })}
+                      >
+                        {qcLabel === "Fail"
+                          ? formatMeasure(
+                              item.qcFailQuantity ??
+                                item.rejectedStock ??
+                                getLineQty(item, inventoryType),
+                            )
+                          : qcLabel === "Pass"
+                          ? formatMeasure(
+                              item.qcFailQuantity ?? item.rejectedStock ?? 0,
+                            )
+                          : "—"}
+                      </TableCell>
+                    </>
+                  ) : null}
                   <TableCell
                     sx={(theme) => ({
                       ...listingTableBodyCellSx(theme),
@@ -949,7 +1083,11 @@ function ItemQcTable({
                   </TableCell>
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                     {attachmentUrl ? (
-                      <QcAttachmentPreview url={attachmentUrl} compact />
+                      <AttachmentPreview
+                        url={attachmentUrl}
+                        compact
+                        title="QC Attachment"
+                      />
                     ) : (
                       "—"
                     )}
@@ -1023,216 +1161,6 @@ function ItemQcTable({
   );
 }
 
-function isImageAttachment(url: string): boolean {
-  const normalized = url.trim().toLowerCase();
-  if (normalized.startsWith("data:image/")) return true;
-  return /\.(png|jpe?g|gif|webp|bmp|svg)(\?|$)/i.test(normalized);
-}
-
-function isPdfAttachment(url: string): boolean {
-  const normalized = url.trim().toLowerCase();
-  if (normalized.startsWith("data:application/pdf")) return true;
-  return /\.pdf(\?|$)/i.test(normalized);
-}
-
-function QcAttachmentPreview({
-  url,
-  compact = false,
-}: {
-  url: string;
-  compact?: boolean;
-}) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-
-  if (!url) {
-    return (
-      <Typography sx={{ fontSize: "0.8125rem", fontWeight: 500 }}>
-        None
-      </Typography>
-    );
-  }
-
-  const isImage = isImageAttachment(url);
-  const isPdf = isPdfAttachment(url);
-
-  return (
-    <>
-      {isImage ? (
-        <Box
-          component="button"
-          type="button"
-          onClick={() => setViewerOpen(true)}
-          sx={(theme) => ({
-            display: "block",
-            width: compact ? 56 : "100%",
-            maxWidth: compact ? 56 : 280,
-            minHeight: compact ? 40 : 88,
-            height: compact ? 40 : 88,
-            p: 0,
-            borderRadius: `${theme.customTokens.radius.sm}px`,
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            overflow: "hidden",
-            backgroundColor: theme.customTokens.surfaces.alt,
-            cursor: "pointer",
-            "&:hover": {
-              borderColor: theme.customTokens.brand.primary,
-            },
-          })}
-        >
-          <Box
-            component="img"
-            src={url}
-            alt="QC attachment preview"
-            sx={{
-              width: "100%",
-              height: "100%",
-              maxWidth: "100%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        </Box>
-      ) : (
-        <Button
-          size="small"
-          startIcon={<Paperclip size={14} />}
-          variant="text"
-          onClick={() => setViewerOpen(true)}
-          sx={{ textTransform: "none", px: compact ? 0.5 : 1 }}
-        >
-          {isPdf ? "View PDF" : "View"}
-        </Button>
-      )}
-
-      <QcAttachmentViewerDialog
-        open={viewerOpen}
-        url={url}
-        onClose={() => setViewerOpen(false)}
-      />
-    </>
-  );
-}
-
-function QcAttachmentViewerDialog({
-  open,
-  url,
-  onClose,
-}: {
-  open: boolean;
-  url: string;
-  onClose: () => void;
-}) {
-  const isImage = isImageAttachment(url);
-  const isPdf = isPdfAttachment(url);
-  const title = isImage ? "QC Attachment" : isPdf ? "QC PDF" : "QC Attachment";
-
-  const openInNewTab = () => {
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-
-  return (
-    <Dialog
-      fullWidth
-      maxWidth="md"
-      open={open}
-      onClose={onClose}
-      PaperProps={{
-        sx: {
-          maxHeight: "90vh",
-        },
-      }}
-    >
-      <DialogTitle
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          pr: 1.5,
-        }}
-      >
-        <Typography component="span" sx={{ fontSize: "1rem", fontWeight: 700 }}>
-          {title}
-        </Typography>
-        <Button
-          size="small"
-          startIcon={<ExternalLink size={14} />}
-          variant="outlined"
-          onClick={openInNewTab}
-          sx={(theme) => ({
-            ...getListingToolbarOutlinedButtonSx(theme),
-            minHeight: 32,
-            px: 1.25,
-            fontSize: "0.75rem",
-          })}
-        >
-          Open in new tab
-        </Button>
-      </DialogTitle>
-      <DialogContent
-        sx={{
-          px: 2.5,
-          pb: 2.5,
-          pt: 1,
-          overflow: "auto",
-          display: "flex",
-          justifyContent: "center",
-          backgroundColor: (theme) => theme.customTokens.surfaces.alt,
-        }}
-      >
-        {isImage ? (
-          <Box
-            component="img"
-            src={url}
-            alt="QC attachment"
-            sx={{
-              display: "block",
-              maxWidth: "100%",
-              maxHeight: "70vh",
-              width: "auto",
-              height: "auto",
-              objectFit: "contain",
-              borderRadius: 1,
-              backgroundColor: (theme) => theme.customTokens.surfaces.surface,
-            }}
-          />
-        ) : isPdf ? (
-          <Box
-            component="iframe"
-            src={url}
-            title="QC PDF attachment"
-            sx={{
-              width: "100%",
-              height: "70vh",
-              border: 0,
-              borderRadius: 1,
-              backgroundColor: (theme) => theme.customTokens.surfaces.surface,
-            }}
-          />
-        ) : (
-          <Stack spacing={1.5} alignItems="center" sx={{ py: 4 }}>
-            <Typography sx={{ fontSize: "0.875rem" }}>
-              Preview is not available for this file type.
-            </Typography>
-            <Button
-              startIcon={<ExternalLink size={14} />}
-              variant="contained"
-              onClick={openInNewTab}
-            >
-              Open in new tab
-            </Button>
-          </Stack>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 2.5, py: 1.5 }}>
-        <Button onClick={onClose} variant="outlined">
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
 export function InwardQcConfirmDialog({
   mode,
   open,
@@ -1240,8 +1168,10 @@ export function InwardQcConfirmDialog({
   itemName,
   totalQuantity,
   quantityUnit = "Qty",
+  allowPartialQuantity = true,
   initialRemark,
   initialAttachmentUrl,
+  initialPassQuantity,
   onClose,
   onSubmit,
 }: {
@@ -1251,8 +1181,11 @@ export function InwardQcConfirmDialog({
   itemName: string;
   totalQuantity?: number | null;
   quantityUnit?: string;
+  /** When false (e.g. veneer blocks), pass/fail applies to the whole line — no qty picker. */
+  allowPartialQuantity?: boolean;
   initialRemark?: string | null;
   initialAttachmentUrl?: string | null;
+  initialPassQuantity?: number | null;
   onClose: () => void;
   onSubmit: (details: {
     remark: string;
@@ -1272,8 +1205,14 @@ export function InwardQcConfirmDialog({
       setFileName("");
       setAttachmentUrl(initialAttachmentUrl ?? null);
       setFileError("");
+      const defaultPass =
+        initialPassQuantity != null
+          ? initialPassQuantity
+          : totalQuantity != null
+            ? totalQuantity
+            : null;
       setPassQtyInput(
-        mode === "PASS" && totalQuantity != null ? String(totalQuantity) : ""
+        mode === "PASS" && defaultPass != null ? String(defaultPass) : ""
       );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1289,6 +1228,7 @@ export function InwardQcConfirmDialog({
       : 0;
 
   const isQtyValid =
+    !allowPartialQuantity ||
     mode !== "PASS" ||
     numTotal == null ||
     (numPass != null && !Number.isNaN(numPass) && numPass >= 0 && numPass <= numTotal);
@@ -1312,7 +1252,18 @@ export function InwardQcConfirmDialog({
             </Typography>
           ) : null}
 
-          {mode === "PASS" && numTotal != null ? (
+          {mode === "PASS" && !allowPartialQuantity ? (
+            <Typography
+              sx={(theme) => ({
+                color: theme.customTokens.text.secondary,
+                fontSize: "0.8125rem",
+              })}
+            >
+              Veneer blocks are QC’d as a whole block — no quantity selection.
+            </Typography>
+          ) : null}
+
+          {mode === "PASS" && allowPartialQuantity && numTotal != null ? (
             <Box
               sx={(theme) => ({
                 p: 2,
@@ -1475,7 +1426,10 @@ export function InwardQcConfirmDialog({
               remark,
               attachmentUrl,
               passQuantity:
-                mode === "PASS" && numPass != null && !Number.isNaN(numPass)
+                allowPartialQuantity &&
+                mode === "PASS" &&
+                numPass != null &&
+                !Number.isNaN(numPass)
                   ? numPass
                   : undefined,
             })

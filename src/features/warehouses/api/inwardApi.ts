@@ -141,6 +141,8 @@ export interface InwardItemDetail {
   qcStatus: string;
   qcRemark: string | null;
   qcAttachmentUrl: string | null;
+  qcPassQuantity?: number | null;
+  qcFailQuantity?: number | null;
   availableStock?: number | null;
   rejectedStock?: number | null;
 }

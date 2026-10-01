@@ -184,7 +184,7 @@ export function ProductionInventoryRecordPage({
         "L",
         "W",
         "Thk",
-        "Leaves",
+        "Sheets",
         "SQM",
         "SQF",
         "Grade",
@@ -465,7 +465,7 @@ export function ProductionInventoryRecordPage({
                         {display(detail.thickness)}
                       </TableCell>
                       <TableCell sx={getViewBodyCellSx(theme)}>
-                        {inventorySlug === "plywood"
+                        {inventorySlug === "plywood" || inventorySlug === "mdf"
                           ? display(detail.noOfSheets ?? detail.totalNoOfSheets)
                           : display(detail.noOfLeaves)}
                       </TableCell>

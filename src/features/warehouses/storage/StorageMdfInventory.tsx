@@ -16,6 +16,7 @@ import {
 } from "./api/storageApi";
 import {
   STORAGE_SHEET_GOODS_COLUMNS,
+  STORAGE_SHEET_GOODS_HISTORY_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
 
@@ -145,7 +146,11 @@ export function StorageMdfInventory({
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={STORAGE_SHEET_GOODS_COLUMNS}
+        columns={
+          section === "history"
+            ? STORAGE_SHEET_GOODS_HISTORY_COLUMNS
+            : STORAGE_SHEET_GOODS_COLUMNS
+        }
         rows={rows}
         loading={isLoading}
         loadingLabel="Loading MDF inventory..."

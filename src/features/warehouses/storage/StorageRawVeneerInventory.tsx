@@ -16,6 +16,7 @@ import {
 } from "./api/storageApi";
 import {
   STORAGE_RAW_VENEER_COLUMNS,
+  STORAGE_RAW_VENEER_HISTORY_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
 
@@ -161,7 +162,11 @@ export function StorageRawVeneerInventory({
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={STORAGE_RAW_VENEER_COLUMNS}
+        columns={
+          section === "history"
+            ? STORAGE_RAW_VENEER_HISTORY_COLUMNS
+            : STORAGE_RAW_VENEER_COLUMNS
+        }
         rows={rows}
         loading={isLoading}
         loadingLabel="Loading raw veneer inventory..."

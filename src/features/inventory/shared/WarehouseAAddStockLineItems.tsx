@@ -34,6 +34,14 @@ import {
   itemMasterDefinition,
   unitMasterOptions,
 } from "../../masters/shared/masterDefinitions";
+import {
+  getCachedItemMasterRows,
+  refreshItemMasterCache,
+} from "../../masters/item-name-master/itemMasterApi";
+import {
+  getCachedItemSubCategoryMasterRows,
+  refreshItemSubCategoryMasterCache,
+} from "../../masters/item-sub-category-master/itemSubCategoryMasterApi";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
@@ -254,6 +262,32 @@ export const WarehouseAAddStockLineItems = forwardRef<
   const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(
     null,
   );
+  const [masterOptionsRevision, setMasterOptionsRevision] = useState(0);
+  const itemSubCategoryOptions = useMemo(
+    () => getLiveItemSubCategoryOptions(),
+    [masterOptionsRevision],
+  );
+  const itemNameOptions = useMemo(
+    () => getLiveItemMasterOptions(),
+    [masterOptionsRevision],
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      refreshItemSubCategoryMasterCache(),
+      refreshItemMasterCache(),
+    ])
+      .then(() => {
+        if (!ignore) {
+          setMasterOptionsRevision((current) => current + 1);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     nextRowId.current = 1;
@@ -560,6 +594,8 @@ export const WarehouseAAddStockLineItems = forwardRef<
                           theme,
                           value: row.values[column.key] ?? "",
                           errorText: errors[column.key] ?? "",
+                          itemSubCategoryOptions,
+                          itemNameOptions,
                         })}
                       </TableCell>
                     ))}
@@ -624,9 +660,13 @@ function applyItemMasterDefaults(
   }
 
   const nextValues = { ...values };
-  const subCategory = String(item.subCategory ?? "");
-  const hsn = String(item.hsn ?? "");
-  const gst = String(item.gst ?? "");
+  const subCategory = String(
+    item.subCategory ?? item.subCategoryName ?? "",
+  ).trim();
+  const hsn = String(item.hsn ?? item.hsnCode ?? "").trim();
+  const gst = String(
+    item.gstPercentage ?? item.gst ?? item.gstNo ?? "",
+  ).trim();
 
   if (subCategory) {
     nextValues.itemSubCategory = subCategory;
@@ -649,6 +689,10 @@ function applyItemMasterDefaults(
 }
 
 function getLiveItemMasterRows() {
+  const cached = getCachedItemMasterRows();
+  if (cached.length > 0) {
+    return cached;
+  }
   return buildLocalMasterDefinition(itemMasterDefinition).rows;
 }
 
@@ -657,7 +701,7 @@ function getLiveItemMasterOptions() {
     new Set(
       getLiveItemMasterRows()
         .filter(isActiveMasterRecord)
-        .map((row) => String(row.itemName ?? "").trim())
+        .map((row) => String(row.itemName ?? row.name ?? "").trim())
         .filter(Boolean),
     ),
   );
@@ -666,9 +710,11 @@ function getLiveItemMasterOptions() {
 function getLiveItemSubCategoryOptions() {
   return Array.from(
     new Set(
-      getLiveItemMasterRows()
+      getCachedItemSubCategoryMasterRows()
         .filter(isActiveMasterRecord)
-        .map((row) => String(row.subCategory ?? "").trim())
+        .map((row) =>
+          String(row.itemSubCategory ?? row.name ?? "").trim(),
+        )
         .filter(Boolean),
     ),
   );
@@ -685,7 +731,8 @@ function getLiveItemMasterRecord(itemName: string) {
     getLiveItemMasterRows().find(
       (row) =>
         isActiveMasterRecord(row) &&
-        String(row.itemName ?? "").trim().toLowerCase() === normalizedName,
+        (String(row.itemName ?? "").trim().toLowerCase() === normalizedName ||
+          String(row.name ?? "").trim().toLowerCase() === normalizedName),
     ) ?? null
   );
 }
@@ -1042,12 +1089,16 @@ function renderEditableField({
   onChange,
   theme,
   value,
+  itemSubCategoryOptions,
+  itemNameOptions,
 }: {
   column: DynamicFieldConfig;
   errorText?: string;
   onChange: (value: string) => void;
   theme: Theme;
   value: string;
+  itemSubCategoryOptions?: readonly string[];
+  itemNameOptions?: readonly string[];
 }): ReactNode {
   if (column.type === "computed") {
     return (
@@ -1069,7 +1120,7 @@ function renderEditableField({
     return (
       <Autocomplete
         freeSolo
-        options={getLiveItemMasterOptions()}
+        options={[...(itemNameOptions ?? getLiveItemMasterOptions())]}
         value={value}
         onChange={(_, nextValue) =>
           onChange(typeof nextValue === "string" ? nextValue : nextValue ?? "")
@@ -1186,7 +1237,7 @@ function renderEditableField({
   if (column.type === "gst" || column.type === "select") {
     const selectOptions =
       column.key === "itemSubCategory"
-        ? getLiveItemSubCategoryOptions()
+        ? [...(itemSubCategoryOptions ?? getLiveItemSubCategoryOptions())]
         : column.options ?? [];
 
     return (

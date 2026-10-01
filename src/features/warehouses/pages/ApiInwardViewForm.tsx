@@ -29,6 +29,7 @@ import {
 } from "../../shared/formSectionStyles";
 import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
 import { InventoryPageShell } from "../../inventory/shared/InventoryPageShell";
+import { AttachmentPreview } from "../components/AttachmentPreview";
 import {
   fetchInwardById,
   isInwardEditLockedByQc,
@@ -208,10 +209,10 @@ export function ApiInwardViewForm({
         ...taxHeaders,
         "Total",
         "QC",
-        "Total Stock",
         "Available Stock",
         "Rejected Stock",
         "QC Remark",
+        "Attachment",
         "Remark",
       ];
     }
@@ -221,8 +222,7 @@ export function ApiInwardViewForm({
         "Item Name",
         "Sub Category",
         "HSN",
-        "Batch No",
-        "Pallet",
+        "Pallet No",
         "L",
         "W",
         "Thk",
@@ -233,10 +233,10 @@ export function ApiInwardViewForm({
         ...taxHeaders,
         "Total",
         "QC",
-        "Total Stock",
         "Available Stock",
         "Rejected Stock",
         "QC Remark",
+        "Attachment",
         "Remark",
       ];
     }
@@ -255,10 +255,10 @@ export function ApiInwardViewForm({
       ...taxHeaders,
       "Total",
       "QC",
-      "Total Stock",
       "Available Stock",
       "Rejected Stock",
       "QC Remark",
+      "Attachment",
       "Remark",
     ];
   }, [gstMode, inventorySlug]);
@@ -280,7 +280,6 @@ export function ApiInwardViewForm({
             ? "—"
             : String(detail.exchangeRate),
       },
-      { label: "Attachment", value: detail.attachmentUrl?.trim() ? detail.attachmentUrl : "—" },
       { label: "Inward Type", value: detail.inventoryType || "—" },
       {
         label: "Updated By",
@@ -495,6 +494,23 @@ export function ApiInwardViewForm({
                   value={field.value}
                 />
               ))}
+              <Stack spacing={0.35} sx={{ minWidth: 0, gridColumn: { xs: "1", sm: "span 2", md: "span 1", lg: "span 2" } }}>
+                <Typography
+                  sx={{
+                    fontSize: "0.6875rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase",
+                    color: theme.customTokens.text.secondary,
+                  }}
+                >
+                  Attachment
+                </Typography>
+                <AttachmentPreview
+                  url={detail.attachmentUrl}
+                  title="Inward Attachment"
+                />
+              </Stack>
             </Box>
           </Stack>
         </Box>
@@ -974,9 +990,6 @@ function ItemRow({
       ) : isSheetBased ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.batchNo || "—"}
-          </TableCell>
-          <TableCell sx={getViewBodyCellSx(theme)}>
             {item.palletNo || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
@@ -1046,9 +1059,6 @@ function ItemRow({
         />
       </TableCell>
       <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: theme.customTokens.text.primary }}>
-        {formatMeasure(item.sheets ?? item.noOfLeaves ?? item.cbm)}
-      </TableCell>
-      <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: theme.customTokens.text.primary }}>
         {item.availableStock !== undefined && item.availableStock !== null
           ? formatMeasure(item.availableStock)
           : "—"}
@@ -1060,6 +1070,13 @@ function ItemRow({
       </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.qcRemark?.trim() || "—"}
+      </TableCell>
+      <TableCell sx={{ ...getViewBodyCellSx(theme), whiteSpace: "normal" }}>
+        <AttachmentPreview
+          compact
+          url={item.qcAttachmentUrl}
+          title="QC Attachment"
+        />
       </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.remark?.trim() || "—"}

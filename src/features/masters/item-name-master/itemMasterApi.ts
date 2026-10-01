@@ -241,6 +241,31 @@ export async function fetchItemsApi(params?: {
   return result.items;
 }
 
+let itemMasterRowsCache: MasterRecord[] = [];
+
+export function getCachedItemMasterRows(): MasterRecord[] {
+  return itemMasterRowsCache;
+}
+
+export async function refreshItemMasterCache(
+  items?: MasterRecord[],
+): Promise<MasterRecord[]> {
+  if (items) {
+    itemMasterRowsCache = items;
+    return itemMasterRowsCache;
+  }
+
+  const result = await fetchItemsPaginated({
+    page: 1,
+    limit: 1000,
+    status: true,
+    sortBy: "name",
+    sortOrder: "asc",
+  });
+  itemMasterRowsCache = result.items;
+  return itemMasterRowsCache;
+}
+
 export async function getItemByIdApi(id: string): Promise<MasterRecord | null> {
   try {
     const res = await apiRequest<ApiResponse<BackendItemItem>>(`/masters/items/${id}`);
