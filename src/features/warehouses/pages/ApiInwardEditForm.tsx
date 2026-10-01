@@ -30,6 +30,7 @@ import {
   type InwardItemDetail,
 } from "../api/inwardApi";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
+import { resolveInwardAttachmentUrl } from "../api/resolveInwardAttachment";
 import {
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
@@ -128,7 +129,6 @@ function mapDetailItemToLineValues(
   if (slug === "plywood" || slug === "mdf") {
     return {
       ...shared,
-      logCode: item.batchNo ?? "",
       palletNo: item.palletNo ?? "",
       thickness: formatOptionalNumber(item.thickness),
       sheets: formatOptionalNumber(item.sheets),
@@ -280,20 +280,17 @@ export function ApiInwardEditForm({
       const additionalCharges =
         workspaceRef.current?.getAdditionalCharges() ?? [];
 
+      const attachmentUrl = await resolveInwardAttachmentUrl(
+        values.attachment,
+      );
+
       const payload = await buildCreateInwardPayload({
         warehouseId,
         inventorySlug,
         header: {
           currency:
             typeof values.currency === "string" ? values.currency : "INR",
-          attachment:
-            typeof values.attachment === "string"
-              ? values.attachment
-              : values.attachment &&
-                  typeof values.attachment === "object" &&
-                  "name" in values.attachment
-                ? String(values.attachment.name)
-                : "",
+          attachment: attachmentUrl,
           eta: values.eta instanceof Date ? values.eta : null,
           etd: values.etd instanceof Date ? values.etd : null,
           invoiceNo:

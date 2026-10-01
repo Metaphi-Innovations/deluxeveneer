@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, FileOutput, RotateCcw, Truck } from "lucide-react";
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -9,7 +10,14 @@ import {
   DialogTitle,
   MenuItem,
   Select,
+  Snackbar,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
   useTheme,
@@ -26,8 +34,14 @@ import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermissi
 import {
   getListingToolbarOutlinedButtonSx,
   portalButtonGroupGap,
+  recordFormActionButtonSx,
 } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
+import {
+  listingTableBodyCellSx,
+  listingTableContainerSx,
+  listingTableHeaderCellSx,
+} from "../../shared/listingTableStyles";
 import { useDebouncedValue } from "../../shared/useDebouncedValue";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
@@ -45,6 +59,7 @@ import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
 import { StorageVeneerBlocksInventory } from "../storage/StorageVeneerBlocksInventory";
+import { StorageConsumablesInventory } from "../storage/StorageConsumablesInventory";
 import {
   STORAGE_EXPORT_COLUMNS,
   STORAGE_INVENTORY_TABS,
@@ -116,11 +131,47 @@ export function StorageWarehousePage({
   const [productionWarehouses, setProductionWarehouses] = useState<StorageProductionWarehouseOption[]>([]);
   const [selectedProductionWarehouseId, setSelectedProductionWarehouseId] = useState("");
   const [gradeOptions, setGradeOptions] = useState<MasterRecord[]>([]);
-  const [selectedGradeId, setSelectedGradeId] = useState("");
+  /** Per-row move qty / grade keyed by storage item id (raw veneer / plywood / MDF). */
+  const [moveQuantities, setMoveQuantities] = useState<Record<string, string>>({});
+  const [moveGrades, setMoveGrades] = useState<Record<string, string>>({});
   const [moveRemark, setMoveRemark] = useState("");
   const [isMoving, setIsMoving] = useState(false);
   const [isLoadingWarehouses, setIsLoadingWarehouses] = useState(false);
   const [isLoadingGrades, setIsLoadingGrades] = useState(false);
+  const [moveDialogError, setMoveDialogError] = useState<string | null>(null);
+  const [revertDialogError, setRevertDialogError] = useState<string | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  const formatErrorMessage = (error: unknown, fallback: string): string => {
+    if (!error) return fallback;
+    const msg = error instanceof Error ? error.message : String(error);
+    if (!msg || msg.trim().length === 0) return fallback;
+
+    const lower = msg.toLowerCase();
+    if (lower.includes("already_moved") || lower.includes("already been moved")) {
+      return "This item has already been transferred to a production warehouse.";
+    }
+    if (lower.includes("invalid_quantity") || lower.includes("quantity must be greater")) {
+      return "Please enter a valid quantity greater than 0 that does not exceed available stock.";
+    }
+    if (lower.includes("destination must be a production")) {
+      return "The destination warehouse must be an active Production warehouse.";
+    }
+    if (lower.includes("warehouse is inactive") || lower.includes("inactive")) {
+      return "The selected destination warehouse or grade is currently inactive.";
+    }
+    if (lower.includes("network") || lower.includes("failed to fetch")) {
+      return "Network connection issue. Please check your connection and try again.";
+    }
+    if (lower.includes("status 403") || lower.includes("forbidden") || lower.includes("permission")) {
+      return "You do not have permission to perform this warehouse transfer.";
+    }
+
+    return msg.replace(/^Error:\s*/i, "");
+  };
 
   const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
   const canView = canAccessPermission(warehousePermissionKey, "view");
@@ -163,15 +214,68 @@ export function StorageWarehousePage({
     setSelectionResetKey((current) => current + 1);
   };
 
+  const getMoveRowAvailable = (row: WarehouseInventoryRow) => {
+    // Transfer qty unit: raw veneer = leaves; plywood / mdf = sheets.
+    if (activeInventory === "raw-veneer") {
+      return Number(
+        row.availableUnits || row.noOfLeaves || row.totalUnits || 0,
+      );
+    }
+    return Number(
+      row.availableUnits ||
+        row.avSheets ||
+        row.totalNoOfSheets ||
+        row.totalUnits ||
+        0,
+    );
+  };
+
+  const moveUnitLabel =
+    activeInventory === "raw-veneer" ? "Leaves" : "Sheets";
+
+  const updateMoveQuantity = (rowId: string, value: string) => {
+    setMoveQuantities((prev) => ({ ...prev, [rowId]: value }));
+  };
+
+  const updateMoveGrade = (rowId: string, value: string) => {
+    setMoveGrades((prev) => ({ ...prev, [rowId]: value }));
+  };
+
+  const isMoveQtyInvalid = (row: WarehouseInventoryRow, rawQty: string) => {
+    const qty = Number(rawQty);
+    const available = getMoveRowAvailable(row);
+    if (!rawQty.trim() || !Number.isFinite(qty) || !Number.isInteger(qty) || qty <= 0) {
+      return true;
+    }
+    return available > 0 && qty > available;
+  };
+
+  const hasInvalidMoveQuantities = moveTargetRows.some((row) =>
+    isMoveQtyInvalid(row, moveQuantities[row.id] ?? ""),
+  );
+
+  const hasMissingMoveGrades = moveTargetRows.some(
+    (row) => !(moveGrades[row.id] ?? "").trim(),
+  );
+
   // Move to production logic
   const handleOpenMoveDialog = useCallback(
     async (rowsToMove: WarehouseInventoryRow[]) => {
       setMoveTargetRows(rowsToMove);
       setMoveRemark("");
       setSelectedProductionWarehouseId("");
-      setSelectedGradeId("");
+      setMoveGrades({});
+      setMoveDialogError(null);
       setIsLoadingWarehouses(true);
       setIsLoadingGrades(true);
+
+      const initialQuantities: Record<string, string> = {};
+      for (const row of rowsToMove) {
+        const available = row.availableUnits || row.totalUnits || "";
+        initialQuantities[row.id] = available ? String(available) : "";
+      }
+      setMoveQuantities(initialQuantities);
+
       setMoveDialogOpen(true);
 
       try {
@@ -196,11 +300,22 @@ export function StorageWarehousePage({
             String(record.status ?? "Active").toLowerCase() !== "inactive",
         );
         setGradeOptions(activeGrades);
-        if (activeGrades.length > 0 && activeGrades[0]?.id) {
-          setSelectedGradeId(String(activeGrades[0].id));
+        const defaultGradeId =
+          activeGrades.length > 0 && activeGrades[0]?.id
+            ? String(activeGrades[0].id)
+            : "";
+        if (defaultGradeId) {
+          const initialGrades: Record<string, string> = {};
+          for (const row of rowsToMove) {
+            initialGrades[row.id] = defaultGradeId;
+          }
+          setMoveGrades(initialGrades);
         }
       } catch (err) {
         console.error("Failed to load move-to-production options", err);
+        setMoveDialogError(
+          formatErrorMessage(err, "Failed to load production warehouses or grades. Please try again.")
+        );
         setProductionWarehouses([]);
         setGradeOptions([]);
       } finally {
@@ -214,30 +329,85 @@ export function StorageWarehousePage({
   const handleConfirmMove = async () => {
     if (
       !selectedProductionWarehouseId ||
-      !selectedGradeId ||
       moveTargetRows.length === 0 ||
       isMoving
     ) {
       return;
     }
+
+    setMoveDialogError(null);
+
+    const missingGradeRow = moveTargetRows.find(
+      (row) => !(moveGrades[row.id] ?? "").trim(),
+    );
+    if (missingGradeRow) {
+      const label =
+        missingGradeRow.storageSrNo ||
+        missingGradeRow.inwardSrNo ||
+        missingGradeRow.itemName ||
+        "item";
+      setMoveDialogError(`Please select a grade for ${label}.`);
+      return;
+    }
+
+    const invalidRow = moveTargetRows.find((row) =>
+      isMoveQtyInvalid(row, moveQuantities[row.id] ?? ""),
+    );
+    if (invalidRow) {
+      const available = getMoveRowAvailable(invalidRow);
+      const label =
+        invalidRow.storageSrNo ||
+        invalidRow.inwardSrNo ||
+        invalidRow.itemName ||
+        "item";
+      const qty = Number(moveQuantities[invalidRow.id] || 0);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        setMoveDialogError(
+          `Please enter a valid quantity greater than 0 for ${label}.`,
+        );
+      } else {
+        setMoveDialogError(
+          `Cannot move ${qty} for ${label}. Maximum available is ${available} ${moveUnitLabel}.`,
+        );
+      }
+      return;
+    }
+
     setIsMoving(true);
     try {
       for (const row of moveTargetRows) {
+        const quantityToMove = Number(moveQuantities[row.id]);
+        const gradeId = moveGrades[row.id];
+        if (!gradeId) continue;
         await moveStorageItemToProductionApi(activeInventory, row.id, {
           productionWarehouseId: selectedProductionWarehouseId,
-          gradeId: selectedGradeId,
+          gradeId,
           remark: moveRemark || null,
+          quantity: quantityToMove,
         });
       }
       setMoveDialogOpen(false);
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
       setRefreshTrigger((c) => c + 1);
+
+      const isAllStockMoved = moveTargetRows.every((row) => {
+        const available = getMoveRowAvailable(row);
+        const qty = Number(moveQuantities[row.id] || 0);
+        return available <= 0 || qty >= available;
+      });
+
+      setToastNotification({
+        message: `${moveTargetRows.length} item(s) successfully moved to production warehouse!`,
+        severity: "success",
+      });
+
+      if (isAllStockMoved) {
+        updateParams({ section: "history" });
+      }
     } catch (err) {
-      alert(
-        err instanceof Error
-          ? err.message
-          : "Failed to move to production warehouse",
+      setMoveDialogError(
+        formatErrorMessage(err, "Failed to move stock to production warehouse. Please try again.")
       );
     } finally {
       setIsMoving(false);
@@ -248,11 +418,13 @@ export function StorageWarehousePage({
   const handleOpenRevertDialog = (row: WarehouseInventoryRow) => {
     setRevertTargetRow(row);
     setRevertRemark("");
+    setRevertDialogError(null);
     setRevertDialogOpen(true);
   };
 
   const handleConfirmRevert = async () => {
     if (!revertTargetRow || isReverting) return;
+    setRevertDialogError(null);
     setIsReverting(true);
     try {
       await revertStorageItemApi(activeInventory, revertTargetRow.id, revertRemark || null);
@@ -261,8 +433,14 @@ export function StorageWarehousePage({
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
       setRefreshTrigger((c) => c + 1);
+      setToastNotification({
+        message: "Item successfully reverted back to Inward Warehouse.",
+        severity: "success",
+      });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to revert item");
+      setRevertDialogError(
+        formatErrorMessage(err, "Failed to revert item back to inward warehouse. Please try again.")
+      );
     } finally {
       setIsReverting(false);
     }
@@ -280,9 +458,23 @@ export function StorageWarehousePage({
         icon: Eye,
         onSelect: (r) => {
           const targetInwardId = r.referenceSrNo || r.id;
-          navigate(`/inventory/${activeInventory}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
+          let targetSlug: string = activeInventory;
+          if (activeInventory === "consumables") {
+            const rawType = (r.inwardType ?? "").toLowerCase();
+            if (rawType.includes("block")) targetSlug = "veneer-blocks";
+            else if (rawType.includes("raw")) targetSlug = "raw-veneer";
+            else if (rawType.includes("ply")) targetSlug = "plywood";
+            else if (rawType.includes("mdf")) targetSlug = "mdf";
+            else targetSlug = "veneer-blocks";
+          }
+          navigate(`/inventory/${targetSlug}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
         },
       });
+
+      // If viewing consumables, keep action to View only (no Revert, no Move)
+      if (activeInventory === "consumables") {
+        return actions;
+      }
 
       // In inventory mode, also show Revert and Move to Warehouse
       if (activeSection === "inventory" && canEdit) {
@@ -426,14 +618,16 @@ export function StorageWarehousePage({
           value={activeInventory}
         />
 
-        <ModuleProcessTabs
-          onChange={(value) => {
-            updateParams({ section: value });
-            setSearchValue("");
-          }}
-          tabs={STORAGE_SECTION_TABS}
-          value={activeSection}
-        />
+        {activeInventory !== "consumables" ? (
+          <ModuleProcessTabs
+            onChange={(value) => {
+              updateParams({ section: value });
+              setSearchValue("");
+            }}
+            tabs={STORAGE_SECTION_TABS}
+            value={activeSection}
+          />
+        ) : null}
 
         <Stack
           direction={{ xs: "column", lg: "row" }}
@@ -569,24 +763,119 @@ export function StorageWarehousePage({
             getRowActions={getRowActions}
           />
         ) : null}
+        {activeInventory === "consumables" ? (
+          <StorageConsumablesInventory
+            {...panelProps}
+            searchValue={debouncedSearchValue}
+            getRowActions={getRowActions}
+          />
+        ) : null}
       </Stack>
 
       {/* Move to Production Warehouse Dialog */}
       <Dialog
         open={moveDialogOpen}
         onClose={isMoving ? undefined : () => setMoveDialogOpen(false)}
-        maxWidth="xs"
+        maxWidth="lg"
         fullWidth
+        PaperProps={{
+          sx: (t) => ({
+            borderRadius: `${t.customTokens.radius.lg}px`,
+            overflow: "hidden",
+            maxHeight: "90vh",
+            height: { xs: "90vh", md: "84vh" },
+            display: "flex",
+            flexDirection: "column",
+          }),
+        }}
       >
-        <DialogTitle sx={{ fontWeight: 600 }}>Move to Warehouse of Production</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
-            <Typography variant="body2" color="text.secondary">
-              Moving {moveTargetRows.length} {inventorySingularLabel} record(s) to production warehouse.
-            </Typography>
+        <DialogTitle
+          sx={(t) => ({
+            borderBottom: `1px solid ${t.customTokens.borders.default}`,
+            px: 2.5,
+            py: 1.75,
+            flexShrink: 0,
+          })}
+        >
+          <Stack direction="row" alignItems="center" spacing={1.25}>
+            <Box
+              sx={(t) => ({
+                width: 36,
+                height: 36,
+                borderRadius: `${t.customTokens.radius.md}px`,
+                display: "grid",
+                placeItems: "center",
+                backgroundColor: t.customTokens.brand.primaryScale[50],
+                color: t.customTokens.brand.primary,
+                flexShrink: 0,
+              })}
+            >
+              <Truck size={18} />
+            </Box>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
+                Move to Warehouse of Production
+              </Typography>
+              <Typography
+                sx={(t) => ({
+                  color: t.customTokens.text.secondary,
+                  fontSize: "0.8125rem",
+                })}
+              >
+                Moving {moveTargetRows.length} {inventorySingularLabel} record(s).
+                Set quantity ({moveUnitLabel}) for each row.
+              </Typography>
+            </Box>
+          </Stack>
+        </DialogTitle>
 
-            <Stack spacing={1}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+        <DialogContent
+          sx={(t) => ({
+            px: 2.5,
+            pt: `${t.spacing(2.5)} !important`,
+            pb: 2,
+            backgroundColor: t.customTokens.surfaces.alt,
+            overflowX: "hidden",
+            overflowY: "auto",
+            flex: "1 1 auto",
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          })}
+        >
+          {moveDialogError ? (
+            <Alert
+              severity="error"
+              onClose={() => setMoveDialogError(null)}
+              sx={(t) => ({
+                borderRadius: `${t.customTokens.radius.md}px`,
+                fontSize: "0.8125rem",
+                flexShrink: 0,
+                "& .MuiAlert-message": { fontWeight: 500 },
+              })}
+            >
+              {moveDialogError}
+            </Alert>
+          ) : null}
+
+          <Box
+            sx={(t) => ({
+              backgroundColor: t.customTokens.surfaces.surface,
+              border: `1px solid ${t.customTokens.borders.default}`,
+              borderRadius: `${t.customTokens.radius.md}px`,
+              p: 2,
+              flexShrink: 0,
+            })}
+          >
+            <Stack spacing={0.75} sx={{ minWidth: 0 }}>
+              <Typography
+                variant="caption"
+                sx={(t) => ({
+                  fontWeight: 600,
+                  color: t.customTokens.text.secondary,
+                })}
+              >
                 Destination Production Warehouse
               </Typography>
               <Select
@@ -594,8 +883,12 @@ export function StorageWarehousePage({
                 fullWidth
                 displayEmpty
                 value={selectedProductionWarehouseId}
-                onChange={(e) => setSelectedProductionWarehouseId(e.target.value)}
-                disabled={isLoadingWarehouses || productionWarehouses.length === 0}
+                onChange={(e) =>
+                  setSelectedProductionWarehouseId(e.target.value)
+                }
+                disabled={
+                  isLoadingWarehouses || productionWarehouses.length === 0
+                }
               >
                 {isLoadingWarehouses ? (
                   <MenuItem value="" disabled>
@@ -614,44 +907,270 @@ export function StorageWarehousePage({
                 )}
               </Select>
             </Stack>
+          </Box>
 
-            <Stack spacing={1}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                Grade
-              </Typography>
-              <Select
-                size="small"
-                fullWidth
-                displayEmpty
-                value={selectedGradeId}
-                onChange={(e) => setSelectedGradeId(e.target.value)}
-                disabled={isLoadingGrades || gradeOptions.length === 0}
-              >
-                {isLoadingGrades ? (
-                  <MenuItem value="" disabled>
-                    Loading grades...
-                  </MenuItem>
-                ) : gradeOptions.length === 0 ? (
-                  <MenuItem value="" disabled>
-                    No active grades in Grade Master
-                  </MenuItem>
-                ) : (
-                  gradeOptions.map((grade) => {
-                    const label = String(
-                      grade.gradeName || grade.name || "Grade",
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 220,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1,
+            }}
+          >
+            <Typography
+              sx={(t) => ({
+                fontSize: "0.875rem",
+                fontWeight: 700,
+                color: t.customTokens.text.primary,
+                flexShrink: 0,
+              })}
+            >
+              Items to Transfer ({moveTargetRows.length})
+            </Typography>
+
+            <TableContainer
+              sx={(t) => ({
+                ...listingTableContainerSx(t),
+                flex: 1,
+                minHeight: 0,
+                maxHeight: "min(48vh, 460px)",
+                overflow: "auto",
+              })}
+            >
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    {[
+                      { label: "#", align: "left" as const, width: 48 },
+                      { label: "Storage / Item", align: "left" as const },
+                      { label: "Invoice", align: "left" as const },
+                      {
+                        label: `Available (${moveUnitLabel})`,
+                        align: "right" as const,
+                      },
+                      {
+                        label: `Qty to Move (${moveUnitLabel}) *`,
+                        align: "right" as const,
+                      },
+                      {
+                        label: `Remaining (${moveUnitLabel})`,
+                        align: "right" as const,
+                      },
+                      { label: "Grade *", align: "left" as const },
+                    ].map((col) => (
+                      <TableCell
+                        key={col.label}
+                        sx={(t) => ({
+                          ...listingTableHeaderCellSx(t),
+                          textAlign: col.align,
+                          ...(col.width ? { width: col.width } : null),
+                          whiteSpace: "nowrap",
+                        })}
+                      >
+                        {col.label}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {moveTargetRows.map((row, index) => {
+                    const available = getMoveRowAvailable(row);
+                    const rawQty = moveQuantities[row.id] ?? "";
+                    const selectedGrade = moveGrades[row.id] ?? "";
+                    const enteredQty = Number(rawQty || 0);
+                    const remaining = Math.max(
+                      0,
+                      available - (Number.isFinite(enteredQty) ? enteredQty : 0),
                     );
+                    const invalid =
+                      Boolean(rawQty) && isMoveQtyInvalid(row, rawQty);
+                    const itemLabel =
+                      row.storageSrNo ||
+                      row.inwardSrNo ||
+                      row.itemName ||
+                      "—";
+
                     return (
-                      <MenuItem key={String(grade.id)} value={String(grade.id)}>
-                        {label}
-                      </MenuItem>
+                      <TableRow key={row.id} hover>
+                        <TableCell sx={(t) => listingTableBodyCellSx(t)}>
+                          {index + 1}
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            fontWeight: 600,
+                            minWidth: 140,
+                            maxWidth: 240,
+                            whiteSpace: "normal",
+                          })}
+                        >
+                          <Typography
+                            component="span"
+                            sx={{
+                              fontSize: "inherit",
+                              fontWeight: 600,
+                              display: "block",
+                            }}
+                          >
+                            {itemLabel}
+                          </Typography>
+                          {row.itemName && itemLabel !== row.itemName ? (
+                            <Typography
+                              component="span"
+                              sx={(t) => ({
+                                display: "block",
+                                fontSize: "0.75rem",
+                                fontWeight: 400,
+                                color: t.customTokens.text.secondary,
+                              })}
+                            >
+                              {row.itemName}
+                            </Typography>
+                          ) : null}
+                        </TableCell>
+                        <TableCell sx={(t) => listingTableBodyCellSx(t)}>
+                          {row.invoiceNo || "—"}
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            textAlign: "right",
+                            fontWeight: 600,
+                            color: t.customTokens.brand.primary,
+                            whiteSpace: "nowrap",
+                          })}
+                        >
+                          {available}
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            textAlign: "right",
+                            minWidth: 130,
+                          })}
+                        >
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={rawQty}
+                            disabled={isMoving}
+                            onChange={(e) =>
+                              updateMoveQuantity(row.id, e.target.value)
+                            }
+                            error={invalid}
+                            inputProps={{
+                              min: 1,
+                              max: available || undefined,
+                              style: { textAlign: "right" },
+                            }}
+                            sx={(t) => ({
+                              width: 112,
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: `${t.customTokens.radius.sm}px`,
+                                backgroundColor: t.customTokens.surfaces.surface,
+                                fontSize: t.typography.caption.fontSize,
+                              },
+                              "& .MuiInputBase-input": {
+                                py: 0.75,
+                                px: 1,
+                              },
+                            })}
+                          />
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            textAlign: "right",
+                            fontWeight: 600,
+                            color:
+                              remaining === 0
+                                ? t.customTokens.text.secondary
+                                : t.customTokens.text.primary,
+                            whiteSpace: "nowrap",
+                          })}
+                        >
+                          {remaining}
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            minWidth: 160,
+                          })}
+                        >
+                          <Select
+                            size="small"
+                            fullWidth
+                            displayEmpty
+                            value={selectedGrade}
+                            disabled={
+                              isMoving ||
+                              isLoadingGrades ||
+                              gradeOptions.length === 0
+                            }
+                            onChange={(e) =>
+                              updateMoveGrade(row.id, e.target.value)
+                            }
+                            error={!selectedGrade}
+                            sx={(t) => ({
+                              borderRadius: `${t.customTokens.radius.sm}px`,
+                              backgroundColor: t.customTokens.surfaces.surface,
+                              fontSize: t.typography.caption.fontSize,
+                              "& .MuiSelect-select": {
+                                py: 0.75,
+                              },
+                            })}
+                          >
+                            {isLoadingGrades ? (
+                              <MenuItem value="" disabled>
+                                Loading...
+                              </MenuItem>
+                            ) : gradeOptions.length === 0 ? (
+                              <MenuItem value="" disabled>
+                                No grades
+                              </MenuItem>
+                            ) : (
+                              gradeOptions.map((grade) => {
+                                const label = String(
+                                  grade.gradeName || grade.name || "Grade",
+                                );
+                                return (
+                                  <MenuItem
+                                    key={String(grade.id)}
+                                    value={String(grade.id)}
+                                  >
+                                    {label}
+                                  </MenuItem>
+                                );
+                              })
+                            )}
+                          </Select>
+                        </TableCell>
+                      </TableRow>
                     );
-                  })
-                )}
-              </Select>
-            </Stack>
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
 
-            <Stack spacing={1}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+          <Box
+            sx={(t) => ({
+              backgroundColor: t.customTokens.surfaces.surface,
+              border: `1px solid ${t.customTokens.borders.default}`,
+              borderRadius: `${t.customTokens.radius.md}px`,
+              p: 2,
+              flexShrink: 0,
+            })}
+          >
+            <Stack spacing={0.75}>
+              <Typography
+                variant="caption"
+                sx={(t) => ({
+                  fontWeight: 600,
+                  color: t.customTokens.text.secondary,
+                })}
+              >
                 Remark (Optional)
               </Typography>
               <TextField
@@ -662,16 +1181,33 @@ export function StorageWarehousePage({
                 placeholder="Enter remark..."
                 value={moveRemark}
                 onChange={(e) => setMoveRemark(e.target.value)}
+                disabled={isMoving}
+                sx={(t) => ({
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: `${t.customTokens.radius.sm}px`,
+                    backgroundColor: t.customTokens.surfaces.surface,
+                  },
+                })}
               />
             </Stack>
-          </Stack>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+
+        <DialogActions
+          sx={(t) => ({
+            borderTop: `1px solid ${t.customTokens.borders.default}`,
+            px: 2.5,
+            py: 1.5,
+            backgroundColor: t.customTokens.surfaces.surface,
+            flexShrink: 0,
+            gap: 1.25,
+          })}
+        >
           <Button
             variant="outlined"
             onClick={() => setMoveDialogOpen(false)}
             disabled={isMoving}
-            sx={bulkSecondaryButtonSx}
+            sx={(t) => getListingToolbarOutlinedButtonSx(t)}
           >
             Cancel
           </Button>
@@ -681,11 +1217,16 @@ export function StorageWarehousePage({
             disabled={
               isMoving ||
               !selectedProductionWarehouseId ||
-              !selectedGradeId
+              moveTargetRows.length === 0 ||
+              hasInvalidMoveQuantities ||
+              hasMissingMoveGrades ||
+              isLoadingGrades
             }
-            sx={bulkPrimaryButtonSx}
+            sx={recordFormActionButtonSx}
           >
-            {isMoving ? "Moving..." : "Confirm Move"}
+            {isMoving
+              ? "Moving..."
+              : `Confirm Move (${moveTargetRows.length})`}
           </Button>
         </DialogActions>
       </Dialog>
@@ -704,6 +1245,21 @@ export function StorageWarehousePage({
               Are you sure you want to revert item{" "}
               <strong>{revertTargetRow?.storageSrNo || revertTargetRow?.inwardSrNo || revertTargetRow?.itemName}</strong> back to inward?
             </Typography>
+
+            {revertDialogError && (
+              <Alert
+                severity="error"
+                onClose={() => setRevertDialogError(null)}
+                sx={{
+                  borderRadius: 1.5,
+                  fontSize: "0.8125rem",
+                  "& .MuiAlert-message": { fontWeight: 500 },
+                }}
+              >
+                {revertDialogError}
+              </Alert>
+            )}
+
             <TextField
               size="small"
               fullWidth
@@ -741,6 +1297,30 @@ export function StorageWarehousePage({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Global readable toast notification */}
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{
+              width: "100%",
+              fontWeight: 600,
+              boxShadow: "0 8px 16px rgba(0,0,0,0.15)",
+              borderRadius: 1.5,
+            }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </MasterPageShell>
   );
 }

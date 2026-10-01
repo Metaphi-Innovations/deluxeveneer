@@ -148,6 +148,11 @@ const stockColumns: ReadonlyArray<EnterpriseTableColumn<StockRecord>> = [
   { key: "remark", label: "Remark" },
 ];
 
+const veneerBlocksStockColumns: ReadonlyArray<EnterpriseTableColumn<StockRecord>> =
+  stockColumns.map((col) =>
+    col.key === "thickness" ? { ...col, label: "Height" } : col,
+  );
+
 const consumableColumns: ReadonlyArray<
   EnterpriseTableColumn<ConsumableRecord>
 > = [
@@ -1599,10 +1604,10 @@ export const rawVeneerDefinition: InventoryDefinition<RawVeneerRecord> = {
 export const veneerBlocksDefinition: InventoryDefinition<StockRecord> = {
   slug: "veneer-blocks",
   title: "Veneer Blocks",
-  listColumns: stockColumns,
-  editFields: createInventoryEditFields(stockColumns, veneerBlocksRows),
+  listColumns: veneerBlocksStockColumns,
+  editFields: createInventoryEditFields(veneerBlocksStockColumns, veneerBlocksRows),
   formFields: createInventoryFormFields(veneerBlocksRows),
-  viewFields: createInventoryViewFields(stockColumns),
+  viewFields: createInventoryViewFields(veneerBlocksStockColumns),
   // Inward listing/view/edit use the API; keep definition rows empty to avoid mock fallbacks.
   rows: [],
   initialSort: { key: "inwardDate", direction: "desc" },

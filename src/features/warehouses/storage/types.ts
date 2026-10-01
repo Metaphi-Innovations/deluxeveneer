@@ -5,11 +5,12 @@ export type StorageInventoryTab =
   | "veneer-blocks"
   | "raw-veneer"
   | "plywood"
-  | "mdf";
+  | "mdf"
+  | "consumables";
 
 export type StorageSectionTab = "inventory" | "history";
 
-/** Listing columns for QC-pass stock stored in a storage warehouse. */
+/** Listing columns for Veneer Blocks in storage warehouse. */
 export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   [
     { key: "storageSrNo", label: "Storage Sr No" },
@@ -17,9 +18,95 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    { key: "availableUnits", label: "Available Stock" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+
+export const STORAGE_RAW_VENEER_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Received Leaves" },
+    { key: "availableUnits", label: "Available Leaves" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+/** History columns — each row is one forward to production (partial or full). */
+export const STORAGE_RAW_VENEER_HISTORY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Forwarded Leaves" },
+    { key: "availableUnits", label: "Remaining Leaves" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Forwarded By" },
+  ];
+
+/** Listing columns for Plywood & MDF: Received Stock before Available Stock. */
+export const STORAGE_SHEET_GOODS_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Received Sheets" },
+    { key: "availableUnits", label: "Available Sheets" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+export const STORAGE_SHEET_GOODS_HISTORY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "totalUnits", label: "Forwarded Sheets" },
+    { key: "availableUnits", label: "Remaining Sheets" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Forwarded By" },
+  ];
+
+/** Listing columns for Consumables in storage warehouse, including source inward type. */
+export const STORAGE_CONSUMABLES_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "itemName", label: "Consumable Name" },
+    { key: "inwardType", label: "Source From" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Price / Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
@@ -44,6 +131,7 @@ export const STORAGE_INVENTORY_TABS = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
+  { label: "Consumables", value: "consumables" },
 ] as const satisfies readonly {
   label: string;
   value: StorageInventoryTab;
@@ -62,6 +150,7 @@ export const STORAGE_INVENTORY_TITLES: Record<StorageInventoryTab, string> = {
   "raw-veneer": "Raw Veneer",
   plywood: "Plywood",
   mdf: "MDF",
+  consumables: "Consumables",
 };
 
 export type StorageRawVeneerSourceTab = "all" | "purchase" | "production";
@@ -85,7 +174,8 @@ export function isStorageInventoryTab(
     value === "veneer-blocks" ||
     value === "raw-veneer" ||
     value === "plywood" ||
-    value === "mdf"
+    value === "mdf" ||
+    value === "consumables"
   );
 }
 

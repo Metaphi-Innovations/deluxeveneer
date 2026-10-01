@@ -34,6 +34,14 @@ import {
   itemMasterDefinition,
   unitMasterOptions,
 } from "../../masters/shared/masterDefinitions";
+import {
+  getCachedItemMasterRows,
+  refreshItemMasterCache,
+} from "../../masters/item-name-master/itemMasterApi";
+import {
+  getCachedItemSubCategoryMasterRows,
+  refreshItemSubCategoryMasterCache,
+} from "../../masters/item-sub-category-master/itemSubCategoryMasterApi";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
@@ -137,7 +145,6 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
     { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
     { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
@@ -257,6 +264,32 @@ export const InwardEditStockLineItems = forwardRef<
   const [pendingFocusRowId, setPendingFocusRowId] = useState<string | null>(
     null,
   );
+  const [masterOptionsRevision, setMasterOptionsRevision] = useState(0);
+  const itemSubCategoryOptions = useMemo(
+    () => getLiveItemSubCategoryOptions(),
+    [masterOptionsRevision],
+  );
+  const itemNameOptions = useMemo(
+    () => getLiveItemMasterOptions(),
+    [masterOptionsRevision],
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    void Promise.all([
+      refreshItemSubCategoryMasterCache(),
+      refreshItemMasterCache(),
+    ])
+      .then(() => {
+        if (!ignore) {
+          setMasterOptionsRevision((current) => current + 1);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     nextRowId.current = 1;
@@ -337,6 +370,38 @@ export const InwardEditStockLineItems = forwardRef<
           const gstFromHsn = getHsnGstPercentage(value);
           if (gstFromHsn) {
             nextValues.gstPercentage = gstFromHsn;
+          }
+        }
+
+        // Dynamic CBM calculation for Veneer Blocks: Length * Width * Height
+        if (slug === "veneer-blocks" && ["length", "width", "thickness", "height"].includes(key)) {
+          const l = parseAmountValue(nextValues.length ?? "");
+          const w = parseAmountValue(nextValues.width ?? "");
+          const h = parseAmountValue(nextValues.thickness ?? nextValues.height ?? "");
+          if (l > 0 && w > 0 && h > 0) {
+            const isMm = l > 20 || w > 20 || h > 20;
+            const cbmVal = isMm ? (l * w * h) / 1_000_000_000 : l * w * h;
+            nextValues.cbm = Number(cbmVal.toFixed(4)).toString();
+          }
+        }
+
+        // Dynamic SQM calculation for Raw Veneer, Plywood, MDF:
+        if (
+          ["raw-veneer", "plywood", "mdf"].includes(slug) &&
+          ["length", "width", "noOfLeaves", "sheets", "noOfSheets"].includes(key)
+        ) {
+          const l = parseAmountValue(nextValues.length ?? "");
+          const w = parseAmountValue(nextValues.width ?? "");
+          const count = parseAmountValue(
+            nextValues.noOfLeaves ?? nextValues.sheets ?? nextValues.noOfSheets ?? ""
+          );
+          if (l > 0 && w > 0 && count > 0) {
+            const isMm = l > 20 || w > 20;
+            const sqmVal = isMm ? (l * w * count) / 1_000_000 : l * w * count;
+            nextValues.totalSqMeter = Number(sqmVal.toFixed(3)).toString();
+            if ("totalSqm" in nextValues) {
+              nextValues.totalSqm = Number(sqmVal.toFixed(3)).toString();
+            }
           }
         }
 
@@ -518,6 +583,8 @@ export const InwardEditStockLineItems = forwardRef<
                           theme,
                           value: row.values[column.key] ?? "",
                           errorText: errors[column.key] ?? "",
+                          itemSubCategoryOptions,
+                          itemNameOptions,
                         })}
                       </TableCell>
                     ))}
@@ -582,9 +649,13 @@ function applyItemMasterDefaults(
   }
 
   const nextValues = { ...values };
-  const subCategory = String(item.subCategory ?? "");
-  const hsn = String(item.hsn ?? "");
-  const gst = String(item.gst ?? "");
+  const subCategory = String(
+    item.subCategory ?? item.subCategoryName ?? "",
+  ).trim();
+  const hsn = String(item.hsn ?? item.hsnCode ?? "").trim();
+  const gst = String(
+    item.gstPercentage ?? item.gst ?? item.gstNo ?? "",
+  ).trim();
 
   if (subCategory) {
     nextValues.itemSubCategory = subCategory;
@@ -607,6 +678,10 @@ function applyItemMasterDefaults(
 }
 
 function getLiveItemMasterRows() {
+  const cached = getCachedItemMasterRows();
+  if (cached.length > 0) {
+    return cached;
+  }
   return buildLocalMasterDefinition(itemMasterDefinition).rows;
 }
 
@@ -615,7 +690,7 @@ function getLiveItemMasterOptions() {
     new Set(
       getLiveItemMasterRows()
         .filter(isActiveMasterRecord)
-        .map((row) => String(row.itemName ?? "").trim())
+        .map((row) => String(row.itemName ?? row.name ?? "").trim())
         .filter(Boolean),
     ),
   );
@@ -624,9 +699,11 @@ function getLiveItemMasterOptions() {
 function getLiveItemSubCategoryOptions() {
   return Array.from(
     new Set(
-      getLiveItemMasterRows()
+      getCachedItemSubCategoryMasterRows()
         .filter(isActiveMasterRecord)
-        .map((row) => String(row.subCategory ?? "").trim())
+        .map((row) =>
+          String(row.itemSubCategory ?? row.name ?? "").trim(),
+        )
         .filter(Boolean),
     ),
   );
@@ -643,7 +720,8 @@ function getLiveItemMasterRecord(itemName: string) {
     getLiveItemMasterRows().find(
       (row) =>
         isActiveMasterRecord(row) &&
-        String(row.itemName ?? "").trim().toLowerCase() === normalizedName,
+        (String(row.itemName ?? "").trim().toLowerCase() === normalizedName ||
+          String(row.name ?? "").trim().toLowerCase() === normalizedName),
     ) ?? null
   );
 }
@@ -1027,6 +1105,8 @@ function renderEditableField({
   readOnly = false,
   theme,
   value,
+  itemSubCategoryOptions,
+  itemNameOptions,
 }: {
   column: DynamicFieldConfig;
   errorText?: string;
@@ -1034,6 +1114,8 @@ function renderEditableField({
   readOnly?: boolean;
   theme: Theme;
   value: string;
+  itemSubCategoryOptions?: readonly string[];
+  itemNameOptions?: readonly string[];
 }): ReactNode {
   if (column.type === "computed" || readOnly) {
     return (
@@ -1055,7 +1137,7 @@ function renderEditableField({
     return (
       <Autocomplete
         freeSolo
-        options={getLiveItemMasterOptions()}
+        options={[...(itemNameOptions ?? getLiveItemMasterOptions())]}
         value={value}
         onChange={(_, nextValue) =>
           onChange(typeof nextValue === "string" ? nextValue : nextValue ?? "")
@@ -1172,7 +1254,7 @@ function renderEditableField({
   if (column.type === "gst" || column.type === "select") {
     const selectOptions =
       column.key === "itemSubCategory"
-        ? getLiveItemSubCategoryOptions()
+        ? [...(itemSubCategoryOptions ?? getLiveItemSubCategoryOptions())]
         : column.options ?? [];
 
     return (

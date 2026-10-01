@@ -13,10 +13,10 @@ import {
   fetchStorageColumnDropdown,
   fetchStorageInventoryPaginated,
   mapStorageItemToRow,
+  type StorageQueryParams,
 } from "./api/storageApi";
 import {
-  STORAGE_SHEET_GOODS_COLUMNS,
-  STORAGE_SHEET_GOODS_HISTORY_COLUMNS,
+  STORAGE_CONSUMABLES_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
 
@@ -31,12 +31,14 @@ function toApiColumnFilters(
   return filters;
 }
 
-interface StoragePlywoodInventoryProps extends StorageInventoryPanelProps {
+interface StorageConsumablesInventoryProps extends StorageInventoryPanelProps {
   actions?: readonly EnterpriseTableAction<WarehouseInventoryRow>[];
-  getRowActions?: (row: WarehouseInventoryRow) => readonly EnterpriseTableAction<WarehouseInventoryRow>[];
+  getRowActions?: (
+    row: WarehouseInventoryRow
+  ) => readonly EnterpriseTableAction<WarehouseInventoryRow>[];
 }
 
-export function StoragePlywoodInventory({
+export function StorageConsumablesInventory({
   warehouseId,
   section,
   searchValue = "",
@@ -45,7 +47,7 @@ export function StoragePlywoodInventory({
   selectionResetKey,
   actions,
   getRowActions,
-}: StoragePlywoodInventoryProps) {
+}: StorageConsumablesInventoryProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
@@ -59,51 +61,60 @@ export function StoragePlywoodInventory({
   >({});
   const [rows, setRows] = useState<WarehouseInventoryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    setPage(1);
-  }, [searchValue, warehouseId, section]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!warehouseId) {
-      setRows([]);
-      setTotalCount(0);
-      setIsLoading(false);
-      return;
-    }
+    if (!warehouseId) return;
+
     setIsLoading(true);
-    setErrorMessage("");
+    setErrorMessage(null);
+
+    const queryParams: StorageQueryParams = {
+      warehouseId,
+      page,
+      limit: rowsPerPage,
+    };
+    if (searchValue.trim()) queryParams.search = searchValue.trim();
+    if (sortBy) queryParams.sortBy = sortBy;
+    if (sortOrder) queryParams.sortOrder = sortOrder;
+
+    const apiFilters = toApiColumnFilters(columnFilters);
+    if (Object.keys(apiFilters).length > 0) {
+      queryParams.filters = apiFilters;
+    }
 
     try {
-      const apiFilters = toApiColumnFilters(columnFilters);
-      const result = await fetchStorageInventoryPaginated("plywood", {
-        warehouseId,
-        section,
-        page,
-        limit: rowsPerPage,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
-        ...(sortBy ? { sortBy } : {}),
-        ...(sortOrder ? { sortOrder } : {}),
-        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
-      });
+      const response = await fetchStorageInventoryPaginated(
+        "consumables",
+        queryParams
+      );
 
       setRows(
-        result.items.map((item) =>
-          mapStorageItemToRow(item, "plywood")
+        response.items.map((item) =>
+          mapStorageItemToRow(item, "consumables")
         )
       );
-      setTotalCount(result.pagination.total);
-    } catch (error) {
+      setTotalCount(response.pagination.total);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to load consumables"
+      );
       setRows([]);
       setTotalCount(0);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load plywood."
-      );
     } finally {
       setIsLoading(false);
     }
-  }, [warehouseId, section, page, rowsPerPage, searchValue, sortBy, sortOrder, columnFilters, onRefreshTrigger]);
+  }, [
+    warehouseId,
+    section,
+    page,
+    rowsPerPage,
+    searchValue,
+    sortBy,
+    sortOrder,
+    columnFilters,
+    onRefreshTrigger,
+  ]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -118,10 +129,9 @@ export function StoragePlywoodInventory({
       if (!warehouseId) return;
       try {
         const result = await fetchStorageColumnDropdown(
-          "plywood",
+          "consumables",
           warehouseId,
-          columnKey,
-          section
+          columnKey
         );
         setFilterOptionsByColumn((prev) => ({
           ...prev,
@@ -134,26 +144,19 @@ export function StoragePlywoodInventory({
         }));
       }
     },
-    [warehouseId, section]
+    [warehouseId]
   );
 
-  const emptyLabel =
-    section === "history"
-      ? "No plywood history records are available."
-      : "No plywood inventory records are available.";
+  const emptyLabel = "No consumables records are available.";
 
   return (
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={
-          section === "history"
-            ? STORAGE_SHEET_GOODS_HISTORY_COLUMNS
-            : STORAGE_SHEET_GOODS_COLUMNS
-        }
+        columns={STORAGE_CONSUMABLES_COLUMNS}
         rows={rows}
         loading={isLoading}
-        loadingLabel="Loading plywood inventory..."
+        loadingLabel="Loading consumables inventory..."
         filterOptionsByColumn={filterOptionsByColumn}
         columnFilters={columnFilters}
         onColumnFilterOpen={(columnKey) => {
@@ -183,7 +186,7 @@ export function StoragePlywoodInventory({
           },
         }}
         emptyStateLabel={emptyLabel}
-        selectable={section === "inventory"}
+        selectable={false}
         {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
         {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
         {...(actions !== undefined ? { actions } : {})}

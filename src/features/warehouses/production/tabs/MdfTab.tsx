@@ -54,7 +54,7 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
     length: String(item.length ?? ""),
     width: String(item.width ?? ""),
     thickness: String(item.thickness ?? ""),
-    noOfLeaves: String(item.noOfLeaves ?? ""),
+    noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
     sqm: String(item.sqm ?? item.totalSqm ?? ""),
     sqf: String(item.sqf ?? item.totalSqf ?? ""),
     grade: String(item.grade ?? ""),
