@@ -35,6 +35,7 @@ import {
   fetchInwardColumnDropdown,
   fetchInwardsPaginated,
   getInwardInventoryTypeFromSlug,
+  isInwardEditLockedByQc,
   mapInwardListItemToRow,
 } from "../api/inwardApi";
 import { InwardQcUpdateDialog } from "../components/InwardQcUpdateDialog";
@@ -352,7 +353,9 @@ export function InwardWarehousePage({
           });
         }
 
-        if (canEdit) {
+        const editLocked = isInwardEditLockedByQc({ qcStatus: row.qcStatus });
+
+        if (canEdit && !editLocked) {
           actions.push({
             id: "edit",
             label: "Edit",
@@ -370,7 +373,9 @@ export function InwardWarehousePage({
               );
             },
           });
+        }
 
+        if (canEdit) {
           const normalizedQc = (
             row.qcStatus ||
             row.status ||

@@ -302,6 +302,7 @@ async function mapLineItemToPayload(
   if (inventoryType === "RAW_VENEER") {
     return {
       ...base,
+      batchNo: null,
       logCode: String(values.logCode ?? "").trim() || null,
       bundleNumber: String(values.bundleNumber ?? "").trim() || null,
       palletNo: String(values.palletNo ?? "").trim() || null,
@@ -314,7 +315,8 @@ async function mapLineItemToPayload(
   if (inventoryType === "PLYWOOD" || inventoryType === "MDF") {
     return {
       ...base,
-      batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
+      batchNo: null,
+      logCode: null,
       palletNo: String(values.palletNo ?? "").trim() || null,
       sheets: parseNumber(values.sheets),
       totalSqMeter: parseNumber(values.totalSqMeter),
@@ -324,10 +326,11 @@ async function mapLineItemToPayload(
     };
   }
 
-  // Veneer Blocks: UI `thickness` maps to DB `height`; `logCode` field is Batch No.
+  // Veneer Blocks: UI `thickness` → height; UI `logCode` field is Batch No → batchNo.
   return {
     ...base,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
+    logCode: null,
     height: parseNumber(values.height ?? values.thickness),
     cbm: parseNumber(values.cbm),
   };

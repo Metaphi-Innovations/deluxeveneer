@@ -24,11 +24,13 @@ import {
 import { InventoryPageShell } from "../../inventory/shared/InventoryPageShell";
 import {
   fetchInwardById,
+  isInwardEditLockedByQc,
   updateInwardApi,
   type InwardDetail,
   type InwardItemDetail,
 } from "../api/inwardApi";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
+import { resolveInwardAttachmentUrl } from "../api/resolveInwardAttachment";
 import {
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
@@ -127,7 +129,6 @@ function mapDetailItemToLineValues(
   if (slug === "plywood" || slug === "mdf") {
     return {
       ...shared,
-      logCode: item.batchNo ?? "",
       palletNo: item.palletNo ?? "",
       thickness: formatOptionalNumber(item.thickness),
       sheets: formatOptionalNumber(item.sheets),
@@ -253,6 +254,16 @@ export function ApiInwardEditForm({
       return;
     }
 
+    if (
+      isInwardEditLockedByQc({
+        qcStatus: detail.qcStatus,
+        items: detail.items,
+      })
+    ) {
+      setErrorMessage("This inward cannot be edited after QC pass or fail.");
+      return;
+    }
+
     setHasSubmitted(true);
     const workspaceIsValid = workspaceRef.current?.validate() ?? true;
     if (hasFormFieldErrors(fields, values) || !workspaceIsValid) {
@@ -269,20 +280,17 @@ export function ApiInwardEditForm({
       const additionalCharges =
         workspaceRef.current?.getAdditionalCharges() ?? [];
 
+      const attachmentUrl = await resolveInwardAttachmentUrl(
+        values.attachment,
+      );
+
       const payload = await buildCreateInwardPayload({
         warehouseId,
         inventorySlug,
         header: {
           currency:
             typeof values.currency === "string" ? values.currency : "INR",
-          attachment:
-            typeof values.attachment === "string"
-              ? values.attachment
-              : values.attachment &&
-                  typeof values.attachment === "object" &&
-                  "name" in values.attachment
-                ? String(values.attachment.name)
-                : "",
+          attachment: attachmentUrl,
           eta: values.eta instanceof Date ? values.eta : null,
           etd: values.etd instanceof Date ? values.etd : null,
           invoiceNo:
@@ -372,6 +380,35 @@ export function ApiInwardEditForm({
         <MasterSectionCard>
           <Alert severity="error">
             {errorMessage || "The requested inward record could not be found."}
+          </Alert>
+          <Box sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={closeForm}>
+              Back
+            </Button>
+          </Box>
+        </MasterSectionCard>
+      </InventoryPageShell>
+    );
+  }
+
+  if (
+    isInwardEditLockedByQc({
+      qcStatus: detail.qcStatus,
+      items: detail.items,
+    })
+  ) {
+    return (
+      <InventoryPageShell
+        breadcrumbs={[
+          { label: "Warehouses" },
+          { label: warehouseName, to: warehouseRootPath },
+          { label: "Edit Stock" },
+        ]}
+        title="Edit Stock"
+      >
+        <MasterSectionCard>
+          <Alert severity="info">
+            This inward cannot be edited after QC pass or fail.
           </Alert>
           <Box sx={{ mt: 2 }}>
             <Button variant="outlined" onClick={closeForm}>

@@ -108,7 +108,7 @@ export interface MdfRow extends EnterpriseTableRow {
   length: string;
   width: string;
   thickness: string;
-  noOfLeaves: string;
+  noOfSheets: string;
   sqm: string;
   sqf: string;
   grade: string;
@@ -130,7 +130,7 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
-  { key: "noOfLeaves", label: "No of Leaves" },
+  { key: "noOfSheets", label: "No of Sheets" },
   { key: "sqm", label: "SQM" },
   { key: "sqf", label: "SQF" },
   { key: "grade", label: "Grade" },

@@ -74,6 +74,7 @@ import {
 import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
 import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
+import { resolveInwardAttachmentUrl } from "../../warehouses/api/resolveInwardAttachment";
 import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
@@ -788,19 +789,16 @@ function InventoryFormContent<Row extends InventoryRecord>({
                           warehouseAWorkspaceRef.current?.getAdditionalCharges() ??
                           [];
 
+                        const attachmentUrl = await resolveInwardAttachmentUrl(
+                          values.attachment,
+                        );
+
                         const header = {
                           currency:
                             typeof values.currency === "string"
                               ? values.currency
                               : "INR",
-                          attachment:
-                            typeof values.attachment === "string"
-                              ? values.attachment
-                              : values.attachment &&
-                                  typeof values.attachment === "object" &&
-                                  "name" in values.attachment
-                                ? String(values.attachment.name)
-                                : "",
+                          attachment: attachmentUrl,
                           eta:
                             values.eta instanceof Date ? values.eta : null,
                           etd:

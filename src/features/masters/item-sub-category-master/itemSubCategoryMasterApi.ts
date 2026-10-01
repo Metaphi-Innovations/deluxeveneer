@@ -165,6 +165,31 @@ export async function fetchItemSubCategoriesApi(params?: {
   return result.items;
 }
 
+let itemSubCategoryRowsCache: MasterRecord[] = [];
+
+export function getCachedItemSubCategoryMasterRows(): MasterRecord[] {
+  return itemSubCategoryRowsCache;
+}
+
+export async function refreshItemSubCategoryMasterCache(
+  items?: MasterRecord[],
+): Promise<MasterRecord[]> {
+  if (items) {
+    itemSubCategoryRowsCache = items;
+    return itemSubCategoryRowsCache;
+  }
+
+  const result = await fetchItemSubCategoriesPaginated({
+    page: 1,
+    limit: 1000,
+    status: true,
+    sortBy: "name",
+    sortOrder: "asc",
+  });
+  itemSubCategoryRowsCache = result.items;
+  return itemSubCategoryRowsCache;
+}
+
 export async function getItemSubCategoryByIdApi(id: string): Promise<MasterRecord | null> {
   try {
     const res = await apiRequest<ApiResponse<BackendItemSubCategoryItem>>(

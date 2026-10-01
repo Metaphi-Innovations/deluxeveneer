@@ -141,6 +141,10 @@ export interface InwardItemDetail {
   qcStatus: string;
   qcRemark: string | null;
   qcAttachmentUrl: string | null;
+  qcPassQuantity?: number | null;
+  qcFailQuantity?: number | null;
+  availableStock?: number | null;
+  rejectedStock?: number | null;
 }
 
 export interface InwardAdditionalChargeDetail {
@@ -262,6 +266,33 @@ function formatAmount(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+export function isInwardEditLockedByQc(input: {
+  qcStatus?: string | null | undefined;
+  items?: ReadonlyArray<{ qcStatus?: string | null | undefined }> | undefined;
+}): boolean {
+  if (isQcDecisionStatus(input.qcStatus)) return true;
+  return (input.items ?? []).some((item) => isQcDecisionStatus(item.qcStatus));
+}
+
+function isQcDecisionStatus(value: string | null | undefined): boolean {
+  const normalized = (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+
+  return (
+    normalized === "pass" ||
+    normalized === "fail" ||
+    normalized === "qc_pass" ||
+    normalized === "qc_fail" ||
+    normalized === "qc_done" ||
+    normalized === "done" ||
+    normalized === "partially_done" ||
+    normalized === "partial" ||
+    normalized === "partial_done"
+  );
 }
 
 function normalizeListingQcStatus(value: string): "QC Done" | "Partially Done" | "Pending" {
@@ -471,6 +502,7 @@ export async function updateInwardQcStatusApi(
   itemId: string,
   payload: {
     qcStatus: InwardQcStatus;
+    passQuantity?: number | null;
     qcRemark?: string | null;
     qcAttachmentUrl?: string | null;
     storageWarehouseId?: string | null;
