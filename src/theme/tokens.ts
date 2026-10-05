@@ -285,7 +285,8 @@ export const deluxeTokens = {
   neutrals: neutralScale,
   borders: {
     default: brandPalette.borderDefault,
-    hover: neutralScale[300],
+    /** Distinct from default so input/select hover is clearly visible. */
+    hover: neutralScale[500],
     focus: brandPalette.brandPrimary,
     selected: brandPalette.brandSecondary,
     subtle: brandPalette.borderDefault,

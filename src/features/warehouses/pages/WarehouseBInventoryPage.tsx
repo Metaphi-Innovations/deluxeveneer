@@ -663,7 +663,7 @@ export function WarehouseBInventoryModulePage({
         activeSection,
         setSearchParams,
       })}
-      subtitle="Main inventory storage and inspection."
+      subtitle=" "
       title={warehouseName}
     >
       <Stack

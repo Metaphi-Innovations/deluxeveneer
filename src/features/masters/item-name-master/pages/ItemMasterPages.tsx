@@ -21,6 +21,7 @@ import { fetchItemCategoriesApi } from "../../item-category-master/itemCategoryM
 import { fetchItemSubCategoriesApi } from "../../item-sub-category-master/itemSubCategoryMasterApi";
 import { fetchHsnsApi } from "../../hsn-master/hsnMasterApi";
 import { fetchColorsApi } from "../../color-master/colorMasterApi";
+import { fetchUnitsApi } from "../../unit-master/unitMasterApi";
 
 const ITEM_SORT_FIELD_MAP: Record<string, string> = {
   itemName: "name",
@@ -218,8 +219,9 @@ function useItemFormOptions(selectedCategory?: string) {
   const [hsnOptions, setHsnOptions] = useState<string[]>([]);
   const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
   const [colorOptions, setColorOptions] = useState<string[]>([]);
+  const [unitOptions, setUnitOptions] = useState<string[]>([]);
 
-  // Load categories, HSN codes, colors, and sub-categories on mount
+  // Load categories, HSN codes, colors, units, and sub-categories on mount
   useEffect(() => {
     fetchItemCategoriesApi({ status: true, limit: 1000 })
       .then((records) => {
@@ -281,6 +283,18 @@ function useItemFormOptions(selectedCategory?: string) {
         setColorOptions([...new Set(names)]);
       })
       .catch(() => {});
+
+    fetchUnitsApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const names = active
+          .map((r) => String(r.unitName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setUnitOptions([...new Set(names)]);
+      })
+      .catch(() => {});
   }, []);
 
   // Update sub-category options when selectedCategory or allSubCategoryRows changes
@@ -299,7 +313,15 @@ function useItemFormOptions(selectedCategory?: string) {
     setSubCategoryOptions([...new Set(names)]);
   }, [selectedCategory, allSubCategoryRows]);
 
-  return { categoryOptions, categoryRows, subCategoryOptions, hsnOptions, hsnRows, colorOptions };
+  return {
+    categoryOptions,
+    categoryRows,
+    subCategoryOptions,
+    hsnOptions,
+    hsnRows,
+    colorOptions,
+    unitOptions,
+  };
 }
 
 function buildItemDefinition(
@@ -310,6 +332,7 @@ function buildItemDefinition(
   hsnOptions: string[],
   hsnRows: MasterRecord[],
   colorOptions: string[],
+  unitOptions: string[],
 ): MasterDefinition {
   return {
     ...base,
@@ -322,6 +345,9 @@ function buildItemDefinition(
       }
       if (field.key === "color" && colorOptions.length) {
         return { ...field, options: colorOptions };
+      }
+      if (field.key === "unitName" && unitOptions.length) {
+        return { ...field, options: unitOptions };
       }
       if (field.key === "hsn") {
         const nextHsn: MasterFieldDefinition = {
@@ -364,8 +390,15 @@ function buildItemDefinition(
 
 export function AddItemMasterPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const { categoryOptions, categoryRows, subCategoryOptions, hsnOptions, hsnRows, colorOptions } =
-    useItemFormOptions(selectedCategory);
+  const {
+    categoryOptions,
+    categoryRows,
+    subCategoryOptions,
+    hsnOptions,
+    hsnRows,
+    colorOptions,
+    unitOptions,
+  } = useItemFormOptions(selectedCategory);
 
   const definition = useMemo(
     () =>
@@ -377,8 +410,17 @@ export function AddItemMasterPage() {
         hsnOptions,
         hsnRows,
         colorOptions,
+        unitOptions,
       ),
-    [categoryOptions, categoryRows, subCategoryOptions, hsnOptions, hsnRows, colorOptions],
+    [
+      categoryOptions,
+      categoryRows,
+      subCategoryOptions,
+      hsnOptions,
+      hsnRows,
+      colorOptions,
+      unitOptions,
+    ],
   );
 
   const handleSave = async (context: {
@@ -392,6 +434,9 @@ export function AddItemMasterPage() {
     const category = String(context.values.category || "").trim();
     const subCategory = String(context.values.subCategory || "").trim();
     const color = String(context.values.color || "").trim();
+    const unitName = String(
+      context.values.unitName || context.values.unit || "",
+    ).trim();
     const hsn = String(context.values.hsn || context.values.hsnCode || "").trim();
     const gst = String(context.values.gst || context.values.gstNo || "").trim();
     const remark = context.values.remark || context.values.remarks || null;
@@ -410,6 +455,10 @@ export function AddItemMasterPage() {
       if (category) payload.category = category;
       if (subCategory) payload.subCategory = subCategory;
       if (color) payload.color = color;
+      if (unitName) {
+        payload.unit = unitName;
+        payload.unitName = unitName;
+      }
       if (hsn) {
         payload.hsn = hsn;
         payload.hsnCode = hsn;
@@ -496,8 +545,15 @@ export function EditItemMasterPage() {
     }
   }, [id]);
 
-  const { categoryOptions, categoryRows, subCategoryOptions, hsnOptions, hsnRows, colorOptions } =
-    useItemFormOptions(selectedCategory);
+  const {
+    categoryOptions,
+    categoryRows,
+    subCategoryOptions,
+    hsnOptions,
+    hsnRows,
+    colorOptions,
+    unitOptions,
+  } = useItemFormOptions(selectedCategory);
 
   const definition = useMemo(
     () =>
@@ -509,8 +565,17 @@ export function EditItemMasterPage() {
         hsnOptions,
         hsnRows,
         colorOptions,
+        unitOptions,
       ),
-    [categoryOptions, categoryRows, subCategoryOptions, hsnOptions, hsnRows, colorOptions],
+    [
+      categoryOptions,
+      categoryRows,
+      subCategoryOptions,
+      hsnOptions,
+      hsnRows,
+      colorOptions,
+      unitOptions,
+    ],
   );
 
   const handleSave = async (context: {
@@ -527,6 +592,9 @@ export function EditItemMasterPage() {
     const category = context.values.category;
     const subCategory = context.values.subCategory;
     const color = context.values.color;
+    const unitName = String(
+      context.values.unitName || context.values.unit || "",
+    ).trim();
     const hsn = context.values.hsn || context.values.hsnCode;
     const gst = context.values.gst || context.values.gstNo;
     const remark = context.values.remark || context.values.remarks || null;
@@ -545,6 +613,10 @@ export function EditItemMasterPage() {
       if (category) payload.category = String(category);
       if (subCategory) payload.subCategory = String(subCategory);
       if (color) payload.color = String(color);
+      if (unitName) {
+        payload.unit = unitName;
+        payload.unitName = unitName;
+      }
       if (hsn) {
         payload.hsn = String(hsn);
         payload.hsnCode = String(hsn);

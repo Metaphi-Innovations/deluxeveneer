@@ -99,8 +99,9 @@ function mapDetailItemToLineValues(
   slug: ApiSupportedInwardSlug,
 ): Record<string, string> {
   const shared = {
+    inwardItemCode: item.inwardItemCode ?? "",
     itemName: item.itemName ?? "",
-    itemSubCategory: item.itemSubCategoryName ?? "",
+    factoryCode: item.factoryCode ?? "",
     hsn: item.hsnCode ?? "",
     length: formatOptionalNumber(item.length),
     width: formatOptionalNumber(item.width),
@@ -134,6 +135,25 @@ function mapDetailItemToLineValues(
       sheets: formatOptionalNumber(item.sheets),
       totalSqMeter: formatOptionalNumber(item.totalSqMeter),
       remarks: item.remark ?? "",
+    };
+  }
+
+  if (slug === "consumables") {
+    return {
+      inwardItemCode: item.inwardItemCode ?? "",
+      itemName: item.itemName ?? "",
+      factoryCode: item.factoryCode ?? "",
+      hsn: item.hsnCode ?? "",
+      unitName: item.unitName ?? "",
+      quantity: formatOptionalNumber(item.quantity),
+      rate: formatOptionalNumber(item.rate),
+      productAmount: String(item.amount ?? 0),
+      gstPercentage: formatGstPercentageDisplay(item.gstPercentage),
+      cgst: String(item.cgst ?? 0),
+      sgst: String(item.sgst ?? 0),
+      igst: String(item.igst ?? 0),
+      totalAmount: String(item.totalAmount ?? 0),
+      remark: item.remark ?? "",
     };
   }
 
@@ -227,15 +247,6 @@ export function ApiInwardEditForm({
     [detail, inventorySlug],
   );
 
-  const initialOtherConsumables = useMemo(
-    () =>
-      (detail?.otherConsumables ?? []).map((row) => ({
-        consumableName: row.consumableName,
-        price: String(row.price ?? 0),
-      })),
-    [detail],
-  );
-
   const initialAdditionalCharges = useMemo(
     () =>
       (detail?.additionalCharges ?? []).map((charge) => ({
@@ -275,8 +286,6 @@ export function ApiInwardEditForm({
 
     try {
       const lineItems = workspaceRef.current?.getLineItems() ?? [];
-      const otherConsumables =
-        workspaceRef.current?.getOtherConsumables() ?? [];
       const additionalCharges =
         workspaceRef.current?.getAdditionalCharges() ?? [];
 
@@ -316,7 +325,6 @@ export function ApiInwardEditForm({
                 : "",
         },
         lineItems,
-        otherConsumables,
         additionalCharges,
       });
 
@@ -332,9 +340,6 @@ export function ApiInwardEditForm({
         exchangeRate: payload.exchangeRate ?? null,
         remarks: payload.remarks ?? null,
         items: payload.items,
-        ...(payload.otherConsumables
-          ? { otherConsumables: payload.otherConsumables }
-          : {}),
         ...(payload.additionalCharges
           ? { additionalCharges: payload.additionalCharges }
           : {}),
@@ -427,7 +432,7 @@ export function ApiInwardEditForm({
         { label: warehouseName, to: warehouseRootPath },
         { label: "Edit Stock" },
       ]}
-      subtitle="Record supplier invoice and inward stock details."
+      subtitle=" "
       title="Edit Stock"
     >
       <MasterSectionCard>
@@ -471,7 +476,6 @@ export function ApiInwardEditForm({
               values.inwardDate instanceof Date ? values.inwardDate : null
             }
             initialAdditionalCharges={initialAdditionalCharges}
-            initialOtherConsumables={initialOtherConsumables}
             initialLineItems={initialLineItems}
             onRemarkChange={(value) =>
               setValues((current) => ({ ...current, remark: value }))

@@ -10,6 +10,13 @@ export type StorageInventoryTab =
 
 export type StorageSectionTab = "inventory" | "history";
 
+const STORAGE_ITEM_IDENTITY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "inwardItemCode", label: "Inward Item Code" },
+    { key: "itemName", label: "Item Name" },
+    { key: "factoryCode", label: "Factory Code" },
+  ];
+
 /** Listing columns for Veneer Blocks in storage warehouse. */
 export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   [
@@ -18,11 +25,11 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "availableUnits", label: "Available Stock" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
   ];
@@ -35,12 +42,12 @@ export const STORAGE_RAW_VENEER_COLUMNS: readonly EnterpriseTableColumn<Warehous
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "totalUnits", label: "Received Leaves" },
     { key: "availableUnits", label: "Available Leaves" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
   ];
@@ -53,6 +60,7 @@ export const STORAGE_RAW_VENEER_HISTORY_COLUMNS: readonly EnterpriseTableColumn<
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "totalUnits", label: "Forwarded Leaves" },
     { key: "availableUnits", label: "Remaining Leaves" },
     { key: "currency", label: "Currency" },
@@ -70,12 +78,12 @@ export const STORAGE_SHEET_GOODS_COLUMNS: readonly EnterpriseTableColumn<Warehou
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "totalUnits", label: "Received Sheets" },
     { key: "availableUnits", label: "Available Sheets" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
   ];
@@ -87,6 +95,7 @@ export const STORAGE_SHEET_GOODS_HISTORY_COLUMNS: readonly EnterpriseTableColumn
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "totalUnits", label: "Forwarded Sheets" },
     { key: "availableUnits", label: "Remaining Sheets" },
     { key: "currency", label: "Currency" },
@@ -99,17 +108,34 @@ export const STORAGE_SHEET_GOODS_HISTORY_COLUMNS: readonly EnterpriseTableColumn
 /** Listing columns for Consumables in storage warehouse, including source inward type. */
 export const STORAGE_CONSUMABLES_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   [
-    { key: "itemName", label: "Consumable Name" },
-    { key: "inwardType", label: "Source From" },
+    { key: "storageSrNo", label: "Storage Sr No" },
     { key: "inwardSrNo", label: "Inward Sr No" },
     { key: "inwardDate", label: "Inward Date" },
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
+    { key: "totalUnits", label: "Received Qty" },
+    { key: "availableUnits", label: "Available Qty" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Price / Amount" },
-    { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
+  ];
+
+export const STORAGE_CONSUMABLES_HISTORY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    ...STORAGE_ITEM_IDENTITY_COLUMNS,
+    { key: "totalUnits", label: "Forwarded Qty" },
+    { key: "availableUnits", label: "Remaining Qty" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Forwarded By" },
   ];
 
 export const STORAGE_EXPORT_COLUMNS = [
@@ -118,10 +144,12 @@ export const STORAGE_EXPORT_COLUMNS = [
   { key: "inwardDate", label: "Inward Date" },
   { key: "invoiceNo", label: "Invoice No" },
   { key: "supplierName", label: "Supplier Name" },
+  { key: "inwardItemCode", label: "Inward Item Code" },
+  { key: "itemName", label: "Item Name" },
+  { key: "factoryCode", label: "Factory Code" },
   { key: "currency", label: "Currency" },
   { key: "amount", label: "Amount" },
   { key: "totalAmount", label: "Total Amount" },
-  { key: "qcStatus", label: "QC Status" },
   { key: "remark", label: "Remark" },
   { key: "updatedBy", label: "Updated By" },
 ] as const;

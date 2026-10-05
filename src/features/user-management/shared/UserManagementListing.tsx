@@ -475,7 +475,7 @@ export function UserManagementListing() {
     <MasterPageShell
       breadcrumbs={[{ label: "User Management" }]}
       title="User Management"
-      subtitle="Manage users and their access across the system."
+      subtitle=" "
       contentGap={2}
     >
       <Stack

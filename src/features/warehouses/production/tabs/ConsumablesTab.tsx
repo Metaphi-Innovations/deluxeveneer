@@ -6,24 +6,23 @@ import {
 } from "react";
 import {
   EnterpriseDataTable,
-  type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import { Eye, Pencil } from "lucide-react";
-import { useNavigate } from "react-router";
 import {
   isActiveColumnFilter,
   type ColumnFilterValue,
 } from "../../../shared/columnFilters";
-import { mdfColumns, type MdfRow } from "../types/productionWarehouseTypes";
+import {
+  consumablesColumns,
+  type ConsumablesRow,
+} from "../types/productionWarehouseTypes";
 import {
   fetchProductionColumnDropdown,
   fetchProductionWarehouseInventory,
   type ProductionInventoryItem,
 } from "../api/productionWarehouseApi";
-import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
 import type { ProductionListQueryState } from "../productionListQuery";
 
-export interface MdfTabProps {
+export interface ConsumablesTabProps {
   warehouseName: string;
   warehouseId?: string | undefined;
   searchValue: string;
@@ -43,7 +42,8 @@ function toApiColumnFilters(
   return filters;
 }
 
-function mapApiItem(item: ProductionInventoryItem): MdfRow {
+function mapApiItem(item: ProductionInventoryItem): ConsumablesRow {
+  const qtyFallback = item.noOfSheets ?? item.totalNoOfSheets ?? "";
   return {
     id: String(item.id),
     productionSrNo: String(item.productionSrNo ?? ""),
@@ -52,35 +52,28 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
     inwardItemCode: String(item.inwardItemCode ?? ""),
     itemName: String(item.itemName ?? ""),
     factoryCode: String(item.factoryCode ?? ""),
-    mdfType: String(item.mdfType ?? ""),
-    length: String(item.length ?? ""),
-    width: String(item.width ?? ""),
-    thickness: String(item.thickness ?? ""),
-    noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
-    sqm: String(item.sqm ?? item.totalSqm ?? ""),
-    sqf: String(item.sqf ?? item.totalSqf ?? ""),
-    grade: String(item.grade ?? ""),
+    receivedQuantity: String(item.receivedQuantity ?? qtyFallback ?? ""),
+    availableQuantity: String(item.availableQuantity ?? qtyFallback ?? ""),
     currency: String(item.currency ?? ""),
     amount: String(item.amount ?? ""),
     totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
-    inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "mdf",
+    inventorySlug: item.inventorySlug
+      ? String(item.inventorySlug)
+      : "consumables",
     inventoryRecordId: item.inventoryRecordId
       ? String(item.inventoryRecordId)
       : String(item.id),
   };
 }
 
-export function MdfTab({
+export function ConsumablesTab({
   warehouseId,
-  warehouseName = "Production Warehouse",
   searchValue,
   canView,
-  canEdit,
   onListQueryChange,
-}: MdfTabProps) {
-  const navigate = useNavigate();
+}: ConsumablesTabProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
@@ -92,7 +85,7 @@ export function MdfTab({
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
-  const [rows, setRows] = useState<MdfRow[]>([]);
+  const [rows, setRows] = useState<ConsumablesRow[]>([]);
   const [isLoading, setIsLoading] = useState(Boolean(warehouseId));
 
   useEffect(() => {
@@ -112,7 +105,7 @@ export function MdfTab({
       const apiFilters = toApiColumnFilters(columnFilters);
       const data = await fetchProductionWarehouseInventory({
         warehouseId,
-        tab: "mdf",
+        tab: "consumables",
         page,
         limit: rowsPerPage,
         ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
@@ -163,7 +156,7 @@ export function MdfTab({
       try {
         const result = await fetchProductionColumnDropdown({
           warehouseId,
-          tab: "mdf",
+          tab: "consumables",
           column: columnKey,
         });
         setFilterOptionsByColumn((prev) => ({
@@ -180,63 +173,18 @@ export function MdfTab({
     [warehouseId],
   );
 
-  const actions = useMemo<ReadonlyArray<EnterpriseTableAction<MdfRow>>>(() => {
-    const list: EnterpriseTableAction<MdfRow>[] = [];
-    const returnTo = warehouseId
-      ? `/warehouses/${warehouseId}?inventory=mdf`
-      : "/warehouse-c?section=inventory&inventory=mdf";
-
-    if (canView && warehouseId) {
-      list.push({
-        id: "view",
-        label: "View",
-        icon: Eye,
-        onSelect: (row: MdfRow) =>
-          navigate(
-            getProductionInventoryRecordPath({
-              slug: "mdf",
-              id: row.inventoryRecordId || String(row.id),
-              mode: "view",
-              warehouseId,
-              warehouseName,
-              returnTo,
-            }),
-          ),
-      });
-    }
-
-    if (canEdit && warehouseId) {
-      list.push({
-        id: "edit",
-        label: "Edit",
-        icon: Pencil,
-        onSelect: (row: MdfRow) =>
-          navigate(
-            getProductionInventoryRecordPath({
-              slug: "mdf",
-              id: row.inventoryRecordId || String(row.id),
-              mode: "edit",
-              warehouseId,
-              warehouseName,
-              returnTo,
-            }),
-          ),
-      });
-    }
-
-    return list;
-  }, [canView, canEdit, navigate, warehouseId, warehouseName]);
+  const actions = useMemo(() => [], []);
 
   return (
     <EnterpriseDataTable
-      key="production-mdf"
+      key="production-consumables"
       actions={actions}
-      columns={mdfColumns}
+      columns={consumablesColumns}
       columnFilters={columnFilters}
-      emptyStateLabel="No MDF inventory records are available."
+      emptyStateLabel="No consumables inventory records are available."
       filterOptionsByColumn={filterOptionsByColumn}
       loading={isLoading}
-      loadingLabel="Loading MDF inventory..."
+      loadingLabel="Loading consumables inventory..."
       onColumnFilterOpen={(columnKey) => {
         void loadDropdownOptions(columnKey);
       }}

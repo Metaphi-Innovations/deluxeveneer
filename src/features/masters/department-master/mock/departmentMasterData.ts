@@ -58,7 +58,7 @@ export const departmentAccessSections: readonly DepartmentAccessSection[] = [
       { key: "unit-master", label: "Unit Master" },
       {
         key: "warehouse-location-master",
-        label: "Warehouse / Location Master",
+        label: "Warehouse Master",
       },
     ],
   },

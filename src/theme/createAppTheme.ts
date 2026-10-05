@@ -183,9 +183,11 @@ export const appTheme = createTheme({
           fontFamily: "inherit",
         },
         "input::placeholder, textarea::placeholder": {
+          color: "rgba(0, 0, 0, 0.38)",
           fontSize: portalTypography.placeholder.fontSize,
           fontWeight: portalTypography.placeholder.fontWeight,
           opacity: 1,
+          WebkitTextFillColor: "rgba(0, 0, 0, 0.38)",
         },
       },
     },
@@ -362,9 +364,11 @@ export const appTheme = createTheme({
         input: {
           ...controlTextSx,
           "&::placeholder": {
+            color: "rgba(0, 0, 0, 0.38)",
             fontSize: portalTypography.placeholder.fontSize,
             fontWeight: portalTypography.placeholder.fontWeight,
             opacity: 1,
+            WebkitTextFillColor: "rgba(0, 0, 0, 0.38)",
           },
         },
         inputSizeSmall: {

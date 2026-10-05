@@ -20,6 +20,8 @@ export interface StorageInventoryItem {
   currency: string;
   itemId: string | null;
   itemName: string;
+  inwardItemCode?: string | null;
+  factoryCode?: string | null;
   itemCategoryId: string | null;
   itemCategoryName: string | null;
   itemSubCategoryId: string | null;
@@ -105,14 +107,16 @@ export function mapStorageItemToRow(
     supplierName: item.supplierName ?? "",
     supplierItemName: "",
     supplierCode: "",
+    inwardItemCode: item.inwardItemCode ?? "",
     itemName: item.itemName ?? "",
-    subCategory: item.itemSubCategoryName ?? "",
+    factoryCode: item.factoryCode ?? "",
+    subCategory: "",
     unitName: "",
     color: "",
     palletNo: item.palletNo ?? "",
-    length: item.length != null ? `${item.length} mm` : "",
-    width: item.width != null ? `${item.width} mm` : "",
-    thickness: item.thickness != null ? `${item.thickness} mm` : "",
+    length: item.length != null ? `${item.length} m` : "",
+    width: item.width != null ? `${item.width} m` : "",
+    thickness: item.thickness != null ? `${item.thickness} m` : "",
     totalUnits: (() => {
       // Received stock unit: raw veneer = leaves; plywood/mdf = sheets.
       if (item.receivedQuantity != null) return String(item.receivedQuantity);

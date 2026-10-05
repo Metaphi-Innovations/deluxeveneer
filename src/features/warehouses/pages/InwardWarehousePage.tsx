@@ -50,7 +50,8 @@ type InwardInventoryTab =
   | "veneer-blocks"
   | "raw-veneer"
   | "plywood"
-  | "mdf";
+  | "mdf"
+  | "consumables";
 
 const INWARD_SORT_FIELD_MAP: Record<string, string> = {
   inwardSrNo: "inwardSrNo",
@@ -89,6 +90,7 @@ const inwardInventoryTabs = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
+  { label: "Consumables", value: "consumables" },
 ] as const satisfies readonly {
   label: string;
   value: InwardInventoryTab;
@@ -99,6 +101,7 @@ const inwardInventoryTitles: Record<InwardInventoryTab, string> = {
   "raw-veneer": "Raw Veneer",
   plywood: "Plywood",
   mdf: "MDF",
+  consumables: "Consumables",
 };
 
 const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
@@ -376,21 +379,11 @@ export function InwardWarehousePage({
         }
 
         if (canEdit) {
-          const normalizedQc = (
-            row.qcStatus ||
-            row.status ||
-            ""
-          )
-            .trim()
-            .toLowerCase();
-          const isPending =
-            normalizedQc === "pending" ||
-            normalizedQc === "" ||
-            normalizedQc === "inspection pending";
-
+          // Always show QC — per-item lock applies only after any qty of that
+          // line has been moved from storage to production.
           actions.push({
             id: "qc-action",
-            label: isPending ? "QC" : "QC Update",
+            label: "QC",
             icon: ClipboardCheck,
             onSelect: (rowToUpdate) => {
               setActionError("");
@@ -414,7 +407,6 @@ export function InwardWarehousePage({
   return (
     <MasterPageShell
       breadcrumbs={[{ label: warehouseName }, { label: activeTitle }]}
-      subtitle="Incoming material and warehouse inventory."
       title={warehouseName}
     >
       <Stack
@@ -555,7 +547,8 @@ function getActiveInwardInventoryTab(
     value === "veneer-blocks" ||
     value === "raw-veneer" ||
     value === "plywood" ||
-    value === "mdf"
+    value === "mdf" ||
+    value === "consumables"
   ) {
     return value;
   }

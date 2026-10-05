@@ -162,7 +162,7 @@ export const userPermissionSections: readonly UserPermissionSection[] = [
       { key: "supplierMaster", label: "Supplier" },
       { key: "transporterMaster", label: "Transporter" },
       { key: "unitMaster", label: "Unit" },
-      { key: "warehouseLocationMaster", label: "Warehouse / Location" },
+      { key: "warehouseLocationMaster", label: "Warehouse Master", },
     ],
   },
   {

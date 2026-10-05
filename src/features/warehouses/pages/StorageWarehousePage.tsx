@@ -215,11 +215,14 @@ export function StorageWarehousePage({
   };
 
   const getMoveRowAvailable = (row: WarehouseInventoryRow) => {
-    // Transfer qty unit: raw veneer = leaves; plywood / mdf = sheets.
+    // Transfer qty unit: raw veneer = leaves; plywood / mdf = sheets; consumables = qty.
     if (activeInventory === "raw-veneer") {
       return Number(
         row.availableUnits || row.noOfLeaves || row.totalUnits || 0,
       );
+    }
+    if (activeInventory === "consumables") {
+      return Number(row.availableUnits || row.totalUnits || 0);
     }
     return Number(
       row.availableUnits ||
@@ -231,7 +234,11 @@ export function StorageWarehousePage({
   };
 
   const moveUnitLabel =
-    activeInventory === "raw-veneer" ? "Leaves" : "Sheets";
+    activeInventory === "raw-veneer"
+      ? "Leaves"
+      : activeInventory === "consumables"
+        ? "Qty"
+        : "Sheets";
 
   const updateMoveQuantity = (rowId: string, value: string) => {
     setMoveQuantities((prev) => ({ ...prev, [rowId]: value }));
@@ -458,23 +465,11 @@ export function StorageWarehousePage({
         icon: Eye,
         onSelect: (r) => {
           const targetInwardId = r.referenceSrNo || r.id;
-          let targetSlug: string = activeInventory;
-          if (activeInventory === "consumables") {
-            const rawType = (r.inwardType ?? "").toLowerCase();
-            if (rawType.includes("block")) targetSlug = "veneer-blocks";
-            else if (rawType.includes("raw")) targetSlug = "raw-veneer";
-            else if (rawType.includes("ply")) targetSlug = "plywood";
-            else if (rawType.includes("mdf")) targetSlug = "mdf";
-            else targetSlug = "veneer-blocks";
-          }
+          const targetSlug =
+            activeInventory === "consumables" ? "consumables" : activeInventory;
           navigate(`/inventory/${targetSlug}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
         },
       });
-
-      // If viewing consumables, keep action to View only (no Revert, no Move)
-      if (activeInventory === "consumables") {
-        return actions;
-      }
 
       // In inventory mode, also show Revert and Move to Warehouse
       if (activeSection === "inventory" && canEdit) {
@@ -486,7 +481,12 @@ export function StorageWarehousePage({
           onSelect: (r) => handleOpenRevertDialog(r),
         });
 
-        if (activeInventory === "raw-veneer" || activeInventory === "plywood" || activeInventory === "mdf") {
+        if (
+          activeInventory === "raw-veneer" ||
+          activeInventory === "plywood" ||
+          activeInventory === "mdf" ||
+          activeInventory === "consumables"
+        ) {
           actions.push({
             id: "move-to-production",
             label: "Move to Warehouse",
@@ -553,7 +553,10 @@ export function StorageWarehousePage({
   const showBulkBanner =
     activeSection === "inventory" &&
     selectedRows.length > 0 &&
-    (activeInventory === "raw-veneer" || activeInventory === "plywood" || activeInventory === "mdf");
+    (activeInventory === "raw-veneer" ||
+      activeInventory === "plywood" ||
+      activeInventory === "mdf" ||
+      activeInventory === "consumables");
 
   const inventorySingularLabel =
     activeInventory === "raw-veneer"
@@ -562,7 +565,9 @@ export function StorageWarehousePage({
       ? "plywood"
       : activeInventory === "mdf"
       ? "MDF"
-      : "veneer block";
+      : activeInventory === "consumables"
+        ? "consumable"
+        : "veneer block";
 
   const bulkSecondaryButtonSx = {
     minHeight: 36,
@@ -601,7 +606,7 @@ export function StorageWarehousePage({
         { label: "Warehouses" },
         { label: warehouseName },
       ]}
-      subtitle="Main inventory storage and inspection."
+      subtitle=" "
       title={warehouseName}
     >
       <Stack
@@ -618,16 +623,14 @@ export function StorageWarehousePage({
           value={activeInventory}
         />
 
-        {activeInventory !== "consumables" ? (
-          <ModuleProcessTabs
-            onChange={(value) => {
-              updateParams({ section: value });
-              setSearchValue("");
-            }}
-            tabs={STORAGE_SECTION_TABS}
-            value={activeSection}
-          />
-        ) : null}
+        <ModuleProcessTabs
+          onChange={(value) => {
+            updateParams({ section: value });
+            setSearchValue("");
+          }}
+          tabs={STORAGE_SECTION_TABS}
+          value={activeSection}
+        />
 
         <Stack
           direction={{ xs: "column", lg: "row" }}
@@ -943,7 +946,8 @@ export function StorageWarehousePage({
                   <TableRow>
                     {[
                       { label: "#", align: "left" as const, width: 48 },
-                      { label: "Storage / Item", align: "left" as const },
+                      { label: "Storage Sr No", align: "left" as const },
+                      { label: "Item Name", align: "left" as const },
                       { label: "Invoice", align: "left" as const },
                       {
                         label: `Available (${moveUnitLabel})`,
@@ -985,11 +989,6 @@ export function StorageWarehousePage({
                     );
                     const invalid =
                       Boolean(rawQty) && isMoveQtyInvalid(row, rawQty);
-                    const itemLabel =
-                      row.storageSrNo ||
-                      row.inwardSrNo ||
-                      row.itemName ||
-                      "—";
 
                     return (
                       <TableRow key={row.id} hover>
@@ -1000,34 +999,21 @@ export function StorageWarehousePage({
                           sx={(t) => ({
                             ...listingTableBodyCellSx(t),
                             fontWeight: 600,
-                            minWidth: 140,
-                            maxWidth: 240,
+                            minWidth: 120,
+                            whiteSpace: "nowrap",
+                          })}
+                        >
+                          {row.storageSrNo || row.inwardSrNo || "—"}
+                        </TableCell>
+                        <TableCell
+                          sx={(t) => ({
+                            ...listingTableBodyCellSx(t),
+                            minWidth: 160,
+                            maxWidth: 260,
                             whiteSpace: "normal",
                           })}
                         >
-                          <Typography
-                            component="span"
-                            sx={{
-                              fontSize: "inherit",
-                              fontWeight: 600,
-                              display: "block",
-                            }}
-                          >
-                            {itemLabel}
-                          </Typography>
-                          {row.itemName && itemLabel !== row.itemName ? (
-                            <Typography
-                              component="span"
-                              sx={(t) => ({
-                                display: "block",
-                                fontSize: "0.75rem",
-                                fontWeight: 400,
-                                color: t.customTokens.text.secondary,
-                              })}
-                            >
-                              {row.itemName}
-                            </Typography>
-                          ) : null}
+                          {row.itemName || "—"}
                         </TableCell>
                         <TableCell sx={(t) => listingTableBodyCellSx(t)}>
                           {row.invoiceNo || "—"}

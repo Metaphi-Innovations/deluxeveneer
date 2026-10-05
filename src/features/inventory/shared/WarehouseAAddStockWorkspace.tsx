@@ -25,6 +25,7 @@ import {
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
 import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
+import { buildInvoiceTotalsSummary } from "../../warehouses/shared/invoiceTotalsSummary";
 import {
   WarehouseAAddStockLineItems,
   type WarehouseAAddStockLineItemsHandle,
@@ -38,12 +39,6 @@ type AdditionalChargeRow = {
   name: string;
 };
 
-type OtherConsumableRow = {
-  id: string;
-  name: string;
-  price: string;
-};
-
 const emptyLineTotals: WarehouseALineItemsTotals = {
   cgst: 0,
   igst: 0,
@@ -54,9 +49,9 @@ const emptyLineTotals: WarehouseALineItemsTotals = {
 
 export interface WarehouseAAddStockWorkspaceHandle {
   getAdditionalCharges: () => Array<{ chargeName: string; amount: string }>;
-  getOtherConsumables: () => Array<{ consumableName: string; price: string }>;
   getLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
+  applyTestAutofill: (itemCount?: number) => void;
 }
 
 export const WarehouseAAddStockWorkspace = forwardRef<
@@ -79,36 +74,19 @@ export const WarehouseAAddStockWorkspace = forwardRef<
   const theme = useTheme();
   const lineItemsRef = useRef<WarehouseAAddStockLineItemsHandle>(null);
   const nextChargeId = useRef(1);
-  const nextConsumableId = useRef(1);
   const [lineTotals, setLineTotals] =
     useState<WarehouseALineItemsTotals>(emptyLineTotals);
-  const [otherConsumables, setOtherConsumables] = useState<OtherConsumableRow[]>(
-    [],
-  );
   const [additionalCharges, setAdditionalCharges] = useState<
     AdditionalChargeRow[]
   >([]);
-  const [consumableRowErrors, setConsumableRowErrors] = useState<
-    Record<string, { name?: string; price?: string }>
-  >({});
   const [chargeRowErrors, setChargeRowErrors] = useState<
     Record<string, { name?: string; amount?: string }>
   >({});
-  const [consumableAddMessage, setConsumableAddMessage] = useState("");
   const [chargeAddMessage, setChargeAddMessage] = useState("");
 
   const gstMode = useMemo(
     () => getWarehouseAGstMode(supplierName, warehouseState),
     [supplierName, warehouseState],
-  );
-
-  const otherConsumablesTotal = useMemo(
-    () =>
-      otherConsumables.reduce(
-        (total, row) => total + parseNumber(row.price),
-        0,
-      ),
-    [otherConsumables],
   );
 
   const additionalChargesTotal = useMemo(
@@ -120,88 +98,18 @@ export const WarehouseAAddStockWorkspace = forwardRef<
     [additionalCharges],
   );
 
-  const invoiceSummary = useMemo(() => {
-    const itemSubTotal = lineTotals.itemAmount;
-    const cgst = lineTotals.cgst;
-    const sgst = lineTotals.sgst;
-    const igst = lineTotals.igst;
-    const itemSubTotalWithTax = itemSubTotal + cgst + sgst + igst;
-    const grandTotal =
-      itemSubTotalWithTax + otherConsumablesTotal + additionalChargesTotal;
-
-    return {
-      additionalCharges: additionalChargesTotal,
-      cgst,
-      grandTotal,
-      igst,
-      itemSubTotal,
-      itemSubTotalWithTax,
-      otherConsumables: otherConsumablesTotal,
-      sgst,
-    };
-  }, [additionalChargesTotal, lineTotals, otherConsumablesTotal]);
-
-  const handleAddConsumable = () => {
-    const nextErrors = collectConsumableErrors(otherConsumables);
-    if (Object.keys(nextErrors).length > 0) {
-      setConsumableRowErrors(nextErrors);
-      setConsumableAddMessage(
-        "Fill the current consumable before adding another.",
-      );
-      return;
-    }
-
-    setConsumableRowErrors({});
-    setConsumableAddMessage("");
-    const id = `consumable-${nextConsumableId.current}`;
-    nextConsumableId.current += 1;
-    setOtherConsumables((current) => [
-      ...current,
-      { id, name: "", price: "" },
-    ]);
-  };
-
-  const handleConsumableChange = (
-    id: string,
-    key: keyof Omit<OtherConsumableRow, "id">,
-    value: string,
-  ) => {
-    setOtherConsumables((current) =>
-      current.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              [key]: value,
-            }
-          : row,
-      ),
-    );
-    setConsumableRowErrors((current) => {
-      const rowError = current[id];
-      if (!rowError || !value.trim()) return current;
-      const nextRow = { ...rowError };
-      delete nextRow[key];
-      const next = { ...current };
-      if (!nextRow.name && !nextRow.price) {
-        delete next[id];
-      } else {
-        next[id] = nextRow;
-      }
-      return next;
-    });
-    setConsumableAddMessage("");
-  };
-
-  const handleRemoveConsumable = (id: string) => {
-    setOtherConsumables((current) => current.filter((row) => row.id !== id));
-    setConsumableRowErrors((current) => {
-      if (!current[id]) return current;
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-    setConsumableAddMessage("");
-  };
+  const invoiceSummary = useMemo(
+    () =>
+      buildInvoiceTotalsSummary({
+        itemSubTotal: lineTotals.itemAmount,
+        additionalCharges: additionalChargesTotal,
+        cgst: lineTotals.cgst,
+        sgst: lineTotals.sgst,
+        igst: lineTotals.igst,
+        gstMode,
+      }),
+    [additionalChargesTotal, gstMode, lineTotals],
+  );
 
   const handleAddCharge = () => {
     const nextErrors = collectChargeErrors(additionalCharges);
@@ -273,36 +181,24 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             chargeName: row.name.trim(),
             amount: row.amount.trim(),
           })),
-      getOtherConsumables: () =>
-        otherConsumables
-          .filter((row) => row.name.trim() || row.price.trim())
-          .map((row) => ({
-            consumableName: row.name.trim(),
-            price: row.price.trim(),
-          })),
       getLineItems: () => lineItemsRef.current?.getFilledLineItems() ?? [],
+      applyTestAutofill: (itemCount?: number) => {
+        lineItemsRef.current?.applyTestAutofill(itemCount);
+      },
       validate: () => {
         const itemsValid = lineItemsRef.current?.validate() ?? true;
-        const nextConsumableErrors = collectConsumableErrors(otherConsumables);
         const nextChargeErrors = collectChargeErrors(additionalCharges);
-        const consumablesValid = Object.keys(nextConsumableErrors).length === 0;
         const chargesValid = Object.keys(nextChargeErrors).length === 0;
 
-        setConsumableRowErrors(nextConsumableErrors);
         setChargeRowErrors(nextChargeErrors);
-        setConsumableAddMessage(
-          consumablesValid
-            ? ""
-            : "Fill the current consumable before saving.",
-        );
         setChargeAddMessage(
           chargesValid ? "" : "Fill the current charge before saving.",
         );
 
-        return itemsValid && consumablesValid && chargesValid;
+        return itemsValid && chargesValid;
       },
     }),
-    [additionalCharges, otherConsumables],
+    [additionalCharges],
   );
 
   return (
@@ -319,117 +215,6 @@ export const WarehouseAAddStockWorkspace = forwardRef<
             slug={slug}
             onTotalsChange={setLineTotals}
           />
-
-          {slug !== "plywood" && slug !== "mdf" ? (
-            <Box>
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  mb: 1,
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                }}
-              >
-                Other Consumables
-              </Typography>
-
-              <Stack spacing={1}>
-                {otherConsumables.length > 0 ? (
-                  <Box
-                    sx={{
-                      display: { xs: "none", md: "grid" },
-                      gap: 1,
-                      gridTemplateColumns:
-                        "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                      px: 0.25,
-                    }}
-                  >
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                      Consumable Name
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                      Price
-                    </Typography>
-                    <span />
-                  </Box>
-                ) : null}
-
-                {otherConsumables.map((row) => (
-                  <Box
-                    key={row.id}
-                    sx={{
-                      display: "grid",
-                      gap: 1,
-                      alignItems: "center",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        md: "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                      },
-                    }}
-                  >
-                    <TextField
-                      fullWidth
-                      error={Boolean(consumableRowErrors[row.id]?.name)}
-                      placeholder="Enter consumable name"
-                      size="small"
-                      value={row.name}
-                      onChange={(event) =>
-                        handleConsumableChange(row.id, "name", event.target.value)
-                      }
-                      sx={getCompactFieldSx(theme, "default", { dense: true })}
-                    />
-                    <TextField
-                      fullWidth
-                      error={Boolean(consumableRowErrors[row.id]?.price)}
-                      placeholder="Price"
-                      size="small"
-                      value={row.price}
-                      onChange={(event) =>
-                        handleConsumableChange(row.id, "price", event.target.value)
-                      }
-                      sx={getCompactFieldSx(theme, "default", { dense: true })}
-                    />
-                    <IconButton
-                      aria-label="Remove consumable"
-                      onClick={() => handleRemoveConsumable(row.id)}
-                      size="small"
-                      sx={{
-                        color: theme.customTokens.text.secondary,
-                        "&:hover": {
-                          color: theme.palette.error.main,
-                        },
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </IconButton>
-                  </Box>
-                ))}
-
-                <Box>
-                  <Button
-                    disableElevation
-                    onClick={handleAddConsumable}
-                    startIcon={<Plus size={14} />}
-                    size="small"
-                    sx={{
-                      minHeight: 32,
-                      textTransform: "none",
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                    }}
-                    variant="text"
-                  >
-                    Add Consumable
-                  </Button>
-                  {consumableAddMessage ? (
-                    <Typography variant="caption" color="error" sx={{ display: "block", mt: 0.5 }}>
-                      {consumableAddMessage}
-                    </Typography>
-                  ) : null}
-                </Box>
-              </Stack>
-            </Box>
-          ) : null}
 
           <Box
             sx={{
@@ -600,32 +385,29 @@ export const WarehouseAAddStockWorkspace = forwardRef<
 
               <Stack spacing={0.75}>
                 <SummaryLine
-                  label="Item Sub Total"
-                  value={invoiceSummary.itemSubTotal}
+                  label="Sub Total"
+                  value={invoiceSummary.subTotal}
                 />
-                {gstMode === "intra" ? (
-                  <>
-                    <SummaryLine label="CGST" value={invoiceSummary.cgst} />
-                    <SummaryLine label="SGST" value={invoiceSummary.sgst} />
-                  </>
-                ) : (
-                  <SummaryLine label="IGST" value={invoiceSummary.igst} />
-                )}
-                {otherConsumables.length > 0 && (
-                  <SummaryLine
-                    label="Other Consumables"
-                    value={invoiceSummary.otherConsumables}
-                  />
-                )}
                 <SummaryLine
                   label="Additional Charges"
                   value={invoiceSummary.additionalCharges}
                 />
+                <SummaryLine
+                  label="Taxable Amount"
+                  value={invoiceSummary.taxableAmount}
+                />
+                {invoiceSummary.gstLines.map((line) => (
+                  <SummaryLine
+                    key={line.label}
+                    label={line.label}
+                    value={line.value}
+                  />
+                ))}
                 <Divider sx={{ borderColor: theme.customTokens.borders.default }} />
                 <SummaryLine
                   emphasize
-                  label="Grand Total"
-                  value={invoiceSummary.grandTotal}
+                  label="Total"
+                  value={invoiceSummary.total}
                 />
               </Stack>
             </Box>
@@ -696,21 +478,6 @@ function SummaryLine({
         {formatAmount(value)}
       </Typography>
     </Box>
-  );
-}
-
-function collectConsumableErrors(rows: readonly OtherConsumableRow[]) {
-  return rows.reduce<Record<string, { name?: string; price?: string }>>(
-    (errors, row) => {
-      const rowErrors: { name?: string; price?: string } = {};
-      if (!row.name.trim()) rowErrors.name = "Consumable name is required.";
-      if (!row.price.trim()) rowErrors.price = "Price is required.";
-      if (rowErrors.name || rowErrors.price) {
-        errors[row.id] = rowErrors;
-      }
-      return errors;
-    },
-    {},
   );
 }
 

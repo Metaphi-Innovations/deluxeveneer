@@ -5,6 +5,8 @@ export interface ProductionInventoryItem {
   productionSrNo?: string | null | undefined;
   storageSrNo?: string | null | undefined;
   inwardDate: string | Date;
+  inwardItemCode?: string | null | undefined;
+  factoryCode?: string | null | undefined;
   itemName: string;
   subCategory: string;
   color?: string | undefined;
@@ -15,6 +17,8 @@ export interface ProductionInventoryItem {
   noOfLeaves?: string | number | undefined;
   noOfSheets?: string | number | undefined;
   totalNoOfSheets?: string | number | undefined;
+  receivedQuantity?: string | number | undefined;
+  availableQuantity?: string | number | undefined;
   sqm: string | number;
   totalSqm?: string | number | undefined;
   sqf: string | number;
@@ -32,7 +36,7 @@ export interface ProductionInventoryItem {
 
 export interface ProductionWarehouseFetchParams {
   warehouseId?: string | undefined;
-  tab: "raw-veneer" | "plywood" | "mdf" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
   search?: string | undefined;
   page?: number | undefined;
   limit?: number | undefined;
@@ -81,7 +85,7 @@ export async function fetchProductionWarehouseInventory(
 
 export async function fetchProductionColumnDropdown(params: {
   warehouseId: string;
-  tab: "raw-veneer" | "plywood" | "mdf" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
   column: string;
 }): Promise<{ options: Array<{ value: string; label: string }> }> {
   const query = new URLSearchParams();
@@ -100,7 +104,7 @@ export async function fetchProductionColumnDropdown(params: {
 
 export async function exportProductionInventoryApi(params: {
   warehouseId: string;
-  tab: "raw-veneer" | "plywood" | "mdf";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables";
   search?: string | undefined;
   sortBy?: string | undefined;
   sortOrder?: "asc" | "desc" | undefined;

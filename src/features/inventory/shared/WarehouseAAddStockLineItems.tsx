@@ -42,6 +42,10 @@ import {
   getCachedItemSubCategoryMasterRows,
   refreshItemSubCategoryMasterCache,
 } from "../../masters/item-sub-category-master/itemSubCategoryMasterApi";
+import {
+  fetchUnitsApi,
+  syncUnitMasterToStorage,
+} from "../../masters/unit-master/unitMasterApi";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
@@ -96,6 +100,8 @@ type DynamicLineItem = {
 export interface WarehouseAAddStockLineItemsHandle {
   getFilledLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
+  /** Fill N lines with test values; dropdowns only use loaded options. */
+  applyTestAutofill: (itemCount?: number) => void;
 }
 
 const warehouseAAddStockTableConfigs: Record<
@@ -103,96 +109,101 @@ const warehouseAAddStockTableConfigs: Record<
   readonly DynamicFieldConfig[]
 > = {
   "veneer-blocks": [
+    { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
-    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Batch No", type: "text" },
-    { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
-    { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Height", minWidth: 90, placeholder: "Height", type: "text", required: true },
-    { key: "cbm", label: "CBM", minWidth: 100, placeholder: "CBM", type: "text", required: true },
-    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
+    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text" },
+    { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
+    { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
+    { key: "thickness", label: "Height (m)", minWidth: 100, placeholder: "Enter height", type: "text", required: true },
+    { key: "cbm", label: "CBM", minWidth: 100, placeholder: "Enter CBM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Enter rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
+    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "Auto from item", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Enter remark", type: "text" },
   ],
   "raw-veneer": [
+    { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
-    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "logCode", label: "Log Code", minWidth: 110, placeholder: "Log Code", type: "text" },
-    { key: "bundleNumber", label: "Bundle Number", minWidth: 110, placeholder: "Bundle No.", type: "text" },
-    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
-    { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
-    { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
-    { key: "noOfLeaves", label: "No of Leaves", minWidth: 110, placeholder: "Leaves", type: "text", required: true },
-    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
-    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
+    { key: "logCode", label: "Log Code", minWidth: 110, placeholder: "Enter log code", type: "text" },
+    { key: "bundleNumber", label: "Bundle Number", minWidth: 110, placeholder: "Enter bundle no", type: "text" },
+    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
+    { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
+    { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
+    { key: "thickness", label: "Thickness (m)", minWidth: 110, placeholder: "Enter thickness", type: "text", required: true },
+    { key: "noOfLeaves", label: "No of Leaves", minWidth: 110, placeholder: "Enter leaves", type: "text", required: true },
+    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "Enter SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Enter rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
+    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "Auto from item", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Enter remark", type: "text" },
   ],
   plywood: [
+    { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
-    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
-    { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
-    { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
-    { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
-    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
-    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
+    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
+    { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
+    { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
+    { key: "thickness", label: "Thickness (m)", minWidth: 110, placeholder: "Enter thickness", type: "text", required: true },
+    { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Enter qty", type: "text", required: true },
+    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "Enter SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Enter rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
-    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
+    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "Auto from item", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remarks", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remarks", label: "Remark", minWidth: 160, placeholder: "Enter remark", type: "text" },
   ],
   mdf: [
+    { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 200, options: getLiveItemSubCategoryOptions(), placeholder: "Sub Category", type: "select", required: true },
-    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "HSN", type: "hsn", required: true },
-    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Pallet No", type: "text" },
-    { key: "length", label: "Length", minWidth: 90, placeholder: "Length", type: "text", required: true },
-    { key: "width", label: "Width", minWidth: 90, placeholder: "Width", type: "text", required: true },
-    { key: "thickness", label: "Thickness", minWidth: 90, placeholder: "Thickness", type: "text", required: true },
-    { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Qty", type: "text", required: true },
-    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "SQM", type: "text", required: true },
-    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Rate", type: "text", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
+    { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
+    { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
+    { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
+    { key: "thickness", label: "Thickness (m)", minWidth: 110, placeholder: "Enter thickness", type: "text", required: true },
+    { key: "sheets", label: "Sheets", minWidth: 90, placeholder: "Enter qty", type: "text", required: true },
+    { key: "totalSqMeter", label: "Total Sq Meter", minWidth: 100, placeholder: "Enter SQM", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Enter rate", type: "text", required: true },
     { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
-    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
+    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "Auto from item", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remarks", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remarks", label: "Remark", minWidth: 160, placeholder: "Enter remark", type: "text" },
   ],
   consumables: [
-    { key: "supplierItemName", label: "Supplier Item Name", minWidth: 220, placeholder: "Supplier Item", type: "text", required: true },
-    { key: "subCategory", label: "Sub Category", minWidth: 200, placeholder: "Sub Category", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 220, placeholder: "Item Name", type: "text", required: true },
-    { key: "unitName", label: "Unit Name", minWidth: 160, options: unitMasterOptions, placeholder: "Unit", type: "select", required: true },
-    { key: "quantity", label: "Qty", minWidth: 90, placeholder: "Qty", type: "text", required: true },
-    { key: "consumables", label: "Consumables", minWidth: 140, placeholder: "Enter consumables", type: "text" },
-    { key: "productAmount", label: "Product Amount", minWidth: 120, placeholder: "0.00", type: "text", required: true },
-    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "GST %", type: "gst", required: true },
+    { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
+    { key: "unitName", label: "Unit Name", minWidth: 160, options: unitMasterOptions, placeholder: "Auto from item", type: "select", required: true },
+    { key: "quantity", label: "Qty", minWidth: 90, placeholder: "Enter qty", type: "text", required: true },
+    { key: "rate", label: "Rate", minWidth: 100, placeholder: "Enter rate", type: "text", required: true },
+    { key: "productAmount", label: "Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
+    { key: "gstPercentage", label: "GST %", minWidth: 140, options: gstMasterOptions, placeholder: "Auto from item", type: "gst", required: true },
     { key: "cgst", label: "CGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "sgst", label: "SGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "igst", label: "IGST", minWidth: 100, placeholder: "0.00", type: "computed" },
     { key: "totalAmount", label: "Total Amount", minWidth: 120, placeholder: "0.00", type: "computed" },
-    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Remark", type: "text" },
+    { key: "remark", label: "Remark", minWidth: 160, placeholder: "Enter remark", type: "text" },
   ],
 };
 
@@ -271,12 +282,21 @@ export const WarehouseAAddStockLineItems = forwardRef<
     () => getLiveItemMasterOptions(),
     [masterOptionsRevision],
   );
+  const unitNameOptions = useMemo(
+    () => getLiveUnitOptions(),
+    [masterOptionsRevision],
+  );
 
   useEffect(() => {
     let ignore = false;
     void Promise.all([
       refreshItemSubCategoryMasterCache(),
       refreshItemMasterCache(),
+      fetchUnitsApi({ status: true, limit: 1000 }).then((rows) => {
+        if (rows.length > 0) {
+          syncUnitMasterToStorage(rows);
+        }
+      }),
     ])
       .then(() => {
         if (!ignore) {
@@ -346,6 +366,15 @@ export const WarehouseAAddStockLineItems = forwardRef<
           return row;
         }
 
+        // Item-master driven fields are locked once filled from item selection.
+        if (
+          key !== "itemName" &&
+          isItemMasterDrivenField(key) &&
+          getItemMasterLockedFieldKeys(row.values.itemName ?? "").has(key)
+        ) {
+          return row;
+        }
+
         let nextValues = {
           ...row.values,
           [key]: value,
@@ -362,23 +391,24 @@ export const WarehouseAAddStockLineItems = forwardRef<
           }
         }
 
-        // Dynamic CBM calculation for Veneer Blocks: Length * Width * Height (in meters, standard mm inputs)
-        // Formula: cbm = length * width * height / 1,000,000,000 (or if dimensions already in meters)
-        // cbf = 35.315 * cbm
-        if (slug === "veneer-blocks" && ["length", "width", "thickness", "height"].includes(key)) {
+        // Veneer Blocks: L/W/H in meters → CBM = L × W × H
+        if (
+          slug === "veneer-blocks" &&
+          ["length", "width", "thickness", "height"].includes(key)
+        ) {
           const l = parseAmountValue(nextValues.length ?? "");
           const w = parseAmountValue(nextValues.width ?? "");
-          const h = parseAmountValue(nextValues.thickness ?? nextValues.height ?? "");
+          const h = parseAmountValue(
+            nextValues.thickness ?? nextValues.height ?? "",
+          );
           if (l > 0 && w > 0 && h > 0) {
-            // Check if dimensions are in mm (> 20) or meters
-            const isMm = l > 20 || w > 20 || h > 20;
-            const cbmVal = isMm ? (l * w * h) / 1_000_000_000 : l * w * h;
-            nextValues.cbm = Number(cbmVal.toFixed(4)).toString();
+            nextValues.cbm = formatMeasureValue(l * w * h, 6);
+          } else {
+            nextValues.cbm = "";
           }
         }
 
-        // Dynamic SQM calculation for Raw Veneer, Plywood, MDF:
-        // Length * Width * (No. of leaves / sheets) / 1,000,000
+        // Raw Veneer / Plywood / MDF: L/W in meters → SQM = L × W × qty
         if (
           ["raw-veneer", "plywood", "mdf"].includes(slug) &&
           ["length", "width", "noOfLeaves", "sheets", "noOfSheets"].includes(key)
@@ -386,14 +416,21 @@ export const WarehouseAAddStockLineItems = forwardRef<
           const l = parseAmountValue(nextValues.length ?? "");
           const w = parseAmountValue(nextValues.width ?? "");
           const count = parseAmountValue(
-            nextValues.noOfLeaves ?? nextValues.sheets ?? nextValues.noOfSheets ?? ""
+            nextValues.noOfLeaves ??
+              nextValues.sheets ??
+              nextValues.noOfSheets ??
+              "",
           );
           if (l > 0 && w > 0 && count > 0) {
-            const isMm = l > 20 || w > 20;
-            const sqmVal = isMm ? (l * w * count) / 1_000_000 : l * w * count;
-            nextValues.totalSqMeter = Number(sqmVal.toFixed(3)).toString();
+            const sqm = formatMeasureValue(l * w * count, 3);
+            nextValues.totalSqMeter = sqm;
             if ("totalSqm" in nextValues) {
-              nextValues.totalSqm = Number(sqmVal.toFixed(3)).toString();
+              nextValues.totalSqm = sqm;
+            }
+          } else {
+            nextValues.totalSqMeter = "";
+            if ("totalSqm" in nextValues) {
+              nextValues.totalSqm = "";
             }
           }
         }
@@ -497,6 +534,88 @@ export const WarehouseAAddStockLineItems = forwardRef<
               amount: row.values.productAmount ?? row.values.amount ?? "",
             },
           })),
+      applyTestAutofill: (itemCount = 1) => {
+        const safeCount = Math.min(
+          50,
+          Math.max(1, Math.floor(Number(itemCount) || 1)),
+        );
+
+        const buildAutofillRowValues = (
+          index: number,
+          nextItemNames: readonly string[],
+          nextUnits: readonly string[],
+        ): Record<string, string> => {
+          const itemName =
+            nextItemNames.length > 0
+              ? nextItemNames[index % nextItemNames.length]!
+              : "";
+
+          // Manual fields only — HSN / GST / unit / sub-category come from item selection.
+          let values: Record<string, string> = {
+            ...createEmptyValues(columnConfig),
+            ...buildLineItemAutofillTextValues(slug, index),
+          };
+
+          if (itemName) {
+            values.itemName = itemName;
+            values = applyItemMasterDefaults(values, itemName);
+          }
+
+          // Keep autofetched selects only when they match loaded options (never invent).
+          values.unitName = coerceSelectValue(values.unitName, nextUnits);
+          values.itemSubCategory = coerceSelectValue(
+            values.itemSubCategory,
+            getLiveItemSubCategoryOptions(),
+          );
+          values.gstPercentage = coerceSelectValue(
+            values.gstPercentage,
+            gstMasterOptions,
+          );
+
+          values = applyAutofillDerivedMeasures(values, slug);
+          return applyTaxCalculations(values, gstMode, slug);
+        };
+
+        const applyWithOptions = (
+          nextItemNames: readonly string[],
+          nextUnits: readonly string[],
+        ) => {
+          nextRowId.current = 1;
+          const rows: DynamicLineItem[] = Array.from(
+            { length: safeCount },
+            (_, index) => ({
+              id: `${slug}-${nextRowId.current++}`,
+              values: buildAutofillRowValues(index, nextItemNames, nextUnits),
+            }),
+          );
+
+          setLineItems(rows);
+          setSubmitAttempted(false);
+          setAddItemMessage("");
+          setRowErrors({});
+        };
+
+        // Refresh masters first so item-selection defaults resolve correctly.
+        void Promise.all([
+          refreshItemMasterCache(),
+          refreshItemSubCategoryMasterCache(),
+          fetchUnitsApi({ status: true, limit: 1000 }).then((rows) => {
+            if (rows.length > 0) {
+              syncUnitMasterToStorage(rows);
+            }
+          }),
+        ])
+          .then(() => {
+            setMasterOptionsRevision((current) => current + 1);
+            applyWithOptions(
+              getLiveItemMasterOptions(),
+              getLiveUnitOptions(),
+            );
+          })
+          .catch(() => {
+            applyWithOptions(itemNameOptions, unitNameOptions);
+          });
+      },
       validate: () => {
         setSubmitAttempted(true);
 
@@ -534,7 +653,14 @@ export const WarehouseAAddStockLineItems = forwardRef<
         return isValid;
       },
     }),
-    [columnConfig, lineItems],
+    [
+      columnConfig,
+      gstMode,
+      itemNameOptions,
+      lineItems,
+      slug,
+      unitNameOptions,
+    ],
   );
 
   return (
@@ -585,20 +711,27 @@ export const WarehouseAAddStockLineItems = forwardRef<
                       },
                     }}
                   >
-                    {visibleColumns.map((column) => (
+                    {visibleColumns.map((column) => {
+                      const lockedKeys = getItemMasterLockedFieldKeys(
+                        row.values.itemName ?? "",
+                      );
+                      return (
                       <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                         {renderEditableField({
                           column,
                           onChange: (value) =>
                             handleFieldChange(row.id, column.key, value),
+                          fieldReadOnly: lockedKeys.has(column.key),
                           theme,
                           value: row.values[column.key] ?? "",
                           errorText: errors[column.key] ?? "",
                           itemSubCategoryOptions,
                           itemNameOptions,
+                          unitNameOptions,
                         })}
                       </TableCell>
-                    ))}
+                      );
+                    })}
 
                     <TableCell
                       align="center"
@@ -649,6 +782,43 @@ export const WarehouseAAddStockLineItems = forwardRef<
   );
 });
 
+const ITEM_MASTER_DRIVEN_FIELDS = [
+  "itemSubCategory",
+  "hsn",
+  "unitName",
+  "gstPercentage",
+] as const;
+
+function isItemMasterDrivenField(key: string): boolean {
+  return (ITEM_MASTER_DRIVEN_FIELDS as readonly string[]).includes(key);
+}
+
+/** Fields populated from the selected item master — locked for edit. */
+function getItemMasterLockedFieldKeys(itemName: string): Set<string> {
+  const locked = new Set<string>();
+  const item = getLiveItemMasterRecord(itemName);
+  if (!item) return locked;
+
+  if (String(item.subCategory ?? item.subCategoryName ?? "").trim()) {
+    locked.add("itemSubCategory");
+  }
+  const hsn = String(item.hsn ?? item.hsnCode ?? "").trim();
+  if (hsn) {
+    locked.add("hsn");
+  }
+  if (String(item.unitName ?? item.unit ?? "").trim()) {
+    locked.add("unitName");
+  }
+  const gst = String(
+    item.gstPercentage ?? item.gst ?? item.gstNo ?? "",
+  ).trim();
+  if (gst || (hsn && getHsnGstPercentage(hsn))) {
+    locked.add("gstPercentage");
+  }
+
+  return locked;
+}
+
 function applyItemMasterDefaults(
   values: Record<string, string>,
   itemName: string,
@@ -668,12 +838,18 @@ function applyItemMasterDefaults(
     item.gstPercentage ?? item.gst ?? item.gstNo ?? "",
   ).trim();
 
+  const unitName = String(item.unitName ?? item.unit ?? "").trim();
+
   if (subCategory) {
     nextValues.itemSubCategory = subCategory;
   }
 
   if (hsn) {
     nextValues.hsn = hsn;
+  }
+
+  if (unitName) {
+    nextValues.unitName = unitName;
   }
 
   if (gst) {
@@ -720,6 +896,30 @@ function getLiveItemSubCategoryOptions() {
   );
 }
 
+function getLiveUnitOptions() {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(
+        "deluxe-veneers-local-master-records",
+      );
+      const parsed = raw ? JSON.parse(raw) : {};
+      const rows = Array.isArray(parsed["unit-master"])
+        ? (parsed["unit-master"] as MasterRecord[])
+        : [];
+      const names = rows
+        .filter(isActiveMasterRecord)
+        .map((row) => String(row.unitName ?? row.name ?? "").trim())
+        .filter(Boolean);
+      if (names.length > 0) {
+        return Array.from(new Set(names));
+      }
+    } catch {
+      // fall through to mock options
+    }
+  }
+  return [...unitMasterOptions];
+}
+
 function getLiveItemMasterRecord(itemName: string) {
   const normalizedName = itemName.trim().toLowerCase();
 
@@ -754,8 +954,14 @@ function applyTaxCalculations(
     "totalSqMeter",
   );
 
+  const hasQuantity = Object.prototype.hasOwnProperty.call(
+    nextValues,
+    "quantity",
+  );
+
   // Veneer blocks: Amount = CBM × Rate
   // Raw veneer (and sheet goods): Amount = Total Sq Meter × Rate
+  // Consumables: Amount = Qty × Rate
   if (rate > 0) {
     if (hasCbm) {
       const cbm = parseAmountValue(nextValues.cbm ?? "");
@@ -768,6 +974,13 @@ function applyTaxCalculations(
       const area = parseAmountValue(nextValues.totalSqMeter ?? "");
       if (area > 0) {
         const calculatedAmount = Math.round(area * rate * 100) / 100;
+        nextValues.productAmount = calculatedAmount.toFixed(2);
+        nextValues.amount = calculatedAmount.toFixed(2);
+      }
+    } else if (hasQuantity) {
+      const quantity = parseAmountValue(nextValues.quantity ?? "");
+      if (quantity > 0) {
+        const calculatedAmount = Math.round(quantity * rate * 100) / 100;
         nextValues.productAmount = calculatedAmount.toFixed(2);
         nextValues.amount = calculatedAmount.toFixed(2);
       }
@@ -831,6 +1044,103 @@ function summarizeLineItemTotals(
       totalAmount: 0,
     },
   );
+}
+
+function coerceSelectValue(
+  value: string | null | undefined,
+  options: readonly string[] | null | undefined,
+): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed || !options?.length) return "";
+  return options.includes(trimmed) ? trimmed : "";
+}
+
+function buildLineItemAutofillTextValues(
+  slug: WarehouseAAddStockSlug,
+  index = 0,
+): Record<string, string> {
+  const stamp = `${Date.now().toString().slice(-4)}${index + 1}`;
+  // Manual entry fields only — never HSN / GST / unit / amount (those follow selection / calc).
+  const base = {
+    inwardItemCode: `TEST-${stamp}`,
+    factoryCode: `FC-${stamp}`,
+    rate: "100",
+    remark: "Autofill test line",
+    remarks: "Autofill test line",
+  };
+
+  switch (slug) {
+    case "veneer-blocks":
+      return {
+        ...base,
+        length: "2.5",
+        width: "1.2",
+        thickness: "0.8",
+        logCode: `BATCH-${stamp}`,
+      };
+    case "raw-veneer":
+      return {
+        ...base,
+        length: "2.5",
+        width: "1.2",
+        thickness: "0.001",
+        noOfLeaves: "10",
+        logCode: `LOG-${stamp}`,
+        bundleNumber: `B-${stamp}`,
+        palletNo: `P-${stamp}`,
+      };
+    case "plywood":
+    case "mdf":
+      return {
+        ...base,
+        length: "2.44",
+        width: "1.22",
+        thickness: "0.018",
+        sheets: "5",
+        palletNo: `P-${stamp}`,
+      };
+    case "consumables":
+      return {
+        ...base,
+        quantity: "10",
+      };
+    default:
+      return base;
+  }
+}
+
+/** Derive CBM / SQM after autofill dimensions are set. */
+function applyAutofillDerivedMeasures(
+  values: Record<string, string>,
+  slug: WarehouseAAddStockSlug,
+): Record<string, string> {
+  const next = { ...values };
+
+  if (slug === "veneer-blocks") {
+    const l = parseAmountValue(next.length ?? "");
+    const w = parseAmountValue(next.width ?? "");
+    const h = parseAmountValue(next.thickness ?? next.height ?? "");
+    if (l > 0 && w > 0 && h > 0) {
+      next.cbm = formatMeasureValue(l * w * h, 6);
+    }
+  }
+
+  if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+    const l = parseAmountValue(next.length ?? "");
+    const w = parseAmountValue(next.width ?? "");
+    const count = parseAmountValue(
+      next.noOfLeaves ?? next.sheets ?? next.noOfSheets ?? "",
+    );
+    if (l > 0 && w > 0 && count > 0) {
+      const sqm = formatMeasureValue(l * w * count, 3);
+      next.totalSqMeter = sqm;
+      if ("totalSqm" in next) {
+        next.totalSqm = sqm;
+      }
+    }
+  }
+
+  return next;
 }
 
 function createEmptyRow(
@@ -922,6 +1232,12 @@ function ColumnLabel({
 function parseAmountValue(value: string) {
   const numericValue = Number(value.replace(/,/g, "").trim());
   return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+/** Format measured calc (CBM/SQM) with up to `decimals`, trim trailing zeros. */
+function formatMeasureValue(value: number, decimals: number) {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return value.toFixed(decimals).replace(/\.?0+$/, "");
 }
 
 function formatAmount(value: number) {
@@ -1087,26 +1403,41 @@ function renderEditableField({
   column,
   errorText,
   onChange,
+  fieldReadOnly = false,
   theme,
   value,
   itemSubCategoryOptions,
   itemNameOptions,
+  unitNameOptions,
 }: {
   column: DynamicFieldConfig;
   errorText?: string;
   onChange: (value: string) => void;
+  fieldReadOnly?: boolean;
   theme: Theme;
   value: string;
   itemSubCategoryOptions?: readonly string[];
   itemNameOptions?: readonly string[];
+  unitNameOptions?: readonly string[];
 }): ReactNode {
-  if (column.type === "computed") {
+  if (column.type === "computed" || fieldReadOnly) {
+    const isEmpty = !String(value ?? "").trim();
     return (
       <TextField
         fullWidth
         size="small"
         value={value}
-        sx={getCompactFieldSx(theme, "readOnly", { dense: true })}
+        placeholder={
+          fieldReadOnly && isEmpty
+            ? column.placeholder || "Auto from item"
+            : undefined
+        }
+        sx={{
+          ...getCompactFieldSx(theme, "readOnly", { dense: true }),
+          cursor: "not-allowed",
+          "& .MuiInputBase-root": { cursor: "not-allowed" },
+          "& .MuiInputBase-input": { cursor: "not-allowed" },
+        }}
         slotProps={{
           input: {
             readOnly: true,
@@ -1129,6 +1460,11 @@ function renderEditableField({
           if (reason === "input" || reason === "clear") {
             onChange(nextValue);
           }
+        }}
+        sx={{
+          cursor: "text",
+          "& .MuiInputBase-root": { cursor: "text" },
+          "& .MuiInputBase-input": { cursor: "text" },
         }}
         slotProps={{
           popper: getAutocompletePopperSlotProps(theme, 420),
@@ -1157,6 +1493,7 @@ function renderEditableField({
                 dense: true,
               }),
               "& .MuiInputBase-input": {
+                cursor: "text",
                 fontSize: theme.typography.caption.fontSize,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -1189,6 +1526,11 @@ function renderEditableField({
             onChange(nextValue);
           }
         }}
+        sx={{
+          cursor: "text",
+          "& .MuiInputBase-root": { cursor: "text" },
+          "& .MuiInputBase-input": { cursor: "text" },
+        }}
         slotProps={{
           popper: getAutocompletePopperSlotProps(theme, 360),
           paper: {
@@ -1216,6 +1558,7 @@ function renderEditableField({
                 dense: true,
               }),
               "& .MuiInputBase-input": {
+                cursor: "text",
                 fontSize: theme.typography.caption.fontSize,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -1238,13 +1581,16 @@ function renderEditableField({
     const selectOptions =
       column.key === "itemSubCategory"
         ? [...(itemSubCategoryOptions ?? getLiveItemSubCategoryOptions())]
-        : column.options ?? [];
+        : column.key === "unitName"
+          ? [...(unitNameOptions ?? getLiveUnitOptions())]
+          : column.options ?? [];
 
     return (
       <ErpSelectField
         helperText={errorText || undefined}
         onChange={onChange}
         options={selectOptions}
+        placeholder={column.placeholder}
         size="dense"
         state={errorText ? "error" : "default"}
         value={value}

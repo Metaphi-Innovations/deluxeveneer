@@ -7,7 +7,8 @@ export type InwardInventoryType =
   | "VENEER_BLOCKS"
   | "RAW_VENEER"
   | "PLYWOOD"
-  | "MDF";
+  | "MDF"
+  | "CONSUMABLES";
 
 export type InwardQcStatus = "PENDING" | "PARTIAL_DONE" | "PASS" | "FAIL";
 
@@ -68,6 +69,12 @@ export interface CreateInwardItemPayload {
   height?: number | null;
   thickness?: number | null;
   cbm?: number | null;
+  inwardItemCode?: string | null;
+  factoryCode?: string | null;
+  supplierItemName?: string | null;
+  unitId?: string | null;
+  unitName?: string | null;
+  quantity?: number | null;
   rate?: number | null;
   amount: number;
   gstId?: string | null;
@@ -81,11 +88,6 @@ export interface CreateInwardItemPayload {
 export interface CreateInwardChargePayload {
   chargeName: string;
   amount: number;
-}
-
-export interface CreateInwardConsumablePayload {
-  consumableName: string;
-  price: number;
 }
 
 export interface CreateInwardPayload {
@@ -102,7 +104,6 @@ export interface CreateInwardPayload {
   exchangeRate?: number | null;
   remarks?: string | null;
   items: CreateInwardItemPayload[];
-  otherConsumables?: CreateInwardConsumablePayload[];
   additionalCharges?: CreateInwardChargePayload[];
 }
 
@@ -129,6 +130,12 @@ export interface InwardItemDetail {
   height: number | null;
   thickness?: number | null;
   cbm: number | null;
+  inwardItemCode?: string | null;
+  factoryCode?: string | null;
+  supplierItemName?: string | null;
+  unitId?: string | null;
+  unitName?: string | null;
+  quantity?: number | null;
   rate: number | null;
   amount: number;
   gstId: string | null;
@@ -145,6 +152,8 @@ export interface InwardItemDetail {
   qcFailQuantity?: number | null;
   availableStock?: number | null;
   rejectedStock?: number | null;
+  /** True once any qty of this line has moved storage → production. */
+  qcLocked?: boolean;
 }
 
 export interface InwardAdditionalChargeDetail {
@@ -152,13 +161,6 @@ export interface InwardAdditionalChargeDetail {
   sortOrder: number;
   chargeName: string;
   amount: number;
-}
-
-export interface InwardOtherConsumableDetail {
-  id: string;
-  sortOrder: number;
-  consumableName: string;
-  price: number;
 }
 
 export interface InwardDetail {
@@ -189,7 +191,6 @@ export interface InwardDetail {
   cgstTotal: number;
   sgstTotal: number;
   igstTotal: number;
-  otherConsumablesTotal: number;
   additionalChargesTotal: number;
   grandTotal: number;
   amount: number;
@@ -199,7 +200,6 @@ export interface InwardDetail {
   status: boolean;
   qcStatus: string;
   items: InwardItemDetail[];
-  otherConsumables: InwardOtherConsumableDetail[];
   additionalCharges: InwardAdditionalChargeDetail[];
   createdBy?: {
     id: string;
@@ -227,7 +227,6 @@ export type UpdateInwardPayload = {
   exchangeRate?: number | null;
   remarks?: string | null;
   items?: CreateInwardItemPayload[];
-  otherConsumables?: CreateInwardConsumablePayload[];
   additionalCharges?: CreateInwardChargePayload[];
 };
 
@@ -253,6 +252,7 @@ const inventoryTypeBySlug: Record<string, InwardInventoryType> = {
   "raw-veneer": "RAW_VENEER",
   plywood: "PLYWOOD",
   mdf: "MDF",
+  consumables: "CONSUMABLES",
 };
 
 export function getInwardInventoryTypeFromSlug(
