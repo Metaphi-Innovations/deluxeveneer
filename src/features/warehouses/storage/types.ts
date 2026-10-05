@@ -10,7 +10,7 @@ export type StorageInventoryTab =
 
 export type StorageSectionTab = "inventory" | "history";
 
-/** Listing columns for Veneer Blocks in storage warehouse. */
+/** Listing columns for Veneer Blocks in storage warehouse inventory. */
 export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   [
     { key: "storageSrNo", label: "Storage Sr No" },
@@ -19,6 +19,23 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
     { key: "availableUnits", label: "Available Stock" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "qcStatus", label: "QC Status" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+/** Listing columns for Veneer Blocks in storage warehouse history tab — includes "Issue To". */
+export const STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardSrNo", label: "Inward Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "invoiceNo", label: "Invoice No" },
+    { key: "supplierName", label: "Supplier Name" },
+    { key: "issueTo", label: "Issue To" },
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },

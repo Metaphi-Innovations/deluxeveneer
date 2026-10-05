@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, FileOutput, RotateCcw, Truck } from "lucide-react";
+import { Eye, FileOutput, Plus, RotateCcw, Truck } from "lucide-react";
 import {
   Alert,
   Box,
@@ -49,10 +49,12 @@ import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
   exportStorageInventoryApi,
   fetchStorageProductionWarehouses,
+  issueVeneerBlocksToSlicingApi,
   moveStorageItemToProductionApi,
   revertStorageItemApi,
   type StorageProductionWarehouseOption,
 } from "../storage/api/storageApi";
+import { issueSawingFromStorageApi } from "../../factory/sawing/api/sawingApi";
 import { fetchGradesApi } from "../../masters/grade-master/gradeMasterApi";
 import type { MasterRecord } from "../../masters/shared/types";
 import { StorageMdfInventory } from "../storage/StorageMdfInventory";
@@ -223,10 +225,10 @@ export function StorageWarehousePage({
     }
     return Number(
       row.availableUnits ||
-        row.avSheets ||
-        row.totalNoOfSheets ||
-        row.totalUnits ||
-        0,
+      row.avSheets ||
+      row.totalNoOfSheets ||
+      row.totalUnits ||
+      0,
     );
   };
 
@@ -446,7 +448,51 @@ export function StorageWarehousePage({
     }
   };
 
-  // Row actions for raw-veneer, plywood, mdf
+  const handleIssueForSawing = useCallback(
+    async (targetRows: WarehouseInventoryRow[]) => {
+      if (!targetRows.length) return;
+      try {
+        await issueSawingFromStorageApi(targetRows.map((r) => r.id));
+        setToastNotification({
+          message: `${targetRows.length} item(s) issued for Sawing successfully!`,
+          severity: "success",
+        });
+        setSelectedRows([]);
+        setSelectionResetKey((c) => c + 1);
+        setRefreshTrigger((c) => c + 1);
+      } catch (err: any) {
+        setToastNotification({
+          message: err.message || "Failed to issue for Sawing.",
+          severity: "error",
+        });
+      }
+    },
+    []
+  );
+
+  const handleIssueForSlicing = useCallback(
+    async (targetRows: WarehouseInventoryRow[]) => {
+      if (!targetRows.length) return;
+      try {
+        await issueVeneerBlocksToSlicingApi(targetRows.map((r) => r.id));
+        setToastNotification({
+          message: `${targetRows.length} item(s) issued for Slicing successfully!`,
+          severity: "success",
+        });
+        setSelectedRows([]);
+        setSelectionResetKey((c) => c + 1);
+        setRefreshTrigger((c) => c + 1);
+      } catch (err: any) {
+        setToastNotification({
+          message: err.message || "Failed to issue for Slicing.",
+          severity: "error",
+        });
+      }
+    },
+    []
+  );
+
+  // Row actions for raw-veneer, plywood, mdf, veneer-blocks
   const getRowActions = useCallback(
     (row: WarehouseInventoryRow): readonly EnterpriseTableAction<WarehouseInventoryRow>[] => {
       const actions: EnterpriseTableAction<WarehouseInventoryRow>[] = [];
@@ -486,6 +532,23 @@ export function StorageWarehousePage({
           onSelect: (r) => handleOpenRevertDialog(r),
         });
 
+        if (activeInventory === "veneer-blocks") {
+          actions.push({
+            id: "issue-for-sawing",
+            label: "Issue for Sawing",
+            icon: Plus,
+            tone: "primary",
+            onSelect: (r) => void handleIssueForSawing([r]),
+          });
+          actions.push({
+            id: "issue-for-slicing",
+            label: "Issue for Slicing",
+            icon: Plus,
+            tone: "primary",
+            onSelect: (r) => void handleIssueForSlicing([r]),
+          });
+        }
+
         if (activeInventory === "raw-veneer" || activeInventory === "plywood" || activeInventory === "mdf") {
           actions.push({
             id: "move-to-production",
@@ -498,7 +561,7 @@ export function StorageWarehousePage({
 
       return actions;
     },
-    [activeInventory, activeSection, canEdit, navigate, warehouseId, warehouseName, handleOpenMoveDialog]
+    [activeInventory, activeSection, canEdit, navigate, warehouseId, warehouseName, handleOpenMoveDialog, handleIssueForSawing, handleIssueForSlicing]
   );
 
   const [isExporting, setIsExporting] = useState(false);
@@ -553,16 +616,16 @@ export function StorageWarehousePage({
   const showBulkBanner =
     activeSection === "inventory" &&
     selectedRows.length > 0 &&
-    (activeInventory === "raw-veneer" || activeInventory === "plywood" || activeInventory === "mdf");
+    (activeInventory === "veneer-blocks" || activeInventory === "raw-veneer" || activeInventory === "plywood" || activeInventory === "mdf");
 
   const inventorySingularLabel =
     activeInventory === "raw-veneer"
       ? "raw veneer"
       : activeInventory === "plywood"
-      ? "plywood"
-      : activeInventory === "mdf"
-      ? "MDF"
-      : "veneer block";
+        ? "plywood"
+        : activeInventory === "mdf"
+          ? "MDF"
+          : "veneer block";
 
   const bulkSecondaryButtonSx = {
     minHeight: 36,
@@ -653,7 +716,7 @@ export function StorageWarehousePage({
                   onChange={(val) => {
                     const selectedRawTab =
                       rawVeneerTabValueByLabel[
-                        val as keyof typeof rawVeneerTabValueByLabel
+                      val as keyof typeof rawVeneerTabValueByLabel
                       ] ?? "all";
                     updateParams({ rawTab: selectedRawTab });
                   }}
@@ -722,14 +785,35 @@ export function StorageWarehousePage({
                   Cancel
                 </Button>
 
-                <Button
-                  variant="contained"
-                  onClick={() => void handleOpenMoveDialog(selectedRows)}
-                  startIcon={<Truck size={16} />}
-                  sx={bulkPrimaryButtonSx}
-                >
-                  Move to Warehouse
-                </Button>
+                {activeInventory === "veneer-blocks" ? (
+                  <>
+                    <Button
+                      variant="contained"
+                      onClick={() => void handleIssueForSawing(selectedRows)}
+                      startIcon={<Plus size={16} />}
+                      sx={bulkPrimaryButtonSx}
+                    >
+                      Issue for Sawing
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={() => void handleIssueForSlicing(selectedRows)}
+                      startIcon={<Plus size={16} />}
+                      sx={bulkPrimaryButtonSx}
+                    >
+                      Issue for Slicing
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="contained"
+                    onClick={() => void handleOpenMoveDialog(selectedRows)}
+                    startIcon={<Truck size={16} />}
+                    sx={bulkPrimaryButtonSx}
+                  >
+                    Move to Warehouse
+                  </Button>
+                )}
               </Stack>
             </Stack>
           </Box>

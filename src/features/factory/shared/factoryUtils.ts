@@ -9,13 +9,14 @@ import type {
   FactoryRecord,
 } from "./types";
 
-export type FactoryProcessTab = "issued" | "done" | "history" | "rejected";
+export type FactoryProcessTab = "issued" | "done" | "history" | "rejected" | "failed";
 
 const factoryTabOrder: readonly FactoryProcessTab[] = [
   "issued",
   "done",
   "history",
   "rejected",
+  "failed",
 ];
 
 const factorySequenceKeys = new Set([
@@ -121,10 +122,15 @@ export function getFactoryPaths(slug: string) {
 }
 
 export function getFactoryProcessTabs(title: string) {
-  if (title === "Inspection") {
+  if (
+    title === "Inspection" ||
+    title === "Sawing Inspection" ||
+    title === "Drying Inspection"
+  ) {
     return [
       { label: "Inspection Pending", value: "issued" },
       { label: "Inspection Done", value: "done" },
+      { label: "Inspection Fail", value: "failed" },
     ] as const satisfies readonly { label: string; value: FactoryProcessTab }[];
   }
 
@@ -164,6 +170,7 @@ export function getFactoryRowsForTab<Row extends FactoryRecord>(
       done: 1,
       history: 2,
       rejected: 3,
+      failed: 4,
     };
 
     return index % 4 === tabBucket[tab];
@@ -255,6 +262,8 @@ function getFactoryStatusForTab(tab: FactoryProcessTab) {
       return "Archived";
     case "rejected":
       return "Rejected";
+    case "failed":
+      return "Failed";
     default:
       return "Issued";
   }

@@ -12,7 +12,7 @@ export type FactoryIssuedWorkRecord = {
   createdAt: string;
   destinationSlug: string;
   id: string;
-  listingState: "issued" | "done" | "moved";
+  listingState: "issued" | "done" | "failed" | "moved";
   movedAt?: string;
   orderItemNo?: string;
   orderNo?: string;
@@ -31,11 +31,13 @@ type FactoryIssuedWorkStore = {
 
 const processLabelToSlug: Record<string, string> = {
   Drying: "drying",
+  "Drying Inspection": "drying-inspection",
   Embossing: "embossing",
   Finishing: "finishing",
   Fluting: "cnc-fluting",
   Grouping: "grouping",
-  Inspection: "inspection",
+  Inspection: "drying-inspection",
+  "Sawing Inspection": "sawing-inspection",
   Marquetry: "marquetry",
   Pressing: "pressing",
   Sawing: "sawing",
@@ -46,11 +48,13 @@ const processLabelToSlug: Record<string, string> = {
 
 const slugToProcessLabel: Record<string, string> = {
   drying: "Drying",
+  "drying-inspection": "Drying Inspection",
   embossing: "Embossing",
   finishing: "Finishing",
   "cnc-fluting": "Fluting",
   grouping: "Grouping",
-  inspection: "Inspection",
+  inspection: "Drying Inspection",
+  "sawing-inspection": "Sawing Inspection",
   marquetry: "Marquetry",
   pressing: "Pressing",
   sawing: "Sawing",
@@ -233,11 +237,36 @@ export function completeFactoryIssuedWork(
   return nextItem;
 }
 
+export function failFactoryIssuedWork(
+  workItemId: string,
+  resultSnapshot?: Record<string, unknown>,
+) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...current,
+    listingState: "failed",
+    completedAt: new Date().toISOString(),
+    sourceSnapshot: resultSnapshot
+      ? { ...current.sourceSnapshot, ...resultSnapshot }
+      : current.sourceSnapshot,
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
 export function getFactoryIssuedWorkForListing(
   destinationSlug: string,
   tab: FactoryProcessTab,
 ) {
-  if (tab !== "issued" && tab !== "done") {
+  if (tab !== "issued" && tab !== "done" && tab !== "failed") {
     return [] as FactoryIssuedWorkRecord[];
   }
 

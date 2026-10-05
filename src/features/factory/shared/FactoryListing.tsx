@@ -17,6 +17,8 @@ import {
   Typography,
 } from "@mui/material";
 import {
+  AlertCircle,
+  CheckCircle2,
   Eye,
   Pencil,
   Plus,
@@ -70,6 +72,7 @@ import {
 import {
   factoryIssuedWorkToRow,
   completeFactoryIssuedWork,
+  failFactoryIssuedWork,
   getFactoryIssuedWorkForListing,
   issueFactoryWork,
   resolveFactoryProcessLabel,
@@ -85,6 +88,7 @@ import {
 } from "./sampleSheetIdentityStore";
 import type { FactoryDefinition, FactoryRecord } from "./types";
 import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTransferStore";
+import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
 
 type ListingTab = FactoryProcessTab;
 
@@ -107,6 +111,8 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
   const [rejectedDoneRows, setRejectedDoneRows] = useState<Row[]>([]);
   const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>([]);
+  const [inspectionFailedRows, setInspectionFailedRows] = useState<Row[]>([]);
+  const [inspectionDecisionTargetRow, setInspectionDecisionTargetRow] = useState<Row | null>(null);
   const [splicingOrderIssue, setSplicingOrderIssue] =
     useState<SplicingOrderIssueState<Row> | null>(null);
   const [groupingSampleIssue, setGroupingSampleIssue] =
@@ -117,8 +123,10 @@ export function FactoryListing<Row extends FactoryRecord>({
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const isGroupingModule = definition.slug === "grouping";
-  const isGroupingDoneTab = isGroupingModule && activeTab === "done";
-  const isInspectionModule = definition.slug === "inspection";
+  const isInspectionModule =
+    definition.slug === "inspection" ||
+    definition.slug === "sawing-inspection" ||
+    definition.slug === "drying-inspection";
   const supportsSamplePurposeColumn =
     definition.slug === "marquetry" ||
     definition.slug === "splicing" ||
@@ -127,6 +135,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     definition.slug === "embossing" ||
     definition.slug === "finishing";
   const isDryingDoneTab = definition.slug === "drying" && activeTab === "done";
+  const isGroupingDoneTab = isGroupingModule && activeTab === "done";
   const shouldUsePressingIssuedForLabels =
     definition.slug === "pressing" &&
     (activeTab === "issued" || activeTab === "done");
@@ -152,11 +161,15 @@ export function FactoryListing<Row extends FactoryRecord>({
         ? [...baseRowsForTab, ...rejectedDoneRows]
         : isInspectionModule && activeTab === "issued"
           ? baseRowsForTab.filter(
-              (row) => !inspectionCompletedRows.some((completed) => completed.id === row.id),
-            )
+            (row) =>
+              !inspectionCompletedRows.some((completed) => completed.id === row.id) &&
+              !inspectionFailedRows.some((failed) => failed.id === row.id),
+          )
           : isInspectionModule && activeTab === "done"
             ? [...baseRowsForTab, ...inspectionCompletedRows]
-            : baseRowsForTab;
+            : isInspectionModule && activeTab === "failed"
+              ? [...baseRowsForTab, ...inspectionFailedRows]
+              : baseRowsForTab;
 
     const issuedWorkRows = getFactoryIssuedWorkForListing(
       definition.slug,
@@ -315,23 +328,23 @@ export function FactoryListing<Row extends FactoryRecord>({
       const baseActions: EnterpriseTableAction<Row>[] = [
         ...(canView
           ? [
-              {
-                id: "view",
-                label: "View",
-                icon: Eye,
-                onSelect: (row: Row) => navigate(paths.view(row.id)),
-              },
-            ]
+            {
+              id: "view",
+              label: "View",
+              icon: Eye,
+              onSelect: (row: Row) => navigate(paths.view(row.id)),
+            },
+          ]
           : []),
         ...(canEdit && activeTab !== "issued"
           ? [
-              {
-                id: "edit",
-                label: "Edit",
-                icon: Pencil,
-                onSelect: (row: Row) => navigate(paths.edit(row.id)),
-              },
-            ]
+            {
+              id: "edit",
+              label: "Edit",
+              icon: Pencil,
+              onSelect: (row: Row) => navigate(paths.edit(row.id)),
+            },
+          ]
           : []),
       ];
 
@@ -383,12 +396,12 @@ export function FactoryListing<Row extends FactoryRecord>({
           current.some((row) => row.id === selectedRow.id)
             ? current
             : [
-                ...current,
-                {
-                  ...selectedRow,
-                  listingState: "rejected",
-                } as Row,
-              ],
+              ...current,
+              {
+                ...selectedRow,
+                listingState: "rejected",
+              } as Row,
+            ],
         );
         setActiveTab("rejected");
       },
@@ -401,73 +414,19 @@ export function FactoryListing<Row extends FactoryRecord>({
           ...doneActions,
           ...(canCreate
             ? [
-                {
-                  id: "proceed-for-inspection",
-                  label: "Proceed for Inspection",
-                  icon: Plus,
-                  tone: "primary" as const,
-                  onSelect: (selectedRow: Row) => {
-                    issueFactoryWork({
-                      destinationProcess: "Inspection",
-                      sourceSlug: definition.slug,
-                      sourceProcess: "Drying",
-                      sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
-                      sourceRow: selectedRow,
-                    });
-                    setRevertedRowIds((current) =>
-                      current.includes(selectedRow.id)
-                        ? current
-                        : [...current, selectedRow.id],
-                    );
-                  },
-                },
-              ]
-            : []),
-        ];
-      };
-    }
-
-    if (isInspectionModule && activeTab === "issued") {
-      return (row) => [
-        ...rowActions,
-        ...(canCreate
-          ? [
               {
-                id: "inspection-done",
-                label: "Inspection Done",
+                id: "proceed-for-inspection",
+                label: "Proceed for Inspection",
                 icon: Plus,
                 tone: "primary" as const,
                 onSelect: (selectedRow: Row) => {
-                  const workItemId = getFactoryString(selectedRow.workItemId);
-
-                  if (workItemId) {
-                    completeFactoryIssuedWork(workItemId);
-                  } else {
-                    setInspectionCompletedRows((current) =>
-                      current.some((entry) => entry.id === selectedRow.id)
-                        ? current
-                        : [...current, { ...selectedRow, listingState: "done" }],
-                    );
-                  }
-                },
-              },
-            ]
-          : []),
-      ];
-    }
-
-    if (isInspectionModule && activeTab === "done") {
-      return (row) => [
-        ...doneActions,
-        ...(canCreate
-          ? [
-              {
-                id: "move-to-warehouse-c",
-                label: "Move to Warehouse C",
-                icon: Plus,
-                tone: "primary" as const,
-                onSelect: (selectedRow: Row) => {
-                  moveFactoryRowToWarehouseC(selectedRow);
+                  issueFactoryWork({
+                    destinationProcess: "Inspection",
+                    sourceSlug: definition.slug,
+                    sourceProcess: "Drying",
+                    sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
+                    sourceRow: selectedRow,
+                  });
                   setRevertedRowIds((current) =>
                     current.includes(selectedRow.id)
                       ? current
@@ -476,6 +435,114 @@ export function FactoryListing<Row extends FactoryRecord>({
                 },
               },
             ]
+            : []),
+        ];
+      };
+    }
+
+    if (isInspectionModule && activeTab === "issued") {
+      return (row) => [
+        ...(canView
+          ? [
+            {
+              id: "view",
+              label: "View",
+              icon: Eye,
+              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id)),
+            },
+          ]
+          : []),
+        ...(canCreate || canEdit
+          ? [
+            {
+              id: "inspection-done",
+              label: "Inspection Done",
+              icon: Plus,
+              tone: "primary" as const,
+              onSelect: (selectedRow: Row) => {
+                setInspectionDecisionTargetRow(selectedRow);
+              },
+            },
+          ]
+          : []),
+      ];
+    }
+
+    if (isInspectionModule && activeTab === "done") {
+      const isSawingInspection = definition.slug === "sawing-inspection";
+      return (row) => [
+        ...(canView
+          ? [
+            {
+              id: "view",
+              label: "View",
+              icon: Eye,
+              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id)),
+            },
+          ]
+          : []),
+        ...(canEdit || canCreate
+          ? [
+            {
+              id: "reject-inspection",
+              label: "Reject Inspection",
+              icon: XCircle,
+              tone: "danger" as const,
+              onSelect: (selectedRow: Row) => {
+                const workItemId = getFactoryString(selectedRow.workItemId);
+                if (workItemId) {
+                  failFactoryIssuedWork(workItemId);
+                } else {
+                  setInspectionCompletedRows((current) =>
+                    current.filter((entry) => entry.id !== selectedRow.id),
+                  );
+                  setInspectionFailedRows((current) =>
+                    current.some((entry) => entry.id === selectedRow.id)
+                      ? current
+                      : [...current, { ...selectedRow, listingState: "failed" }],
+                  );
+                }
+                setActiveTab("failed");
+              },
+            },
+          ]
+          : []),
+        ...(canCreate
+          ? [
+            {
+              id: isSawingInspection ? "move-to-warehouse-c" : "move-to-warehouse-b",
+              label: isSawingInspection ? "Move to Warehouse C" : "Move to Warehouse B",
+              icon: Plus,
+              tone: "primary" as const,
+              onSelect: (selectedRow: Row) => {
+                if (isSawingInspection) {
+                  moveFactoryRowToWarehouseC(selectedRow);
+                } else {
+                  moveFactoryRowToWarehouseB(selectedRow);
+                }
+                setRevertedRowIds((current) =>
+                  current.includes(selectedRow.id)
+                    ? current
+                    : [...current, selectedRow.id],
+                );
+              },
+            },
+          ]
+          : []),
+      ];
+    }
+
+    if (isInspectionModule && activeTab === "failed") {
+      return (row) => [
+        ...(canView
+          ? [
+            {
+              id: "view",
+              label: "View",
+              icon: Eye,
+              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id)),
+            },
+          ]
           : []),
       ];
     }
@@ -499,30 +566,30 @@ export function FactoryListing<Row extends FactoryRecord>({
           ...rowActions,
           ...(canCreate
             ? [
-                {
-                  id: "revert-item",
-                  label: "Revert",
-                  icon: RotateCcw,
-                  tone: "danger" as const,
-                  onSelect: (selectedRow: Row) =>
-                    setRevertedRowIds((current) =>
-                      current.includes(selectedRow.id)
-                        ? current
-                        : [...current, selectedRow.id],
-                    ),
-                },
-                createSplicingOrderIssueAction<Row>((selectedRow) =>
-                  setSplicingOrderIssue({
-                    issueDate: new Date(),
-                    issueSheets: "",
-                    orderItemNo: "",
-                    orderNo: "",
-                    orderType: "",
-                    row: selectedRow,
-                    submitted: false,
-                  }),
-                ),
-              ]
+              {
+                id: "revert-item",
+                label: "Revert",
+                icon: RotateCcw,
+                tone: "danger" as const,
+                onSelect: (selectedRow: Row) =>
+                  setRevertedRowIds((current) =>
+                    current.includes(selectedRow.id)
+                      ? current
+                      : [...current, selectedRow.id],
+                  ),
+              },
+              createSplicingOrderIssueAction<Row>((selectedRow) =>
+                setSplicingOrderIssue({
+                  issueDate: new Date(),
+                  issueSheets: "",
+                  orderItemNo: "",
+                  orderNo: "",
+                  orderType: "",
+                  row: selectedRow,
+                  submitted: false,
+                }),
+              ),
+            ]
             : []),
           ...(canEdit || canCreate ? [rejectDoneAction] : []),
         ];
@@ -802,16 +869,16 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     const sourceRow = selectedOrderItem
       ? buildGroupingOrderIssueSourceRow(
-          groupingOrderIssue,
-          selectedOrder,
-          selectedOrderItem,
-        )
+        groupingOrderIssue,
+        selectedOrder,
+        selectedOrderItem,
+      )
       : ({
-          ...groupingOrderIssue.row,
-          orderNo: groupingOrderIssue.orderNo,
-          orderItemNo: groupingOrderIssue.orderItemNo,
-          noOfSheets: String(issueSheets),
-        } as Row);
+        ...groupingOrderIssue.row,
+        orderNo: groupingOrderIssue.orderNo,
+        orderItemNo: groupingOrderIssue.orderItemNo,
+        noOfSheets: String(issueSheets),
+      } as Row);
 
     issueFactoryWork({
       destinationProcess: "Splicing",
@@ -865,10 +932,10 @@ export function FactoryListing<Row extends FactoryRecord>({
         : "Pressing";
     const sourceRow = selectedOrderItem
       ? buildSplicingOrderIssueSourceRow(
-          splicingOrderIssue,
-          selectedOrder,
-          selectedOrderItem,
-        )
+        splicingOrderIssue,
+        selectedOrder,
+        selectedOrderItem,
+      )
       : splicingOrderIssue.row;
 
     issueFactoryWork({
@@ -962,7 +1029,92 @@ export function FactoryListing<Row extends FactoryRecord>({
         orderRecords={orderRecords}
         state={groupingOrderIssue}
       />
+
+      <InspectionDecisionDialog
+        open={Boolean(inspectionDecisionTargetRow)}
+        row={inspectionDecisionTargetRow}
+        onClose={() => setInspectionDecisionTargetRow(null)}
+        onPass={(targetRow) => {
+          const workItemId = getFactoryString(targetRow.workItemId);
+          if (workItemId) {
+            completeFactoryIssuedWork(workItemId);
+          } else {
+            setInspectionCompletedRows((current) =>
+              current.some((entry) => entry.id === targetRow.id)
+                ? current
+                : [...current, { ...targetRow, listingState: "done" }],
+            );
+          }
+          setInspectionDecisionTargetRow(null);
+          setActiveTab("done");
+        }}
+        onFail={(targetRow) => {
+          const workItemId = getFactoryString(targetRow.workItemId);
+          if (workItemId) {
+            failFactoryIssuedWork(workItemId);
+          } else {
+            setInspectionFailedRows((current) =>
+              current.some((entry) => entry.id === targetRow.id)
+                ? current
+                : [...current, { ...targetRow, listingState: "failed" }],
+            );
+          }
+          setInspectionDecisionTargetRow(null);
+          setActiveTab("failed");
+        }}
+      />
     </>
+  );
+}
+
+interface InspectionDecisionDialogProps<Row extends FactoryRecord> {
+  open: boolean;
+  row: Row | null;
+  onClose: () => void;
+  onPass: (row: Row) => void;
+  onFail: (row: Row) => void;
+}
+
+function InspectionDecisionDialog<Row extends FactoryRecord>({
+  open,
+  row,
+  onClose,
+  onPass,
+  onFail,
+}: InspectionDecisionDialogProps<Row>) {
+  if (!row) return null;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
+        Inspection Result
+      </DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          Select the inspection status for item <strong>{String(row.itemName ?? row.id)}</strong>:
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
+        <Button
+          variant="outlined"
+          color="error"
+          startIcon={<AlertCircle size={16} />}
+          onClick={() => onFail(row)}
+          sx={{ flex: 1, textTransform: "none", fontWeight: 600 }}
+        >
+          Fail
+        </Button>
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<CheckCircle2 size={16} />}
+          onClick={() => onPass(row)}
+          sx={{ flex: 1, textTransform: "none", fontWeight: 600 }}
+        >
+          Pass
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -1131,12 +1283,14 @@ function getDefaultFactoryIssuedFromProcess(processSlug: string) {
   const sourceProcessBySlug: Record<string, string> = {
     "cnc-fluting": "Pressing",
     drying: "Slicing",
+    "drying-inspection": "Drying",
     embossing: "Pressing",
     finishing: "Pressing",
     grouping: "Inventory",
     marquetry: "Splicing",
     pressing: "Splicing",
     "sample-sheets": "Grouping",
+    "sawing-inspection": "Sawing",
     slicing: "Inventory",
     splicing: "Grouping",
   };
@@ -1156,9 +1310,9 @@ function deriveFactorySqf(sqm: string) {
   const sqmValue = parseNumericValue(sqm);
   return sqmValue && sqmValue > 0
     ? (sqmValue * SQM_TO_SQF).toLocaleString("en-IN", {
-        maximumFractionDigits: 3,
-        minimumFractionDigits: 3,
-      })
+      maximumFractionDigits: 3,
+      minimumFractionDigits: 3,
+    })
     : "";
 }
 
@@ -1416,7 +1570,9 @@ const factoryNextProcessRouteMap: Record<string, string> = {
   Finishing: "/factory/finishing",
   Fluting: "/factory/cnc-fluting",
   Grouping: "/factory/grouping",
-  Inspection: "/warehouse-b?section=inspection",
+  Inspection: "/factory/drying-inspection",
+  "Drying Inspection": "/factory/drying-inspection",
+  "Sawing Inspection": "/factory/sawing-inspection",
   Marquetry: "/factory/marquetry",
   Packing: "/packing",
   Pressing: "/factory/pressing",
@@ -1462,10 +1618,10 @@ function GroupingSampleIssueDialog<Row extends FactoryRecord>({
     hasIssueSheetsValue && issueSheetsNumber > availableSheetsNumber;
   const hasIssueSheetsError = Boolean(
     exceedsAvailableSheets ||
-      (state?.submitted &&
-        (!state.issueSheets ||
-          !Number.isInteger(issueSheetsNumber) ||
-          issueSheetsNumber <= 0)),
+    (state?.submitted &&
+      (!state.issueSheets ||
+        !Number.isInteger(issueSheetsNumber) ||
+        issueSheetsNumber <= 0)),
   );
   const hasNextProcessError = Boolean(state?.submitted && !state.nextProcess);
 
@@ -1587,9 +1743,9 @@ function GroupingSampleIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          nextProcess: value as "" | SampleNextProcess,
-                        }
+                        ...current,
+                        nextProcess: value as "" | SampleNextProcess,
+                      }
                       : current,
                   )
                 }
@@ -1717,10 +1873,10 @@ function GroupingOrderIssueDialog<Row extends FactoryRecord>({
   const orderItemOptions =
     state?.orderType && state.orderNo
       ? getSplicingOrderItemNumberOptions(
-          orderRecords,
-          state.orderType,
-          state.orderNo,
-        )
+        orderRecords,
+        state.orderType,
+        state.orderNo,
+      )
       : [];
   const selectedOrderItem = state
     ? getSplicingSelectedOrderItem(orderRecords, state)
@@ -1735,19 +1891,19 @@ function GroupingOrderIssueDialog<Row extends FactoryRecord>({
     hasIssueSheetsValue && issueSheetsNumber > maxIssuable;
   const hasIssueSheetsError = Boolean(
     exceedsMaxIssuable ||
-      (state?.submitted &&
-        (!state.issueSheets ||
-          !state.orderType ||
-          !state.orderNo ||
-          !state.orderItemNo ||
-          !Number.isInteger(issueSheetsNumber) ||
-          issueSheetsNumber <= 0)),
+    (state?.submitted &&
+      (!state.issueSheets ||
+        !state.orderType ||
+        !state.orderNo ||
+        !state.orderItemNo ||
+        !Number.isInteger(issueSheetsNumber) ||
+        issueSheetsNumber <= 0)),
   );
   const showOrderItemTable = Boolean(
     state?.orderType &&
-      state.orderNo &&
-      state.orderItemNo &&
-      selectedOrderItem,
+    state.orderNo &&
+    state.orderItemNo &&
+    selectedOrderItem,
   );
 
   return (
@@ -1834,12 +1990,12 @@ function GroupingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: "",
-                          orderNo: "",
-                          orderType: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: "",
+                        orderNo: "",
+                        orderType: value,
+                      }
                       : current,
                   )
                 }
@@ -1857,11 +2013,11 @@ function GroupingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: "",
-                          orderNo: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: "",
+                        orderNo: value,
+                      }
                       : current,
                   )
                 }
@@ -1879,10 +2035,10 @@ function GroupingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: value,
+                      }
                       : current,
                   )
                 }
@@ -2033,10 +2189,10 @@ function SplicingOrderIssueDialog<Row extends FactoryRecord>({
   const orderItemOptions =
     state?.orderType && state.orderNo
       ? getSplicingOrderItemNumberOptions(
-          orderRecords,
-          state.orderType,
-          state.orderNo,
-        )
+        orderRecords,
+        state.orderType,
+        state.orderNo,
+      )
       : [];
   const selectedOrderItem = state
     ? getSplicingSelectedOrderItem(orderRecords, state)
@@ -2053,16 +2209,16 @@ function SplicingOrderIssueDialog<Row extends FactoryRecord>({
     hasIssueSheetsValue && issueSheetsNumber > availableSheetsNumber;
   const hasIssueSheetsError = Boolean(
     exceedsAvailableSheets ||
-      (state?.submitted &&
-        (!state.issueSheets ||
-          !Number.isInteger(issueSheetsNumber) ||
-          issueSheetsNumber <= 0)),
+    (state?.submitted &&
+      (!state.issueSheets ||
+        !Number.isInteger(issueSheetsNumber) ||
+        issueSheetsNumber <= 0)),
   );
   const showOrderItemTable = Boolean(
     state?.orderType &&
-      state.orderNo &&
-      state.orderItemNo &&
-      selectedOrderItem,
+    state.orderNo &&
+    state.orderItemNo &&
+    selectedOrderItem,
   );
 
   return (
@@ -2139,12 +2295,12 @@ function SplicingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: "",
-                          orderNo: "",
-                          orderType: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: "",
+                        orderNo: "",
+                        orderType: value,
+                      }
                       : current,
                   )
                 }
@@ -2162,11 +2318,11 @@ function SplicingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: "",
-                          orderNo: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: "",
+                        orderNo: value,
+                      }
                       : current,
                   )
                 }
@@ -2184,10 +2340,10 @@ function SplicingOrderIssueDialog<Row extends FactoryRecord>({
                   onChange((current) =>
                     current
                       ? {
-                          ...current,
-                          issueSheets: "",
-                          orderItemNo: value,
-                        }
+                        ...current,
+                        issueSheets: "",
+                        orderItemNo: value,
+                      }
                       : current,
                   )
                 }

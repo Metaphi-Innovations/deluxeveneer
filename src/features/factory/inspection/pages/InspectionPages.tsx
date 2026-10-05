@@ -1,6 +1,15 @@
 import { FactoryListing } from "../../shared/FactoryListing";
-import { inspectionDefinition } from "../../shared/factoryDefinitions";
+import {
+  dryingInspectionDefinition,
+  sawingInspectionDefinition,
+} from "../../shared/factoryDefinitions";
 
-export function InspectionListPage() {
-  return <FactoryListing definition={inspectionDefinition} />;
+export function SawingInspectionListPage() {
+  return <FactoryListing definition={sawingInspectionDefinition} />;
 }
+
+export function DryingInspectionListPage() {
+  return <FactoryListing definition={dryingInspectionDefinition} />;
+}
+
+export const InspectionListPage = DryingInspectionListPage;

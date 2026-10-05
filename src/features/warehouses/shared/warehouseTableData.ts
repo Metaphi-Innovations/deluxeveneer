@@ -80,6 +80,7 @@ export type WarehouseInventoryRow = {
   avSqf: string;
   plywoodType: string;
   mdfType: string;
+  issueTo?: string;
   updatedBy?: string;
 };
 
