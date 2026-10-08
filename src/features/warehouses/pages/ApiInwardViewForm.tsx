@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { ChevronLeft, Pencil } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { MasterSectionCard } from "../../masters/shared";
 import { getInwardGstMode } from "../../masters/shared/masterDefinitions";
@@ -40,6 +40,7 @@ import {
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
 } from "../inward/supportedInwardTypes";
+import { buildInvoiceTotalsSummary } from "../shared/invoiceTotalsSummary";
 
 interface ApiInwardViewFormProps {
   inwardId: string;
@@ -109,6 +110,9 @@ export function ApiInwardViewForm({
 }: ApiInwardViewFormProps) {
   const theme = useTheme();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  /** Storage warehouse view: hide QC status + rejected stock (not relevant after QC pass). */
+  const isStorageWarehouseView = searchParams.get("warehouse") === "warehouse-b";
   const canEdit = canAccessPermission(
     getDynamicWarehousePermissionKey(warehouseId),
     "edit",
@@ -182,6 +186,26 @@ export function ApiInwardViewForm({
     [detail?.supplierState, detail?.warehouseState],
   );
 
+  const invoiceSummary = useMemo(
+    () =>
+      buildInvoiceTotalsSummary({
+        itemSubTotal: detail?.itemSubTotal ?? 0,
+        additionalCharges: detail?.additionalChargesTotal ?? 0,
+        cgst: detail?.cgstTotal ?? 0,
+        sgst: detail?.sgstTotal ?? 0,
+        igst: detail?.igstTotal ?? 0,
+        gstMode,
+      }),
+    [
+      detail?.additionalChargesTotal,
+      detail?.cgstTotal,
+      detail?.igstTotal,
+      detail?.itemSubTotal,
+      detail?.sgstTotal,
+      gstMode,
+    ],
+  );
+
   const inventorySlug = useMemo(
     () => slugFromInventoryTypeLabel(detail?.inventoryType),
     [detail?.inventoryType],
@@ -190,11 +214,22 @@ export function ApiInwardViewForm({
   const itemTableHeaders = useMemo(() => {
     const taxHeaders =
       gstMode === "inter" ? (["IGST"] as const) : (["CGST", "SGST"] as const);
+    const qcHeaders = isStorageWarehouseView
+      ? (["Available Stock", "Remark"] as const)
+      : ([
+          "QC",
+          "Available Stock",
+          "Rejected Stock",
+          "QC Remark",
+          "Attachment",
+          "Remark",
+        ] as const);
 
     if (inventorySlug === "raw-veneer") {
       return [
+        "Inward Item Code",
         "Item Name",
-        "Sub Category",
+        "Factory Code",
         "HSN",
         "Log Code",
         "Bundle",
@@ -208,19 +243,15 @@ export function ApiInwardViewForm({
         "Amount",
         ...taxHeaders,
         "Total",
-        "QC",
-        "Available Stock",
-        "Rejected Stock",
-        "QC Remark",
-        "Attachment",
-        "Remark",
+        ...qcHeaders,
       ];
     }
 
     if (inventorySlug === "plywood" || inventorySlug === "mdf") {
       return [
+        "Inward Item Code",
         "Item Name",
-        "Sub Category",
+        "Factory Code",
         "HSN",
         "Pallet No",
         "L",
@@ -232,18 +263,30 @@ export function ApiInwardViewForm({
         "Amount",
         ...taxHeaders,
         "Total",
-        "QC",
-        "Available Stock",
-        "Rejected Stock",
-        "QC Remark",
-        "Attachment",
-        "Remark",
+        ...qcHeaders,
+      ];
+    }
+
+    if (inventorySlug === "consumables") {
+      return [
+        "Inward Item Code",
+        "Item Name",
+        "Factory Code",
+        "HSN",
+        "Unit",
+        "Qty",
+        "Rate",
+        "Amount",
+        ...taxHeaders,
+        "Total",
+        ...qcHeaders,
       ];
     }
 
     return [
+      "Inward Item Code",
       "Item Name",
-      "Sub Category",
+      "Factory Code",
       "HSN",
       "Batch No",
       "L",
@@ -254,14 +297,9 @@ export function ApiInwardViewForm({
       "Amount",
       ...taxHeaders,
       "Total",
-      "QC",
-      "Available Stock",
-      "Rejected Stock",
-      "QC Remark",
-      "Attachment",
-      "Remark",
+      ...qcHeaders,
     ];
-  }, [gstMode, inventorySlug]);
+  }, [gstMode, inventorySlug, isStorageWarehouseView]);
 
   const headerFields = useMemo(() => {
     if (!detail) return [];
@@ -301,7 +339,7 @@ export function ApiInwardViewForm({
           { label: "View Stock" },
         ]}
         title="View Stock"
-        subtitle="Review supplier invoice and inward stock details."
+        subtitle=" "
       >
         <MasterSectionCard>
           <ContentLoader label="Loading inward record..." minHeight={220} />
@@ -341,7 +379,7 @@ export function ApiInwardViewForm({
         { label: warehouseName, to: warehouseRootPath },
         { label: "View Stock" },
       ]}
-      subtitle="Review supplier invoice and inward stock details."
+      subtitle=" "
       title="View Stock"
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
@@ -418,57 +456,59 @@ export function ApiInwardViewForm({
             value={formatDateDisplay(detail.inwardDate)}
           />
           <SummaryMetric label="Currency" value={detail.currency || "—"} />
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              gap: 0.5,
-              minWidth: 140,
-            }}
-          >
-            <Typography
+          {!isStorageWarehouseView ? (
+            <Box
               sx={{
-                fontSize: "0.6875rem",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: theme.customTokens.text.secondary,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 0.5,
+                minWidth: 140,
               }}
             >
-              QC Status
-            </Typography>
-            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
-              <Chip
-                label={`${qcCounts.passCount} Pass`}
-                size="small"
-                variant="outlined"
-                color="success"
+              <Typography
                 sx={{
-                  height: 22,
-                  fontSize: "0.75rem",
+                  fontSize: "0.6875rem",
                   fontWeight: 600,
-                  "& .MuiChip-label": { px: 0.85 },
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: theme.customTokens.text.secondary,
                 }}
-              />
-              <Chip
-                label={`${qcCounts.failCount} Fail`}
-                size="small"
-                variant="outlined"
-                color="error"
-                sx={{
-                  height: 22,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  "& .MuiChip-label": { px: 0.85 },
-                }}
-              />
-            </Stack>
-          </Box>
+              >
+                QC Status
+              </Typography>
+              <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                <Chip
+                  label={`${qcCounts.passCount} Pass`}
+                  size="small"
+                  variant="outlined"
+                  color="success"
+                  sx={{
+                    height: 22,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    "& .MuiChip-label": { px: 0.85 },
+                  }}
+                />
+                <Chip
+                  label={`${qcCounts.failCount} Fail`}
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  sx={{
+                    height: 22,
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    "& .MuiChip-label": { px: 0.85 },
+                  }}
+                />
+              </Stack>
+            </Box>
+          ) : null}
           <SummaryMetric
             emphasize
-            label="Grand Total"
-            value={formatMoney(detail.grandTotal)}
+            label="Total"
+            value={formatMoney(invoiceSummary.total)}
           />
         </Box>
 
@@ -549,6 +589,7 @@ export function ApiInwardViewForm({
                         key={item.id}
                         currency={detail.currency || undefined}
                         gstMode={gstMode}
+                        hideQcFields={isStorageWarehouseView}
                         inventorySlug={inventorySlug}
                         item={item}
                         index={index}
@@ -558,77 +599,6 @@ export function ApiInwardViewForm({
                 </Table>
               </Box>
             </Box>
-          </Stack>
-        </Box>
-
-        <Box sx={formSectionCardSx(theme)}>
-          <Stack spacing={1.25}>
-            <FormSectionHeader title="Other Consumables" />
-            {detail.otherConsumables.length > 0 ? (
-              <Box
-                sx={{
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
-                  overflow: "hidden",
-                }}
-              >
-                <Table size="small">
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        backgroundColor: theme.customTokens.surfaces.alt,
-                      }}
-                    >
-                      <TableCell sx={getViewHeaderCellSx(theme)}>
-                        Consumable Name
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={getViewHeaderCellSx(theme)}
-                      >
-                        Price
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {detail.otherConsumables.map((row, index) => (
-                      <TableRow
-                        key={row.id}
-                        sx={{
-                          backgroundColor:
-                            index % 2 === 1
-                              ? theme.customTokens.surfaces.alt
-                              : undefined,
-                        }}
-                      >
-                        <TableCell sx={getViewBodyCellSx(theme)}>
-                          {row.consumableName}
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={{
-                            ...getViewBodyCellSx(theme),
-                            fontVariantNumeric: "tabular-nums",
-                            fontWeight: 600,
-                          }}
-                        >
-                          {formatMoney(row.price)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            ) : (
-              <Typography
-                sx={{
-                  fontSize: "0.8125rem",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                No other consumables.
-              </Typography>
-            )}
           </Stack>
         </Box>
 
@@ -712,19 +682,46 @@ export function ApiInwardViewForm({
                 </Typography>
               )}
 
-              <Box sx={{ pt: 0.5, maxWidth: 500, minHeight: 120 }}>
-                <FormSectionHeader title="Remark" />
-                <Typography
-                  sx={{
-                    mt: 0.75,
-                    fontSize: "0.8125rem",
-                    color: theme.customTokens.text.primary,
-                    whiteSpace: "pre-wrap",
-                    minHeight: 88,
-                  }}
-                >
-                  {detail.remarks?.trim() || detail.remark?.trim() || "—"}
-                </Typography>
+              <Box
+                sx={{
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  borderRadius: `${theme.customTokens.radius.md}px`,
+                  overflow: "hidden",
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow
+                      sx={{
+                        backgroundColor: theme.customTokens.surfaces.alt,
+                      }}
+                    >
+                      <TableCell sx={getViewHeaderCellSx(theme)}>
+                        Remark
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell
+                        sx={{
+                          ...getViewBodyCellSx(theme),
+                          verticalAlign: "top",
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            minHeight: 88,
+                            whiteSpace: "pre-wrap",
+                            fontSize: "0.8125rem",
+                          }}
+                        >
+                          {detail.remarks?.trim() || detail.remark?.trim() || "—"}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </Box>
             </Stack>
           </Box>
@@ -750,39 +747,27 @@ export function ApiInwardViewForm({
               </Typography>
               <TotalsLine
                 currency={detail.currency || undefined}
-                label="Item Sub Total"
-                value={detail.itemSubTotal}
-              />
-              {gstMode === "intra" ? (
-                <>
-                  <TotalsLine
-                    currency={detail.currency || undefined}
-                    label="CGST"
-                    value={detail.cgstTotal}
-                  />
-                  <TotalsLine
-                    currency={detail.currency || undefined}
-                    label="SGST"
-                    value={detail.sgstTotal}
-                  />
-                </>
-              ) : (
-                <TotalsLine
-                  currency={detail.currency || undefined}
-                  label="IGST"
-                  value={detail.igstTotal}
-                />
-              )}
-              <TotalsLine
-                currency={detail.currency || undefined}
-                label="Other Consumables"
-                value={detail.otherConsumablesTotal}
+                label="Sub Total"
+                value={invoiceSummary.subTotal}
               />
               <TotalsLine
                 currency={detail.currency || undefined}
                 label="Additional Charges"
-                value={detail.additionalChargesTotal}
+                value={invoiceSummary.additionalCharges}
               />
+              <TotalsLine
+                currency={detail.currency || undefined}
+                label="Taxable Amount"
+                value={invoiceSummary.taxableAmount}
+              />
+              {invoiceSummary.gstLines.map((line) => (
+                <TotalsLine
+                  key={line.label}
+                  currency={detail.currency || undefined}
+                  label={line.label}
+                  value={line.value}
+                />
+              ))}
               <Box
                 sx={{
                   borderTop: `1px solid ${theme.customTokens.borders.default}`,
@@ -793,8 +778,8 @@ export function ApiInwardViewForm({
                 <TotalsLine
                   currency={detail.currency || undefined}
                   emphasize
-                  label="Grand Total"
-                  value={detail.grandTotal}
+                  label="Total"
+                  value={invoiceSummary.total}
                 />
               </Box>
             </Stack>
@@ -931,12 +916,14 @@ function TotalsLine({
 function ItemRow({
   currency,
   gstMode,
+  hideQcFields = false,
   inventorySlug,
   item,
   index,
 }: {
   currency?: string | undefined;
   gstMode: "intra" | "inter";
+  hideQcFields?: boolean;
   inventorySlug: ApiSupportedInwardSlug;
   item: InwardItemDetail;
   index: number;
@@ -945,6 +932,7 @@ function ItemRow({
   const qcLabel = normalizeQcLabel(item.qcStatus);
   const isRawVeneer = inventorySlug === "raw-veneer";
   const isSheetBased = inventorySlug === "plywood" || inventorySlug === "mdf";
+  const isConsumables = inventorySlug === "consumables";
 
   return (
     <TableRow
@@ -953,14 +941,26 @@ function ItemRow({
           index % 2 === 1 ? theme.customTokens.surfaces.alt : undefined,
       }}
     >
+      <TableCell sx={getViewBodyCellSx(theme)}>
+        {item.inwardItemCode || "—"}
+      </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>{item.itemName || "—"}</TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
-        {item.itemSubCategoryName || "—"}
+        {item.factoryCode || "—"}
       </TableCell>
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.hsnCode || "—"}
       </TableCell>
-      {isRawVeneer ? (
+      {isConsumables ? (
+        <>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.unitName || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {formatMeasure(item.quantity)}
+          </TableCell>
+        </>
+      ) : isRawVeneer ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {item.logCode || "—"}
@@ -1050,34 +1050,40 @@ function ItemRow({
       <TableCell sx={{ ...getMoneyCellSx(theme), fontWeight: 700 }}>
         {formatMoney(item.totalAmount, currency)}
       </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        <Chip
-          label={qcLabel}
-          color={qcChipColor(qcLabel)}
-          size="small"
-          sx={{ fontWeight: 600, height: 22 }}
-        />
-      </TableCell>
+      {!hideQcFields ? (
+        <TableCell sx={getViewBodyCellSx(theme)}>
+          <Chip
+            label={qcLabel}
+            color={qcChipColor(qcLabel)}
+            size="small"
+            sx={{ fontWeight: 600, height: 22 }}
+          />
+        </TableCell>
+      ) : null}
       <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: theme.customTokens.text.primary }}>
         {item.availableStock !== undefined && item.availableStock !== null
           ? formatMeasure(item.availableStock)
           : "—"}
       </TableCell>
-      <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: item.rejectedStock ? "error.main" : theme.customTokens.text.secondary }}>
-        {item.rejectedStock !== undefined && item.rejectedStock !== null
-          ? formatMeasure(item.rejectedStock)
-          : "—"}
-      </TableCell>
-      <TableCell sx={getViewBodyCellSx(theme)}>
-        {item.qcRemark?.trim() || "—"}
-      </TableCell>
-      <TableCell sx={{ ...getViewBodyCellSx(theme), whiteSpace: "normal" }}>
-        <AttachmentPreview
-          compact
-          url={item.qcAttachmentUrl}
-          title="QC Attachment"
-        />
-      </TableCell>
+      {!hideQcFields ? (
+        <>
+          <TableCell sx={{ ...getViewBodyCellSx(theme), fontWeight: 600, color: item.rejectedStock ? "error.main" : theme.customTokens.text.secondary }}>
+            {item.rejectedStock !== undefined && item.rejectedStock !== null
+              ? formatMeasure(item.rejectedStock)
+              : "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.qcRemark?.trim() || "—"}
+          </TableCell>
+          <TableCell sx={{ ...getViewBodyCellSx(theme), whiteSpace: "normal" }}>
+            <AttachmentPreview
+              compact
+              url={item.qcAttachmentUrl}
+              title="QC Attachment"
+            />
+          </TableCell>
+        </>
+      ) : null}
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.remark?.trim() || "—"}
       </TableCell>

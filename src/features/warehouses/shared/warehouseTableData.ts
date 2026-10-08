@@ -34,6 +34,8 @@ export type WarehouseInventoryRow = {
   supplierItemName: string;
   supplierCode: string;
   itemName: string;
+  inwardItemCode?: string;
+  factoryCode?: string;
   category?: string;
   subCategory: string;
   unitName: string;
@@ -80,6 +82,7 @@ export type WarehouseInventoryRow = {
   avSqf: string;
   plywoodType: string;
   mdfType: string;
+  issueTo?: string;
   updatedBy?: string;
 };
 

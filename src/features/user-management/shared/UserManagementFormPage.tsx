@@ -265,10 +265,10 @@ export function UserManagementFormPage({
 
   const pageSubtitle =
     mode === "add"
-      ? "Create a user account and configure access."
+      ? " "
       : mode === "edit"
-        ? "Update user information and account access."
-        : "Review user information and account details.";
+        ? " "
+        : " ";
 
   const liveIdentityName =
     `${String(values.firstName ?? "")} ${String(values.lastName ?? "")}`.trim() ||

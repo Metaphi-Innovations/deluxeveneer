@@ -261,7 +261,7 @@ const staticSidebarNavigation: SidebarNavigationEntry[] = [
       },
       {
         id: "warehouse-location-master",
-        label: "Warehouse / Location",
+        label: "Warehouse Master",
         icon: MapPin,
         to: "/masters/warehouse-location-master",
         match: (location) =>
@@ -282,6 +282,13 @@ const staticSidebarNavigation: SidebarNavigationEntry[] = [
         match: (location) => matchesPath(location, "/factory/sawing"),
       },
       {
+        id: "factory-sawing-inspection",
+        label: "Sawing Inspection",
+        icon: ClipboardCheck,
+        to: "/factory/sawing-inspection",
+        match: (location) => matchesPath(location, "/factory/sawing-inspection"),
+      },
+      {
         id: "factory-slicing",
         label: "Slicing",
         icon: Slice,
@@ -296,11 +303,13 @@ const staticSidebarNavigation: SidebarNavigationEntry[] = [
         match: (location) => matchesPath(location, "/factory/drying"),
       },
       {
-        id: "factory-inspection",
-        label: "Inspection",
+        id: "factory-drying-inspection",
+        label: "Drying Inspection",
         icon: ClipboardCheck,
-        to: "/factory/inspection",
-        match: (location) => matchesPath(location, "/factory/inspection"),
+        to: "/factory/drying-inspection",
+        match: (location) =>
+          matchesPath(location, "/factory/drying-inspection") ||
+          matchesPath(location, "/factory/inspection"),
       },
       {
         id: "factory-grouping",

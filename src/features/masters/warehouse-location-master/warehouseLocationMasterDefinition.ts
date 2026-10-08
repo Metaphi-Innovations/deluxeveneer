@@ -2,7 +2,7 @@ import type { MasterDefinition } from "../shared/types";
 
 export const warehouseLocationMasterDefinition: MasterDefinition = {
   slug: "warehouse-location-master",
-  title: "Warehouse / Location Master",
+  title: "Warehouse Master",
   gridColumns: 4,
   columns: [
     { key: "warehouseName", label: "Warehouse Name" },

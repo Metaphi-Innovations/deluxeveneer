@@ -2,15 +2,14 @@ import { fetchCurrenciesPaginated } from "../../masters/currency-master/currency
 import { fetchGstsPaginated } from "../../masters/gst-master/gstMasterApi";
 import { fetchHsnsPaginated } from "../../masters/hsn-master/hsnMasterApi";
 import { fetchItemsPaginated } from "../../masters/item-name-master/itemMasterApi";
-import { fetchItemSubCategoriesPaginated } from "../../masters/item-sub-category-master/itemSubCategoryMasterApi";
 import {
   getCachedSupplierMasterRows,
   refreshSupplierMasterCache,
 } from "../../masters/supplier-master/api/supplierMasterApi";
+import { fetchUnitsApi } from "../../masters/unit-master/unitMasterApi";
 import type { MasterRecord } from "../../masters/shared";
 import type {
   CreateInwardChargePayload,
-  CreateInwardConsumablePayload,
   CreateInwardItemPayload,
   CreateInwardPayload,
   InwardInventoryType,
@@ -159,6 +158,26 @@ async function resolveHsnRecord(hsnCode: string): Promise<MasterRecord | null> {
   );
 }
 
+async function resolveUnitId(unitName: string): Promise<string | null> {
+  const normalized = normalizeLabel(unitName);
+  if (!normalized) return null;
+
+  const rows = await fetchUnitsApi({
+    page: 1,
+    limit: 100,
+    status: true,
+    search: unitName.trim(),
+  });
+
+  const match = rows.find(
+    (row) =>
+      normalizeLabel(String(row.unitName ?? "")) === normalized ||
+      normalizeLabel(String(row.name ?? "")) === normalized,
+  );
+
+  return match?.id ? String(match.id) : null;
+}
+
 async function resolveGstId(gstPercentage: string): Promise<string | null> {
   const numeric = parseNumber(String(gstPercentage).replace(/%/g, ""));
   if (numeric === null) return null;
@@ -186,11 +205,17 @@ async function mapLineItemToPayload(
   inventoryType: InwardInventoryType,
 ): Promise<CreateInwardItemPayload> {
   const itemName = String(values.itemName ?? "").trim();
-  const subCategoryName = String(
-    values.itemSubCategory ?? values.subCategory ?? "",
-  ).trim();
+  const inwardItemCode = String(values.inwardItemCode ?? "").trim();
+  const factoryCode = String(values.factoryCode ?? "").trim();
   const hsnCode = String(values.hsn ?? values.hsnCode ?? "").trim();
   const gstPercentage = String(values.gstPercentage ?? "").trim();
+
+  if (!inwardItemCode) {
+    throw new Error("Inward Item Code is required.");
+  }
+  if (!factoryCode) {
+    throw new Error("Factory Code is required.");
+  }
 
   const amount = parseRequiredNumber(
     values.productAmount ?? values.amount ?? "0",
@@ -202,44 +227,7 @@ async function mapLineItemToPayload(
     parseNumber(values.totalAmount) ?? amount + cgst + sgst + igst;
 
   const itemMaster = await resolveItemMasterByName(itemName);
-
-  let itemSubCategoryId =
-    asOptionalId(itemMaster?.subCategoryId) &&
-    normalizeLabel(String(itemMaster?.subCategory ?? "")) ===
-      normalizeLabel(subCategoryName)
-      ? asOptionalId(itemMaster?.subCategoryId)
-      : null;
-
-  let itemCategoryId = asOptionalId(itemMaster?.categoryId);
-
-  if (!itemSubCategoryId && subCategoryName) {
-    const result = await fetchItemSubCategoriesPaginated({
-      page: 1,
-      limit: 50,
-      status: true,
-      search: subCategoryName.trim(),
-    });
-    const match =
-      result.items.find(
-        (row) =>
-          normalizeLabel(String(row.itemSubCategory ?? "")) ===
-            normalizeLabel(subCategoryName) ||
-          normalizeLabel(String(row.name ?? "")) ===
-            normalizeLabel(subCategoryName) ||
-          normalizeLabel(String(row.subCategory ?? "")) ===
-            normalizeLabel(subCategoryName),
-      ) ?? null;
-    itemSubCategoryId = asOptionalId(match?.id);
-    if (!itemCategoryId) {
-      itemCategoryId = asOptionalId(match?.categoryId);
-    }
-  }
-
-  if (subCategoryName && !itemSubCategoryId) {
-    throw new Error(
-      `Item Sub Category "${subCategoryName}" was not found. Refresh masters and try again.`,
-    );
-  }
+  const itemCategoryId = asOptionalId(itemMaster?.categoryId);
 
   const hsnFromItemMaster =
     asOptionalId(itemMaster?.hsnId) &&
@@ -274,9 +262,11 @@ async function mapLineItemToPayload(
     itemId: asOptionalId(itemMaster?.id),
     itemName,
     itemCategoryId,
-    itemSubCategoryId,
+    itemSubCategoryId: null,
     hsnId,
     hsnCode: hsnCode || null,
+    inwardItemCode,
+    factoryCode,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
     palletNo: String(values.palletNo ?? values.palletNumber ?? "").trim() || null,
     logCode: String(values.logCode ?? "").trim() || null,
@@ -326,6 +316,31 @@ async function mapLineItemToPayload(
     };
   }
 
+  if (inventoryType === "CONSUMABLES") {
+    const unitName = String(values.unitName ?? "").trim();
+    const unitId = unitName ? await resolveUnitId(unitName) : null;
+    return {
+      ...base,
+      batchNo: null,
+      logCode: null,
+      bundleNumber: null,
+      palletNo: null,
+      noOfLeaves: null,
+      sheets: null,
+      totalSqMeter: null,
+      length: null,
+      width: null,
+      height: null,
+      thickness: null,
+      cbm: null,
+      supplierItemName:
+        String(values.supplierItemName ?? "").trim() || null,
+      unitId,
+      unitName: unitName || null,
+      quantity: parseNumber(values.quantity),
+    };
+  }
+
   // Veneer Blocks: UI `thickness` → height; UI `logCode` field is Batch No → batchNo.
   return {
     ...base,
@@ -354,7 +369,6 @@ export async function buildCreateInwardPayload(input: {
     remarks?: string;
   };
   lineItems: ReadonlyArray<{ values: Record<string, string> }>;
-  otherConsumables?: ReadonlyArray<{ consumableName: string; price: string }>;
   additionalCharges: ReadonlyArray<{ chargeName: string; amount: string }>;
 }): Promise<CreateInwardPayload> {
   const inventoryType: InwardInventoryType =
@@ -368,23 +382,14 @@ export async function buildCreateInwardPayload(input: {
     resolveSupplierId(input.header.supplierName),
     resolveCurrencyId(input.header.currency || "INR"),
     Promise.all(
-      input.lineItems.map((line) =>
+      (input.lineItems ?? []).map((line) =>
         mapLineItemToPayload(line.values, inventoryType),
       ),
     ),
   ]);
 
-  const otherConsumables: CreateInwardConsumablePayload[] = (
-    input.otherConsumables ?? []
-  )
-    .filter((row) => row.consumableName.trim())
-    .map((row) => ({
-      consumableName: row.consumableName.trim(),
-      price: parseRequiredNumber(row.price),
-    }));
-
   const additionalCharges: CreateInwardChargePayload[] =
-    input.additionalCharges
+    (input.additionalCharges ?? [])
       .filter((charge) => charge.chargeName.trim())
       .map((charge) => ({
         chargeName: charge.chargeName.trim(),
@@ -405,7 +410,6 @@ export async function buildCreateInwardPayload(input: {
     exchangeRate: parseNumber(input.header.exchangeRate ?? null),
     remarks: input.header.remarks?.trim() || null,
     items,
-    otherConsumables,
     additionalCharges,
   };
 }

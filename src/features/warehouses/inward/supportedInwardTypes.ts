@@ -6,6 +6,7 @@ export const API_SUPPORTED_INWARD_SLUGS = [
   "raw-veneer",
   "plywood",
   "mdf",
+  "consumables",
 ] as const;
 
 export type ApiSupportedInwardSlug = (typeof API_SUPPORTED_INWARD_SLUGS)[number];
@@ -23,6 +24,7 @@ export function inventoryTypeFromSlug(
   if (slug === "raw-veneer") return "RAW_VENEER";
   if (slug === "plywood") return "PLYWOOD";
   if (slug === "mdf") return "MDF";
+  if (slug === "consumables") return "CONSUMABLES";
   return null;
 }
 
@@ -41,6 +43,9 @@ export function slugFromInventoryTypeLabel(
   }
   if (normalized === "mdf") {
     return "mdf";
+  }
+  if (normalized === "consumables" || normalized === "consumable") {
+    return "consumables";
   }
   return "veneer-blocks";
 }

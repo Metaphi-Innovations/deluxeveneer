@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -12,7 +13,7 @@ import {
   Typography,
 } from "@mui/material";
 import { ChevronLeft, Pencil, Save } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import {
   MasterFormFields,
@@ -124,10 +125,14 @@ export function FactoryForm<Row extends FactoryRecord>({
     (mode === "edit" && canEdit) ||
     (mode === "view" && canView);
 
+  const location = useLocation();
+  const locationRecord = (location.state as any)?.record as Row | undefined;
+
   const row =
     mode === "add"
       ? undefined
-      : definition.rows.find((record) => record.id === params.id) ??
+      : locationRecord ??
+        definition.rows.find((record) => record.id === params.id) ??
         (() => {
           const workItem = params.id
             ? getFactoryIssuedWorkById(params.id)
@@ -292,7 +297,7 @@ export function FactoryForm<Row extends FactoryRecord>({
                   Back
                 </Button>
 
-                {canEdit ? (
+                {canEdit && definition.slug !== "sawing" ? (
                   <Button
                     variant="contained"
                     startIcon={<Pencil size={16} />}
@@ -360,8 +365,6 @@ const sawingItemTableFields: readonly MasterFieldDefinition[] = [
   { key: "height", label: "Thickness", type: "text" },
   { key: "cbm", label: "CBM", type: "text" },
   { key: "cbf", label: "CBF", type: "text" },
-  { key: "ratePerSqf", label: "Rate per CBF", type: "text" },
-  { key: "amount", label: "Amount", type: "text" },
   { key: "remark", label: "Remark", type: "text" },
 ];
 

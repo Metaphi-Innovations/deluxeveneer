@@ -32,6 +32,7 @@ import {
   Upload,
 } from "lucide-react";
 
+import { env } from "../../../config/env";
 import { fetchWarehouseMasterPaginated } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
 import { actionMenuTriggerSx } from "../../shared/actionMenuStyles";
 import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
@@ -347,6 +348,57 @@ export function InwardQcUpdateDialog({
     }
   };
 
+  const handlePassAllItems = async () => {
+    if (isSubmitting || !items.length) {
+      return;
+    }
+
+    if (!selectedStorageWarehouseId) {
+      setErrorMessage(
+        "Select a storage warehouse before marking items as Pass.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      for (const item of items) {
+        if (item.qcLocked) {
+          continue;
+        }
+
+        const itemQty = getLineQty(item, detail?.inventoryType);
+        const passQuantity =
+          itemQty !== null && itemQty !== undefined && !Number.isNaN(Number(itemQty))
+            ? Number(itemQty)
+            : item.quantity ?? null;
+
+        await updateInwardQcStatusApi(item.id, {
+          qcStatus: "PASS",
+          passQuantity,
+          qcRemark: item.qcRemark?.trim() || "QC Passed",
+          qcAttachmentUrl: item.qcAttachmentUrl ?? null,
+          storageWarehouseId: selectedStorageWarehouseId,
+        });
+      }
+
+      if (inwardId) {
+        await loadDetail(inwardId);
+      }
+      onUpdated();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to update QC status for all items.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleClose = () => {
     if (isSubmitting) {
       return;
@@ -411,7 +463,34 @@ export function InwardQcUpdateDialog({
             </Box>
             {detail ? (
               <Stack direction="row" spacing={0.75} alignItems="center">
-                <Chip
+                {env.VITE_INWARD_AUTOFILL && items.length > 0 ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="success"
+                    disabled={
+                      isSubmitting ||
+                      storageWarehousesLoading ||
+                      items.every(
+                        (it) =>
+                          it.qcLocked ||
+                          (it.qcStatus ?? "").trim().toUpperCase() === "PASS",
+                      )
+                    }
+                    onClick={handlePassAllItems}
+                    sx={{
+                      height: 24,
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      px: 1,
+                      textTransform: "none",
+                      lineHeight: 1,
+                    }}
+                  >
+                    Pass all items
+                  </Button>
+                ) : null}
+                {/* <Chip
                   label={`${qcCounts.passCount} Pass`}
                   size="small"
                   variant="outlined"
@@ -434,7 +513,7 @@ export function InwardQcUpdateDialog({
                     fontWeight: 700,
                     "& .MuiChip-label": { px: 0.85 },
                   }}
-                />
+                /> */}
               </Stack>
             ) : null}
           </Stack>
@@ -495,7 +574,7 @@ export function InwardQcUpdateDialog({
                   />
                   <SummaryField
                     label="Items"
-                    value={`${items.length} total · ${qcCounts.passCount} pass · ${qcCounts.failCount} fail · ${qcCounts.pendingCount} pending`}
+                    value={`${qcCounts.passCount} pass · ${qcCounts.failCount} fail · ${qcCounts.pendingCount} pending`}
                   />
                 </Stack>
               </Box>
@@ -571,7 +650,10 @@ export function InwardQcUpdateDialog({
                         </Typography>
                         <Typography
                           sx={{
-                            color: theme.customTokens.text.secondary,
+                            // Inherit list-item color so focused/selected
+                            // (white on brand) stays readable.
+                            color: "inherit",
+                            opacity: 0.85,
                             fontSize: "0.6875rem",
                           }}
                         >
@@ -773,6 +855,7 @@ function getQtyUnitLabel(inventoryType: string | undefined): string {
   const type = (inventoryType ?? "").toUpperCase();
   if (type.includes("RAW")) return "Leaves";
   if (type.includes("PLYWOOD") || type.includes("MDF")) return "Sheets";
+  if (type.includes("CONSUMABLE")) return "Qty";
   if (type.includes("VENEER_BLOCK") || type.includes("VENEER BLOCK")) {
     return "CBM";
   }
@@ -783,10 +866,11 @@ function getLineQty(item: InwardItemDetail, inventoryType: string | undefined) {
   const type = (inventoryType ?? "").toUpperCase();
   if (type.includes("RAW")) return item.noOfLeaves;
   if (type.includes("PLYWOOD") || type.includes("MDF")) return item.sheets;
+  if (type.includes("CONSUMABLE")) return item.quantity ?? null;
   if (type.includes("VENEER_BLOCK") || type.includes("VENEER BLOCK")) {
     return item.cbm;
   }
-  return item.sheets ?? item.noOfLeaves ?? item.cbm;
+  return item.quantity ?? item.sheets ?? item.noOfLeaves ?? item.cbm;
 }
 
 function getQcTableHeaders(inventoryType: string | undefined): string[] {
@@ -807,15 +891,19 @@ function getQcTableHeaders(inventoryType: string | undefined): string[] {
         ] as const)
       : slug === "plywood" || slug === "mdf"
         ? (["Pallet No", "L", "W", "Thk", qtyLabel] as const)
-        : (["Batch No", "L", "W", "H", qtyLabel] as const);
+        : slug === "consumables"
+          ? (["Unit", qtyLabel] as const)
+          : (["Batch No", "L", "W", "H", qtyLabel] as const);
 
   return [
     "#",
+    "Inward Item Code",
     "Item Name",
-    "Sub Category",
+    "Factory Code",
     "HSN",
     ...identityHeaders,
     ...(showPassFailQty ? (["Passed", "Failed"] as const) : []),
+    "Rate",
     "Amount",
     "QC",
     "Remark",
@@ -845,6 +933,7 @@ function ItemQcTable({
   const isRawVeneer = inventorySlug === "raw-veneer";
   const isSheetBased =
     inventorySlug === "plywood" || inventorySlug === "mdf";
+  const isConsumables = inventorySlug === "consumables";
   /** Veneer blocks are whole units — no Passed/Failed qty columns. */
   const showPassFailQtyColumns = inventorySlug !== "veneer-blocks";
   const headers = getQcTableHeaders(inventoryType);
@@ -900,11 +989,15 @@ function ItemQcTable({
               const qcLabel = normalizeQcLabel(item.qcStatus);
               const remark = item.qcRemark?.trim() || "";
               const attachmentUrl = item.qcAttachmentUrl?.trim() || "";
+              const isQcLocked = Boolean(item.qcLocked);
 
               return (
                 <TableRow key={item.id} hover>
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                     {index + 1}
+                  </TableCell>
+                  <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                    {item.inwardItemCode || "—"}
                   </TableCell>
                   <TableCell
                     sx={(theme) => ({
@@ -919,13 +1012,28 @@ function ItemQcTable({
                     {item.itemName || "Untitled item"}
                   </TableCell>
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                    {item.itemSubCategoryName || "—"}
+                    {item.factoryCode || "—"}
                   </TableCell>
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                     {item.hsnCode || "—"}
                   </TableCell>
 
-                  {isRawVeneer ? (
+                  {isConsumables ? (
+                    <>
+                      <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
+                        {item.unitName || "—"}
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...listingTableBodyCellSx(theme),
+                          whiteSpace: "nowrap",
+                          fontWeight: 600,
+                        })}
+                      >
+                        {formatMeasure(item.quantity)}
+                      </TableCell>
+                    </>
+                  ) : isRawVeneer ? (
                     <>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                         {item.logCode || "—"}
@@ -1057,15 +1165,36 @@ function ItemQcTable({
                       whiteSpace: "nowrap",
                     })}
                   >
+                    {item.rate === null || item.rate === undefined
+                      ? "—"
+                      : formatMoney(item.rate)}
+                  </TableCell>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableBodyCellSx(theme),
+                      whiteSpace: "nowrap",
+                    })}
+                  >
                     {formatMoney(item.amount)}
                   </TableCell>
                   <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                    <Chip
-                      label={qcLabel}
-                      color={qcChipColor(qcLabel)}
-                      size="small"
-                      sx={{ fontWeight: 700, height: 22 }}
-                    />
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Chip
+                        label={qcLabel}
+                        color={qcChipColor(qcLabel)}
+                        size="small"
+                        sx={{ fontWeight: 700, height: 22 }}
+                      />
+                      {isQcLocked ? (
+                        <Chip
+                          label="In production"
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          sx={{ fontWeight: 700, height: 22 }}
+                        />
+                      ) : null}
+                    </Stack>
                   </TableCell>
                   <TableCell
                     sx={(theme) => ({
@@ -1107,8 +1236,17 @@ function ItemQcTable({
                     >
                       <IconButton
                         size="small"
-                        aria-label="Open row actions"
-                        disabled={disabled}
+                        aria-label={
+                          isQcLocked
+                            ? "QC locked — item moved to production"
+                            : "Open row actions"
+                        }
+                        disabled={disabled || isQcLocked}
+                        title={
+                          isQcLocked
+                            ? "QC locked after move to production"
+                            : undefined
+                        }
                         onClick={(event) =>
                           handleOpenActionMenu(item.id, event)
                         }
@@ -1142,7 +1280,7 @@ function ItemQcTable({
                   label: "Pass",
                   icon: BadgeCheck,
                   tone: "primary",
-                  disabled,
+                  disabled: disabled || Boolean(activeItem.qcLocked),
                   onSelect: () => onPass(activeItem),
                 },
                 {
@@ -1150,7 +1288,7 @@ function ItemQcTable({
                   label: "Fail",
                   icon: CircleX,
                   tone: "danger",
-                  disabled,
+                  disabled: disabled || Boolean(activeItem.qcLocked),
                   onSelect: () => onFail(activeItem),
                 },
               ]

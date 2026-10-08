@@ -26,13 +26,18 @@ import {
   rawVeneerColumns,
   plywoodColumns,
   mdfColumns,
+  consumablesColumns,
+  sawingColumns,
   sampleSheetColumns,
   type ProductionWarehouseTabSlug,
   type SampleSheetTableRow,
+  type SawingRow,
 } from "../production/types/productionWarehouseTypes";
 import { RawVeneerTab } from "../production/tabs/RawVeneerTab";
 import { PlywoodTab } from "../production/tabs/PlywoodTab";
 import { MdfTab } from "../production/tabs/MdfTab";
+import { ConsumablesTab } from "../production/tabs/ConsumablesTab";
+import { SawingTab } from "../production/tabs/SawingTab";
 import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
 import {
   exportProductionInventoryApi,
@@ -68,10 +73,12 @@ export function ProductionWarehousePage({
   const [currentSampleRows, setCurrentSampleRows] = useState<
     SampleSheetTableRow[]
   >([]);
+  const [currentSawingRows, setCurrentSawingRows] = useState<SawingRow[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
   const activeInventory = getActiveTab(searchParams.get("inventory"));
   const isSampleSheetsTab = activeInventory === "sample-sheets";
+  const isSawingTab = activeInventory === "sawing";
 
   const warehousePermissionKey = warehouseId
     ? getDynamicWarehousePermissionKey(warehouseId)
@@ -123,15 +130,18 @@ export function ProductionWarehousePage({
       return;
     }
 
-    try {
-      await issueOrderToProduction({
-        orderNo: issueOrderValues.orderNo,
-        orderItemNo: issueOrderValues.orderItemNo,
-        warehouseId,
-        inventoryType: activeInventory,
-      });
-    } catch {
-      // Issue-order API failed; dialog still closes after attempt.
+    // Sawing inventory is frontend-only for now — close modal without API.
+    if (!isSawingTab) {
+      try {
+        await issueOrderToProduction({
+          orderNo: issueOrderValues.orderNo,
+          orderItemNo: issueOrderValues.orderItemNo,
+          warehouseId,
+          inventoryType: activeInventory,
+        });
+      } catch {
+        // Issue-order API failed; dialog still closes after attempt.
+      }
     }
 
     setIssueOrderDialogOpen(false);
@@ -151,10 +161,21 @@ export function ProductionWarehousePage({
       return;
     }
 
+    if (isSawingTab) {
+      exportRowsToCsv(
+        currentSawingRows,
+        sawingColumns,
+        `${warehouseName}-sawing`,
+      );
+      return;
+    }
+
     if (!warehouseId || isExporting) return;
 
     const tab =
-      activeInventory === "plywood" || activeInventory === "mdf"
+      activeInventory === "plywood" ||
+      activeInventory === "mdf" ||
+      activeInventory === "consumables"
         ? activeInventory
         : "raw-veneer";
 
@@ -185,6 +206,12 @@ export function ProductionWarehousePage({
         exportRowsToCsv(rows, plywoodColumns, `${warehouseName}-plywood`);
       } else if (tab === "mdf") {
         exportRowsToCsv(rows, mdfColumns, `${warehouseName}-mdf`);
+      } else if (tab === "consumables") {
+        exportRowsToCsv(
+          rows,
+          consumablesColumns,
+          `${warehouseName}-consumables`,
+        );
       } else {
         exportRowsToCsv(rows, rawVeneerColumns, `${warehouseName}-raw-veneer`);
       }
@@ -202,11 +229,14 @@ export function ProductionWarehousePage({
   const exportDisabled = useMemo(() => {
     if (isExporting) return true;
     if (isSampleSheetsTab) return currentSampleRows.length === 0;
+    if (isSawingTab) return currentSawingRows.length === 0;
     return !warehouseId || listQuery.totalCount === 0;
   }, [
     isExporting,
     isSampleSheetsTab,
+    isSawingTab,
     currentSampleRows.length,
+    currentSawingRows.length,
     warehouseId,
     listQuery.totalCount,
   ]);
@@ -224,8 +254,8 @@ export function ProductionWarehousePage({
       ]}
       subtitle={
         isSampleSheetsTab
-          ? "Master tracking for sample material moving through Factory processes."
-          : "Processed stock ready for Factory and fulfilment."
+          ? " "
+          : ""
       }
       title={warehouseName}
     >
@@ -333,6 +363,28 @@ export function ProductionWarehousePage({
           />
         )}
 
+        {activeInventory === "consumables" && (
+          <ConsumablesTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onListQueryChange={handleListQueryChange}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+
+        {activeInventory === "sawing" && (
+          <SawingTab
+            canEdit={canEditWarehouseC}
+            canView={canViewWarehouseC}
+            onExportReady={setCurrentSawingRows}
+            searchValue={debouncedSearchValue}
+            warehouseId={warehouseId}
+            warehouseName={warehouseName}
+          />
+        )}
+
         {activeInventory === "sample-sheets" && (
           <SampleSheetsTab
             canEdit={canEditWarehouseC}
@@ -364,7 +416,9 @@ function mapExportItem(item: ProductionInventoryItem) {
     productionSrNo: String(item.productionSrNo ?? ""),
     storageSrNo: String(item.storageSrNo ?? ""),
     inwardDate: item.inwardDate,
+    inwardItemCode: String(item.inwardItemCode ?? ""),
     itemName: String(item.itemName ?? ""),
+    factoryCode: String(item.factoryCode ?? ""),
     subCategory: String(item.subCategory ?? ""),
     color: String(item.color ?? ""),
     mdfType: String(item.mdfType ?? ""),
@@ -373,6 +427,12 @@ function mapExportItem(item: ProductionInventoryItem) {
     thickness: String(item.thickness ?? ""),
     noOfLeaves: String(item.noOfLeaves ?? ""),
     noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
+    receivedQuantity: String(
+      item.receivedQuantity ?? item.noOfSheets ?? item.totalNoOfSheets ?? "",
+    ),
+    availableQuantity: String(
+      item.availableQuantity ?? item.noOfSheets ?? item.totalNoOfSheets ?? "",
+    ),
     sqm: String(item.sqm ?? item.totalSqm ?? ""),
     sqf: String(item.sqf ?? item.totalSqf ?? ""),
     grade: String(item.grade ?? ""),
@@ -385,7 +445,13 @@ function mapExportItem(item: ProductionInventoryItem) {
 }
 
 function getActiveTab(value: string | null): ProductionWarehouseTabSlug {
-  if (value === "plywood" || value === "mdf" || value === "sample-sheets") {
+  if (
+    value === "plywood" ||
+    value === "mdf" ||
+    value === "consumables" ||
+    value === "sawing" ||
+    value === "sample-sheets"
+  ) {
     return value;
   }
   return "raw-veneer";

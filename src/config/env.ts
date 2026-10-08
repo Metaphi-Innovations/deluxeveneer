@@ -1,6 +1,17 @@
 import { z } from 'zod';
 
 /**
+ * Optional env flags: missing/empty/invalid → false (never fail app boot).
+ */
+function parseOptionalEnvFlag(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') {
+    return false;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === 'true' || normalized === '1' || normalized === 'yes';
+}
+
+/**
  * Frontend Environment Schema
  * Follows centralized, type-safe, fail-fast validation logic.
  *
@@ -11,6 +22,8 @@ const envSchema = z.object({
   VITE_API_URL: z.string().url('VITE_API_URL must be a valid URL'),
   VITE_APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   VITE_APP_NAME: z.string().default('Deluxe Veneers'),
+  /** When true, shows "Autofill test data" on inward add forms. Default false if unset. */
+  VITE_INWARD_AUTOFILL: z.boolean().default(false),
 });
 
 // Extract values from Vite import.meta.env
@@ -18,6 +31,7 @@ const envValues = {
   VITE_API_URL: import.meta.env.VITE_API_URL,
   VITE_APP_ENV: import.meta.env.VITE_APP_ENV,
   VITE_APP_NAME: import.meta.env.VITE_APP_NAME,
+  VITE_INWARD_AUTOFILL: parseOptionalEnvFlag(import.meta.env.VITE_INWARD_AUTOFILL),
 };
 
 const parsedEnv = envSchema.safeParse(envValues);

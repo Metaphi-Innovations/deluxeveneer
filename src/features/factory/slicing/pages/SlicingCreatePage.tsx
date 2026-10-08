@@ -1,10 +1,11 @@
-import { useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import type { Theme } from "@mui/material/styles";
+import { useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   IconButton,
+  MenuItem,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -15,1323 +16,740 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
-import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
-  ErpDatePickerField,
-  ErpSelectField,
-} from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
-import { itemMasterOptions } from "../../../masters/shared/masterDefinitions";
+  formInlineActionButtonSx,
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../../shared/formSectionStyles";
 import {
-  appendFactoryProcessRun,
-  buildFactorySourceAllocationKey,
-  computeProcessEntryBalance,
-  FactoryPageShell,
-  FactorySourceOverviewPanel,
-  getFactoryPaths,
-  getFactoryQuantityAllocationConfig,
-  getProcessQuantityOverflowError,
-  resolveLineItemProcessedQuantity,
-  resolveOriginalQuantity,
-  slicingDefinition,
-  sumProcessedLineItemQuantity,
-  useFactoryProcessRunTotals,
-} from "../../shared";
-import { listingToolbarButtonSx, recordFormActionButtonSx } from "../../../shared/buttonStyles";
-import { formatSQM, formatSqfFromSqm } from "../../../shared/numberFormat";
+  highlightedRecordFormPrimaryButtonSx,
+  recordFormActionButtonSx,
+} from "../../../shared/buttonStyles";
 import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
-import {
-  createEmptyRejectAvailableValues,
-  getNextRejectAvailableValues,
-  getRejectAvailableValidationErrors,
-  getVisibleRejectAvailableValidationIssues,
-  hasRejectAvailableValidationErrors,
-  RejectAvailableDetailsTable,
-  resolveRejectAvailableAreaLimits,
-} from "../../shared/RejectAvailableDetailsTable";
-import {
-  formatSlicingDimensionMetres,
-  formatSlicingLineItemDisplay,
-  normalizeSlicingLineItemInput,
-  resolveSlicingDimensionMetres,
-} from "../../shared/slicingAreaCalculation";
-import { commonFactoryItemFieldAliases, applyFactoryItemMasterDefaults, applyFactoryLineItemValueChange } from "../../shared/factoryCommonItemFields";
+import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { slicingDefinition } from "../../shared/factoryDefinitions";
 
-type SourceRow = {
+interface SlicingProcessItemRow {
   id: string;
-  [key: string]: unknown;
-};
+  batchNo: string;
+  length: number;
+  width: number;
+  height: number;
+  cbm: number;
+  cbf: number;
+  receivedCbm: number;
+  availableCbm: number;
+  ratePerCbf: number;
+  amount: number;
+  remark?: string;
+}
 
-type SlicingLocationState = {
-  sourceRow?: SourceRow;
-  sourceRows?: SourceRow[];
-};
-
-type LineItemColumn = {
-  key: keyof SlicingLineItemValues;
-  label: string;
-  minWidth: number;
-  options?: readonly string[];
-  placeholder: string;
-  readOnly?: boolean;
-  type: "select" | "text";
-};
-
-type SlicingSourceSummary = {
-  amount: string;
-  bundleNumber: string;
-  cmt: string;
-  color: string;
-  height: string;
-  itemName: string;
-  itemSubCategory: string;
-  length: string;
-  logNo: string;
-  palletNo: string;
-  ratePerSqf: string;
-  remark: string;
-  sqf: string;
-  sqm: string;
-  srNo: string;
-  width: string;
-};
-
-type SlicingFormValues = {
-  noOfTotalHours: string;
-  noOfWorkers: string;
-  noOfWorkingHours: string;
-  shift: string;
-  slicingDate: Date | null;
-};
-
-type SlicingLineItemValues = {
-  amount: string;
-  bundleNumber: string;
-  color: string;
-  grade: string;
-  height: string;
-  itemName: string;
-  itemSubCategory: string;
-  length: string;
-  logNo: string;
-  noOfLeaves: string;
-  palletNo: string;
-  ratePerSqf: string;
-  remark: string;
-  sqf: string;
-  sqm: string;
-  width: string;
-};
-
-type SlicingLineItem = {
+interface SlicingRejectAvailableRow {
   id: string;
-  values: SlicingLineItemValues;
-};
-
-const lineItemColumns: readonly LineItemColumn[] = [
-  {
-    key: "itemName",
-    label: "Item Name",
-    minWidth: 150,
-    options: itemMasterOptions,
-    placeholder: "Select Item Name",
-    type: "select",
-  },
-  {
-    key: "itemSubCategory",
-    label: "Item Sub-Category",
-    minWidth: 160,
-    placeholder: "Enter Item Sub-Category",
-    type: "text",
-  },
-  {
-    key: "logNo",
-    label: "Log No.",
-    minWidth: 130,
-    placeholder: "Enter Log No.",
-    type: "text",
-  },
-  {
-    key: "bundleNumber",
-    label: "Bundle No",
-    minWidth: 130,
-    placeholder: "Enter Bundle No",
-    type: "text",
-  },
-  {
-    key: "palletNo",
-    label: "Pallet No",
-    minWidth: 130,
-    placeholder: "Enter Pallet No",
-    type: "text",
-  },
-  {
-    key: "length",
-    label: "Length (m)",
-    minWidth: 120,
-    placeholder: "Enter Length (m)",
-    type: "text",
-  },
-  {
-    key: "width",
-    label: "Width (m)",
-    minWidth: 120,
-    placeholder: "Enter Width (m)",
-    type: "text",
-  },
-  {
-    key: "height",
-    label: "Thickness (m)",
-    minWidth: 120,
-    placeholder: "Enter Thickness (m)",
-    type: "text",
-  },
-  {
-    key: "color",
-    label: "Color",
-    minWidth: 130,
-    placeholder: "Enter Color",
-    type: "text",
-  },
-  {
-    key: "grade",
-    label: "Grade",
-    minWidth: 120,
-    options: ["A", "B", "C", "Premium", "Select", "Commercial", "Export"],
-    placeholder: "Select Grade",
-    type: "select",
-  },
-  {
-    key: "noOfLeaves",
-    label: "No. of Leaves",
-    minWidth: 130,
-    placeholder: "Enter No. of Leaves",
-    type: "text",
-  },
-  {
-    key: "sqm",
-    label: "SQM",
-    minWidth: 110,
-    placeholder: "From inventory",
-    readOnly: true,
-    type: "text",
-  },
-  {
-    key: "sqf",
-    label: "SQF",
-    minWidth: 110,
-    placeholder: "From inventory",
-    readOnly: true,
-    type: "text",
-  },
-  {
-    key: "ratePerSqf",
-    label: "Rate per SQF",
-    minWidth: 130,
-    placeholder: "Enter Rate per SQF",
-    type: "text",
-  },
-  {
-    key: "amount",
-    label: "Amount",
-    minWidth: 130,
-    placeholder: "Enter Amount",
-    type: "text",
-  },
-  {
-    key: "remark",
-    label: "Remark",
-    minWidth: 160,
-    placeholder: "Enter Remark",
-    type: "text",
-  },
-] as const;
+  type: "Available";
+  length: number;
+  width: number;
+  height: number;
+  cbm: number;
+  cbf: number;
+  remark: string;
+}
 
 export function SlicingCreatePage() {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const paths = getFactoryPaths("slicing");
-  const nextRowId = useRef(1);
-  const locationState = location.state as SlicingLocationState | null;
-  const defaultSourceRow = slicingDefinition.rows[0] as SourceRow | undefined;
-  const sourceRow =
-    locationState?.sourceRow ??
-    locationState?.sourceRows?.[0] ??
-    defaultSourceRow;
-  const sourceSummary = useMemo(
-    () => buildSourceSummary(sourceRow),
-    [sourceRow],
-  );
-  const [formValues, setFormValues] = useState<SlicingFormValues>({
-    slicingDate: new Date(),
-    shift: "Day",
-    noOfWorkers: "",
-    noOfWorkingHours: "",
-    noOfTotalHours: "",
-  });
-  const [draftValues, setDraftValues] = useState<SlicingLineItemValues>(() =>
-    createDefaultLineItemValues(sourceSummary, sourceRow),
-  );
-  const [lineItems, setLineItems] = useState<SlicingLineItem[]>([]);
-  const [editingRowId, setEditingRowId] = useState<string | null>(null);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [draftSubmitAttempted, setDraftSubmitAttempted] = useState(false);
-  const [editingSubmitAttempted, setEditingSubmitAttempted] = useState(false);
-  const [editingValues, setEditingValues] = useState<SlicingLineItemValues>(() =>
-    createEmptyLineItemValues(),
-  );
-  const [rejectAvailableValues, setRejectAvailableValues] = useState(() =>
-    createEmptyRejectAvailableValues(),
-  );
-  const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
-    useState(false);
 
-  const sourceOverviewItems = useMemo(
-    () => buildSlicingSourceOverviewItems(sourceSummary, sourceRow),
-    [sourceRow, sourceSummary],
+  const state = location.state as
+    | {
+        sourceItem?: any;
+        sourceRow?: any;
+        issueItemId?: string;
+        issueId?: string;
+        storageWarehouseId?: string;
+      }
+    | undefined;
+
+  const defaultSource = slicingDefinition.rows[0];
+  const sourceItem = state?.sourceItem || state?.sourceRow || defaultSource;
+
+  // Process details input state
+  const [batchNo, setBatchNo] = useState(sourceItem?.batchNo || sourceItem?.logNo || "");
+  const [length, setLength] = useState(
+    sourceItem?.length ? String(sourceItem.length).replace(/[^0-9.]/g, "") : "2440",
   );
-  const quantityConfig = useMemo(
-    () => getFactoryQuantityAllocationConfig("slicing"),
-    [],
+  const [width, setWidth] = useState(
+    sourceItem?.width ? String(sourceItem.width).replace(/[^0-9.]/g, "") : "1220",
   );
-  const sourceAllocationKey = useMemo(
-    () =>
-      buildFactorySourceAllocationKey(
-        "slicing",
-        sourceRow as Record<string, unknown> | undefined,
-      ),
-    [sourceRow],
+  const [height, setHeight] = useState(
+    sourceItem?.height || sourceItem?.thickness
+      ? String(sourceItem.height || sourceItem.thickness).replace(/[^0-9.]/g, "")
+      : "150",
   );
-  const runTotals = useFactoryProcessRunTotals(sourceAllocationKey);
-  const originalQuantity = useMemo(
-    () =>
-      quantityConfig
-        ? resolveOriginalQuantity(
-            sourceRow as Record<string, unknown> | undefined,
-            quantityConfig,
-          )
-        : 0,
-    [quantityConfig, sourceRow],
+  const [ratePerCbf, setRatePerCbf] = useState(
+    sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf).replace(/[^0-9.]/g, "") : "450",
   );
-  const currentProcessedQuantity = useMemo(
-    () =>
-      sumProcessedLineItemQuantity(
-        lineItems.map((item) => ({ values: item.values as unknown as Record<string, string> })),
-        "slicing",
-      ),
-    [lineItems],
-  );
-  const balanceSummary = useMemo(
-    () =>
-      computeProcessEntryBalance({
-        originalQuantity,
-        previouslyProcessed: runTotals.processed,
-        currentProcessed: currentProcessedQuantity,
-      }),
-    [currentProcessedQuantity, originalQuantity, runTotals.processed],
-  );
-  const quantityOverflowError = getProcessQuantityOverflowError({
-    originalQuantity,
-    previouslyProcessed: runTotals.processed,
-    currentProcessed: currentProcessedQuantity,
-  });
-  const rejectAvailableAreaLimits = useMemo(
-    () =>
-      resolveRejectAvailableAreaLimits(
-        sourceRow as Record<string, unknown> | undefined,
-        sourceSummary.sqm,
-        sourceSummary.sqf,
-        sourceSummary.length,
-        sourceSummary.width,
-        sourceSummary.height,
-      ),
-    [
-      sourceRow,
-      sourceSummary.height,
-      sourceSummary.length,
-      sourceSummary.sqf,
-      sourceSummary.sqm,
-      sourceSummary.width,
-    ],
-  );
-  const rejectAvailableValidationErrors = getRejectAvailableValidationErrors(
-    rejectAvailableValues,
-    rejectAvailableAreaLimits,
-  );
-  const draftProjectedOverflow = useMemo(() => {
-    if (!quantityConfig || originalQuantity <= 0 || allLineItemValuesEmpty(draftValues)) {
-      return "";
+  const [remark, setRemark] = useState("");
+
+  // Processed Items List
+  const [processedItems, setProcessedItems] = useState<SlicingProcessItemRow[]>([]);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+
+  // Reject / Available Details List
+  const [rejectAvailableItems, setRejectAvailableItems] = useState<SlicingRejectAvailableRow[]>([]);
+
+  // Reject / Available row input state for adding
+  const [raType, setRaType] = useState<"Reject" | "Available">("Reject");
+  const [raLength, setRaLength] = useState("");
+  const [raWidth, setRaWidth] = useState("");
+  const [raHeight, setRaHeight] = useState("");
+  const [raRate, setRaRate] = useState("");
+  const [raRemark, setRaRemark] = useState("");
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Auto-calculated fields for Process Details
+  const calculatedCbm = useMemo(() => {
+    const l = Number(length) || 0;
+    const w = Number(width) || 0;
+    const h = Number(height) || 0;
+    if (!l || !w || !h) return 0;
+    const isMm = l > 50 || w > 50;
+    const divisor = isMm ? 1_000_000_000 : 1_000_000;
+    return Number(((l * w * h) / divisor).toFixed(6));
+  }, [length, width, height]);
+
+  const calculatedCbf = useMemo(() => {
+    if (!calculatedCbm) return 0;
+    return Number((calculatedCbm * 35.3147).toFixed(4));
+  }, [calculatedCbm]);
+
+  const sourceCbm = useMemo(() => {
+    const srcCbmVal = Number(sourceItem?.cbm) || 0;
+    if (srcCbmVal) return srcCbmVal;
+    const l = Number(sourceItem?.length) || 0;
+    const w = Number(sourceItem?.width) || 0;
+    const h = Number(sourceItem?.height || sourceItem?.thickness) || 0;
+    if (!l || !w || !h) return 0;
+    const isMm = l > 50 || w > 50;
+    const divisor = isMm ? 1_000_000_000 : 1_000_000;
+    return Number(((l * w * h) / divisor).toFixed(6));
+  }, [sourceItem]);
+
+  const receivedCbm = sourceCbm || calculatedCbm;
+
+  const totalUsedCbm = useMemo(() => {
+    return processedItems.reduce((acc, curr) => {
+      if (editingItemId && curr.id === editingItemId) return acc;
+      return acc + (Number(curr.cbm) || 0);
+    }, 0);
+  }, [processedItems, editingItemId]);
+
+  const availableCbm = useMemo(() => {
+    const avail = (receivedCbm || 0) - totalUsedCbm - (editingItemId ? 0 : calculatedCbm);
+    return Number((avail > 0 ? avail : 0).toFixed(6));
+  }, [receivedCbm, totalUsedCbm, editingItemId, calculatedCbm]);
+
+  const calculatedAmount = useMemo(() => {
+    const rate = Number(ratePerCbf) || 0;
+    if (!calculatedCbf || !rate) return 0;
+    return Number((calculatedCbf * rate).toFixed(2));
+  }, [calculatedCbf, ratePerCbf]);
+
+  // Auto-calculated fields for Available add
+  const calculatedRaCbm = useMemo(() => {
+    const l = Number(raLength) || 0;
+    const w = Number(raWidth) || 0;
+    const h = Number(raHeight) || 0;
+    if (!l || !w || !h) return 0;
+    const isMm = l > 50 || w > 50;
+    const divisor = isMm ? 1_000_000_000 : 1_000_000;
+    return Number(((l * w * h) / divisor).toFixed(6));
+  }, [raLength, raWidth, raHeight]);
+
+  const calculatedRaCbf = useMemo(() => {
+    if (!calculatedRaCbm) return 0;
+    return Number((calculatedRaCbm * 35.3147).toFixed(4));
+  }, [calculatedRaCbm]);
+
+  // Source Overview items
+  const sourceOverviewItems = useMemo(() => {
+    if (!sourceItem) return [];
+    const formatDate = (val: any) => {
+      if (!val) return "-";
+      if (val instanceof Date) return val.toISOString().slice(0, 10);
+      return String(val).slice(0, 10);
+    };
+
+    return [
+      { label: "Storage Sr No.", value: String(sourceItem.storageSrNo || sourceItem.bundleNumber || "-") },
+      { label: "Issue Date", value: formatDate(sourceItem.issueDate || sourceItem.issuedDate) },
+      { label: "Item Name", value: String(sourceItem.itemName || "-") },
+      { label: "Sub Category", value: String(sourceItem.itemSubCategory || sourceItem.subCategory || "-") },
+      { label: "Log Code", value: String(sourceItem.logCode || sourceItem.batchNoCode || sourceItem.batchNo || "-") },
+      { label: "Bundle Number", value: String(sourceItem.bundleNumber || "-") },
+      { label: "Pallet No", value: String(sourceItem.palletNo || "-") },
+      { label: "Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "Thickness", value: sourceItem.thickness || sourceItem.height ? String(sourceItem.thickness || sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "No of Leaves", value: sourceItem.noOfLeaves != null ? String(sourceItem.noOfLeaves) : "-" },
+      { label: "Total Sq Meter", value: sourceItem.totalSqMeter || sourceItem.sqm ? String(sourceItem.totalSqMeter || sourceItem.sqm) : "-" },
+      
+      { label: "Remark", value: String(sourceItem.remark || "-") },
+    ];
+  }, [sourceItem]);
+
+  // Add Item to Process Items
+  const handleAddProcessItem = () => {
+    const l = Number(length);
+    const w = Number(width);
+    const h = Number(height);
+
+    if (!l || !w || !h) {
+      alert("Please enter Length, Width, and Height");
+      return;
     }
 
-    return getProcessQuantityOverflowError({
-      originalQuantity,
-      previouslyProcessed: runTotals.processed,
-      currentProcessed:
-        currentProcessedQuantity +
-        resolveLineItemProcessedQuantity(
-          draftValues as unknown as Record<string, string>,
-          "slicing",
+    if (editingItemId) {
+      setProcessedItems((prev) =>
+        prev.map((item) =>
+          item.id === editingItemId
+            ? {
+                ...item,
+                batchNo: batchNo.trim() || sourceItem?.batchNo || "",
+                length: l,
+                width: w,
+                height: h,
+                cbm: calculatedCbm,
+                cbf: calculatedCbf,
+                receivedCbm: Number(receivedCbm.toFixed(6)),
+                availableCbm: Number(availableCbm.toFixed(6)),
+                ratePerCbf: Number(ratePerCbf) || 0,
+                amount: calculatedAmount,
+                remark,
+              }
+            : item,
         ),
-    });
-  }, [
-    currentProcessedQuantity,
-    draftValues,
-    originalQuantity,
-    quantityConfig,
-    runTotals.processed,
-  ]);
-  const visibleLineItemColumns = useMemo(
-    () =>
-      lineItemColumns.filter((column) =>
-        shouldShowLineItemColumn(column, sourceSummary, draftValues, editingValues, lineItems),
-      ),
-    [draftValues, editingValues, lineItems, sourceSummary],
-  );
-  const lineItemsTableWidth = useMemo(
-    () =>
-      visibleLineItemColumns.reduce((total, column) => total + column.minWidth, 84),
-    [visibleLineItemColumns],
-  );
-
-  const handleAddLineItem = () => {
-    if (allLineItemValuesEmpty(draftValues)) {
-      setDraftSubmitAttempted(true);
-      return;
+      );
+      setEditingItemId(null);
+    } else {
+      const newItem: SlicingProcessItemRow = {
+        id: `slicing-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        batchNo: batchNo.trim() || sourceItem?.batchNo || sourceItem?.logNo || "",
+        length: l,
+        width: w,
+        height: h,
+        cbm: calculatedCbm,
+        cbf: calculatedCbf,
+        receivedCbm: Number(receivedCbm.toFixed(6)),
+        availableCbm: Number(availableCbm.toFixed(6)),
+        ratePerCbf: Number(ratePerCbf) || 0,
+        amount: calculatedAmount,
+        remark,
+      };
+      setProcessedItems((prev) => [...prev, newItem]);
     }
 
-    const validationErrors = getLineItemValidationErrors(draftValues);
-
-    if (hasValidationErrors(validationErrors)) {
-      setDraftSubmitAttempted(true);
-      return;
-    }
-
-    const draftQty = resolveLineItemProcessedQuantity(
-      draftValues as unknown as Record<string, string>,
-      "slicing",
-    );
-    const overflow = getProcessQuantityOverflowError({
-      originalQuantity,
-      previouslyProcessed: runTotals.processed,
-      currentProcessed: currentProcessedQuantity + draftQty,
-    });
-
-    if (overflow) {
-      setDraftSubmitAttempted(true);
-      return;
-    }
-
-    const nextId = `slicing-line-item-${nextRowId.current}`;
-    nextRowId.current += 1;
-
-    setLineItems((current) => [
-      ...current,
-      {
-        id: nextId,
-        values: { ...draftValues },
-      },
-    ]);
-    setDraftValues(createDefaultLineItemValues(sourceSummary, sourceRow));
-    setDraftSubmitAttempted(false);
+    setBatchNo(sourceItem?.batchNo || sourceItem?.logNo || "");
+    setLength(sourceItem?.length ? String(sourceItem.length).replace(/[^0-9.]/g, "") : "2440");
+    setWidth(sourceItem?.width ? String(sourceItem.width).replace(/[^0-9.]/g, "") : "1220");
+    setHeight(sourceItem?.height || sourceItem?.thickness ? String(sourceItem.height || sourceItem.thickness).replace(/[^0-9.]/g, "") : "150");
+    setRatePerCbf(sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf).replace(/[^0-9.]/g, "") : "450");
+    setRemark("");
   };
 
-  const handleDeleteLineItem = (rowId: string) => {
-    setLineItems((current) => current.filter((row) => row.id !== rowId));
+  const handleEditProcessItem = (item: SlicingProcessItemRow) => {
+    setEditingItemId(item.id);
+    setBatchNo(item.batchNo);
+    setLength(String(item.length));
+    setWidth(String(item.width));
+    setHeight(String(item.height));
+    setRatePerCbf(item.ratePerCbf ? String(item.ratePerCbf) : "");
+    setRemark(item.remark || "");
+  };
 
-    if (editingRowId === rowId) {
-      setEditingRowId(null);
-      setEditingValues(createEmptyLineItemValues());
+  const handleDeleteProcessItem = (id: string) => {
+    setProcessedItems((prev) => prev.filter((it) => it.id !== id));
+    if (editingItemId === id) {
+      setEditingItemId(null);
     }
   };
 
-  const handleStartEdit = (row: SlicingLineItem) => {
-    setEditingRowId(row.id);
-    setEditingValues({ ...row.values });
-    setEditingSubmitAttempted(false);
+  // Add Item to Available Details
+  const handleAddRejectAvailableItem = () => {
+    const l = Number(raLength) || 0;
+    const w = Number(raWidth) || 0;
+    const h = Number(raHeight) || 0;
+
+    const newRa: SlicingRejectAvailableRow = {
+      id: `ra-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      type: "Available",
+      length: l,
+      width: w,
+      height: h,
+      cbm: calculatedRaCbm,
+      cbf: calculatedRaCbf,
+      remark: raRemark,
+    };
+
+    setRejectAvailableItems((prev) => [...prev, newRa]);
+    setRaLength("");
+    setRaWidth("");
+    setRaHeight("");
+    setRaRate("");
+    setRaRemark("");
   };
 
-  const handleSaveEdit = (rowId: string) => {
-    const validationErrors = getLineItemValidationErrors(editingValues);
+  const handleDeleteRejectAvailableItem = (id: string) => {
+    setRejectAvailableItems((prev) => prev.filter((it) => it.id !== id));
+  };
 
-    if (hasValidationErrors(validationErrors)) {
-      setEditingSubmitAttempted(true);
+  // Save / Submit Slicing Process
+  const handleSubmit = async () => {
+    if (processedItems.length === 0) {
+      setErrorMessage("Please add at least one processed item before saving.");
       return;
     }
 
-    const otherProcessed = sumProcessedLineItemQuantity(
-      lineItems
-        .filter((row) => row.id !== rowId)
-        .map((item) => ({
-          values: item.values as unknown as Record<string, string>,
-        })),
-      "slicing",
-    );
-    const editedQty = resolveLineItemProcessedQuantity(
-      editingValues as unknown as Record<string, string>,
-      "slicing",
-    );
-    const overflow = getProcessQuantityOverflowError({
-      originalQuantity,
-      previouslyProcessed: runTotals.processed,
-      currentProcessed: otherProcessed + editedQty,
-    });
+    setIsSubmitting(true);
+    setErrorMessage("");
 
-    if (overflow) {
-      setEditingSubmitAttempted(true);
-      return;
+    try {
+      // Navigate to Slicing Done tab
+      navigate("/factory/slicing?tab=done");
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to save slicing process.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setLineItems((current) =>
-      current.map((row) =>
-        row.id === rowId
-          ? {
-              ...row,
-              values: { ...editingValues },
-            }
-          : row,
-      ),
-    );
-    setEditingRowId(null);
-    setEditingValues(createEmptyLineItemValues());
-    setEditingSubmitAttempted(false);
   };
 
   return (
     <FactoryPageShell
       breadcrumbs={[
-        { label: "Factory", to: "/factory" },
-        { label: "Slicing", to: paths.list },
+        { label: "Factory" },
+        { label: "Slicing", to: "/factory/slicing" },
         { label: "Create Slicing" },
       ]}
-      title="Create Slicing"
+      subtitle="Process wood flitches into sliced veneer sheets."
+      title="Create Slicing Process"
     >
-      <Stack
-        sx={(currentTheme) => ({
-          gap: currentTheme.spacing(2),
-        })}
-      >
-        <FactorySourceOverviewPanel items={sourceOverviewItems} />
+      <Stack spacing={3}>
+        {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-        <Box
-          sx={(currentTheme) => ({
-            width: {
-              xs: "100%",
-              sm: currentTheme.spacing(28),
-            },
-            maxWidth: "100%",
-          })}
-        >
-          <FieldWrapper label="Slicing Date">
-            <ErpDatePickerField
-              helperText={hasSubmitted ? getSlicingFormError("slicingDate", formValues) : ""}
-              onChange={(value) =>
-                setFormValues((current) => ({
-                  ...current,
-                  slicingDate: value,
-                }))
-              }
-              size="dense"
-              state={
-                hasSubmitted && getSlicingFormError("slicingDate", formValues)
-                  ? "error"
-                  : "default"
-              }
-              value={formValues.slicingDate}
+        {/* Source Overview Panel */}
+        {sourceOverviewItems.length > 0 ? (
+          <FactorySourceOverviewPanel items={sourceOverviewItems} />
+        ) : null}
+
+        {/* Process Details Input Form */}
+        <Box sx={(t) => formSectionCardSx(t)}>
+          <Stack spacing={2}>
+            <FormSectionHeader
+              title={editingItemId ? "Edit Process Item" : "Process Details"}
             />
-          </FieldWrapper>
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: 2,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  md: "repeat(5, 1fr)",
+                },
+              }}
+            >
+              <TextField
+                label="Batch No"
+                value={batchNo}
+                onChange={(e) => setBatchNo(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Length (mm)"
+                type="number"
+                value={length}
+                onChange={(e) => setLength(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+                required
+              />
+
+              <TextField
+                label="Width (mm)"
+                type="number"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+                required
+              />
+
+              <TextField
+                label="Height (mm)"
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+                required
+              />
+
+              <TextField
+                label="CBM"
+                value={calculatedCbm ? calculatedCbm.toFixed(6) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="CBF"
+                value={calculatedCbf ? calculatedCbf.toFixed(4) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Received CBM"
+                value={receivedCbm ? receivedCbm.toFixed(6) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Available CBM"
+                value={availableCbm ? availableCbm.toFixed(6) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Rate per CBF"
+                type="number"
+                value={ratePerCbf}
+                onChange={(e) => setRatePerCbf(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Amount"
+                value={calculatedAmount ? calculatedAmount.toFixed(2) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+            </Box>
+
+            <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+              {editingItemId ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => {
+                    setEditingItemId(null);
+                  }}
+                  sx={recordFormActionButtonSx}
+                >
+                  Cancel Edit
+                </Button>
+              ) : null}
+              <Button
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                onClick={handleAddProcessItem}
+                size="small"
+                sx={(t) => formInlineActionButtonSx(t)}
+              >
+                {editingItemId ? "Update Item" : "Add Item"}
+              </Button>
+            </Stack>
+          </Stack>
         </Box>
 
-        <Stack sx={{ gap: theme.spacing(1.5) }}>
-          <Typography
-            sx={(currentTheme) => ({
-              color: currentTheme.customTokens.text.secondary,
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-            })}
-          >
-            Process Details
-          </Typography>
-          <Box
-            sx={{
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              borderRadius: `${theme.customTokens.radius.md}px`,
-              backgroundColor: theme.customTokens.surfaces.surface,
-              overflow: "hidden",
-            }}
-          >
-            <Box sx={getScrollableTableSx(theme)}>
-              <Table size="small" sx={{ minWidth: lineItemsTableWidth, tableLayout: "auto" }}>
-                <TableHead>
-                  <TableRow>
-                    {visibleLineItemColumns.map((column) => (
-                      <TableCell
-                        key={column.key}
-                        sx={getHeaderCellSx(theme, column.minWidth)}
-                      >
-                        <ColumnLabel
-                          label={column.label}
-                          required={isLineItemColumnRequired(column)}
-                        />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
+        {/* Process Items Table */}
+        <Box sx={(t) => formSectionCardSx(t)}>
+          <Stack spacing={2}>
+            <FormSectionHeader
+              title={`Processed Items (${processedItems.length})`}
+            />
 
-                <TableBody>
-                  <TableRow>
-                    {visibleLineItemColumns.map((column) => (
-                      <TableCell key={column.key} sx={getBodyCellSx(theme)}>
-                        {renderEditableField({
-                          column,
-                          errorText: draftSubmitAttempted
-                            ? getFieldValidationError(column, draftValues)
-                            : "",
-                          onChange: (value) =>
-                            setDraftValues((current) =>
-                              updateSlicingLineItemValues(current, column.key, value),
-                            ),
-                          theme,
-                          value: draftValues[column.key],
-                        })}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Box>
-          </Box>
-
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: theme.spacing(1.5),
-              flexWrap: "wrap",
-            }}
-          >
-            {draftSubmitAttempted && draftProjectedOverflow ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                  mr: "auto",
-                })}
-              >
-                {draftProjectedOverflow}
-              </Typography>
-            ) : null}
-            <Button
-              disableElevation
-              onClick={handleAddLineItem}
-              startIcon={<Plus size={14} />}
-              sx={listingToolbarButtonSx}
-              variant="contained"
-            >
-              Add Item
-            </Button>
-          </Box>
-
-          {lineItems.length > 0 ? (
-            <Stack spacing={1}>
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.customTokens.text.secondary,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                })}
-              >
-                Processed Items
-              </Typography>
             <Box
               sx={{
                 border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: `${theme.customTokens.radius.md}px`,
+                borderRadius: "8px",
+                overflowX: "auto",
                 backgroundColor: theme.customTokens.surfaces.surface,
-                overflow: "hidden",
               }}
             >
-              <Box sx={getScrollableTableSx(theme)}>
-                <Table
-                  size="small"
-                  sx={{ minWidth: lineItemsTableWidth + 120, tableLayout: "auto" }}
-                >
-                  <TableHead>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>#</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Batch No</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Length</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Received CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Available CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Rate per CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Amount</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
+                      Action
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {processedItems.length === 0 ? (
                     <TableRow>
-                      {visibleLineItemColumns.map((column) => (
-                        <TableCell
-                          key={column.key}
-                          sx={getHeaderCellSx(theme, column.minWidth)}
-                        >
-                          <ColumnLabel
-                            label={column.label}
-                            required={isLineItemColumnRequired(column)}
-                          />
-                        </TableCell>
-                      ))}
-                      <TableCell sx={getActionHeaderCellSx(theme, 120)}>
-                        Action
+                      <TableCell colSpan={12} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                        No items added yet. Enter details above and click "Add Item".
                       </TableCell>
                     </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    {lineItems.map((row, rowIndex) => {
-                      const isEditing = editingRowId === row.id;
-
-                      return (
-                        <TableRow
-                          key={row.id}
-                          sx={{
-                            "&:nth-of-type(even)": {
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                            },
-                          }}
-                        >
-                          {visibleLineItemColumns.map((column) => (
-                            <TableCell key={column.key} sx={getBodyCellSx(theme)}>
-                              {isEditing
-                                ? renderEditableField({
-                                    column,
-                                    errorText: editingSubmitAttempted
-                                      ? getFieldValidationError(column, editingValues)
-                                      : "",
-                                    onChange: (value) =>
-                                      setEditingValues((current) =>
-                                        updateSlicingLineItemValues(
-                                          current,
-                                          column.key,
-                                          value,
-                                        ),
-                                      ),
-                                    theme,
-                                    value: editingValues[column.key],
-                                  })
-                                : renderReadOnlyCell(
-                                    column.key,
-                                    row.values[column.key],
-                                    theme,
-                                  )}
-                            </TableCell>
-                          ))}
-
-                          <TableCell
-                            align="center"
-                            sx={getActionBodyCellSx(theme, 120, rowIndex)}
-                          >
-                            <Stack
-                              direction="row"
-                              justifyContent="center"
-                              spacing={0.5}
+                  ) : (
+                    processedItems.map((item, index) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{index + 1}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.batchNo || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.receivedCbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.availableCbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>₹{item.ratePerCbf}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>₹{item.amount}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
+                          <Stack direction="row" spacing={1} justifyContent="center">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditProcessItem(item)}
+                              color="primary"
+                              title="Edit"
                             >
-                              <IconButton
-                                aria-label={isEditing ? "Save item" : "Edit item"}
-                                onClick={() =>
-                                  isEditing
-                                    ? handleSaveEdit(row.id)
-                                    : handleStartEdit(row)
-                                }
-                                sx={getActionButtonSx(theme)}
-                              >
-                                {isEditing ? <Save size={16} /> : <Pencil size={16} />}
-                              </IconButton>
-
-                              <IconButton
-                                aria-label="Delete item"
-                                onClick={() => handleDeleteLineItem(row.id)}
-                                sx={getActionButtonSx(theme)}
-                              >
-                                <Trash2 size={16} />
-                              </IconButton>
-                            </Stack>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Box>
+                              <Pencil size={15} />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteProcessItem(item.id)}
+                              color="error"
+                              title="Delete"
+                            >
+                              <Trash2 size={15} />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </Box>
-            </Stack>
-          ) : null}
+          </Stack>
+        </Box>
 
-          <RejectAvailableDetailsTable
-            fieldIssues={getVisibleRejectAvailableValidationIssues(
-              rejectAvailableValidationErrors,
-              rejectAvailableSubmitAttempted,
-            )}
-            onChange={(key, value) =>
-              setRejectAvailableValues((current) =>
-                getNextRejectAvailableValues(current, key, value),
-              )
-            }
-            values={rejectAvailableValues}
-          />
-        </Stack>
+        {/* Reject / Available Details Table */}
+        <Box sx={(t) => formSectionCardSx(t)}>
+          <Stack spacing={2}>
+            <FormSectionHeader title="Available Details" />
 
+            <Box
+              sx={{
+                display: "grid",
+                gap: 2,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  md: "repeat(5, 1fr) auto",
+                },
+                alignItems: "center",
+              }}
+            >
+              <Select
+                size="small"
+                value="Available"
+                disabled
+                sx={getCompactFieldSx(theme)}
+              >
+                <MenuItem value="Available">Available</MenuItem>
+              </Select>
+
+              <TextField
+                label="Length (mm)"
+                type="number"
+                size="small"
+                value={raLength}
+                onChange={(e) => setRaLength(e.target.value)}
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Width (mm)"
+                type="number"
+                size="small"
+                value={raWidth}
+                onChange={(e) => setRaWidth(e.target.value)}
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Thickness/Height (mm)"
+                type="number"
+                size="small"
+                value={raHeight}
+                onChange={(e) => setRaHeight(e.target.value)}
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Remark"
+                size="small"
+                value={raRemark}
+                onChange={(e) => setRaRemark(e.target.value)}
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <Button
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                onClick={handleAddRejectAvailableItem}
+                size="small"
+                sx={(t) => formInlineActionButtonSx(t)}
+              >
+                Add
+              </Button>
+            </Box>
+
+            <Box
+              sx={{
+                border: `1px solid ${theme.customTokens.borders.default}`,
+                borderRadius: "8px",
+                overflowX: "auto",
+                backgroundColor: theme.customTokens.surfaces.surface,
+              }}
+            >
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>#</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Type</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Length</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Thickness/Height</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Remark</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
+                      Action
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rejectAvailableItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                        No Available disposition items entered.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    rejectAvailableItems.map((item, index) => (
+                      <TableRow key={item.id} hover>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{index + 1}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              color: "primary.main",
+                            }}
+                          >
+                            {item.type}
+                          </Typography>
+                        </TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length || "-"} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height || "-"} mm</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteRejectAvailableItem(item.id)}
+                            color="error"
+                            title="Delete"
+                          >
+                            <Trash2 size={15} />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          </Stack>
+        </Box>
+
+        {/* ── Bottom Action Bar (Cancel & Save Slicing) ── */}
         <Box
           sx={{
             display: "flex",
             justifyContent: "flex-end",
-            gap: theme.spacing(1),
-            flexWrap: "wrap",
+            gap: 1.5,
+            pt: 1,
+            pb: 2,
           }}
         >
           <Button
             type="button"
             variant="outlined"
-            onClick={() => navigate(paths.list)}
+            onClick={() => navigate("/factory/slicing")}
+            disabled={isSubmitting}
             sx={recordFormActionButtonSx}
           >
             Cancel
           </Button>
-
           <Button
             type="button"
             variant="contained"
             disableElevation
-            sx={recordFormActionButtonSx}
-            onClick={() => {
-              setHasSubmitted(true);
-              const draftHasValues = !allLineItemValuesEmpty(draftValues);
-              const draftErrors = getLineItemValidationErrors(draftValues);
-              const editingErrors = getLineItemValidationErrors(editingValues);
-              const lineItemsInvalid =
-                lineItems.length === 0 ||
-                (draftHasValues && hasValidationErrors(draftErrors)) ||
-                Boolean(editingRowId && hasValidationErrors(editingErrors));
-              const quantityInvalid = Boolean(quantityOverflowError);
-              const rejectAvailableInvalid = hasRejectAvailableValidationErrors(
-                rejectAvailableValidationErrors,
-              );
-
-              if (lineItemsInvalid) {
-                setDraftSubmitAttempted(true);
-                setEditingSubmitAttempted(Boolean(editingRowId));
-              }
-
-              if (rejectAvailableInvalid) {
-                setRejectAvailableSubmitAttempted(true);
-              }
-
-              if (
-                hasSlicingFormErrors(formValues) ||
-                lineItemsInvalid ||
-                quantityInvalid ||
-                rejectAvailableInvalid
-              ) {
-                return;
-              }
-
-              if (quantityConfig && originalQuantity > 0) {
-                appendFactoryProcessRun({
-                  stageSlug: "slicing",
-                  sourceKey: sourceAllocationKey,
-                  processedNow: currentProcessedQuantity,
-                  wastageNow: 0,
-                  pendingBalance: Math.max(0, balanceSummary.balanceQuantity),
-                  remark: "",
-                });
-              }
-
-              navigate(paths.list);
+            onClick={() => void handleSubmit()}
+            disabled={isSubmitting}
+            sx={{
+              ...highlightedRecordFormPrimaryButtonSx,
+              backgroundColor: (t) => t.palette.primary.main,
+              color: "#FFFFFF",
+              fontWeight: 700,
+              px: 2.5,
+              "&:hover": {
+                backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
+              },
             }}
           >
-            Save Process
+            {isSubmitting ? "Saving..." : "Save Slicing"}
           </Button>
         </Box>
       </Stack>
     </FactoryPageShell>
-  );
-}
-
-function FieldWrapper({
-  children,
-  label,
-  required = false,
-}: {
-  children: ReactNode;
-  label: string;
-  required?: boolean;
-}) {
-  return (
-    <Stack sx={{ gap: 0.75 }}>
-      <Typography
-        variant="subtitle2"
-        color="text.primary"
-        sx={{ display: "flex", gap: 0.25 }}
-      >
-        <span>{label}</span>
-      </Typography>
-      {children}
-    </Stack>
-  );
-}
-
-function buildSourceSummary(sourceRow?: SourceRow): SlicingSourceSummary {
-  const length =
-    formatSlicingDimensionMetres(getStringValue(sourceRow, ["length"])) ||
-    "2.44 m";
-  const width =
-    formatSlicingDimensionMetres(getStringValue(sourceRow, ["width"])) ||
-    "1.22 m";
-  const height =
-    formatSlicingDimensionMetres(
-      getStringValue(sourceRow, ["height", "thickness"]),
-    ) || "0.005 m";
-
-  const sqm =
-    getStringValue(sourceRow, ["issuedSqm", "totalSqm", "availableSqm", "sqm"]) ||
-    calculateCmt(length, width, height);
-  const sqf =
-    getStringValue(sourceRow, ["issuedSqf", "totalSqf", "availableSqf", "sqf"]) ||
-    formatSqfFromSqm(sqm);
-
-  return {
-    srNo:
-      getStringValue(sourceRow, ["srNo", "issueSrNo", "itemSrNo"]) || "1",
-    itemSubCategory:
-      getStringValue(sourceRow, ["subCategory", "itemSubCategory"]) || "Natural",
-    itemName: getStringValue(sourceRow, ["itemName"]) || "Oak Veneer",
-    color:
-      getStringValue(sourceRow, ["color", "timberColor", "colour"]) || "Natural",
-    logNo: getStringValue(sourceRow, ["logNo", "logCode"]) || "",
-    bundleNumber: getStringValue(sourceRow, ["bundleNumber", "noOfBundle"]),
-    palletNo: getStringValue(sourceRow, ["palletNo", "palletNumber"]),
-    length,
-    width,
-    height,
-    cmt: sqm,
-    amount: getStringValue(sourceRow, ["amount"]) || "0.00",
-    ratePerSqf: getStringValue(sourceRow, ["ratePerSqf", "rate"]),
-    remark: getStringValue(sourceRow, ["remark"]) || "",
-    sqf,
-    sqm,
-  };
-}
-
-function buildSlicingSourceOverviewItems(
-  sourceSummary: SlicingSourceSummary,
-  sourceRow?: SourceRow,
-) {
-  const sourceProcess =
-    getStringValue(sourceRow, ["issuedFrom", "issuedFor", "process", "warehouseName"]) ||
-    "Warehouse B";
-  const orderNo = getStringValue(sourceRow, ["orderNo"]);
-  const orderItemNo = getStringValue(sourceRow, ["orderItemNo"]);
-  const bundleNumber = sourceSummary.bundleNumber;
-  const palletNo = sourceSummary.palletNo;
-  const originalLeaves =
-    getStringValue(sourceRow, [
-      "noOfLeaves",
-      "issuedLeaves",
-      "noOfLeavesSheets",
-      "availableUnits",
-      "totalUnits",
-    ]) || sourceSummary.cmt;
-
-  return [
-    { label: "Issued From", value: sourceProcess },
-    ...(orderNo ? [{ label: "Order No", value: orderNo }] : []),
-    ...(orderItemNo ? [{ label: "Order Item No", value: orderItemNo }] : []),
-    { label: "Item Name", value: sourceSummary.itemName },
-    { label: "Sub Category", value: sourceSummary.itemSubCategory },
-    { label: "Color", value: sourceSummary.color },
-    ...(sourceSummary.logNo
-      ? [{ label: "Log No.", value: sourceSummary.logNo }]
-      : []),
-    { label: "Length", value: sourceSummary.length },
-    { label: "Width", value: sourceSummary.width },
-    { label: "Thickness", value: sourceSummary.height },
-    ...(bundleNumber ? [{ label: "Bundle No", value: bundleNumber }] : []),
-    ...(palletNo ? [{ label: "Pallet No", value: palletNo }] : []),
-    { label: "Original Quantity", value: originalLeaves },
-    { label: "SQM", value: sourceSummary.sqm },
-    { label: "SQF", value: sourceSummary.sqf },
-    { label: "Amount", value: sourceSummary.amount },
-    { label: "Remark", value: sourceSummary.remark },
-  ];
-}
-
-function createDefaultLineItemValues(
-  sourceSummary: SlicingSourceSummary,
-  sourceRow?: SourceRow,
-): SlicingLineItemValues {
-  const values: SlicingLineItemValues = {
-    itemName: sourceSummary.itemName,
-    itemSubCategory: sourceSummary.itemSubCategory,
-    logNo:
-      sourceSummary.logNo ||
-      getStringValue(sourceRow, ["logNo", "logCode"]),
-    bundleNumber: sourceSummary.bundleNumber,
-    palletNo: sourceSummary.palletNo,
-    length: sourceSummary.length,
-    width: sourceSummary.width,
-    height: sourceSummary.height,
-    color: sourceSummary.color,
-    grade: getPreferredSourceValue(sourceRow, "grade"),
-    noOfLeaves: getPreferredSourceValue(sourceRow, "noOfLeaves"),
-    sqm:
-      getPreferredSourceValue(sourceRow, "sqm") ||
-      getStringValue(sourceRow, ["issuedSqm", "totalSqm", "availableSqm"]) ||
-      sourceSummary.sqm,
-    sqf: getPreferredSourceValue(sourceRow, "sqf") || sourceSummary.sqf,
-    ratePerSqf: sourceSummary.ratePerSqf,
-    amount: sourceSummary.amount,
-    remark: getPreferredSourceValue(sourceRow, "remark"),
-  };
-
-  return applyFactoryItemMasterDefaults(values, values.itemName) as SlicingLineItemValues;
-}
-
-function createEmptyLineItemValues(): SlicingLineItemValues {
-  return {
-    itemName: "",
-    itemSubCategory: "",
-    logNo: "",
-    bundleNumber: "",
-    palletNo: "",
-    length: "",
-    width: "",
-    height: "",
-    color: "",
-    grade: "",
-    noOfLeaves: "",
-    sqm: "",
-    sqf: "",
-    ratePerSqf: "",
-    amount: "",
-    remark: "",
-  };
-}
-
-function shouldShowLineItemColumn(
-  column: LineItemColumn,
-  sourceSummary: SlicingSourceSummary,
-  draftValues: SlicingLineItemValues,
-  editingValues: SlicingLineItemValues,
-  lineItems: readonly SlicingLineItem[],
-) {
-  if (column.key !== "bundleNumber" && column.key !== "palletNo") {
-    return true;
-  }
-
-  return [
-    sourceSummary[column.key],
-    draftValues[column.key],
-    editingValues[column.key],
-    ...lineItems.map((lineItem) => lineItem.values[column.key]),
-  ].some((value) => value.trim().length > 0);
-}
-
-function updateSlicingLineItemValues(
-  current: SlicingLineItemValues,
-  key: keyof SlicingLineItemValues,
-  value: string,
-): SlicingLineItemValues {
-  const normalized = normalizeSlicingLineItemInput(key, value);
-  return applyFactoryLineItemValueChange(
-    current,
-    key,
-    normalized,
-  ) as SlicingLineItemValues;
-}
-
-function getPreferredSourceValue(sourceRow: SourceRow | undefined, key: string) {
-  const aliases = commonFactoryItemFieldAliases[key] ?? [key];
-  return getStringValue(sourceRow, aliases);
-}
-
-function allLineItemValuesEmpty(values: SlicingLineItemValues) {
-  return Object.values(values).every((value) => value.trim().length === 0);
-}
-
-function hasSlicingFormErrors(values: SlicingFormValues) {
-  return (Object.keys(slicingFormFieldLabels) as (keyof SlicingFormValues)[]).some(
-    (key) => Boolean(getSlicingFormError(key, values)),
-  );
-}
-
-const slicingFormFieldLabels: Record<keyof SlicingFormValues, string> = {
-  noOfTotalHours: "No. of Total Hours",
-  noOfWorkers: "No. of Workers",
-  noOfWorkingHours: "No. of Working Hours",
-  shift: "Shift",
-  slicingDate: "Slicing Date",
-};
-
-function getSlicingFormError(
-  _key: keyof SlicingFormValues,
-  _values: SlicingFormValues,
-) {
-  return "";
-}
-
-function getLineItemValidationErrors(values: SlicingLineItemValues) {
-  return lineItemColumns.reduce<Record<string, string>>((errors, column) => {
-    const error = getFieldValidationError(column, values);
-
-    if (error) {
-      errors[column.key] = error;
-    }
-
-    return errors;
-  }, {});
-}
-
-function hasValidationErrors(errors: Record<string, string>) {
-  return Object.keys(errors).length > 0;
-}
-
-function getFieldValidationError(
-  column: LineItemColumn,
-  values: SlicingLineItemValues,
-) {
-  if (
-    isLineItemColumnRequired(column) &&
-    (values[column.key] ?? "").trim().length === 0
-  ) {
-    return `${column.label} is required.`;
-  }
-
-  return "";
-}
-
-function isLineItemColumnRequired(_column: LineItemColumn) {
-  return false;
-}
-
-function ColumnLabel({
-  label,
-  required: _required,
-}: {
-  label: string;
-  required: boolean;
-}) {
-  return (
-    <Stack component="span" direction="row" spacing={0.25}>
-      <span>{label}</span>
-    </Stack>
-  );
-}
-
-function getStringValue(sourceRow: SourceRow | undefined, keys: readonly string[]) {
-  if (!sourceRow) {
-    return "";
-  }
-
-  for (const key of keys) {
-    const value = sourceRow[key];
-
-    if (value instanceof Date) {
-      return new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }).format(value);
-    }
-
-    if (typeof value === "string" && value.trim().length > 0) {
-      return value;
-    }
-
-    if (typeof value === "number") {
-      return String(value);
-    }
-  }
-
-  return "";
-}
-
-function calculateCmt(length: string, width: string, height: string) {
-  const lengthM = resolveSlicingDimensionMetres(length);
-  const widthM = resolveSlicingDimensionMetres(width);
-  const heightM = resolveSlicingDimensionMetres(height);
-
-  if (!lengthM || !widthM || !heightM) {
-    return formatSQM(0);
-  }
-
-  // Volume in m³ when L/W/H are metres (display-formatted like SQM).
-  return formatSQM(lengthM * widthM * heightM);
-}
-
-function getHeaderCellSx(theme: Theme, minWidth: number) {
-  return {
-    ...transactionTableHeaderCellSx(theme, minWidth),
-    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-  } as const;
-}
-
-function getBodyCellSx(theme: Theme) {
-  return {
-    ...transactionTableBodyCellSx(theme),
-    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-  } as const;
-}
-
-function getActionHeaderCellSx(theme: Theme, minWidth: number) {
-  return {
-    ...getHeaderCellSx(theme, minWidth),
-    position: "sticky" as const,
-    right: 0,
-    zIndex: 3,
-    boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
-  } as const;
-}
-
-function getActionBodyCellSx(
-  theme: Theme,
-  minWidth: number,
-  rowIndex: number,
-) {
-  return {
-    ...getBodyCellSx(theme),
-    position: "sticky" as const,
-    right: 0,
-    zIndex: 1,
-    minWidth,
-    backgroundColor:
-      rowIndex % 2 === 0
-        ? theme.customTokens.surfaces.surface
-        : theme.customTokens.surfaces.alt,
-    boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
-  } as const;
-}
-
-function getScrollableTableSx(theme: Theme) {
-  return {
-    overflowX: "auto",
-    overflowY: "hidden",
-    scrollbarWidth: "thin",
-    scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
-    "&::-webkit-scrollbar": {
-      height: 8,
-    },
-    "&::-webkit-scrollbar-track": {
-      backgroundColor: theme.customTokens.surfaces.alt,
-    },
-    "&::-webkit-scrollbar-thumb": {
-      borderRadius: 999,
-      backgroundColor: theme.customTokens.brand.primary,
-    },
-  } as const;
-}
-
-function getActionButtonSx(theme: Theme) {
-  return {
-    color: theme.customTokens.navigation.activeText,
-    "&:hover": {
-      backgroundColor: theme.customTokens.navigation.hoverBackground,
-    },
-  } as const;
-}
-
-
-function renderEditableField({
-  column,
-  errorText,
-  onChange,
-  theme,
-  value,
-}: {
-  column: LineItemColumn;
-  errorText?: string;
-  onChange: (value: string) => void;
-  theme: Theme;
-  value: string;
-}) {
-  if (column.readOnly) {
-    return renderReadOnlyCell(column.key, value, theme);
-  }
-
-  if (column.type === "select") {
-    return (
-      <ErpSelectField
-        helperText={errorText}
-        onChange={onChange}
-        options={column.options ?? []}
-        state={errorText ? "error" : "default"}
-        value={value}
-      />
-    );
-  }
-
-  return (
-    <TextField
-      error={Boolean(errorText)}
-      fullWidth
-      helperText={errorText}
-      placeholder={column.placeholder}
-      size="small"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      onWheel={(event) => {
-        if (!isWheelAdjustableMeasurementField(column.key)) {
-          return;
-        }
-
-        event.preventDefault();
-        onChange(getNextMeasurementValue(value, event.deltaY));
-      }}
-      sx={getCompactFieldSx(theme, errorText ? "error" : "default")}
-    />
-  );
-}
-
-function isWheelAdjustableMeasurementField(key: string) {
-  return key === "length" || key === "width" || key === "height";
-}
-
-function getNextMeasurementValue(value: string, deltaY: number) {
-  const numericValue = Number.parseFloat(value);
-  const currentValue = Number.isFinite(numericValue) ? numericValue : 0;
-  const decimalPlaces = getDecimalPlaces(value);
-  const step = decimalPlaces > 0 ? 1 / 10 ** decimalPlaces : 1;
-  const nextValue = Math.max(
-    0,
-    currentValue + (deltaY < 0 ? step : -step),
-  );
-
-  if (decimalPlaces > 0) {
-    return nextValue.toFixed(decimalPlaces);
-  }
-
-  return String(Math.round(nextValue));
-}
-
-function getDecimalPlaces(value: string) {
-  const decimalPart = value.split(".")[1];
-  return decimalPart ? decimalPart.length : 0;
-}
-
-function renderReadOnlyCell(
-  key: keyof SlicingLineItemValues | string,
-  value: string,
-  theme: Theme,
-) {
-  return (
-    <Typography
-      variant="body2"
-      color="text.primary"
-      sx={{
-        minHeight: theme.spacing(4.5),
-        display: "flex",
-        alignItems: "center",
-      }}
-    >
-      {formatSlicingLineItemDisplay(key, value)}
-    </Typography>
   );
 }

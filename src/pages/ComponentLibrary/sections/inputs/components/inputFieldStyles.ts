@@ -92,6 +92,7 @@ export function getFieldSx(
     "& .MuiOutlinedInput-root": {
       borderRadius: `${theme.customTokens.radius.md}px`,
       fontFamily: portalFontFamily,
+      cursor: isDisabled || isReadOnly ? "not-allowed" : "text",
       ...(isCompact
         ? {
             alignItems: "center",
@@ -110,21 +111,24 @@ export function getFieldSx(
           duration: theme.transitions.duration.shorter,
         },
       ),
-      "& fieldset": {
+      "& fieldset, & .MuiOutlinedInput-notchedOutline": {
         borderColor: baseBorderColor,
         borderWidth: isFocus || isError || isSuccess ? 1.5 : 1,
       },
-      "&:hover fieldset": {
-        borderColor:
-          isDisabled || isReadOnly
-            ? baseBorderColor
-            : isError
-              ? theme.palette.error.main
-              : isSuccess
-                ? theme.palette.success.main
-                : theme.customTokens.borders.hover,
+      "&:hover": {
+        cursor: isDisabled || isReadOnly ? "not-allowed" : "text",
       },
-      "&.Mui-focused fieldset": {
+      "&:hover fieldset, &:hover .MuiOutlinedInput-notchedOutline": {
+        borderColor: isDisabled
+          ? theme.customTokens.borders.light
+          : isError
+            ? theme.palette.error.main
+            : isSuccess
+              ? theme.palette.success.main
+              : theme.customTokens.borders.hover,
+        borderWidth: isDisabled ? 1 : 2,
+      },
+      "&.Mui-focused fieldset, &.Mui-focused .MuiOutlinedInput-notchedOutline": {
         borderColor: isError
           ? theme.palette.error.main
           : isSuccess
@@ -132,13 +136,17 @@ export function getFieldSx(
             : theme.customTokens.borders.focus,
         borderWidth: 1.5,
       },
-      "&.Mui-disabled fieldset": {
+      "&.Mui-disabled": {
+        cursor: "not-allowed",
+      },
+      "&.Mui-disabled fieldset, &.Mui-disabled .MuiOutlinedInput-notchedOutline": {
         borderColor: theme.customTokens.borders.light,
       },
       ...(isCompact
         ? {
             "& .MuiInputBase-input": {
               boxSizing: "border-box",
+              cursor: isDisabled || isReadOnly ? "not-allowed" : "text",
               fontFamily: portalFontFamily,
               fontSize: compactFontSize,
               fontWeight: portalTypography.control.fontWeight,
@@ -147,9 +155,11 @@ export function getFieldSx(
               paddingTop: 0,
               paddingBottom: 0,
               "&::placeholder": {
+                color: theme.palette.text.disabled,
                 fontSize: portalTypography.placeholder.fontSize,
                 fontWeight: portalTypography.placeholder.fontWeight,
                 opacity: 1,
+                WebkitTextFillColor: theme.palette.text.disabled,
               },
             },
             "&.MuiInputBase-multiline": {
@@ -158,6 +168,7 @@ export function getFieldSx(
               minHeight: "auto",
             },
             "& textarea": {
+              cursor: isDisabled || isReadOnly ? "not-allowed" : "text",
               fontFamily: portalFontFamily,
               fontSize: compactFontSize,
               fontWeight: portalTypography.control.fontWeight,
@@ -167,6 +178,7 @@ export function getFieldSx(
           }
         : {}),
       "& input, & textarea": {
+        cursor: isDisabled || isReadOnly ? "not-allowed" : "text",
         fontFamily: portalFontFamily,
         fontSize: portalTypography.control.fontSize,
         fontWeight: portalTypography.control.fontWeight,

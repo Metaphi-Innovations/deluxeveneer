@@ -117,7 +117,7 @@ export const commonFactoryItemFieldAliases: Record<string, readonly string[]> = 
   itemName: ["itemName", "productName"],
   itemSubCategory: ["itemSubCategory", "subCategory"],
   color: ["color", "colour", "processColour"],
-  logNo: ["logNo", "logCode"],
+  logNo: ["batchNo", "logNo", "logCode"],
   bundleNumber: ["bundleNumber", "noOfBundle"],
   palletNo: ["palletNo", "palletNumber"],
   grade: ["grade"],

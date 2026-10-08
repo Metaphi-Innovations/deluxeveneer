@@ -12,7 +12,12 @@ import {
   EditDryingPage,
   ViewDryingPage,
 } from "./drying";
-import { InspectionListPage } from "./inspection";
+import { SawingInspectionListPage, SawingInspectionViewPage } from "./sawing-inspection";
+import {
+  DryingInspectionListPage,
+  DryingInspectionViewPage,
+  InspectionListPage,
+} from "./drying-inspection";
 import {
   AddEmbossingPage,
   EditEmbossingPage,
@@ -67,6 +72,8 @@ export const factoryRoutes: RouteObject[] = [
   { path: "factory/sawing/add", Component: AddSawingPage },
   { path: "factory/sawing/edit/:id", Component: EditSawingPage },
   { path: "factory/sawing/view/:id", Component: ViewSawingPage },
+  { path: "factory/sawing-inspection", Component: SawingInspectionListPage },
+  { path: "factory/sawing-inspection/view/:id", Component: SawingInspectionViewPage },
 
   { path: "factory/slicing", Component: SlicingListPage },
   { path: "factory/slicing/add", Component: AddSlicingPage },
@@ -78,7 +85,10 @@ export const factoryRoutes: RouteObject[] = [
   { path: "factory/drying/edit/:id", Component: EditDryingPage },
   { path: "factory/drying/view/:id", Component: ViewDryingPage },
 
+  { path: "factory/drying-inspection", Component: DryingInspectionListPage },
+  { path: "factory/drying-inspection/view/:id", Component: DryingInspectionViewPage },
   { path: "factory/inspection", Component: InspectionListPage },
+  { path: "factory/inspection/view/:id", Component: DryingInspectionViewPage },
 
   { path: "factory/grouping", Component: GroupingListPage },
   { path: "factory/grouping/add", Component: AddGroupingPage },

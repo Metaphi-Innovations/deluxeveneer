@@ -17,6 +17,7 @@ import {
 } from "./api/storageApi";
 import {
   STORAGE_CONSUMABLES_COLUMNS,
+  STORAGE_CONSUMABLES_HISTORY_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
 
@@ -71,6 +72,7 @@ export function StorageConsumablesInventory({
 
     const queryParams: StorageQueryParams = {
       warehouseId,
+      section,
       page,
       limit: rowsPerPage,
     };
@@ -131,7 +133,8 @@ export function StorageConsumablesInventory({
         const result = await fetchStorageColumnDropdown(
           "consumables",
           warehouseId,
-          columnKey
+          columnKey,
+          section
         );
         setFilterOptionsByColumn((prev) => ({
           ...prev,
@@ -144,16 +147,23 @@ export function StorageConsumablesInventory({
         }));
       }
     },
-    [warehouseId]
+    [warehouseId, section]
   );
 
-  const emptyLabel = "No consumables records are available.";
+  const emptyLabel =
+    section === "history"
+      ? "No consumables history records are available."
+      : "No consumables inventory records are available.";
 
   return (
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
       <EnterpriseDataTable
-        columns={STORAGE_CONSUMABLES_COLUMNS}
+        columns={
+          section === "history"
+            ? STORAGE_CONSUMABLES_HISTORY_COLUMNS
+            : STORAGE_CONSUMABLES_COLUMNS
+        }
         rows={rows}
         loading={isLoading}
         loadingLabel="Loading consumables inventory..."
@@ -186,7 +196,7 @@ export function StorageConsumablesInventory({
           },
         }}
         emptyStateLabel={emptyLabel}
-        selectable={false}
+        selectable={section === "inventory"}
         {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
         {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
         {...(actions !== undefined ? { actions } : {})}
