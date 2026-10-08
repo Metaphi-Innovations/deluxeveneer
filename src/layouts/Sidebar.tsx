@@ -36,11 +36,8 @@ import {
   factoryPermissionKeyBySlug,
   masterPermissionKeyBySlug,
 } from "../features/permissions";
-import {
-  fetchSidebarWarehouses,
-  MASTER_WAREHOUSES_UPDATED_EVENT,
-  type SidebarWarehouseItem,
-} from "../features/warehouses/shared/warehouseSidebarStore";
+import type { SidebarWarehouseItem } from "../features/warehouses/shared/warehouseSidebarStore";
+import { useSidebarWarehousesQuery } from "../query/useSidebarWarehousesQuery";
 import {
   portalIconSize,
   portalIconStroke,
@@ -84,9 +81,9 @@ export function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
-  const [dynamicWarehouses, setDynamicWarehouses] = useState<
-    SidebarWarehouseItem[]
-  >([]);
+  const sidebarWarehousesQuery = useSidebarWarehousesQuery();
+  const dynamicWarehouses: SidebarWarehouseItem[] =
+    sidebarWarehousesQuery.data ?? [];
   const userDisplayName = useMemo(
     () => getUserDisplayName(currentUser),
     [currentUser],
@@ -145,42 +142,6 @@ export function Sidebar({
     window.addEventListener(AUTH_USER_UPDATED_EVENT, handleUserUpdate);
     return () => {
       window.removeEventListener(AUTH_USER_UPDATED_EVENT, handleUserUpdate);
-    };
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-
-    const loadWarehouses = async () => {
-      try {
-        const warehouses = await fetchSidebarWarehouses();
-        if (!ignore) {
-          setDynamicWarehouses(warehouses);
-        }
-      } catch {
-        if (!ignore) {
-          setDynamicWarehouses([]);
-        }
-      }
-    };
-
-    void loadWarehouses();
-
-    const handleWarehousesUpdate = () => {
-      void loadWarehouses();
-    };
-
-    window.addEventListener(
-      MASTER_WAREHOUSES_UPDATED_EVENT,
-      handleWarehousesUpdate,
-    );
-
-    return () => {
-      ignore = true;
-      window.removeEventListener(
-        MASTER_WAREHOUSES_UPDATED_EVENT,
-        handleWarehousesUpdate,
-      );
     };
   }, []);
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Avatar,
@@ -31,6 +32,7 @@ import {
   type UserManagementDetail,
 } from "./userManagementConfig";
 import { fetchUserManagementDetail } from "./userManagementApi";
+import { queryKeys } from "../../../query/queryKeys";
 
 type ViewTab = "overview" | "permissions";
 
@@ -42,10 +44,20 @@ export function UserManagementViewPage() {
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
 
-  const [row, setRow] = useState<UserManagementDetail | undefined>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [notFound, setNotFound] = useState(false);
+  const detailQuery = useQuery({
+    queryKey: queryKeys.users.detail(params.id ?? ""),
+    queryFn: () => fetchUserManagementDetail(params.id!),
+    enabled: Boolean(params.id),
+  });
+  const row = detailQuery.data;
+  const isLoading = Boolean(params.id) && detailQuery.isLoading;
+  const notFound = !params.id || detailQuery.isError;
+  const errorMessage =
+    !params.id
+      ? ""
+      : detailQuery.error instanceof Error
+        ? detailQuery.error.message
+        : "";
   const [activeTab, setActiveTab] = useState<ViewTab>("overview");
   const [previewDoc, setPreviewDoc] = useState<{
     name: string;
@@ -64,47 +76,6 @@ export function UserManagementViewPage() {
       isPdf,
     });
   };
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadDetail() {
-      setErrorMessage("");
-      setNotFound(false);
-
-      if (!params.id) {
-        setNotFound(true);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        const nextRow = await fetchUserManagementDetail(params.id);
-        if (!ignore) {
-          setRow(nextRow);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setNotFound(true);
-          setErrorMessage(
-            error instanceof Error ? error.message : "Unable to load user.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadDetail();
-
-    return () => {
-      ignore = true;
-    };
-  }, [params.id]);
 
   const displayName = useMemo(() => {
     if (!row) {

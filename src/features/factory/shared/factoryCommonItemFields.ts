@@ -507,10 +507,20 @@ export function buildFactoryItemPrefillValues(
   return values;
 }
 
+const slicingMeasureInputKeys = new Set([
+  "length",
+  "width",
+  "thickness",
+  "height",
+  "noOfLeaves",
+  "noOfSheets",
+]);
+
 export function applyFactoryLineItemValueChange(
   values: Record<string, string>,
   key: string,
   value: string,
+  slug?: string,
 ): Record<string, string> {
   let nextValues = {
     ...values,
@@ -521,14 +531,22 @@ export function applyFactoryLineItemValueChange(
     nextValues = applyFactoryItemMasterDefaults(nextValues, value);
   }
 
-  if (derivedAreaInputKeys.has(key)) {
+  if (slug === "slicing" && slicingMeasureInputKeys.has(key)) {
+    return applySlicingDerivedAreas(nextValues);
+  }
+
+  if (slug !== "slicing" && derivedAreaInputKeys.has(key)) {
     const derivedSqm = calculateSlicingSqmValue(
       nextValues.length,
       nextValues.width,
       nextValues.noOfLeaves,
     );
     if (derivedSqm > 0) {
-      nextValues = applySlicingDerivedAreas(nextValues);
+      nextValues = {
+        ...nextValues,
+        sqm: formatSQM(derivedSqm),
+        sqf: formatSQF(derivedSqm * SQM_TO_SQF),
+      };
     }
     return nextValues;
   }

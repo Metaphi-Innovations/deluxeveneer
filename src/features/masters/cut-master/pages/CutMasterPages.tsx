@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { MasterFormPage, MasterListingPage } from "../../shared";
 import type { MasterDefinition, MasterRecord } from "../../shared/types";
 import type { ColumnFilterValue } from "../../../shared/columnFilters";
@@ -13,6 +14,10 @@ import {
   updateCutApi,
   updateCutStatusApi,
 } from "../cutMasterApi";
+import { invalidateMaster } from "../../../../query/queryClient";
+import { queryKeys } from "../../../../query/queryKeys";
+import { useColumnDropdownQuery } from "../../../../query/useColumnDropdownQuery";
+import { useMasterListQuery } from "../../../../query/useMasterListQuery";
 
 const CUT_SORT_FIELD_MAP: Record<string, string> = {
   cutName: "name",
@@ -46,96 +51,49 @@ function toApiColumnFilters(
 }
 
 export function CutMasterListPage() {
-  const [rows, setRows] = useState<MasterRecord[]>([]);
+  const queryClient = useQueryClient();
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
   const [columnFilters, setColumnFilters] = useState<Partial<Record<string, ColumnFilterValue>>>({});
-  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<Record<string, Array<{ value: string; label: string }>>>({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
-  const hasLoadedRowsRef = useRef(false);
-  const columnDropdownRequestIdRef = useRef(0);
-
-  const loadColumnDropdown = useCallback(async (columnKey: string) => {
-    const requestId = ++columnDropdownRequestIdRef.current;
-    setFilterOptionsByColumn({});
-    try {
-      const result = await fetchCutColumnDropdown(columnKey);
-      if (requestId !== columnDropdownRequestIdRef.current) return;
-      setFilterOptionsByColumn({ [result.column]: result.options });
-    } catch {
-      // keep page usable
-    }
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-
-    const timer = window.setTimeout(async () => {
-      if (!hasLoadedRowsRef.current) {
-        setIsLoading(true);
-      }
-      setErrorMessage("");
-
-      try {
-        const apiSortBy = mapCutSortField(sortBy);
-        const apiFilters = toApiColumnFilters(columnFilters);
-        const result = await fetchCutsPaginated({
-          page,
-          limit: rowsPerPage,
-          search: searchValue,
-          ...(apiSortBy ? { sortBy: apiSortBy } : {}),
-          ...(sortOrder ? { sortOrder } : {}),
-          ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
-        });
-
-        if (!ignore) {
-          setRows(result.items);
-          setTotalCount(result.pagination.total);
-          hasLoadedRowsRef.current = true;
-          syncCutMasterToStorage(result.items);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Unable to load cuts.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      ignore = true;
-      window.clearTimeout(timer);
-    };
-  }, [reloadKey, searchValue, page, rowsPerPage, sortBy, sortOrder, columnFilters]);
+  const [actionError, setActionError] = useState("");
+  const { filterOptionsByColumn, loadColumnDropdown } = useColumnDropdownQuery(
+    queryKeys.masters.columnDropdowns("cut"),
+    fetchCutColumnDropdown,
+  );
+  const apiSortBy = mapCutSortField(sortBy);
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listQuery = useMasterListQuery({
+    master: "cut",
+    page,
+    rowsPerPage,
+    search: searchValue,
+    ...(apiSortBy ? { sortBy: apiSortBy } : {}),
+    sortOrder,
+    filters: apiFilters,
+    fetchPage: fetchCutsPaginated,
+    onLoaded: syncCutMasterToStorage,
+  });
+  const rows = listQuery.rows;
+  const totalCount = listQuery.totalCount;
+  const isLoading = listQuery.isLoading;
+  const errorMessage =
+    actionError ||
+    (listQuery.error instanceof Error ? listQuery.error.message : "");
 
   const handleStatusToggle = useCallback(async (row: MasterRecord, checked: boolean) => {
     try {
       await updateCutStatusApi(row.id, checked);
-      setRows((current) =>
-        current.map((entry) =>
-          entry.id === row.id
-            ? { ...entry, status: checked ? "Active" : "Inactive" }
-            : entry,
-        ),
-      );
+      setActionError("");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.masters.all("cut") });
     } catch (error) {
-      setErrorMessage(
+      setActionError(
         error instanceof Error ? error.message : "Unable to update cut status.",
       );
-      setReloadKey((v) => v + 1);
     }
-  }, []);
+  }, [queryClient]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchValue(value);
@@ -213,6 +171,7 @@ export function AddCutMasterPage() {
           syncCutMasterToStorage(allRecords);
         }
       }
+      void invalidateMaster("cut");
     } catch (error) {
       console.warn("Failed to create cut via API:", error);
     }
@@ -247,6 +206,7 @@ export function EditCutMasterPage() {
             syncCutMasterToStorage(allRecords);
           }
         }
+        void invalidateMaster("cut");
       } catch (error) {
         console.warn("Failed to update cut via API:", error);
       }

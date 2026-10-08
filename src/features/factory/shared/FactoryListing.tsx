@@ -51,6 +51,10 @@ import {
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../shared/formSectionStyles";
+import {
   formatAmount,
   parseNumericValue,
   SQM_TO_SQF,
@@ -69,6 +73,7 @@ import {
   getOriginalGroupedSheets,
   useGroupedStockSampleIssues,
 } from "./groupedStockIssueStore";
+import { applySlicingListingRows, useSlicingFlowState } from "../slicing/slicingFrontendStore";
 import {
   factoryIssuedWorkToRow,
   completeFactoryIssuedWork,
@@ -87,6 +92,7 @@ import {
   type SampleNextProcess,
 } from "./sampleSheetIdentityStore";
 import type { FactoryDefinition, FactoryRecord } from "./types";
+import { useSidebarWarehousesQuery } from "../../../query/useSidebarWarehousesQuery";
 import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTransferStore";
 import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
 
@@ -129,6 +135,34 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>([]);
   const [inspectionFailedRows, setInspectionFailedRows] = useState<Row[]>([]);
   const [inspectionDecisionTargetRow, setInspectionDecisionTargetRow] = useState<Row | null>(null);
+  const [sawingWarehouseMoveRows, setSawingWarehouseMoveRows] = useState<Row[]>([]);
+  const [sawingWarehouseMoveTarget, setSawingWarehouseMoveTarget] = useState("Production Warehouse");
+  const sidebarWarehousesQuery = useSidebarWarehousesQuery(
+    sawingWarehouseMoveRows.length > 0,
+  );
+  const sawingProductionWarehouses = useMemo(() => {
+    if (sawingWarehouseMoveRows.length === 0) {
+      return [];
+    }
+
+    const productionNames = (sidebarWarehousesQuery.data ?? [])
+      .filter((warehouse) => warehouse.warehouseType === "Production")
+      .map((warehouse) => warehouse.label);
+
+    if (
+      sidebarWarehousesQuery.isError ||
+      (sidebarWarehousesQuery.isFetched && productionNames.length === 0)
+    ) {
+      return ["Production Warehouse"];
+    }
+
+    return productionNames;
+  }, [
+    sawingWarehouseMoveRows.length,
+    sidebarWarehousesQuery.data,
+    sidebarWarehousesQuery.isError,
+    sidebarWarehousesQuery.isFetched,
+  ]);
   const [splicingOrderIssue, setSplicingOrderIssue] =
     useState<SplicingOrderIssueState<Row> | null>(null);
   const [groupingSampleIssue, setGroupingSampleIssue] =
@@ -146,6 +180,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const groupedStockIssues = useGroupedStockSampleIssues();
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
+  const slicingFlowState = useSlicingFlowState();
   const isGroupingModule = definition.slug === "grouping";
   const isInspectionModule =
     definition.slug === "inspection" ||
@@ -215,7 +250,7 @@ export function FactoryListing<Row extends FactoryRecord>({
       activeTab,
     ).map((item) => factoryIssuedWorkToRow(item) as Row);
 
-    return [...issuedWorkRows, ...rowsForTab]
+    const mappedRows = [...issuedWorkRows, ...rowsForTab]
       .filter(
         (row) =>
           !revertedRowIds.includes(row.id) &&
@@ -277,11 +312,26 @@ export function FactoryListing<Row extends FactoryRecord>({
                 : sourceNormalizedRow.isRecheck || sourceNormalizedRow.qcStatus === "Recheck"
                   ? "Recheck"
                   : inspStatus;
+          const sawingSubCategory =
+            definition.slug === "sawing-inspection"
+              ? sourceNormalizedRow.subCategory || sourceNormalizedRow.itemSubCategory
+              : undefined;
+          const sawingDate =
+            definition.slug === "sawing-inspection"
+              ? sourceNormalizedRow.sawingDate || sourceNormalizedRow.processDate
+              : undefined;
           return {
             ...sourceNormalizedRow,
             qcStatus: sourceNormalizedRow.qcStatus ?? defaultStatus,
             status: activeTab === "issued" ? inspStatus : (sourceNormalizedRow.status ?? defaultStatus),
             availableLeaves: String(availableLeaves),
+            ...(definition.slug === "sawing-inspection"
+              ? {
+                  subCategory: sawingSubCategory,
+                  itemSubCategory: sawingSubCategory,
+                  sawingDate,
+                }
+              : {}),
           } as Row;
         }
 
@@ -303,12 +353,19 @@ export function FactoryListing<Row extends FactoryRecord>({
 
         return sourceNormalizedRow;
       });
+
+    if (definition.slug !== "slicing") {
+      return mappedRows;
+    }
+
+    return applySlicingListingRows(mappedRows, activeTab, slicingFlowState);
   }, [
     activeTab,
     definition.rows,
     definition.slug,
     dryingIssueStateMap,
     factoryIssuedWorkItems,
+    slicingFlowState,
     groupedStockIssues,
     isGroupingDoneTab,
     inspectionCompletedRows,
@@ -386,10 +443,9 @@ export function FactoryListing<Row extends FactoryRecord>({
     }
 
     if (isInspectionModule && (activeTab === "done" || activeTab === "failed")) {
-      return withOptionalColumn(columns, {
-        key: "qcStatus",
-        label: "QC Status",
-      });
+      return columns.filter(
+        (column) => column.key !== "qcStatus" && column.key !== "status",
+      );
     }
 
     if (definition.slug === "slicing" && activeTab === "issued") {
@@ -404,6 +460,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         { key: "height", label: "Height" },
         { key: "receivedCbm", label: "Received CBM" },
         { key: "availableCbm", label: "Available CBM" },
+        { key: "availableSqm", label: "Available SQM" },
         { key: "remark", label: "Remark" },
         { key: "createdBy", label: "Created" },
         { key: "updatedBy", label: "Updated" },
@@ -418,6 +475,8 @@ export function FactoryListing<Row extends FactoryRecord>({
       if (insertIdx >= 0) {
         columns = [
           ...mapped.slice(0, insertIdx),
+          { key: "cbm", label: "CBM" },
+          { key: "cbf", label: "CBF" },
           { key: "sqm", label: "SQM" },
           { key: "sqf", label: "SQF" },
           ...mapped.slice(insertIdx + 1),
@@ -733,10 +792,11 @@ export function FactoryListing<Row extends FactoryRecord>({
               tone: "primary" as const,
               onSelect: (selectedRow: Row) => {
                 if (isSawingInspection) {
-                  moveFactoryRowToWarehouseC(selectedRow);
-                } else {
-                  moveFactoryRowToWarehouseB(selectedRow);
+                  setSawingWarehouseMoveTarget("Production Warehouse");
+                  setSawingWarehouseMoveRows([selectedRow]);
+                  return;
                 }
+                moveFactoryRowToWarehouseB(selectedRow);
                 setRevertedRowIds((current) =>
                   current.includes(selectedRow.id)
                     ? current
@@ -1196,6 +1256,40 @@ export function FactoryListing<Row extends FactoryRecord>({
     setSplicingOrderIssue(null);
   };
 
+  useEffect(() => {
+    if (sawingProductionWarehouses.length === 0) return;
+    const preferred =
+      sawingProductionWarehouses.find(
+        (name) => name.trim().toLowerCase() === "production warehouse",
+      ) ??
+      sawingProductionWarehouses[0] ??
+      "Production Warehouse";
+    setSawingWarehouseMoveTarget(preferred);
+  }, [sawingProductionWarehouses]);
+
+  const closeSawingWarehouseMove = () => {
+    setSawingWarehouseMoveRows([]);
+  };
+
+  const confirmSawingWarehouseMove = () => {
+    const movedIds = sawingWarehouseMoveRows.map((row) => row.id);
+    sawingWarehouseMoveRows.forEach((selectedRow) => {
+      moveFactoryRowToWarehouseC({
+        ...(selectedRow as unknown as Record<string, unknown>),
+        destinationWarehouse: sawingWarehouseMoveTarget,
+        warehouseName: sawingWarehouseMoveTarget,
+      });
+    });
+    setRevertedRowIds((current) => [
+      ...current,
+      ...movedIds.filter((id) => !current.includes(id)),
+    ]);
+    setSelectedListingRows((current) =>
+      current.filter((row) => !movedIds.includes(row.id)),
+    );
+    setSawingWarehouseMoveRows([]);
+  };
+
   return (
     <>
       <FactoryPageShell
@@ -1211,7 +1305,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           />
         }
         title={definition.title}
-        subtitle={`Track ${definition.title.toLowerCase()} jobs and completed production.`}
+        subtitle={``}
       >
         <Stack
           sx={(currentTheme) => ({
@@ -1272,14 +1366,8 @@ export function FactoryListing<Row extends FactoryRecord>({
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
                     onClick={() => {
-                      selectedListingRows.forEach((selectedRow) => {
-                        moveFactoryRowToWarehouseC(selectedRow);
-                      });
-                      setRevertedRowIds((current) => [
-                        ...current,
-                        ...selectedListingRows.map((r) => r.id),
-                      ]);
-                      setSelectedListingRows([]);
+                      setSawingWarehouseMoveTarget("Production Warehouse");
+                      setSawingWarehouseMoveRows(selectedListingRows);
                     }}
                     sx={{
                       backgroundColor: "primary.main",
@@ -1335,6 +1423,79 @@ export function FactoryListing<Row extends FactoryRecord>({
         orderRecords={orderRecords}
         state={groupingOrderIssue}
       />
+
+      <Dialog
+        fullWidth
+        maxWidth="sm"
+        onClose={closeSawingWarehouseMove}
+        open={sawingWarehouseMoveRows.length > 0}
+        slotProps={{
+          paper: {
+            sx: inspectionDialogPaperSx,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={(theme) => ({
+            borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+            fontSize: theme.typography.h3.fontSize,
+            fontWeight: 700,
+            px: theme.spacing(2),
+            py: theme.spacing(1.5),
+          })}
+        >
+          Move to Warehouse
+        </DialogTitle>
+        <DialogContent
+          sx={(theme) => ({
+            px: theme.spacing(2),
+            py: `${theme.spacing(2)} !important`,
+          })}
+        >
+          <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+            <Typography
+              sx={(theme) => ({
+                color: theme.customTokens.text.secondary,
+                fontSize: theme.typography.body2.fontSize,
+              })}
+            >
+              Confirm moving {sawingWarehouseMoveRows.length} item
+              {sawingWarehouseMoveRows.length === 1 ? "" : "s"} to the selected warehouse.
+            </Typography>
+            <Stack spacing={0.75}>
+              <DialogFieldLabel>Warehouse</DialogFieldLabel>
+              <ErpSelectField
+                onChange={setSawingWarehouseMoveTarget}
+                options={sawingProductionWarehouses}
+                size="dense"
+                state={sawingProductionWarehouses.length === 0 ? "disabled" : "default"}
+                value={sawingWarehouseMoveTarget}
+              />
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions
+          sx={(theme) => ({
+            borderTop: `1px solid ${theme.customTokens.borders.default}`,
+            gap: theme.spacing(1),
+            px: theme.spacing(2),
+            py: theme.spacing(1.5),
+          })}
+        >
+          <Button onClick={closeSawingWarehouseMove} sx={recordFormActionButtonSx} variant="outlined">
+            Cancel
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            disabled={!sawingWarehouseMoveTarget || sawingProductionWarehouses.length === 0}
+            onClick={confirmSawingWarehouseMove}
+            sx={recordFormActionButtonSx}
+            variant="contained"
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <InspectionDecisionDialog
         open={Boolean(inspectionDecisionTargetRow)}
@@ -1992,10 +2153,40 @@ function InspectionDecisionDialog<Row extends FactoryRecord>({
 
   if (!row) return null;
 
+  const isSawingInspection = processSlug === "sawing-inspection";
   const isDryingInspection =
-    processSlug === "drying-inspection" ||
-    processSlug === "drying" ||
-    Boolean(row.bundleNumber || row.palletNo || row.logCode || row.noOfLeaves != null);
+    !isSawingInspection &&
+    (processSlug === "drying-inspection" || processSlug === "drying");
+  const detailFields = isSawingInspection
+    ? [
+        { label: "Storage Sr No.", value: String(row.storageSrNo ?? row.id ?? "-") },
+        { label: "Issued Date", value: formatInspectionDialogDate(row.issuedDate ?? row.issueDate) },
+        { label: "Sawing Date", value: formatInspectionDialogDate(row.sawingDate ?? row.processDate) },
+        { label: "Item Name", value: String(row.itemName ?? "-") },
+        { label: "Sub Category", value: String(row.subCategory ?? row.itemSubCategory ?? "-") },
+        { label: "Log No.", value: String(row.batchNo ?? row.logNo ?? "-") },
+        { label: "Batch No", value: String(row.batchNoCode ?? "-") },
+        { label: "Length", value: formatDialogMeasure(row.length) },
+        { label: "Width", value: formatDialogMeasure(row.width) },
+        { label: "Thickness", value: formatDialogMeasure(row.thickness ?? row.height) },
+        { label: "CBM", value: formatDialogMeasure(row.cbm) },
+        { label: "CBF", value: formatDialogMeasure(row.cbf) },
+      ]
+    : [
+        { label: "Storage Sr No.", value: String(row.storageSrNo ?? row.id ?? "-") },
+        { label: "Issued Inspection Date", value: formatInspectionDialogDate(row.issuedDate ?? row.issueDate) },
+        { label: "Item Name", value: String(row.itemName ?? "-") },
+        { label: "Sub Category", value: String(row.subCategory ?? row.itemSubCategory ?? "-") },
+        { label: "Log Code", value: String(row.logCode ?? row.logNo ?? "-") },
+        { label: "Bundle Number", value: String(row.bundleNumber ?? "-") },
+        { label: "Pallet No", value: String(row.palletNo ?? "-") },
+        { label: "Length", value: formatDialogMeasure(row.length) },
+        { label: "Width", value: formatDialogMeasure(row.width) },
+        { label: "Thickness", value: formatDialogMeasure(row.thickness ?? row.height) },
+        { label: "No of Leaves", value: String(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? "-") },
+        { label: "Total Sq Meter", value: formatDialogMeasure(row.totalSqMeter ?? row.sqm) },
+      ];
+  const detailRemark = String(row.remark ?? "-");
 
   const handlePassChange = (val: string) => {
     setPassQtyStr(val);
@@ -2044,250 +2235,210 @@ function InspectionDecisionDialog<Row extends FactoryRecord>({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
+    <Dialog
+      fullWidth
+      maxWidth="md"
+      onClose={onClose}
+      open={open}
+      slotProps={{
+        paper: {
+          sx: inspectionDialogPaperSx,
+        },
+      }}
+    >
+      <DialogTitle
+        sx={(theme) => ({
+          borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+          fontSize: theme.typography.h3.fontSize,
+          fontWeight: 700,
+          px: theme.spacing(2),
+          py: theme.spacing(1.5),
+        })}
+      >
         Inspection
       </DialogTitle>
-      <DialogContent sx={{ pt: 1 }}>
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 1, display: "block" }}>
-          Item Details
-        </Typography>
-        <Box
-          sx={{
-            p: 2,
-            mb: 2.5,
-            borderRadius: 1.5,
-            bgcolor: "action.hover",
-            border: "1px solid",
-            borderColor: "divider",
-          }}
-        >
-          {isDryingInspection ? (
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 1.5 }}>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Storage Sr No.</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.storageSrNo ?? row.id ?? "-")}</Typography>
+      <DialogContent
+        sx={(theme) => ({
+          px: theme.spacing(2),
+          py: `${theme.spacing(2)} !important`,
+        })}
+      >
+        <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+          <Box sx={(theme) => formSectionCardSx(theme)}>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Item Details" />
+              <Box
+                sx={(theme) => ({
+                  display: "grid",
+                  gap: theme.spacing(2),
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(3, minmax(0, 1fr))",
+                  },
+                })}
+              >
+                {detailFields.map((field) => (
+                  <ReadOnlyDialogField
+                    key={field.label}
+                    label={field.label}
+                    value={field.value}
+                  />
+                ))}
+                <Box sx={{ gridColumn: "1 / -1" }}>
+                  <ReadOnlyDialogField label="Remark" value={detailRemark} />
+                </Box>
               </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Issued Inspection Date</Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {row.issuedDate ? String(row.issuedDate).slice(0, 10) : String(row.issueDate ?? "-")}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Item Name</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.itemName ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Sub Category</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.subCategory ?? row.itemSubCategory ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Log Code</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.logCode ?? row.logNo ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Bundle Number</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.bundleNumber ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Pallet No</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.palletNo ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Dimensions (L × W × T)</Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {row.length ? `${row.length} × ${row.width} × ${row.thickness ?? row.height ?? "-"}` : "-"}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">No of Leaves</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Total Sq Meter</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.totalSqMeter ?? row.sqm ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Remark</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.remark ?? "-")}</Typography>
-              </Box>
-            </Box>
-          ) : (
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 1.5 }}>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Storage Sr No.</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.storageSrNo ?? row.id ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Sawing Date</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.sawingDate ?? row.processDate ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Item Name</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.itemName ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Sub Category</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.subCategory ?? row.itemSubCategory ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Batch No</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.batchNo ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Batch No. Code</Typography>
-                <Typography variant="body2" fontWeight={600}>{String(row.batchNoCode ?? "-")}</Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Dimensions (L × W × T)</Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {row.length ? `${row.length} × ${row.width} × ${row.thickness ?? row.height ?? "-"}` : "-"}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">CBM / CBF</Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {row.cbm ? `${row.cbm} m³ / ${row.cbf ?? "-"} ft³` : "-"}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary">Issued Inspection Date</Typography>
-                <Typography variant="body2" fontWeight={600}>
-                  {row.issuedDate ? String(row.issuedDate).slice(0, 10) : "-"}
-                </Typography>
-              </Box>
-            </Box>
-          )}
-        </Box>
-
-        {/* Pass and Fail Quantity Inputs */}
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 1, display: "block" }}>
-          Inspection Quantity Result
-        </Typography>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, mb: 2 }}>
-          <Box>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: "success.main", mb: 0.5, display: "block" }}>
-              Pass Quantity (Leaves) *
-            </Typography>
-            <TextField
-              type="number"
-              fullWidth
-              size="small"
-              value={passQtyStr}
-              onChange={(e) => handlePassChange(e.target.value)}
-              placeholder="Enter pass count"
-              error={exceedsTotal}
-              helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
-            />
+            </Stack>
           </Box>
-          <Box>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: "error.main", mb: 0.5, display: "block" }}>
-              Fail Quantity (Leaves) *
-            </Typography>
-            <TextField
-              type="number"
-              fullWidth
-              size="small"
-              value={failQtyStr}
-              onChange={(e) => handleFailChange(e.target.value)}
-              placeholder="Enter fail count"
-              error={exceedsTotal}
-              helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
-            />
+
+          <Box sx={(theme) => formSectionCardSx(theme)}>
+            <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+              <FormSectionHeader title="Inspection" />
+              {isDryingInspection ? (
+                <Box
+                  sx={(theme) => ({
+                    display: "grid",
+                    gap: theme.spacing(2),
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                  })}
+                >
+                  <Stack spacing={0.75}>
+                    <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
+                    <TextField
+                      error={exceedsTotal}
+                      fullWidth
+                      helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
+                      onChange={(event) => handlePassChange(event.target.value)}
+                      placeholder="Enter pass count"
+                      size="small"
+                      type="number"
+                      value={passQtyStr}
+                      sx={(theme) => getCompactFieldSx(theme, exceedsTotal ? "error" : "default")}
+                    />
+                  </Stack>
+                  <Stack spacing={0.75}>
+                    <DialogFieldLabel required>Fail Quantity (Leaves)</DialogFieldLabel>
+                    <TextField
+                      error={exceedsTotal}
+                      fullWidth
+                      helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
+                      onChange={(event) => handleFailChange(event.target.value)}
+                      placeholder="Enter fail count"
+                      size="small"
+                      type="number"
+                      value={failQtyStr}
+                      sx={(theme) => getCompactFieldSx(theme, exceedsTotal ? "error" : "default")}
+                    />
+                  </Stack>
+                </Box>
+              ) : null}
+              <Box
+                sx={(theme) => ({
+                  display: "grid",
+                  gap: theme.spacing(2),
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                })}
+              >
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Inspection Date</DialogFieldLabel>
+                  <ErpDatePickerField
+                    onChange={(value) => setInspectionDate(localDateToIso(value))}
+                    size="dense"
+                    value={isoDateToLocalDate(inspectionDate)}
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Attachment (Upload Photo)</DialogFieldLabel>
+                  <Stack direction="row" spacing={1.5} alignItems="center">
+                    <Button component="label" sx={recordFormActionButtonSx} variant="outlined">
+                      Choose Photo
+                      <input
+                        accept="image/*"
+                        hidden
+                        onChange={handleFileChange}
+                        type="file"
+                      />
+                    </Button>
+                    <Typography variant="body2" color={attachmentName ? "text.secondary" : "text.disabled"}>
+                      {attachmentName || "No file chosen"}
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Box>
+              {attachmentPreview ? (
+                <Box
+                  sx={(theme) => ({
+                    maxHeight: 140,
+                    maxWidth: 220,
+                    overflow: "hidden",
+                    borderRadius: `${theme.customTokens.radius.sm}px`,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
+                  })}
+                >
+                  <img
+                    alt="Inspection attachment"
+                    src={attachmentPreview}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </Box>
+              ) : null}
+              <Stack spacing={0.75}>
+                <DialogFieldLabel>Inspection Remark</DialogFieldLabel>
+                <TextField
+                  fullWidth
+                  minRows={2}
+                  multiline
+                  onChange={(event) => setRemark(event.target.value)}
+                  placeholder="Enter inspection remark or reason"
+                  size="small"
+                  value={remark}
+                  sx={(theme) => getCompactFieldSx(theme, "default")}
+                />
+              </Stack>
+            </Stack>
           </Box>
-        </Box>
-
-        {/* Inspection Date */}
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.5, display: "block" }}>
-          Inspection Date
-        </Typography>
-        <TextField
-          type="date"
-          fullWidth
-          size="small"
-          value={inspectionDate}
-          onChange={(e) => setInspectionDate(e.target.value)}
-          sx={{ mb: 2 }}
-        />
-
-        {/* Attachment (Upload Photo) */}
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.5, display: "block" }}>
-          Attachment (Upload Photo)
-        </Typography>
-        <Box sx={{ mb: 2 }}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <Button
-              variant="outlined"
-              component="label"
-              size="small"
-              sx={{ textTransform: "none", fontWeight: 600 }}
-            >
-              Choose Photo
-              <input
-                type="file"
-                hidden
-                accept="image/*"
-                onChange={handleFileChange}
-              />
-            </Button>
-            {attachmentName ? (
-              <Typography variant="body2" color="text.secondary">
-                {attachmentName}
-              </Typography>
-            ) : (
-              <Typography variant="caption" color="text.disabled">
-                No file chosen
-              </Typography>
-            )}
-          </Stack>
-          {attachmentPreview && (
-            <Box sx={{ mt: 1.5, maxHeight: 140, maxWidth: 220, overflow: "hidden", borderRadius: 1, border: "1px solid", borderColor: "divider" }}>
-              <img src={attachmentPreview} alt="Inspection Attachment" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            </Box>
-          )}
-        </Box>
-
-        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.5, display: "block" }}>
-          Inspection Remark
-        </Typography>
-        <TextField
-          placeholder="Enter inspection remark or reason..."
-          fullWidth
-          size="small"
-          multiline
-          rows={2}
-          value={remark}
-          onChange={(e) => setRemark(e.target.value)}
-        />
+        </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, pt: 1, gap: 1 }}>
-        <Button
-          variant="outlined"
-          color="inherit"
-          onClick={onClose}
-          sx={{ textTransform: "none", fontWeight: 600 }}
-        >
+      <DialogActions
+        sx={(theme) => ({
+          borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          gap: theme.spacing(1),
+          px: theme.spacing(2),
+          py: theme.spacing(1.5),
+        })}
+      >
+        <Button onClick={onClose} sx={recordFormActionButtonSx} variant="outlined">
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
         <Button
-          variant="contained"
           color="error"
-          startIcon={<AlertCircle size={16} />}
-          onClick={() => onFail(row, remark, inspectionDate, { passQty: currentPass, failQty: currentFail })}
           disabled={exceedsTotal}
-          sx={{ textTransform: "none", fontWeight: 600, minWidth: 120 }}
+          onClick={() =>
+            onFail(row, remark, inspectionDate, {
+              passQty: isSawingInspection ? 0 : currentPass,
+              failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
+            })
+          }
+          startIcon={<AlertCircle size={16} />}
+          sx={recordFormActionButtonSx}
+          variant="contained"
         >
           Fail Inspection
         </Button>
         <Button
-          variant="contained"
           color="success"
-          startIcon={<CheckCircle2 size={16} />}
-          onClick={() => onPass(row, remark, inspectionDate, { passQty: currentPass, failQty: currentFail })}
           disabled={exceedsTotal}
-          sx={{ textTransform: "none", fontWeight: 600, minWidth: 120 }}
+          onClick={() =>
+            onPass(row, remark, inspectionDate, {
+              passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
+              failQty: isSawingInspection ? 0 : currentFail,
+            })
+          }
+          startIcon={<CheckCircle2 size={16} />}
+          sx={recordFormActionButtonSx}
+          variant="contained"
         >
           Pass Inspection
         </Button>
@@ -2508,6 +2659,82 @@ function isFactoryWarehouseLabel(value: string) {
 function getFactoryString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
+
+function displayFactoryDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value.trim().slice(0, 10);
+  }
+  return "-";
+}
+
+function formatInspectionDialogDate(value: unknown) {
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "string" && value.trim()
+        ? new Date(value)
+        : null;
+
+  if (date && !Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(date);
+  }
+
+  if (typeof value === "string" && value.trim()) return value.trim();
+  return "-";
+}
+
+function formatDialogMeasure(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return trimDialogNumber(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "-";
+    if (/^-?\d+(\.\d+)?$/u.test(trimmed)) {
+      const numeric = Number(trimmed);
+      if (Number.isFinite(numeric)) return trimDialogNumber(numeric);
+    }
+    return trimmed;
+  }
+
+  return "-";
+}
+
+function trimDialogNumber(value: number) {
+  return value.toFixed(3).replace(/\.?0+$/u, "");
+}
+
+function isoDateToLocalDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function localDateToIso(value: Date | null) {
+  if (!value || Number.isNaN(value.getTime())) return "";
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const inspectionDialogPaperSx = (theme: import("@mui/material/styles").Theme) => ({
+  border: `1px solid ${theme.customTokens.borders.default}`,
+  borderRadius: `${theme.customTokens.radius.md}px`,
+  boxShadow: theme.shadows[0],
+  outline: "none",
+  "&:focus, &:focus-visible": {
+    outline: "none",
+  },
+});
 
 function deriveFactorySqf(sqm: string) {
   const sqmValue = parseNumericValue(sqm);

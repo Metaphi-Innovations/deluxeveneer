@@ -341,7 +341,7 @@ async function mapLineItemToPayload(
     };
   }
 
-  // Veneer Blocks: UI `thickness` → height; UI `logCode` field is Batch No → batchNo.
+  // Veneer Blocks: UI `thickness` → height. The Log No field still posts as batchNo until the API is renamed.
   return {
     ...base,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,

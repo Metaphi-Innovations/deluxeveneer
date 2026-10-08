@@ -409,6 +409,9 @@ const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
     status: index % 2 === 0 ? "Pending" : "Partial Done",
     issueDate: row.issuedDate,
     processDate: row.issuedDate,
+    sawingDate: row.issuedDate,
+    subCategory: row.itemSubCategory,
+    batchNoCode: `SW-CODE-${sequence}`,
     issuedFor: "Sawing Inspection",
   };
 });
@@ -564,7 +567,7 @@ const sawingListingColumns = columns([
 
 export const sawingInspectionListingColumns = columns([
   ["storageSrNo", "Storage Sr No."],
-  ["issuedDate", "Issued Inspection Date"],
+  ["issuedDate", "Issued Date"],
   ["sawingDate", "Sawing Date"],
   ["itemName", "Item Name"],
   ["subCategory", "Sub Category"],
@@ -824,6 +827,8 @@ const slicingProcessDetailFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["noOfLeaves", "No of Leaves"],
+  ["cbm", "CBM"],
+  ["cbf", "CBF"],
   ["sqm", "SQM"],
   ["sqf", "SQF"],
   ["remark", "Remark"],
@@ -843,7 +848,7 @@ const sawingProcessDetailFields = [
 ] as const;
 
 
-const slicingDerivedAreaKeys = new Set(["sqm", "sqf"]);
+const slicingDerivedAreaKeys = new Set(["cbm", "cbf", "sqm", "sqf"]);
 
 function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
   return [

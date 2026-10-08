@@ -4,6 +4,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -20,6 +21,8 @@ import {
   fetchProductionWarehouseInventory,
   type ProductionInventoryItem,
 } from "../api/productionWarehouseApi";
+import { queryKeys } from "../../../../query/queryKeys";
+import { useDebouncedValue } from "../../../../query/useDebouncedValue";
 import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
 import type { ProductionListQueryState } from "../productionListQuery";
 
@@ -84,7 +87,6 @@ export function PlywoodTab({
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<string | null>("inwardDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
   const [columnFilters, setColumnFilters] = useState<
@@ -93,61 +95,44 @@ export function PlywoodTab({
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
-  const [rows, setRows] = useState<PlywoodRow[]>([]);
-  const [isLoading, setIsLoading] = useState(Boolean(warehouseId));
+  const debouncedSearch = useDebouncedValue(searchValue, 150);
 
   useEffect(() => {
     setPage(1);
   }, [searchValue, warehouseId]);
 
-  const loadData = useCallback(async () => {
-    if (!warehouseId) {
-      setRows([]);
-      setTotalCount(0);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const apiFilters = toApiColumnFilters(columnFilters);
-      const data = await fetchProductionWarehouseInventory({
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listParams = {
+    warehouseId,
+    page,
+    limit: rowsPerPage,
+    search: debouncedSearch.trim(),
+    sortBy,
+    sortOrder,
+    filters: apiFilters,
+  };
+  const listQuery = useQuery({
+    queryKey: queryKeys.warehouse.production.list("plywood", listParams),
+    enabled: Boolean(warehouseId),
+    placeholderData: keepPreviousData,
+    queryFn: () =>
+      fetchProductionWarehouseInventory({
         warehouseId,
         tab: "plywood",
         page,
         limit: rowsPerPage,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
         ...(sortBy ? { sortBy } : {}),
         ...(sortOrder ? { sortOrder } : {}),
         ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
-      });
-
-      setRows(
-        data && Array.isArray(data.items) ? data.items.map(mapApiItem) : [],
-      );
-      setTotalCount(data?.total ?? 0);
-    } catch {
-      setRows([]);
-      setTotalCount(0);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    warehouseId,
-    page,
-    rowsPerPage,
-    searchValue,
-    sortBy,
-    sortOrder,
-    columnFilters,
-  ]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadData();
-    }, 150);
-    return () => window.clearTimeout(timer);
-  }, [loadData]);
+      }),
+  });
+  const rows =
+    listQuery.data && Array.isArray(listQuery.data.items)
+      ? listQuery.data.items.map(mapApiItem)
+      : [];
+  const totalCount = listQuery.data?.total ?? 0;
+  const isLoading = Boolean(warehouseId) && listQuery.isLoading;
 
   useEffect(() => {
     onListQueryChange?.({

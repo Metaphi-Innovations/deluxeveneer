@@ -17,10 +17,7 @@ import {
 import type { UserPermissionItem } from "./userManagementConfig";
 import type { DynamicWarehousePermissionItem } from "../../shared/warehousePermission";
 import { WAREHOUSE_TYPE_ICONS } from "../../../layouts/sidebarNavigation";
-import {
-  fetchSidebarWarehouses,
-  MASTER_WAREHOUSES_UPDATED_EVENT,
-} from "../../warehouses/shared/warehouseSidebarStore";
+import { useSidebarWarehousesQuery } from "../../../query/useSidebarWarehousesQuery";
 
 export type PermissionBulkUpdate = {
   itemKey: string;
@@ -54,9 +51,16 @@ export function UserPermissionMatrix({
   readOnly = false,
 }: UserPermissionMatrixProps) {
   const theme = useTheme();
-  const [dynamicWarehouses, setDynamicWarehouses] = useState<
-    DynamicWarehousePermissionItem[]
-  >([]);
+  const sidebarWarehousesQuery = useSidebarWarehousesQuery();
+  const dynamicWarehouses: DynamicWarehousePermissionItem[] = useMemo(
+    () =>
+      (sidebarWarehousesQuery.data ?? []).map((warehouse) => ({
+        id: warehouse.id,
+        label: warehouse.label,
+        warehouseType: warehouse.warehouseType,
+      })),
+    [sidebarWarehousesQuery.data],
+  );
   const permissionSections = useMemo(
     () => buildUserPermissionSections(dynamicWarehouses, WAREHOUSE_TYPE_ICONS),
     [dynamicWarehouses],
@@ -65,50 +69,6 @@ export function UserPermissionMatrix({
     userPermissionSections[0]?.id ?? "",
   );
   const [viewFilter, setViewFilter] = useState<"all" | "granted">("granted");
-
-  useEffect(() => {
-    let ignore = false;
-
-    const loadWarehouses = async () => {
-      try {
-        const warehouses = await fetchSidebarWarehouses();
-        if (ignore) {
-          return;
-        }
-
-        setDynamicWarehouses(
-          warehouses.map((warehouse) => ({
-            id: warehouse.id,
-            label: warehouse.label,
-            warehouseType: warehouse.warehouseType,
-          })),
-        );
-      } catch {
-        if (!ignore) {
-          setDynamicWarehouses([]);
-        }
-      }
-    };
-
-    void loadWarehouses();
-
-    const onWarehousesUpdated = () => {
-      void loadWarehouses();
-    };
-
-    window.addEventListener(
-      MASTER_WAREHOUSES_UPDATED_EVENT,
-      onWarehousesUpdated,
-    );
-
-    return () => {
-      ignore = true;
-      window.removeEventListener(
-        MASTER_WAREHOUSES_UPDATED_EVENT,
-        onWarehousesUpdated,
-      );
-    };
-  }, []);
 
   const totals = useMemo(
     () => countPermissionBreakdown(permissions),

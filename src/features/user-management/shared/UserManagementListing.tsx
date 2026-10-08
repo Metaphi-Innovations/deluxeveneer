@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MouseEvent } from "react";
 import {
   Alert,
@@ -66,14 +67,16 @@ import { SearchableMultiSelectColumnFilter } from "../../shared/SearchableMultiS
 import {
   getUserManagementPaths,
   getUserManagementSearchValues,
+  type UserManagementRecord,
 } from "./userManagementConfig";
 import {
   changeUserPassword,
   fetchUserManagementPaginated,
-  fetchUserManagementRows,
   updateUserManagementStatus,
 } from "./userManagementApi";
-import type { UserManagementRecord } from "./userManagementConfig";
+import { invalidateUsers } from "../../../query/queryClient";
+import { queryKeys } from "../../../query/queryKeys";
+import { useDebouncedValue } from "../../../query/useDebouncedValue";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100, 200] as const;
 
@@ -98,11 +101,26 @@ export function UserManagementListing() {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [rows, setRows] = useState<UserManagementRecord[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [actionError, setActionError] = useState("");
+  const debouncedSearch = useDebouncedValue(searchValue);
+  const queryClient = useQueryClient();
+  const listParams = {
+    page,
+    limit: rowsPerPage,
+    search: debouncedSearch,
+  };
+  const listQuery = useQuery({
+    queryKey: queryKeys.users.list(listParams),
+    placeholderData: keepPreviousData,
+    queryFn: () => fetchUserManagementPaginated(listParams),
+  });
+  const rows = listQuery.data?.items ?? [];
+  const totalCount = listQuery.data?.pagination.total ?? 0;
+  const totalPages = Math.max(1, listQuery.data?.pagination.totalPages ?? 1);
+  const isLoading = listQuery.isLoading;
+  const errorMessage =
+    actionError ||
+    (listQuery.error instanceof Error ? listQuery.error.message : "");
   const [passwordDialogUser, setPasswordDialogUser] =
     useState<UserManagementRecord | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -125,44 +143,6 @@ export function UserManagementListing() {
     useState<HTMLElement | null>(null);
   const [activeColumnFilter, setActiveColumnFilter] =
     useState<ColumnFilterKey | null>(null);
-
-  useEffect(() => {
-    let ignore = false;
-    setIsLoading(true);
-
-    const timer = setTimeout(async () => {
-      setErrorMessage("");
-
-      try {
-        const result = await fetchUserManagementPaginated({
-          page,
-          limit: rowsPerPage,
-          search: searchValue,
-        });
-
-        if (!ignore) {
-          setRows(result.items);
-          setTotalCount(result.pagination.total);
-          setTotalPages(Math.max(1, result.pagination.totalPages));
-        }
-      } catch (error) {
-        if (!ignore) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Unable to load users.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      ignore = true;
-      clearTimeout(timer);
-    };
-  }, [page, rowsPerPage, searchValue]);
 
   const departmentOptions = useMemo(
     () => getUniqueSortedValues(rows.map((row) => row.department)),
@@ -320,6 +300,7 @@ export function UserManagementListing() {
 
     try {
       await changeUserPassword(passwordDialogUser.id, newPassword);
+      void invalidateUsers();
       setPasswordSuccessMessage("Password changed successfully.");
       setPasswordDialogUser(null);
       setNewPassword("");
@@ -347,22 +328,30 @@ export function UserManagementListing() {
 
     try {
       const updatedUser = await updateUserManagementStatus(row.id, status);
-      setRows((currentRows) =>
-        currentRows.map((currentRow) =>
-          currentRow.id === row.id
-            ? {
-                ...currentRow,
-                isActive: updatedUser.isActive,
-                statusLabel: updatedUser.statusLabel,
-                updatedBy: updatedUser.updatedBy,
-                updatedDate: updatedUser.updatedDate,
-              }
-            : currentRow,
-        ),
+      setActionError("");
+      queryClient.setQueryData(
+        queryKeys.users.list(listParams),
+        (current: typeof listQuery.data) => {
+          if (!current) return current;
+          return {
+            ...current,
+            items: current.items.map((currentRow) =>
+              currentRow.id === row.id
+                ? {
+                    ...currentRow,
+                    isActive: updatedUser.isActive,
+                    statusLabel: updatedUser.statusLabel,
+                    updatedBy: updatedUser.updatedBy,
+                    updatedDate: updatedUser.updatedDate,
+                  }
+                : currentRow,
+            ),
+          };
+        },
       );
-      setErrorMessage("");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
     } catch (error) {
-      setErrorMessage(
+      setActionError(
         error instanceof Error ? error.message : "Unable to update user status.",
       );
       throw error;

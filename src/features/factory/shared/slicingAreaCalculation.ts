@@ -2,17 +2,34 @@ import {
   formatAmount,
   formatMeasurement,
   formatQuantity,
-  formatSQM,
-  formatSqfFromSqm,
   parseNumericValue,
   sanitizeAmountInput,
   sanitizeQuantityInput,
+  SQM_TO_SQF,
 } from "../../shared/numberFormat";
+
+/**
+ * Slicing measures, in metres. This is the frontend reference for the backend.
+ *
+ * Block:  CBM = length × width × height
+ *          SQM = CBM / height
+ * Slice:  CBM = length × width × thickness × number of leaves
+ *          SQM = length × width × number of leaves
+ * SQF   = SQM × 10.7639
+ * CBF   = CBM × 35.3147
+ *
+ * Leftover height shrinks with leftover CBM. Leftover SQM stays the face
+ * area (CBM / height) until the available CBM is 0.
+ */
+export const CBM_TO_CBF = 35.3147;
 
 const SLICING_AREA_INPUT_KEYS = new Set([
   "length",
   "width",
+  "thickness",
+  "height",
   "noOfLeaves",
+  "noOfSheets",
 ]);
 
 const SLICING_DIMENSION_KEYS = new Set(["length", "width", "height"]);
@@ -52,7 +69,7 @@ export function resolveSlicingDimensionMetres(value: unknown): number {
 }
 
 /**
- * Slicing SQM when Length/Width are in metres:
+ * Face area used by processes that do not have a block height.
  * length(m) × width(m) × no. of leaves
  */
 export function calculateSlicingSqmValue(
@@ -69,6 +86,124 @@ export function calculateSlicingSqmValue(
   }
 
   return lengthM * widthM * leaves;
+}
+
+/** CBM = length × width × depth × pieces. Depth is height or thickness. Pieces is 1 for a block. */
+export function calculateSlicingCbm(
+  length: unknown,
+  width: unknown,
+  depth: unknown,
+  pieces: unknown = 1,
+): number {
+  const lengthM = resolveSlicingDimensionMetres(length);
+  const widthM = resolveSlicingDimensionMetres(width);
+  const depthM = resolveSlicingDimensionMetres(depth);
+  const count = parseNumericValue(pieces) ?? 0;
+
+  if (!lengthM || !widthM || !depthM || count <= 0) {
+    return 0;
+  }
+
+  return lengthM * widthM * depthM * count;
+}
+
+/** SQM = CBM / height, or CBM / thickness. */
+export function calculateSqmFromCbm(cbm: number, depth: unknown): number {
+  const depthM = resolveSlicingDimensionMetres(depth);
+  if (cbm <= 0 || depthM <= 0) return 0;
+  return cbm / depthM;
+}
+
+/** Height or thickness = CBM / (length × width). */
+export function calculateDepthFromCbm(
+  cbm: number,
+  length: unknown,
+  width: unknown,
+): number {
+  const lengthM = resolveSlicingDimensionMetres(length);
+  const widthM = resolveSlicingDimensionMetres(width);
+  if (cbm <= 0 || lengthM <= 0 || widthM <= 0) return 0;
+  return cbm / (lengthM * widthM);
+}
+
+export type SlicingSliceInput = {
+  height?: unknown;
+  length?: unknown;
+  noOfLeaves?: unknown;
+  noOfSheets?: unknown;
+  thickness?: unknown;
+  totalLeaves?: unknown;
+  width?: unknown;
+};
+
+export function measureSlicingSlice(values: SlicingSliceInput) {
+  const depth = values.thickness || values.height;
+  const pieces = values.noOfLeaves || values.noOfSheets || values.totalLeaves;
+  const cbm = calculateSlicingCbm(values.length, values.width, depth, pieces);
+  const sqm = calculateSlicingSqmValue(values.length, values.width, pieces);
+
+  return {
+    cbf: cbm * CBM_TO_CBF,
+    cbm,
+    complete: cbm > 0 && sqm > 0,
+    depth: resolveSlicingDimensionMetres(depth),
+    sqf: sqm * SQM_TO_SQF,
+    sqm,
+  };
+}
+
+export function slicingStockCbm(source: Record<string, unknown> | undefined) {
+  const given =
+    parseNumericValue(source?.availableCbm) ??
+    parseNumericValue(source?.receivedCbm) ??
+    parseNumericValue(source?.cbm);
+
+  if (given !== null && given > 0) {
+    return given;
+  }
+
+  return calculateSlicingCbm(
+    source?.length,
+    source?.width,
+    source?.height || source?.thickness,
+    1,
+  );
+}
+
+export function calculateSlicingRemainder(
+  source: Record<string, unknown> | undefined,
+  slices: readonly SlicingSliceInput[],
+) {
+  const length = resolveSlicingDimensionMetres(source?.length);
+  const width = resolveSlicingDimensionMetres(source?.width);
+  const height = resolveSlicingDimensionMetres(source?.height || source?.thickness);
+  const stockCbm = slicingStockCbm(source);
+  const usedCbm = slices.reduce((sum, slice) => sum + measureSlicingSlice(slice).cbm, 0);
+  const cbm = Math.max(0, stockCbm - usedCbm);
+  const depleted = slices.length > 0 && cbm <= 0.000001;
+  const depth = depleted
+    ? 0
+    : height > 0 && stockCbm > 0
+      ? height * (cbm / stockCbm)
+      : calculateDepthFromCbm(cbm, length, width);
+  const sqm = depleted ? 0 : calculateSqmFromCbm(cbm, depth);
+
+  return {
+    cbf: depleted ? 0 : cbm * CBM_TO_CBF,
+    cbm: depleted ? 0 : cbm,
+    depleted,
+    height: depth,
+    length: depleted ? 0 : length,
+    sqf: sqm * SQM_TO_SQF,
+    sqm,
+    width: depleted ? 0 : width,
+  };
+}
+
+export function formatSlicingDecimal(value: number, digits: number) {
+  if (!Number.isFinite(value) || value < 0) return "";
+  if (value === 0) return "0";
+  return value.toFixed(digits).replace(/\.?0+$/u, "");
 }
 
 export function isSlicingAreaInputKey(key: string) {
@@ -109,16 +244,14 @@ function ensureMetresSuffix(value: string) {
 export function applySlicingDerivedAreas<
   T extends Record<string, string>,
 >(values: T): T {
-  const sqmValue = calculateSlicingSqmValue(
-    values.length,
-    values.width,
-    values.noOfLeaves,
-  );
+  const measured = measureSlicingSlice(values);
 
   return {
     ...values,
-    sqm: sqmValue > 0 ? formatSQM(sqmValue) : "",
-    sqf: sqmValue > 0 ? formatSqfFromSqm(sqmValue) : "",
+    cbf: measured.cbm > 0 ? formatSlicingDecimal(measured.cbf, 4) : "",
+    cbm: measured.cbm > 0 ? formatSlicingDecimal(measured.cbm, 6) : "",
+    sqf: measured.sqm > 0 ? formatSlicingDecimal(measured.sqf, 3) : "",
+    sqm: measured.sqm > 0 ? formatSlicingDecimal(measured.sqm, 3) : "",
   };
 }
 
@@ -149,12 +282,8 @@ export function formatSlicingLineItemDisplay(
     return "-";
   }
 
-  if (key === "sqm") {
-    return formatSQM(value) || value;
-  }
-
-  if (key === "sqf") {
-    return formatSqfFromSqm(value) || value;
+  if (key === "sqm" || key === "sqf" || key === "cbm" || key === "cbf") {
+    return value;
   }
 
   if (key === "amount") {

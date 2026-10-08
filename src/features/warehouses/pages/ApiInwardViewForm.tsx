@@ -288,7 +288,7 @@ export function ApiInwardViewForm({
       "Item Name",
       "Factory Code",
       "HSN",
-      "Batch No",
+      "Log No",
       "L",
       "W",
       "H",
@@ -1011,7 +1011,7 @@ function ItemRow({
       ) : (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.batchNo || "—"}
+            {item.batchNo || item.logCode || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.length)}
