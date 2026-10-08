@@ -22,9 +22,14 @@ import { useLocation, useNavigate } from "react-router";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
+  formInlineActionButtonSx,
   formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
+import {
+  highlightedRecordFormPrimaryButtonSx,
+  recordFormActionButtonSx,
+} from "../../../shared/buttonStyles";
 import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
@@ -40,7 +45,9 @@ interface ProcessItemRow {
   thickness: number;
   cbm: number;
   cbf: number;
-  ratePerCbf: number;
+  receivedCbm: number;
+  availableCbm: number;
+  ratePerCbm: number;
   amount: number;
   remark?: string;
 }
@@ -81,7 +88,9 @@ export function SawingCreatePage() {
   const [length, setLength] = useState(sourceItem?.length ? String(sourceItem.length) : "");
   const [width, setWidth] = useState(sourceItem?.width ? String(sourceItem.width) : "");
   const [thickness, setThickness] = useState("");
-  const [ratePerCbf, setRatePerCbf] = useState(sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf) : "");
+  const [ratePerCbm, setRatePerCbm] = useState(
+    sourceItem?.ratePerCbm ? String(sourceItem.ratePerCbm) : sourceItem?.rate ? String(sourceItem.rate) : "12000"
+  );
   const [remark, setRemark] = useState("");
 
   // Processed Items List
@@ -117,11 +126,37 @@ export function SawingCreatePage() {
     return Number((calculatedCbm * 35.3147).toFixed(4));
   }, [calculatedCbm]);
 
+  const sourceCbm = useMemo(() => {
+    const srcCbmVal = Number(sourceItem?.cbm) || 0;
+    if (srcCbmVal) return srcCbmVal;
+    const l = Number(sourceItem?.length) || 0;
+    const w = Number(sourceItem?.width) || 0;
+    const h = Number(sourceItem?.height || sourceItem?.thickness) || 0;
+    if (!l || !w || !h) return 0;
+    const isMm = l > 50 || w > 50;
+    const divisor = isMm ? 1_000_000_000 : 1_000_000;
+    return Number(((l * w * h) / divisor).toFixed(6));
+  }, [sourceItem]);
+
+  const receivedCbm = sourceCbm || calculatedCbm;
+
+  const totalUsedCbm = useMemo(() => {
+    return processedItems.reduce((acc, curr) => {
+      if (editingItemId && curr.id === editingItemId) return acc;
+      return acc + (Number(curr.cbm) || 0);
+    }, 0);
+  }, [processedItems, editingItemId]);
+
+  const availableCbm = useMemo(() => {
+    const avail = (receivedCbm || 0) - totalUsedCbm - (editingItemId ? 0 : calculatedCbm);
+    return Number((avail > 0 ? avail : 0).toFixed(6));
+  }, [receivedCbm, totalUsedCbm, editingItemId, calculatedCbm]);
+
   const calculatedAmount = useMemo(() => {
-    const rate = Number(ratePerCbf) || 0;
-    if (!calculatedCbf || !rate) return 0;
-    return Number((calculatedCbf * rate).toFixed(2));
-  }, [calculatedCbf, ratePerCbf]);
+    const rate = Number(ratePerCbm) || 0;
+    if (!calculatedCbm || !rate) return 0;
+    return Number((calculatedCbm * rate).toFixed(2));
+  }, [calculatedCbm, ratePerCbm]);
 
   // Auto-calculated fields for Reject / Available add
   const calculatedRaCbm = useMemo(() => {
@@ -148,10 +183,10 @@ export function SawingCreatePage() {
       { label: "Item Name", value: sourceItem.itemName || "-" },
       { label: "Sub Category", value: sourceItem.subCategory || sourceItem.itemSubCategoryName || "-" },
       { label: "Batch No", value: sourceItem.batchNo || "-" },
-      { label: "Source Length", value: sourceItem.length ? `${sourceItem.length} mm` : "-" },
-      { label: "Source Width", value: sourceItem.width ? `${sourceItem.width} mm` : "-" },
-      { label: "Source Height", value: sourceItem.height ? `${sourceItem.height} mm` : "-" },
-      { label: "Source CBM", value: sourceItem.cbm ?? "-" },
+      { label: "Source Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "Source Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "Source Height", value: sourceItem.height ? String(sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
+      { label: "Source CBM", value: sourceItem.cbm ? String(sourceItem.cbm).replace(/\s*(m³|cbm)$/i, "") : "-" },
       { label: "Warehouse", value: sourceItem.storageWarehouseName || "-" },
     ];
   }, [sourceItem]);
@@ -180,7 +215,9 @@ export function SawingCreatePage() {
                 thickness: t,
                 cbm: calculatedCbm,
                 cbf: calculatedCbf,
-                ratePerCbf: Number(ratePerCbf) || 0,
+                receivedCbm,
+                availableCbm,
+                ratePerCbm: Number(ratePerCbm) || 0,
                 amount: calculatedAmount,
                 remark,
               }
@@ -198,7 +235,9 @@ export function SawingCreatePage() {
         thickness: t,
         cbm: calculatedCbm,
         cbf: calculatedCbf,
-        ratePerCbf: Number(ratePerCbf) || 0,
+        receivedCbm,
+        availableCbm,
+        ratePerCbm: Number(ratePerCbm) || 0,
         amount: calculatedAmount,
         remark,
       };
@@ -210,7 +249,7 @@ export function SawingCreatePage() {
     setLength(sourceItem?.length ? String(sourceItem.length) : "");
     setWidth(sourceItem?.width ? String(sourceItem.width) : "");
     setThickness("");
-    setRatePerCbf(sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf) : "");
+    setRatePerCbm(sourceItem?.ratePerCbm ? String(sourceItem.ratePerCbm) : sourceItem?.rate ? String(sourceItem.rate) : "12000");
     setRemark("");
   };
 
@@ -220,7 +259,7 @@ export function SawingCreatePage() {
     setLength(String(item.length));
     setWidth(String(item.width));
     setThickness(String(item.thickness));
-    setRatePerCbf(item.ratePerCbf ? String(item.ratePerCbf) : "");
+    setRatePerCbm(item.ratePerCbm ? String(item.ratePerCbm) : "");
     setRemark(item.remark || "");
   };
 
@@ -283,7 +322,10 @@ export function SawingCreatePage() {
           thickness: p.thickness,
           cbm: p.cbm,
           cbf: p.cbf,
-          ratePerCbf: p.ratePerCbf,
+          receivedCbm: p.receivedCbm,
+          availableCbm: p.availableCbm,
+          ratePerCbm: p.ratePerCbm,
+          ratePerCbf: p.ratePerCbm,
           amount: p.amount,
           ...(p.remark ? { remark: p.remark } : {}),
         })),
@@ -318,28 +360,6 @@ export function SawingCreatePage() {
       ]}
       subtitle="Process veneer block into sawn flitches/sheets."
       title="Create Sawing Process"
-      actions={
-        <Stack direction="row" spacing={1.5}>
-          <Button
-            variant="outlined"
-            onClick={() => navigate("/factory/sawing")}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => void handleSubmit()}
-            disabled={isSubmitting || processedItems.length === 0}
-            sx={{
-              backgroundColor: theme.palette.primary.main,
-              fontWeight: 600,
-            }}
-          >
-            {isSubmitting ? "Saving..." : "Save Sawing"}
-          </Button>
-        </Stack>
-      }
     >
       <Stack spacing={3}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -363,7 +383,7 @@ export function SawingCreatePage() {
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, 1fr)",
-                  md: "repeat(4, 1fr)",
+                  md: "repeat(5, 1fr)",
                 },
               }}
             >
@@ -420,6 +440,39 @@ export function SawingCreatePage() {
                 size="small"
                 sx={getCompactFieldSx(theme)}
               />
+
+              <TextField
+                label="Received CBM"
+                value={receivedCbm ? receivedCbm.toFixed(6) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Available CBM"
+                value={availableCbm ? availableCbm.toFixed(6) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Rate per CBM"
+                type="number"
+                value={ratePerCbm}
+                onChange={(e) => setRatePerCbm(e.target.value)}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
+
+              <TextField
+                label="Amount"
+                value={calculatedAmount ? calculatedAmount.toFixed(2) : "0"}
+                slotProps={{ input: { readOnly: true } }}
+                size="small"
+                sx={getCompactFieldSx(theme)}
+              />
             </Box>
 
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
@@ -431,6 +484,7 @@ export function SawingCreatePage() {
                     setEditingItemId(null);
                     setThickness("");
                   }}
+                  sx={recordFormActionButtonSx}
                 >
                   Cancel Edit
                 </Button>
@@ -440,12 +494,7 @@ export function SawingCreatePage() {
                 startIcon={<Plus size={16} />}
                 onClick={handleAddProcessItem}
                 size="small"
-                sx={{
-                  backgroundColor: theme.palette.primary.main,
-                  fontWeight: 600,
-                  textTransform: "none",
-                  px: 2.5,
-                }}
+                sx={(t) => formInlineActionButtonSx(t)}
               >
                 {editingItemId ? "Update Item" : "Add Item"}
               </Button>
@@ -464,7 +513,7 @@ export function SawingCreatePage() {
               sx={{
                 border: `1px solid ${theme.customTokens.borders.default}`,
                 borderRadius: "8px",
-                overflow: "hidden",
+                overflowX: "auto",
                 backgroundColor: theme.customTokens.surfaces.surface,
               }}
             >
@@ -478,6 +527,10 @@ export function SawingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Received CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Available CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Rate per CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Amount</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
                       Action
                     </TableCell>
@@ -486,7 +539,7 @@ export function SawingCreatePage() {
                 <TableBody>
                   {processedItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                      <TableCell colSpan={12} align="center" sx={{ py: 3, color: "text.secondary" }}>
                         No items added yet. Enter details above and click "Add Item".
                       </TableCell>
                     </TableRow>
@@ -500,6 +553,10 @@ export function SawingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.thickness} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.receivedCbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.availableCbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.ratePerCbm}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.amount}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
                             <IconButton
@@ -593,18 +650,13 @@ export function SawingCreatePage() {
               />
 
               <Button
-                variant="outlined"
+                variant="contained"
                 startIcon={<Plus size={16} />}
                 onClick={handleAddRejectAvailableItem}
                 size="small"
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  minHeight: 38,
-                }}
+                sx={(t) => formInlineActionButtonSx(t)}
               >
-                + Add
+                Add
               </Button>
             </Box>
 
@@ -678,6 +730,46 @@ export function SawingCreatePage() {
               </Table>
             </Box>
           </Stack>
+        </Box>
+
+        {/* ── Bottom Action Bar (Cancel & Save Sawing) ── */}
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 1.5,
+            pt: 1,
+            pb: 2,
+          }}
+        >
+          <Button
+            type="button"
+            variant="outlined"
+            onClick={() => navigate("/factory/sawing")}
+            disabled={isSubmitting}
+            sx={recordFormActionButtonSx}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="contained"
+            disableElevation
+            onClick={() => void handleSubmit()}
+            disabled={isSubmitting}
+            sx={{
+              ...highlightedRecordFormPrimaryButtonSx,
+              backgroundColor: (t) => t.palette.primary.main,
+              color: "#FFFFFF",
+              fontWeight: 700,
+              px: 2.5,
+              "&:hover": {
+                backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
+              },
+            }}
+          >
+            {isSubmitting ? "Saving..." : "Save Sawing"}
+          </Button>
         </Box>
       </Stack>
     </FactoryPageShell>

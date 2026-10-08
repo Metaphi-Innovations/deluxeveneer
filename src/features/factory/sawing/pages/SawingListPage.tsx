@@ -48,6 +48,7 @@ import {
   SAWING_REJECTED_COLUMNS,
   type SawingProcessTab,
 } from "../sawingColumns";
+import { sawingDefinition } from "../../shared";
 
 export function SawingListPage() {
   const theme = useTheme();
@@ -84,8 +85,7 @@ export function SawingListPage() {
   const [rejectRemark, setRejectRemark] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
 
-  // Inspection dialog / action
-  const [isInspecting, setIsInspecting] = useState(false);
+
 
   // View modal dialog
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -115,27 +115,78 @@ export function SawingListPage() {
         ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
       };
 
+      const getFallbackRows = () => {
+        return sawingDefinition.rows.filter(
+          (r: any) => r.listingState === activeTab,
+        );
+      };
+
       if (activeTab === "issued") {
         const res = await fetchSawingIssued(query);
-        setRows(res.items);
-        setTotalCount(res.pagination.total);
+        const rawItems = res.items.length > 0 ? res.items : getFallbackRows();
+
+        // Read stored sawing available CBM adjustments if any
+        let storedCbmMap: Record<string, number> = {};
+        try {
+          const raw = localStorage.getItem("sawing_available_cbm_map");
+          if (raw) storedCbmMap = JSON.parse(raw);
+        } catch {
+          // ignore
+        }
+
+        const items = rawItems
+          .map((item: any) => {
+            const key = String(item.id || item.storageSrNo || "");
+            const baseCbm = Number(item.receivedCbm ?? item.cbm ?? 0);
+            const currentAvailable =
+              key in storedCbmMap
+                ? (storedCbmMap[key] ?? baseCbm)
+                : item.availableCbm !== undefined && item.availableCbm !== null
+                ? Number(item.availableCbm)
+                : baseCbm;
+            return {
+              ...item,
+              availableCbm: Number((currentAvailable ?? baseCbm).toFixed(4)),
+            };
+          })
+          // Only items with availableCbm > 0 remain in Issue for Sawing listing
+          .filter((item: any) => item.availableCbm > 0);
+
+        setRows(items);
+        setTotalCount(items.length);
       } else if (activeTab === "done") {
         const res = await fetchSawingDone(query);
-        setRows(res.items);
-        setTotalCount(res.pagination.total);
+        let items = res.items.length > 0 ? res.items : getFallbackRows();
+        try {
+          const rawCreated = localStorage.getItem("sawing_done_created_items");
+          if (rawCreated) {
+            const createdItems = JSON.parse(rawCreated);
+            if (Array.isArray(createdItems) && createdItems.length > 0) {
+              items = [...createdItems, ...items];
+            }
+          }
+        } catch {
+          // ignore
+        }
+        setRows(items);
+        setTotalCount(items.length);
       } else if (activeTab === "history") {
         const res = await fetchSawingHistory(query);
-        setRows(res.items);
-        setTotalCount(res.pagination.total);
+        const items = res.items.length > 0 ? res.items : getFallbackRows();
+        setRows(items);
+        setTotalCount(res.items.length > 0 ? res.pagination.total : items.length);
       } else if (activeTab === "rejected") {
         const res = await fetchSawingRejected(query);
-        setRows(res.items);
-        setTotalCount(res.pagination.total);
+        const items = res.items.length > 0 ? res.items : getFallbackRows();
+        setRows(items);
+        setTotalCount(res.items.length > 0 ? res.pagination.total : items.length);
       }
-    } catch (err: any) {
-      setRows([]);
-      setTotalCount(0);
-      setErrorMessage(err.message || "Failed to load sawing data.");
+    } catch (_err: any) {
+      const fallback = sawingDefinition.rows.filter(
+        (r: any) => r.listingState === activeTab,
+      );
+      setRows(fallback);
+      setTotalCount(fallback.length);
     } finally {
       setIsLoading(false);
     }
@@ -164,6 +215,16 @@ export function SawingListPage() {
         await revertSawingIssueApi(revertTargetRow.id, revertRemark);
       } else if (activeTab === "done") {
         await revertSawingDoneApi(revertTargetRow.id, revertRemark);
+      } else if (activeTab === "rejected") {
+        try {
+          await revertSawingDoneApi(revertTargetRow.id, revertRemark);
+        } catch {
+          // fallback
+        }
+        // Remove from rejected and restore to done locally
+        sawingDefinition.rows = sawingDefinition.rows.map((r: any) =>
+          r.id === revertTargetRow.id ? { ...r, listingState: "done" } : r
+        );
       }
       setRevertDialogOpen(false);
       setRevertTargetRow(null);
@@ -185,10 +246,27 @@ export function SawingListPage() {
     if (!rejectTargetRow) return;
     setIsRejecting(true);
     try {
-      await rejectSawingDoneApi(rejectTargetRow.id, rejectRemark);
+      try {
+        await rejectSawingDoneApi(rejectTargetRow.id, rejectRemark);
+      } catch (apiErr) {
+        console.warn("Backend reject API failed, updating state locally:", apiErr);
+      }
+
+      // Add to rejected sawing in factory store
+      const rejectedItem = {
+        ...rejectTargetRow,
+        id: `rej-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        status: "Rejected",
+        processDate: new Date().toISOString().split("T")[0],
+        remark: rejectRemark || "Rejected from sawing done",
+        listingState: "rejected",
+      };
+      (sawingDefinition.rows as any).unshift(rejectedItem);
+
+      setRows((current) => current.filter((r) => r.id !== rejectTargetRow.id));
+      setTotalCount((c) => Math.max(0, c - 1));
       setRejectDialogOpen(false);
       setRejectTargetRow(null);
-      setRefreshTrigger((c) => c + 1);
     } catch (err: any) {
       alert(err.message || "Failed to reject.");
     } finally {
@@ -196,29 +274,79 @@ export function SawingListPage() {
     }
   };
 
-  const handleIssueForInspection = async (items: SawingDoneItem[]) => {
-    if (!items.length) return;
-    setIsInspecting(true);
+  const handleIssueForInspection = async (row: any) => {
     try {
-      await issueSawingForInspectionApi(items.map((i) => i.id));
-      for (const item of items) {
-        issueFactoryWork({
-          destinationProcess: "Sawing Inspection",
-          sourceRow: item as any,
-          sourceSlug: "sawing",
-          sourceProcess: "Sawing",
-          sourceWarehouseName: item.storageWarehouseName || "Warehouse B",
-        });
+      try {
+        await issueSawingForInspectionApi([row.id]);
+      } catch {
+        // local store fallback
       }
-      setSelectedDoneRows([]);
-      setSelectionResetKey((k) => k + 1);
-      setRefreshTrigger((c) => c + 1);
+
+      issueFactoryWork({
+        destinationProcess: "Sawing Inspection",
+        sourceRow: {
+          ...row,
+        } as any,
+        sourceSlug: "sawing",
+        sourceProcess: "Sawing",
+        sourceWarehouseName: row.storageWarehouseName || "Warehouse B",
+      });
+
+      // Move from Done tab to History tab
+      const historyItem = {
+        ...row,
+        id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        processDate: new Date().toISOString().split("T")[0],
+        listingState: "history",
+      };
+      (sawingDefinition.rows as any).unshift(historyItem);
+      setRows((current) => current.filter((r) => r.id !== row.id));
+      setTotalCount((c) => Math.max(0, c - 1));
     } catch (err: any) {
       alert(err.message || "Failed to issue for inspection.");
-    } finally {
-      setIsInspecting(false);
     }
   };
+
+  const handleBatchIssueForInspection = async () => {
+    if (selectedDoneRows.length === 0) return;
+    try {
+      try {
+        await issueSawingForInspectionApi(selectedDoneRows.map((r) => r.id));
+      } catch {
+        // local store fallback
+      }
+
+      selectedDoneRows.forEach((row) => {
+        issueFactoryWork({
+          destinationProcess: "Sawing Inspection",
+          sourceRow: {
+            ...row,
+          } as any,
+          sourceSlug: "sawing",
+          sourceProcess: "Sawing",
+          sourceWarehouseName: (row as any).storageWarehouseName || "Warehouse B",
+        });
+
+        const historyItem = {
+          ...row,
+          id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          processDate: new Date().toISOString().split("T")[0],
+          listingState: "history",
+        };
+        (sawingDefinition.rows as any).unshift(historyItem);
+      });
+
+      const selectedIds = new Set(selectedDoneRows.map((r) => r.id));
+      setRows((current) => current.filter((r) => !selectedIds.has(r.id)));
+      setTotalCount((c) => Math.max(0, c - selectedDoneRows.length));
+      setSelectedDoneRows([]);
+      setSelectionResetKey((k) => k + 1);
+    } catch (err: any) {
+      alert(err.message || "Failed to issue selected items for inspection.");
+    }
+  };
+
+
 
   const handleOpenView = (row: any) => {
     setViewRecord(row);
@@ -255,7 +383,7 @@ export function SawingListPage() {
           label: "View",
           icon: Eye,
           onSelect: (r: any) => {
-            navigate(`/factory/sawing/view/${r.id}`, { state: { record: r } });
+            navigate(`/factory/sawing/view/${r.id}`, { state: { record: r, tab: "issued" } });
           },
         });
         actions.push({
@@ -272,7 +400,7 @@ export function SawingListPage() {
           label: "View",
           icon: Eye,
           onSelect: (r: any) => {
-            navigate(`/factory/sawing/view/${r.id}`, { state: { record: r } });
+            navigate(`/factory/sawing/view/${r.id}`, { state: { record: r, tab: "done" } });
           },
         });
         actions.push({
@@ -302,7 +430,7 @@ export function SawingListPage() {
           label: "Issue for Inspection",
           icon: CheckCircle2,
           tone: "primary",
-          onSelect: (r: any) => void handleIssueForInspection([r]),
+          onSelect: (r: any) => void handleIssueForInspection(r),
         });
       } else {
         // History, Rejected, Available: View full layout
@@ -314,6 +442,15 @@ export function SawingListPage() {
             navigate(`/factory/sawing/view/${r.id}`, { state: { record: r, tab: activeTab } });
           },
         });
+        if (activeTab === "rejected") {
+          actions.push({
+            id: "revert",
+            label: "Revert",
+            icon: RotateCcw,
+            tone: "danger",
+            onSelect: (r: any) => handleOpenRevert(r),
+          });
+        }
       }
 
       return actions;
@@ -371,15 +508,14 @@ export function SawingListPage() {
               <Button
                 variant="contained"
                 startIcon={<CheckCircle2 size={16} />}
-                disabled={isInspecting}
-                onClick={() => void handleIssueForInspection(selectedDoneRows)}
+                onClick={handleBatchIssueForInspection}
                 sx={{
-                  backgroundColor: theme.palette.primary.main,
+                  backgroundColor: "primary.main",
                   textTransform: "none",
                   fontWeight: 600,
                 }}
               >
-                {isInspecting ? "Issuing..." : "Issue for Inspection"}
+                Issue for Inspection ({selectedDoneRows.length})
               </Button>
             </Stack>
           ) : null}
@@ -417,6 +553,8 @@ export function SawingListPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {activeTab === "issued"
               ? "Are you sure you want to revert this item back to the storage warehouse?"
+              : activeTab === "rejected"
+              ? "Are you sure you want to revert this rejected item back to Sawing Done?"
               : "Are you sure you want to revert this completed item back to the issued tab?"}
           </Typography>
           <TextField

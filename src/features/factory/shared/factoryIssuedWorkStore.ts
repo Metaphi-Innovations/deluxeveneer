@@ -262,6 +262,29 @@ export function failFactoryIssuedWork(
   return nextItem;
 }
 
+export function updateFactoryIssuedWorkSnapshot(
+  workItemId: string,
+  snapshotPatch: Record<string, unknown>,
+) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+  const current = store.items[index]!;
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...current,
+    sourceSnapshot: {
+      ...current.sourceSnapshot,
+      ...snapshotPatch,
+    },
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
 export function getFactoryIssuedWorkForListing(
   destinationSlug: string,
   tab: FactoryProcessTab,

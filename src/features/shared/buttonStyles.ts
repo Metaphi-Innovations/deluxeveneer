@@ -78,6 +78,28 @@ export const recordViewActionButtonSx = recordActionButtonSx;
 
 export const recordFormActionButtonSx = recordActionButtonSx;
 
+/** Highlighted primary button for Save actions on create/edit forms. */
+export function getHighlightedRecordFormPrimaryButtonSx(theme: Theme) {
+  return {
+    ...portalButtonBase,
+    ...portalButtonIconSx,
+    minHeight: portalControlHeights.button,
+    height: portalControlHeights.button,
+    padding: "0 14px",
+    borderRadius: "8px",
+    backgroundColor: theme.customTokens.brand.primary,
+    color: theme.customTokens.text.inverse,
+    fontWeight: 600,
+    "&:hover": {
+      backgroundColor: theme.customTokens.brand.primaryScale[800],
+      boxShadow: "none",
+    },
+  };
+}
+
+export const highlightedRecordFormPrimaryButtonSx: SxProps<Theme> =
+  getHighlightedRecordFormPrimaryButtonSx;
+
 /** Page-level toolbar actions (Add User, Create Order, Export, …). */
 export function getListingToolbarButtonSx(theme: Theme) {
   return {

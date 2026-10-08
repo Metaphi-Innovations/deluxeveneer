@@ -191,12 +191,16 @@ const decimalFieldConfigs = {
 const derivedAreaFieldKeys = new Set<RejectAvailableKey>(["sqm", "sqf"]);
 
 export function RejectAvailableDetailsTable({
+  disabledType,
   fieldIssues,
   onChange,
+  title,
   values,
 }: {
+  disabledType?: boolean;
   fieldIssues: RejectAvailableValidationIssues;
   onChange: (key: RejectAvailableKey, value: string) => void;
+  title?: string | undefined;
   values: RejectAvailableValues;
 }) {
   const theme = useTheme();
@@ -212,7 +216,7 @@ export function RejectAvailableDetailsTable({
         gap: currentTheme.spacing(1.5),
       })}
     >
-      <FormSectionHeader title="Reject / Available Details" />
+      <FormSectionHeader title={title || "Reject / Available Details"} />
       <Box
         sx={{
           border: `1px solid ${theme.customTokens.borders.default}`,
@@ -241,6 +245,7 @@ export function RejectAvailableDetailsTable({
                   <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                     {renderRejectAvailableField({
                       column,
+                      disabled: column.key === "type" && Boolean(disabledType),
                       issue: fieldIssues[column.key],
                       onChange,
                       theme,
@@ -431,12 +436,14 @@ function normalizeSourceKey(key: string) {
 
 function renderRejectAvailableField({
   column,
+  disabled,
   issue,
   onChange,
   theme,
   value,
 }: {
   column: RejectAvailableColumn;
+  disabled?: boolean;
   issue: RejectAvailableValidationIssue | undefined;
   onChange: (key: RejectAvailableKey, value: string) => void;
   theme: Theme;
@@ -448,6 +455,17 @@ function renderRejectAvailableField({
   const isDerivedAreaField = derivedAreaFieldKeys.has(column.key);
 
   if (column.type === "select") {
+    if (disabled) {
+      return (
+        <TextField
+          disabled
+          fullWidth
+          size="small"
+          value={value}
+          sx={getCompactFieldSx(theme, "default")}
+        />
+      );
+    }
     return (
       <ErpSelectField
         onChange={(nextValue) => onChange(column.key, nextValue)}
