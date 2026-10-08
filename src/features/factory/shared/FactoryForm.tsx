@@ -12,7 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { ChevronLeft, Pencil, Save } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import {
   MasterFormFields,
@@ -124,10 +124,14 @@ export function FactoryForm<Row extends FactoryRecord>({
     (mode === "edit" && canEdit) ||
     (mode === "view" && canView);
 
+  const location = useLocation();
+  const locationRecord = (location.state as any)?.record as Row | undefined;
+
   const row =
     mode === "add"
       ? undefined
-      : definition.rows.find((record) => record.id === params.id) ??
+      : locationRecord ??
+        definition.rows.find((record) => record.id === params.id) ??
         (() => {
           const workItem = params.id
             ? getFactoryIssuedWorkById(params.id)
@@ -292,7 +296,7 @@ export function FactoryForm<Row extends FactoryRecord>({
                   Back
                 </Button>
 
-                {canEdit ? (
+                {canEdit && definition.slug !== "sawing" ? (
                   <Button
                     variant="contained"
                     startIcon={<Pencil size={16} />}

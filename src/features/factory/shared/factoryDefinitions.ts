@@ -476,7 +476,7 @@ const sawingListingColumns = columns([
   ["logNo", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
-  ["height", "Thickness"],
+  ["height", "Height"],
   ["cbm", "CBM"],
   ["cbf", "CBF"],
   ["ratePerSqf", "Rate per CBF"],
@@ -714,15 +714,14 @@ const slicingProcessDetailFields = [
 ] as const;
 
 const sawingProcessDetailFields = [
-  ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
   ["logNo", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
-  ["height", "Thickness"],
+  ["height", "Height"],
   ["cbm", "CBM"],
   ["cbf", "CBF"],
+  ["receivedCbm", "Received CBM"],
+  ["availableCbm", "Available CBM"],
   ["ratePerSqf", "Rate per CBF"],
   ["amount", "Amount"],
   ["remark", "Remark"],
@@ -749,7 +748,10 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Process Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
-        fieldDefinition.key === "cbm" || fieldDefinition.key === "cbf"
+        fieldDefinition.key === "cbm" ||
+        fieldDefinition.key === "cbf" ||
+        fieldDefinition.key === "receivedCbm" ||
+        fieldDefinition.key === "availableCbm"
           ? { ...fieldDefinition, readOnly: true }
           : fieldDefinition,
       ),
@@ -932,7 +934,7 @@ export const slicingDefinition: FactoryDefinition = {
   title: "Slicing",
   listColumns: slicingListingColumns,
   formSections: buildSlicingFormSections(slicingRows),
-  rows: expandFactoryRowsForTabs("slicing", slicingRows),
+  rows: [],
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
@@ -945,23 +947,34 @@ export const sawingDefinition: FactoryDefinition = {
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
+export const sawingInspectionDefinition: FactoryDefinition = {
+  slug: "sawing-inspection",
+  title: "Sawing Inspection",
+  listColumns: sawingListingColumns,
+  formSections: buildSawingFormSections(slicingRows),
+  rows: [],
+  initialSort: { key: "issuedDate", direction: "desc" },
+};
+
 export const dryingDefinition: FactoryDefinition = {
   slug: "drying",
   title: "Drying",
   listColumns: dryingListingColumns,
   formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
-  rows: expandFactoryRowsForTabs("drying", dryingRows),
+  rows: [],
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
-export const inspectionDefinition: FactoryDefinition = {
-  slug: "inspection",
-  title: "Inspection",
+export const dryingInspectionDefinition: FactoryDefinition = {
+  slug: "drying-inspection",
+  title: "Drying Inspection",
   listColumns: dryingListingColumns,
   formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
-  rows: expandFactoryRowsForTabs("inspection", dryingRows),
+  rows: [],
   initialSort: { key: "issuedDate", direction: "desc" },
 };
+
+export const inspectionDefinition = dryingInspectionDefinition;
 
 /** Confirmed Slicing item field keys (listing + process details). */
 export const slicingItemTableFieldKeys = [

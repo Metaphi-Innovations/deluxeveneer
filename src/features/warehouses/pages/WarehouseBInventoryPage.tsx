@@ -58,6 +58,7 @@ import {
   issueFactoryWork,
   useFactoryIssuedWorkItems,
 } from "../../factory/shared/factoryIssuedWorkStore";
+import { useWarehouseBMovedRows } from "../shared/warehouseBTransferStore";
 import type { FactoryRecord } from "../../factory/shared/types";
 import {
   warehouseAInventoryConfigs,
@@ -224,11 +225,21 @@ export function WarehouseBInventoryModulePage({
     },
     [activeInventory, activeRawVeneerTab, inwardRevision, qcStatusRevision],
   );
-  const activeRows = (
+  const warehouseBMovedInspectionRows = useWarehouseBMovedRows();
+  const baseActiveRows = (
     activeProcessTab === "issued"
       ? activeWarehouseBStockRows
       : activeRawVeneerConfig?.rows ?? activeWarehouseInventoryConfig.rows
   ) as readonly InventoryRecord[];
+  const activeRows: readonly InventoryRecord[] = useMemo(() => {
+    if (activeInventory === "raw-veneer") {
+      return [
+        ...(warehouseBMovedInspectionRows as readonly InventoryRecord[]),
+        ...baseActiveRows,
+      ];
+    }
+    return baseActiveRows;
+  }, [activeInventory, baseActiveRows, warehouseBMovedInspectionRows]);
   const movedWarehouseRowIds = useMemo(
     () =>
       new Set(

@@ -47,6 +47,7 @@ export interface StorageInventoryItem {
   qcStatus: string;
   qcRemark: string | null;
   remark: string | null;
+  issueTo?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -196,6 +197,7 @@ export function mapStorageItemToRow(
         : "",
     plywoodType: "",
     mdfType: "",
+    issueTo: item.issueTo || "",
     updatedBy: item.updatedBy ?? "",
   };
 }
@@ -278,6 +280,17 @@ export async function revertStorageItemApi(
   await apiRequest<ApiResponse<{ id: string }>>(endpoint, {
     method: "POST",
     body: { remark },
+  });
+}
+
+export async function issueVeneerBlocksToSlicingApi(
+  ids: string[],
+  remark?: string | null
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/veneer-blocks/issue-to-slicing`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: { ids, remark },
   });
 }
 
