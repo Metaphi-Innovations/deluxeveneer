@@ -67,6 +67,7 @@ export interface SawingDoneItem {
 export interface SawingHistoryItem {
   id: string;
   eventType: string;
+  storageSrNo: string | null;
   sawingSrNo: string | null;
   processDate: string;
   itemName: string | null;
@@ -87,6 +88,7 @@ export interface SawingHistoryItem {
 
 export interface SawingRejectedItem {
   id: string;
+  storageSrNo: string | null;
   sawingSrNo: string | null;
   processDate: string;
   itemName: string | null;
@@ -201,7 +203,10 @@ export async function createSawingProcessApi(data: {
     thickness: number;
     cbm?: number;
     cbf?: number;
+    receivedCbm?: number;
+    availableCbm?: number;
     ratePerCbf?: number;
+    ratePerCbm?: number;
     amount?: number;
     remark?: string;
   }>;

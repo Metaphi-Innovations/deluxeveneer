@@ -33,7 +33,10 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
-import { recordFormActionButtonSx } from "../../shared/buttonStyles";
+import {
+  highlightedRecordFormPrimaryButtonSx,
+  recordFormActionButtonSx,
+} from "../../shared/buttonStyles";
 import {
   formInlineActionButtonSx,
   formSectionCardSx,
@@ -154,9 +157,7 @@ const groupingHiddenSourceKeys = new Set([
 
 const sourceColumnDefinitions: readonly SourceColumnDefinition[] = [
   { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
-  { key: "inwardSrNo", keys: ["inwardSrNo", "inwardSerialNumber"], label: "Inward Sr No", minWidth: 150 },
   { key: "issuedDate", keys: ["issuedDate", "issueDate", "processDate", "date", "sampleDate"], label: "Date", minWidth: 130 },
-  { key: "supplierName", keys: ["supplierName", "customerName", "supplier"], label: "Supplier Name", minWidth: 180 },
   { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
   { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
   { key: "batchNo", keys: ["batchNo", "logNo", "logCode"], label: "Batch No", minWidth: 140 },
@@ -218,6 +219,7 @@ type ProcessDateConfig = {
 };
 
 const processDateBySlug: Record<string, ProcessDateConfig> = {
+  sawing: { key: "processDate", label: "Sawing Date", aliases: ["issueDate", "issuedDate"] },
   slicing: { key: "slicingDate", label: "Slicing Date" },
   drying: { key: "dryingDate", label: "Drying Date" },
   grouping: { key: "groupingDate", label: "Grouping Date" },
@@ -392,9 +394,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     createEmptyLineItemValues(lineItemFields),
   );
   const [editingSubmitAttempted, setEditingSubmitAttempted] = useState(false);
-  const [rejectAvailableValues, setRejectAvailableValues] = useState(() =>
-    createEmptyRejectAvailableValues(),
-  );
+  const [rejectAvailableValues, setRejectAvailableValues] = useState(() => {
+    const initial = createEmptyRejectAvailableValues();
+    if (definition.slug === "sawing") {
+      initial.type = "Available";
+    }
+    return initial;
+  });
   const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
     useState(false);
 
@@ -885,6 +891,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
         {definition.slug !== "cnc-fluting" && definition.slug !== "embossing" ? (
           <RejectAvailableDetailsTable
+            disabledType={definition.slug === "sawing"}
+            title={definition.slug === "sawing" ? "Available Details" : undefined}
             fieldIssues={getVisibleRejectAvailableValidationIssues(
               rejectAvailableValidationErrors,
               rejectAvailableSubmitAttempted,
@@ -919,7 +927,16 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             type="button"
             variant="contained"
             disableElevation
-            sx={recordFormActionButtonSx}
+            sx={{
+              ...highlightedRecordFormPrimaryButtonSx,
+              backgroundColor: (t) => t.palette.primary.main,
+              color: "#FFFFFF",
+              fontWeight: 700,
+              px: 2.5,
+              "&:hover": {
+                backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
+              },
+            }}
             onClick={async () => {
               setHasSubmitted(true);
               const draftHasValues = !allValuesEmpty(draftValues);
@@ -1021,7 +1038,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   }
                 }
 
-                completeFactoryIssuedWork(workItemId, resultSnapshot);
+                if (definition.slug !== "sawing") {
+                  completeFactoryIssuedWork(workItemId, resultSnapshot);
+                }
               }
 
               const sampleNo =
@@ -1066,6 +1085,79 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 const processDateVal = formValues.processDate
                   ? (formValues.processDate instanceof Date ? formValues.processDate.toISOString() : String(formValues.processDate))
                   : undefined;
+
+                // Calculate total processed CBM
+                const totalSawedCbm = processedItemsPayload.reduce(
+                  (sum, item) => sum + (item.cbm || 0),
+                  0,
+                );
+
+                // Determine previous available CBM
+                let storedCbmMap: Record<string, number> = {};
+                try {
+                  const raw = localStorage.getItem("sawing_available_cbm_map");
+                  if (raw) storedCbmMap = JSON.parse(raw);
+                } catch {
+                  // ignore
+                }
+
+                const itemKey = String(issueItemId || sawingSource?.storageSrNo || "");
+                const fallbackBaseCbm = Number(sawingSource?.availableCbm ?? sawingSource?.receivedCbm ?? sawingSource?.cbm ?? 0);
+                const previousAvailableCbm =
+                  itemKey in storedCbmMap
+                    ? (storedCbmMap[itemKey] ?? fallbackBaseCbm)
+                    : fallbackBaseCbm;
+
+                const remainingCbm = Math.max(0, Number(((previousAvailableCbm ?? 0) - totalSawedCbm).toFixed(4)));
+
+                // Update stored available CBM
+                if (itemKey) {
+                  storedCbmMap[itemKey] = remainingCbm;
+                  try {
+                    localStorage.setItem("sawing_available_cbm_map", JSON.stringify(storedCbmMap));
+                  } catch {
+                    // ignore
+                  }
+                }
+
+                // If workItemId exists, only complete it when remainingCbm reaches 0
+                if (workItemId) {
+                  if (remainingCbm <= 0) {
+                    completeFactoryIssuedWork(workItemId);
+                  }
+                }
+
+                // Create done items in local store so they appear in Sawing Done
+                try {
+                  const rawCreated = localStorage.getItem("sawing_done_created_items");
+                  const createdList = rawCreated ? JSON.parse(rawCreated) : [];
+                  const newDoneItems = processedItemsPayload.map((p, idx) => ({
+                    id: `done-${Date.now()}-${idx}`,
+                    doneId: `done-${Date.now()}-${idx}`,
+                    storageSrNo: sawingSource?.storageSrNo || "-",
+                    processDate: processDateVal ? processDateVal.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                    itemName: sawingSource?.itemName || "Veneer Block",
+                    subCategory: sawingSource?.subCategory || sawingSource?.itemSubCategory || "-",
+                    batchNo: sawingSource?.batchNo || "-",
+                    batchNoCode: p.batchNo || sawingSource?.batchNo || "-",
+                    length: p.length,
+                    width: p.width,
+                    thickness: p.thickness,
+                    height: p.thickness,
+                    cbm: p.cbm,
+                    cbf: p.cbf,
+                    remark: p.remark || sawingSource?.remark || "-",
+                    createdBy: sawingSource?.createdBy || "Admin",
+                    updatedBy: sawingSource?.updatedBy || "Admin",
+                    listingState: "done",
+                  }));
+                  localStorage.setItem(
+                    "sawing_done_created_items",
+                    JSON.stringify([...newDoneItems, ...createdList]),
+                  );
+                } catch {
+                  // ignore
+                }
 
                 try {
                   await createSawingProcessApi({
@@ -1156,6 +1248,24 @@ function resolveProcessHeaderDateFields(
 }
 
 function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
+  if (slug === "slicing" || slug === "drying") {
+    return [
+      { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
+      { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },
+      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
+      { key: "subCategory", keys: ["subCategory", "itemSubCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
+      { key: "logCode", keys: ["logCode", "batchNoCode", "batchNo", "logNo"], label: "Log Code", minWidth: 140 },
+      { key: "bundleNumber", keys: ["bundleNumber", "bundleNo"], label: "Bundle Number", minWidth: 140 },
+      { key: "palletNo", keys: ["palletNo"], label: "Pallet No", minWidth: 140 },
+      { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
+      { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
+      { key: "thickness", keys: ["thickness", "height"], label: "Thickness", minWidth: 120 },
+      { key: "noOfLeaves", keys: ["noOfLeaves", "noOfSheets", "leaves"], label: "No of Leaves", minWidth: 130 },
+      { key: "totalSqMeter", keys: ["totalSqMeter", "sqm"], label: "Total Sq Meter", minWidth: 140 },
+      { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
+    ];
+  }
+
   return sourceColumnDefinitions.filter((column) => {
     if (slug === "drying" && column.key === "remark") {
       return false;
@@ -1387,10 +1497,22 @@ function buildLineItemFields(
   );
 
   if (relevantFields.length > 0) {
-    return orderProcessSpecificFields(
+    const ordered = orderProcessSpecificFields(
       slug,
       mergeCommonFactoryItemFields(relevantFields),
     );
+
+    if (slug === "slicing" || slug === "drying") {
+      const processExcludedKeys = new Set([
+        "itemName",
+        "itemSubCategory",
+        "ratePerSqf",
+        "amount",
+      ]);
+      return ordered.filter((field) => !processExcludedKeys.has(field.key));
+    }
+
+    return ordered;
   }
 
   const fallbackFields: MasterFieldDefinition[] = [
@@ -1674,7 +1796,12 @@ function formatSourceValue(value: unknown) {
     return String(value);
   }
 
-  return typeof value === "string" ? value : "";
+  if (typeof value === "string") {
+    // Strip unit suffixes like m³, ft³, mm, m, etc. from dummy/source values
+    return value.replace(/\s*(m³|ft³|mm|mtr|m)\b/gi, "").trim();
+  }
+
+  return "";
 }
 
 function mapFieldToColumn(field: MasterFieldDefinition): LineItemColumnDefinition {

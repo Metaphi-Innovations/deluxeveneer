@@ -1,5 +1,4 @@
 export * from "./SawingListPage";
-// Re-export standard view/edit wrappers or placeholders
 import { FactoryForm, FactoryProcessCreatePage, sawingDefinition } from "../../shared";
 
 export function AddSawingPage() {

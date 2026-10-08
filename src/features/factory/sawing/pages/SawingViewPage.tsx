@@ -106,50 +106,67 @@ export const SawingViewPage: React.FC = () => {
     };
   }, [record]);
 
+  const isIssued = tab === "issued";
   const isHistory = tab === "history" || record?.eventType === "UPDATED";
 
   const sourceOverviewItems = useMemo(() => {
     if (!sourceItem) return [];
     const items = [
       { label: "Storage Sr No.", value: sourceItem.storageSrNo },
-    ];
-    if (!isHistory) {
-      items.push({ label: "Sawing Sr No.", value: sourceItem.sawingSrNo });
-    }
-    items.push(
-      { label: "Inward Sr No.", value: sourceItem.inwardSrNo },
-      { label: "Supplier Name", value: sourceItem.supplierName },
       { label: "Item Name", value: sourceItem.itemName },
-      { label: "Batch No", value: sourceItem.batchNo },
+      { label: "Log No.", value: sourceItem.batchNo },
       {
-        label: "Source Length",
-        value: sourceItem.length !== "-" ? `${sourceItem.length} mm` : "-",
+        label: isIssued ? "Length" : "Source Length",
+        value: sourceItem.length !== "-" ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-",
       },
       {
-        label: "Source Width",
-        value: sourceItem.width !== "-" ? `${sourceItem.width} mm` : "-",
+        label: isIssued ? "Width" : "Source Width",
+        value: sourceItem.width !== "-" ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-",
       },
       {
-        label: "Source Height",
-        value: sourceItem.height !== "-" ? `${sourceItem.height} mm` : "-",
+        label: isIssued ? "Height" : "Source Height",
+        value: sourceItem.height !== "-" ? String(sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-",
       },
-      { label: "Source CBM", value: sourceItem.cbm },
+      {
+        label: isIssued ? "Received CBM" : "Source CBM",
+        value: record?.receivedCbm ?? (sourceItem.cbm ? String(sourceItem.cbm).replace(/\s*(m³|cbm)$/i, "") : "-"),
+      },
+      ...(isIssued
+        ? [
+            {
+              label: "Available CBM",
+              value: record?.availableCbm ?? record?.receivedCbm ?? (sourceItem.cbm ? String(sourceItem.cbm).replace(/\s*(m³|cbm)$/i, "") : "-"),
+            },
+            {
+              label: "Sub Category",
+              value: sourceItem.subCategory,
+            },
+          ]
+        : []),
       { label: "Warehouse", value: sourceItem.storageWarehouseName },
-    );
+    ];
     return items;
-  }, [sourceItem, isHistory]);
+  }, [sourceItem, isIssued, record]);
 
   return (
     <FactoryPageShell
-      title={`View Sawing ${isRejected ? "Rejected Item" : "Process Details"}`}
-      subtitle="View details for this sawing record"
+      title={
+        isIssued
+          ? "View Issue for Sawing Item"
+          : `View Sawing ${isRejected ? "Rejected Item" : "Process Details"}`
+      }
+      subtitle={
+        isIssued
+          ? "View listing details for this issued sawing item"
+          : "View details for this sawing record"
+      }
       backNav={{
         label: "Back to Sawing",
         to: `/factory/sawing?tab=${tab}`,
       }}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          {!isHistory && record?.sawingSrNo && (
+          {!isIssued && !isHistory && record?.sawingSrNo && (
             <Chip
               label={`Sawing #${record.sawingSrNo}`}
               size="small"
@@ -170,78 +187,107 @@ export const SawingViewPage: React.FC = () => {
       }
     >
       <Stack spacing={2.5}>
-        {/* 1. Source Overview Panel */}
+        {/* 1. Source / Listing Item Overview Panel */}
         {sourceOverviewItems.length > 0 && (
           <FactorySourceOverviewPanel
-            title="Source Item Overview"
+            title={isIssued ? "Issue for Sawing Details" : "Source Item Overview"}
             items={sourceOverviewItems}
           />
         )}
 
-          {/* 2. Process Details Table / Item View */}
+        {/* 2. Process Details Form-like Card (Only displayed for Process / Done / History / Rejected, NOT for Issue for Sawing) */}
+        {!isIssued && (
           <Box sx={(t) => formSectionCardSx(t)}>
-            <Stack spacing={2}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                {isRejected ? "Rejected Item Information" : "Sawing Output Details"}
-              </Typography>
+            <Stack spacing={2.5}>
+              <FormSectionHeader
+                title={isRejected ? "Rejected Item Details" : "Sawing Process Details"}
+              />
 
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>Batch No</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>Length (mm)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>Width (mm)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>Height (mm)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>
-                        {isRejected ? "Rejection Reason / Remark" : "Remark"}
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {record ? (
-                      <TableRow hover>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.batchNo || "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.length ?? "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.width ?? "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.height ?? "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.cbm ?? "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.cbf ?? "-"}
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          {record.remark || (isRejected ? "Rejected" : "-")}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          align="center"
-                          sx={{ py: 3, color: "text.secondary" }}
-                        >
-                          No details available for ID {id}.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+              {record ? (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(4, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                  }}
+                >
+                  {[
+                    { label: "Storage Sr No.", value: record.storageSrNo || sourceItem?.storageSrNo || "-" },
+                    {
+                      label: "Sawing Date",
+                      value: record.processDate
+                        ? typeof record.processDate === "string" && record.processDate.includes("T")
+                          ? record.processDate.slice(0, 10)
+                          : String(record.processDate).slice(0, 10)
+                        : record.sawingDate
+                        ? String(record.sawingDate).slice(0, 10)
+                        : record.issuedDate
+                        ? String(record.issuedDate).slice(0, 10)
+                        : "-",
+                    },
+                    { label: "Item Name", value: record.itemName || sourceItem?.itemName || "-" },
+                    { label: "Sub Category", value: record.subCategory || record.itemSubCategory || sourceItem?.subCategory || "-" },
+                    { label: "Log No.", value: record.batchNo || "-" },
+                    { label: "Batch No", value: record.batchNoCode || "-" },
+                    { label: "Length (mm)", value: record.length ?? "-" },
+                    { label: "Width (mm)", value: record.width ?? "-" },
+                    { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },
+                    { label: "CBM", value: record.cbm ?? "-" },
+                    { label: "CBF", value: record.cbf ?? "-" },
+                    { label: "Available CBM", value: record.availableCbm ?? "-" },
+                    { label: "Available CBF", value: record.availableCbf ?? "-" },
+                    { label: "Status", value: isRejected ? "Rejected" : isHistory ? "Inspection Done" : record.status || "Completed" },
+                    { label: "Created By", value: record.createdBy || "-" },
+                    { label: "Updated By", value: record.updatedBy || "-" },
+                    { label: "Remark", value: record.remark || (isRejected ? "Rejected" : "-"), fullWidth: true },
+                  ].map((field) => (
+                    <Stack
+                      key={field.label}
+                      spacing={0.5}
+                      sx={{
+                        minWidth: 0,
+                        gridColumn: field.fullWidth ? { xs: "1fr", sm: "span 2", md: "span 4" } : undefined,
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          lineHeight: 1.3,
+                        }}
+                      >
+                        {field.label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: theme.customTokens.text.primary,
+                          fontSize: "14px",
+                          fontWeight: 400,
+                          lineHeight: 1.45,
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {String(field.value)}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Box>
+              ) : (
+                <Typography color="text.secondary" sx={{ py: 2 }}>
+                  No details available for ID {id}.
+                </Typography>
+              )}
             </Stack>
           </Box>
-        </Stack>
+        )}
+      </Stack>
     </FactoryPageShell>
   );
 };
