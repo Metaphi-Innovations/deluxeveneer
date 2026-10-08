@@ -616,7 +616,8 @@ export function StorageWarehousePage({
   const showBulkBanner =
     activeSection === "inventory" &&
     selectedRows.length > 0 &&
-    (activeInventory === "raw-veneer" ||
+    (activeInventory === "veneer-blocks" ||
+      activeInventory === "raw-veneer" ||
       activeInventory === "plywood" ||
       activeInventory === "mdf" ||
       activeInventory === "consumables");

@@ -46,22 +46,6 @@ export const STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS: readonly EnterpriseTableColu
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "remark", label: "Remark" },
-    { key: "updatedBy", label: "Updated By" },
-  ];
-
-/** Listing columns for Veneer Blocks in storage warehouse history tab — includes "Issue To". */
-export const STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "storageSrNo", label: "Storage Sr No" },
-    { key: "inwardSrNo", label: "Inward Sr No" },
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "invoiceNo", label: "Invoice No" },
-    { key: "supplierName", label: "Supplier Name" },
-    { key: "issueTo", label: "Issue To" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "updatedBy", label: "Updated By" },
