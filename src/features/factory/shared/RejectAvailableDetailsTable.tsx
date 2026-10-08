@@ -32,6 +32,8 @@ import {
 
 export type RejectAvailableValues = {
   amount: string;
+  cbf?: string;
+  cbm?: string;
   length: string;
   remark: string;
   sqf: string;
@@ -129,6 +131,65 @@ const rejectAvailableColumns: readonly RejectAvailableColumn[] = [
   },
 ] as const;
 
+export const rejectAvailableVolumeColumns: readonly RejectAvailableColumn[] = [
+  {
+    key: "type",
+    label: "Type",
+    minWidth: 150,
+    options: ["Reject", "Available"],
+    type: "select",
+  },
+  {
+    key: "length",
+    label: "Length",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "width",
+    label: "Width",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "thickness",
+    label: "Thickness/Height",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "cbm",
+    label: "CBM",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "cbf",
+    label: "CBF",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "amount",
+    label: "Amount",
+    minWidth: 150,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "remark",
+    label: "Remark",
+    minWidth: 220,
+    options: [],
+    type: "text",
+  },
+] as const;
+
 const areaSourceKeys = {
   sqf: [
     "sqf",
@@ -188,23 +249,32 @@ const decimalFieldConfigs = {
   },
 } as const;
 
-const derivedAreaFieldKeys = new Set<RejectAvailableKey>(["sqm", "sqf"]);
+const derivedAreaFieldKeys = new Set<RejectAvailableKey>(["sqm", "sqf", "cbm", "cbf"]);
 
 export function RejectAvailableDetailsTable({
   disabledType,
   fieldIssues,
+  hideAmount,
   onChange,
   title,
   values,
+  volumeMode = false,
 }: {
   disabledType?: boolean;
   fieldIssues: RejectAvailableValidationIssues;
+  hideAmount?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   title?: string | undefined;
   values: RejectAvailableValues;
+  volumeMode?: boolean;
 }) {
   const theme = useTheme();
-  const tableWidth = rejectAvailableColumns.reduce(
+  const shouldHideAmount = hideAmount ?? title === "Available Details";
+  const baseColumns = volumeMode ? rejectAvailableVolumeColumns : rejectAvailableColumns;
+  const columns = baseColumns.filter(
+    (col) => !(shouldHideAmount && col.key === "amount"),
+  );
+  const tableWidth = columns.reduce(
     (total, column) => total + column.minWidth,
     0,
   );
@@ -229,7 +299,7 @@ export function RejectAvailableDetailsTable({
           <Table size="small" sx={{ minWidth: tableWidth, tableLayout: "auto" }}>
             <TableHead>
               <TableRow>
-                {rejectAvailableColumns.map((column) => (
+                {columns.map((column) => (
                   <TableCell
                     key={column.key}
                     sx={getHeaderCellSx(theme, column.minWidth)}
@@ -241,7 +311,7 @@ export function RejectAvailableDetailsTable({
             </TableHead>
             <TableBody>
               <TableRow>
-                {rejectAvailableColumns.map((column) => (
+                {columns.map((column) => (
                   <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                     {renderRejectAvailableField({
                       column,
@@ -249,7 +319,7 @@ export function RejectAvailableDetailsTable({
                       issue: fieldIssues[column.key],
                       onChange,
                       theme,
-                      value: values[column.key],
+                      value: values[column.key] ?? "",
                     })}
                   </TableCell>
                 ))}
@@ -265,6 +335,8 @@ export function RejectAvailableDetailsTable({
 export function createEmptyRejectAvailableValues(): RejectAvailableValues {
   return {
     amount: "",
+    cbf: "",
+    cbm: "",
     length: "",
     remark: "",
     sqf: "",
@@ -279,6 +351,7 @@ export function getNextRejectAvailableValues(
   current: RejectAvailableValues,
   key: RejectAvailableKey,
   value: string,
+  volumeMode = false,
 ): RejectAvailableValues {
   if (key === "amount") {
     return {
@@ -287,11 +360,17 @@ export function getNextRejectAvailableValues(
     };
   }
 
-  if (key === "sqm" || key === "sqf") {
+  if (key === "sqm" || key === "sqf" || key === "cbm" || key === "cbf") {
     return current;
   }
 
   if (key === "length" || key === "width" || key === "thickness") {
+    if (volumeMode) {
+      return withDerivedRejectAvailableVolumes({
+        ...current,
+        [key]: sanitizeDecimalValue(value, 3),
+      });
+    }
     return withDerivedRejectAvailableAreas({
       ...current,
       [key]: sanitizeDecimalValue(value, 3),
@@ -301,6 +380,33 @@ export function getNextRejectAvailableValues(
   return {
     ...current,
     [key]: value,
+  };
+}
+
+function withDerivedRejectAvailableVolumes(
+  values: RejectAvailableValues,
+): RejectAvailableValues {
+  const l = parseNumericValue(values.length) ?? 0;
+  const w = parseNumericValue(values.width) ?? 0;
+  const h = parseNumericValue(values.thickness) ?? 0;
+
+  if (l <= 0 || w <= 0 || h <= 0) {
+    return {
+      ...values,
+      cbf: "",
+      cbm: "",
+    };
+  }
+
+  const isMm = l > 50 || w > 50;
+  const divisor = isMm ? 1_000_000_000 : 1_000_000;
+  const cbm = (l * w * h) / divisor;
+  const cbf = cbm * 35.3147;
+
+  return {
+    ...values,
+    cbm: cbm.toFixed(6).replace(/\.?0+$/u, ""),
+    cbf: cbf.toFixed(4).replace(/\.?0+$/u, ""),
   };
 }
 

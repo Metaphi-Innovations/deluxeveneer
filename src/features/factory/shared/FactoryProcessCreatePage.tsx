@@ -891,15 +891,26 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
         {definition.slug !== "cnc-fluting" && definition.slug !== "embossing" ? (
           <RejectAvailableDetailsTable
-            disabledType={definition.slug === "sawing"}
-            title={definition.slug === "sawing" ? "Available Details" : undefined}
+            disabledType={definition.slug === "sawing" || definition.slug === "slicing"}
+            title={
+              definition.slug === "sawing" || definition.slug === "slicing"
+                ? "Available Details"
+                : undefined
+            }
+            volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
+            hideAmount={definition.slug === "sawing" || definition.slug === "slicing"}
             fieldIssues={getVisibleRejectAvailableValidationIssues(
               rejectAvailableValidationErrors,
               rejectAvailableSubmitAttempted,
             )}
             onChange={(key, value) =>
               setRejectAvailableValues((current) =>
-                getNextRejectAvailableValues(current, key, value),
+                getNextRejectAvailableValues(
+                  current,
+                  key,
+                  value,
+                  definition.slug === "sawing" || definition.slug === "slicing",
+                ),
               )
             }
             values={rejectAvailableValues}
@@ -1248,7 +1259,25 @@ function resolveProcessHeaderDateFields(
 }
 
 function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
-  if (slug === "slicing" || slug === "drying") {
+  if (slug === "slicing") {
+    return [
+      { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
+      { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },
+      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
+      { key: "subCategory", keys: ["subCategory", "itemSubCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
+      { key: "logNo", keys: ["logNo", "batchNo", "logCode", "batchNoCode"], label: "Log No.", minWidth: 140 },
+      { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
+      { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
+      { key: "height", keys: ["height", "thickness"], label: "Height", minWidth: 120 },
+      { key: "receivedCbm", keys: ["receivedCbm", "cbm"], label: "Received CBM", minWidth: 140 },
+      { key: "availableCbm", keys: ["availableCbm", "receivedCbm", "cbm"], label: "Available CBM", minWidth: 140 },
+      { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
+      { key: "createdBy", keys: ["createdBy"], label: "Created", minWidth: 140 },
+      { key: "updatedBy", keys: ["updatedBy"], label: "Updated", minWidth: 140 },
+    ];
+  }
+
+  if (slug === "drying") {
     return [
       { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
       { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },

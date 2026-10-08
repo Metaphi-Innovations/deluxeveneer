@@ -54,13 +54,12 @@ interface SlicingProcessItemRow {
 
 interface SlicingRejectAvailableRow {
   id: string;
-  type: "Reject" | "Available";
+  type: "Available";
   length: number;
   width: number;
   height: number;
-  sqm: number;
-  sqf: number;
-  amount: number;
+  cbm: number;
+  cbf: number;
   remark: string;
 }
 
@@ -166,26 +165,21 @@ export function SlicingCreatePage() {
     return Number((calculatedCbf * rate).toFixed(2));
   }, [calculatedCbf, ratePerCbf]);
 
-  // Auto-calculated fields for Reject / Available add
-  const calculatedRaSqm = useMemo(() => {
+  // Auto-calculated fields for Available add
+  const calculatedRaCbm = useMemo(() => {
     const l = Number(raLength) || 0;
     const w = Number(raWidth) || 0;
-    if (!l || !w) return 0;
+    const h = Number(raHeight) || 0;
+    if (!l || !w || !h) return 0;
     const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000 : 1;
-    return Number(((l * w) / divisor).toFixed(4));
-  }, [raLength, raWidth]);
+    const divisor = isMm ? 1_000_000_000 : 1_000_000;
+    return Number(((l * w * h) / divisor).toFixed(6));
+  }, [raLength, raWidth, raHeight]);
 
-  const calculatedRaSqf = useMemo(() => {
-    if (!calculatedRaSqm) return 0;
-    return Number((calculatedRaSqm * 10.7639).toFixed(2));
-  }, [calculatedRaSqm]);
-
-  const calculatedRaAmount = useMemo(() => {
-    const rate = Number(raRate) || 0;
-    if (!calculatedRaSqf || !rate) return 0;
-    return Number((calculatedRaSqf * rate).toFixed(2));
-  }, [calculatedRaSqf, raRate]);
+  const calculatedRaCbf = useMemo(() => {
+    if (!calculatedRaCbm) return 0;
+    return Number((calculatedRaCbm * 35.3147).toFixed(4));
+  }, [calculatedRaCbm]);
 
   // Source Overview items
   const sourceOverviewItems = useMemo(() => {
@@ -290,7 +284,7 @@ export function SlicingCreatePage() {
     }
   };
 
-  // Add Item to Reject / Available
+  // Add Item to Available Details
   const handleAddRejectAvailableItem = () => {
     const l = Number(raLength) || 0;
     const w = Number(raWidth) || 0;
@@ -298,13 +292,12 @@ export function SlicingCreatePage() {
 
     const newRa: SlicingRejectAvailableRow = {
       id: `ra-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: raType,
+      type: "Available",
       length: l,
       width: w,
       height: h,
-      sqm: calculatedRaSqm,
-      sqf: calculatedRaSqf,
-      amount: calculatedRaAmount,
+      cbm: calculatedRaCbm,
+      cbf: calculatedRaCbf,
       remark: raRemark,
     };
 
@@ -577,7 +570,7 @@ export function SlicingCreatePage() {
         {/* Reject / Available Details Table */}
         <Box sx={(t) => formSectionCardSx(t)}>
           <Stack spacing={2}>
-            <FormSectionHeader title="Reject / Available Details" />
+            <FormSectionHeader title="Available Details" />
 
             <Box
               sx={{
@@ -586,18 +579,17 @@ export function SlicingCreatePage() {
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, 1fr)",
-                  md: "repeat(6, 1fr) auto",
+                  md: "repeat(5, 1fr) auto",
                 },
                 alignItems: "center",
               }}
             >
               <Select
                 size="small"
-                value={raType}
-                onChange={(e) => setRaType(e.target.value as "Reject" | "Available")}
+                value="Available"
+                disabled
                 sx={getCompactFieldSx(theme)}
               >
-                <MenuItem value="Reject">Reject</MenuItem>
                 <MenuItem value="Available">Available</MenuItem>
               </Select>
 
@@ -620,20 +612,11 @@ export function SlicingCreatePage() {
               />
 
               <TextField
-                label="Height (mm)"
+                label="Thickness/Height (mm)"
                 type="number"
                 size="small"
                 value={raHeight}
                 onChange={(e) => setRaHeight(e.target.value)}
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Rate"
-                type="number"
-                size="small"
-                value={raRate}
-                onChange={(e) => setRaRate(e.target.value)}
                 sx={getCompactFieldSx(theme)}
               />
 
@@ -671,10 +654,9 @@ export function SlicingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Type</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Length</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>SQM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>SQF</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Amount</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Thickness/Height</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Remark</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
                       Action
@@ -684,8 +666,8 @@ export function SlicingCreatePage() {
                 <TableBody>
                   {rejectAvailableItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center" sx={{ py: 3, color: "text.secondary" }}>
-                        No Reject or Available disposition items entered.
+                      <TableCell colSpan={9} align="center" sx={{ py: 3, color: "text.secondary" }}>
+                        No Available disposition items entered.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -697,7 +679,7 @@ export function SlicingCreatePage() {
                             variant="body2"
                             sx={{
                               fontWeight: 600,
-                              color: item.type === "Reject" ? "error.main" : "primary.main",
+                              color: "primary.main",
                             }}
                           >
                             {item.type}
@@ -706,9 +688,8 @@ export function SlicingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height || "-"} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqm || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqf || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>₹{item.amount || 0}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
                           <IconButton

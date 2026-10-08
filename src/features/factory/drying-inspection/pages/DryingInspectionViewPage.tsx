@@ -91,7 +91,7 @@ export const DryingInspectionViewPage: React.FC = () => {
       }
     >
       <Stack spacing={2.5}>
-        {sourceOverviewItems.length > 0 && (
+        {!isPending && sourceOverviewItems.length > 0 && (
           <FactorySourceOverviewPanel
             title="Source Item Overview"
             items={sourceOverviewItems}
@@ -144,6 +144,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                     label: "Status",
                     value: record.status || (isFail ? "Fail" : isPass ? "Pass" : "Pending"),
                   },
+                  { label: "Warehouse", value: record.storageWarehouseName || record.warehouseName || "-" },
                   { label: "Remark", value: record.remark || "-", fullWidth: true },
                 ].map((field) => (
                   <Stack

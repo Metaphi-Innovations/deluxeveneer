@@ -102,15 +102,15 @@ export const SawingInspectionViewPage: React.FC = () => {
       }
     >
       <Stack spacing={2.5}>
-        {/* Source Overview Panel */}
-        {sourceOverviewItems.length > 0 && (
+        {/* Source Overview Panel (Only shown for completed/failed inspection if needed, hidden for pending to avoid duplicate panels) */}
+        {!isPending && sourceOverviewItems.length > 0 && (
           <FactorySourceOverviewPanel
             title="Source Item Overview"
             items={sourceOverviewItems}
           />
         )}
 
-        {/* Process Details Form-like Card */}
+        {/* Unified Details Form-like Card */}
         <Box sx={(t) => formSectionCardSx(t)}>
           <Stack spacing={2.5}>
             <FormSectionHeader
@@ -151,8 +151,8 @@ export const SawingInspectionViewPage: React.FC = () => {
                   },
                   { label: "Item Name", value: record.itemName || "-" },
                   { label: "Sub Category", value: record.subCategory || record.itemSubCategory || "-" },
-                  { label: "Batch No", value: record.batchNo || "-" },
-                  { label: "Batch No. Code", value: record.batchNoCode || "-" },
+                  { label: "Log No.", value: record.batchNo || "-" },
+                  { label: "Batch No", value: record.batchNoCode || "-" },
                   { label: "Length (mm)", value: record.length ?? "-" },
                   { label: "Width (mm)", value: record.width ?? "-" },
                   { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },
@@ -170,6 +170,7 @@ export const SawingInspectionViewPage: React.FC = () => {
                       ? "Recheck"
                       : "Pending",
                   },
+                  { label: "Warehouse", value: record.storageWarehouseName || record.warehouseName || "-" },
                   { label: "Created By", value: record.createdBy || "-" },
                   { label: "Updated By", value: record.updatedBy || "-" },
                   { label: "Remark", value: record.remark || "-", fullWidth: true },

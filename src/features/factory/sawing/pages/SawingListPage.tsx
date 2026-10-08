@@ -85,7 +85,10 @@ export function SawingListPage() {
   const [rejectRemark, setRejectRemark] = useState("");
   const [isRejecting, setIsRejecting] = useState(false);
 
-
+  // Dialog state for Issue for Inspection confirmation
+  const [inspectionDialogOpen, setInspectionDialogOpen] = useState(false);
+  const [inspectionTargetRows, setInspectionTargetRows] = useState<any[]>([]);
+  const [isIssuingInspection, setIsIssuingInspection] = useState(false);
 
   // View modal dialog
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -274,49 +277,28 @@ export function SawingListPage() {
     }
   };
 
-  const handleIssueForInspection = async (row: any) => {
-    try {
-      try {
-        await issueSawingForInspectionApi([row.id]);
-      } catch {
-        // local store fallback
-      }
-
-      issueFactoryWork({
-        destinationProcess: "Sawing Inspection",
-        sourceRow: {
-          ...row,
-        } as any,
-        sourceSlug: "sawing",
-        sourceProcess: "Sawing",
-        sourceWarehouseName: row.storageWarehouseName || "Warehouse B",
-      });
-
-      // Move from Done tab to History tab
-      const historyItem = {
-        ...row,
-        id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        processDate: new Date().toISOString().split("T")[0],
-        listingState: "history",
-      };
-      (sawingDefinition.rows as any).unshift(historyItem);
-      setRows((current) => current.filter((r) => r.id !== row.id));
-      setTotalCount((c) => Math.max(0, c - 1));
-    } catch (err: any) {
-      alert(err.message || "Failed to issue for inspection.");
-    }
+  const handleOpenIssueInspection = (row: any) => {
+    setInspectionTargetRows([row]);
+    setInspectionDialogOpen(true);
   };
 
-  const handleBatchIssueForInspection = async () => {
+  const handleOpenBatchIssueInspection = () => {
     if (selectedDoneRows.length === 0) return;
+    setInspectionTargetRows(selectedDoneRows);
+    setInspectionDialogOpen(true);
+  };
+
+  const handleConfirmIssueForInspection = async () => {
+    if (inspectionTargetRows.length === 0) return;
+    setIsIssuingInspection(true);
     try {
       try {
-        await issueSawingForInspectionApi(selectedDoneRows.map((r) => r.id));
+        await issueSawingForInspectionApi(inspectionTargetRows.map((r) => r.id));
       } catch {
         // local store fallback
       }
 
-      selectedDoneRows.forEach((row) => {
+      inspectionTargetRows.forEach((row) => {
         issueFactoryWork({
           destinationProcess: "Sawing Inspection",
           sourceRow: {
@@ -336,13 +318,17 @@ export function SawingListPage() {
         (sawingDefinition.rows as any).unshift(historyItem);
       });
 
-      const selectedIds = new Set(selectedDoneRows.map((r) => r.id));
-      setRows((current) => current.filter((r) => !selectedIds.has(r.id)));
-      setTotalCount((c) => Math.max(0, c - selectedDoneRows.length));
-      setSelectedDoneRows([]);
+      const processedIds = new Set(inspectionTargetRows.map((r) => r.id));
+      setRows((current) => current.filter((r) => !processedIds.has(r.id)));
+      setTotalCount((c) => Math.max(0, c - inspectionTargetRows.length));
+      setSelectedDoneRows((current) => current.filter((r) => !processedIds.has(r.id)));
       setSelectionResetKey((k) => k + 1);
+      setInspectionDialogOpen(false);
+      setInspectionTargetRows([]);
     } catch (err: any) {
-      alert(err.message || "Failed to issue selected items for inspection.");
+      alert(err.message || "Failed to issue for inspection.");
+    } finally {
+      setIsIssuingInspection(false);
     }
   };
 
@@ -430,7 +416,7 @@ export function SawingListPage() {
           label: "Issue for Inspection",
           icon: CheckCircle2,
           tone: "primary",
-          onSelect: (r: any) => void handleIssueForInspection(r),
+          onSelect: (r: any) => handleOpenIssueInspection(r),
         });
       } else {
         // History, Rejected, Available: View full layout
@@ -508,7 +494,7 @@ export function SawingListPage() {
               <Button
                 variant="contained"
                 startIcon={<CheckCircle2 size={16} />}
-                onClick={handleBatchIssueForInspection}
+                onClick={handleOpenBatchIssueInspection}
                 sx={{
                   backgroundColor: "primary.main",
                   textTransform: "none",
@@ -548,14 +534,17 @@ export function SawingListPage() {
 
       {/* ── Revert Confirmation Dialog ── */}
       <Dialog open={revertDialogOpen} onClose={() => setRevertDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Confirm Revert</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>Confirm Revert</DialogTitle>
         <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2, fontWeight: 500 }}>
+            Do you really want to revert?
+          </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             {activeTab === "issued"
-              ? "Are you sure you want to revert this item back to the storage warehouse?"
+              ? "This will revert the item back to the storage warehouse."
               : activeTab === "rejected"
-              ? "Are you sure you want to revert this rejected item back to Sawing Done?"
-              : "Are you sure you want to revert this completed item back to the issued tab?"}
+              ? "This will revert this rejected item back to Sawing Done."
+              : "This will revert this completed item back to the issued tab."}
           </Typography>
           <TextField
             label="Remark (Optional)"
@@ -566,8 +555,8 @@ export function SawingListPage() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setRevertDialogOpen(false)} disabled={isReverting}>
-            Cancel
+          <Button onClick={() => setRevertDialogOpen(false)} disabled={isReverting} color="inherit">
+            No
           </Button>
           <Button
             variant="contained"
@@ -575,7 +564,35 @@ export function SawingListPage() {
             onClick={() => void handleConfirmRevert()}
             disabled={isReverting}
           >
-            {isReverting ? "Reverting..." : "Revert"}
+            {isReverting ? "Reverting..." : "Yes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Issue for Inspection Confirmation Dialog ── */}
+      <Dialog open={inspectionDialogOpen} onClose={() => setInspectionDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>Confirm Issue for Inspection</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>
+            Do you really want to issue for inspection?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {inspectionTargetRows.length === 1
+              ? `Item "${inspectionTargetRows[0]?.itemName || "Veneer Block"}" will be issued to Sawing Inspection.`
+              : `${inspectionTargetRows.length} items will be issued to Sawing Inspection.`}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setInspectionDialogOpen(false)} disabled={isIssuingInspection} color="inherit">
+            No
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => void handleConfirmIssueForInspection()}
+            disabled={isIssuingInspection}
+          >
+            {isIssuingInspection ? "Issuing..." : "Yes"}
           </Button>
         </DialogActions>
       </Dialog>

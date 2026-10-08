@@ -25,7 +25,7 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import {
   ErpDatePickerField,
@@ -106,9 +106,25 @@ export function FactoryListing<Row extends FactoryRecord>({
   const canCreate = canAccessPermission(permissionKey, "create");
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
-  const [activeTab, setActiveTab] = useState<ListingTab>("issued");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab") as ListingTab | null;
+  const [activeTabState, setActiveTabState] = useState<ListingTab>(() => urlTab || "issued");
+  const activeTab = urlTab || activeTabState;
+
+  const setActiveTab = (newTab: ListingTab) => {
+    setActiveTabState(newTab);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("tab", newTab);
+      return next;
+    });
+  };
+
   const [searchValue, setSearchValue] = useState("");
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
+  const [confirmRevertRow, setConfirmRevertRow] = useState<{ row: Row; type: "issued" | "rejected" } | null>(null);
+  const [confirmIssueDryingOpen, setConfirmIssueDryingOpen] = useState(false);
+  const [confirmIssueInspectionOpen, setConfirmIssueInspectionOpen] = useState(false);
   const [rejectedDoneRows, setRejectedDoneRows] = useState<Row[]>([]);
   const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>([]);
   const [inspectionFailedRows, setInspectionFailedRows] = useState<Row[]>([]);
@@ -376,10 +392,39 @@ export function FactoryListing<Row extends FactoryRecord>({
       });
     }
 
+    if (definition.slug === "slicing" && activeTab === "issued") {
+      return [
+        { key: "storageSrNo", label: "Storage Sr No." },
+        { key: "issueDate", label: "Issue Date" },
+        { key: "itemName", label: "Item Name" },
+        { key: "subCategory", label: "Sub Category" },
+        { key: "batchNo", label: "Log No." },
+        { key: "length", label: "Length" },
+        { key: "width", label: "Width" },
+        { key: "height", label: "Height" },
+        { key: "receivedCbm", label: "Received CBM" },
+        { key: "availableCbm", label: "Available CBM" },
+        { key: "remark", label: "Remark" },
+        { key: "createdBy", label: "Created" },
+        { key: "updatedBy", label: "Updated" },
+      ];
+    }
+
     if (definition.slug === "slicing" && activeTab === "done") {
-      columns = columns.map((col) =>
+      const insertIdx = columns.findIndex((col) => col.key === "totalSqMeter");
+      const mapped = columns.map((col) =>
         col.key === "issueDate" ? { ...col, label: "Slicing Date" } : col,
       );
+      if (insertIdx >= 0) {
+        columns = [
+          ...mapped.slice(0, insertIdx),
+          { key: "sqm", label: "SQM" },
+          { key: "sqf", label: "SQF" },
+          ...mapped.slice(insertIdx + 1),
+        ];
+      } else {
+        columns = mapped;
+      }
     }
 
     if (definition.slug === "slicing" && activeTab === "history") {
@@ -546,10 +591,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           label: "Revert",
           icon: RotateCcw,
           tone: "danger",
-          onSelect: (row) =>
-            setRevertedRowIds((current) =>
-              current.includes(row.id) ? current : [...current, row.id],
-            ),
+          onSelect: (row) => setConfirmRevertRow({ row, type: "issued" }),
         });
       }
 
@@ -563,15 +605,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           label: "Revert",
           icon: RotateCcw,
           tone: "danger",
-          onSelect: (row) => {
-            // Remove from rejected rows and return to done or remove from view
-            setRejectedDoneRows((current) =>
-              current.filter((item) => item.id !== row.id),
-            );
-            setRevertedRowIds((current) =>
-              current.includes(row.id) ? current : [...current, row.id],
-            );
-          },
+          onSelect: (row) => setConfirmRevertRow({ row, type: "rejected" }),
         });
       }
 
@@ -1209,22 +1243,7 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => {
-                      selectedListingRows.forEach((selectedRow) => {
-                        issueFactoryWork({
-                          destinationProcess: "Inspection",
-                          sourceSlug: definition.slug,
-                          sourceProcess: "Drying",
-                          sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
-                          sourceRow: selectedRow,
-                        });
-                      });
-                      setRevertedRowIds((current) => [
-                        ...current,
-                        ...selectedListingRows.map((r) => r.id),
-                      ]);
-                      setSelectedListingRows([]);
-                    }}
+                    onClick={() => setConfirmIssueInspectionOpen(true)}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1238,22 +1257,7 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => {
-                      selectedListingRows.forEach((selectedRow) => {
-                        issueFactoryWork({
-                          destinationProcess: "Drying",
-                          sourceSlug: definition.slug,
-                          sourceProcess: "Slicing",
-                          sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
-                          sourceRow: selectedRow,
-                        });
-                      });
-                      setRevertedRowIds((current) => [
-                        ...current,
-                        ...selectedListingRows.map((r) => r.id),
-                      ]);
-                      setSelectedListingRows([]);
-                    }}
+                    onClick={() => setConfirmIssueDryingOpen(true)}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1566,6 +1570,177 @@ export function FactoryListing<Row extends FactoryRecord>({
           setDryingInspectionIssueRow(null);
         }}
       />
+
+      {/* Confirmation Dialog: Revert */}
+      <Dialog
+        open={Boolean(confirmRevertRow)}
+        onClose={() => setConfirmRevertRow(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "8px",
+              minWidth: 360,
+              maxWidth: 420,
+              p: 1,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+          Confirm Revert
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Do you really want to revert?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setConfirmRevertRow(null)}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            No
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => {
+              if (confirmRevertRow) {
+                const { row, type } = confirmRevertRow;
+                if (type === "rejected") {
+                  setRejectedDoneRows((current) =>
+                    current.filter((item) => item.id !== row.id),
+                  );
+                }
+                setRevertedRowIds((current) =>
+                  current.includes(row.id) ? current : [...current, row.id],
+                );
+              }
+              setConfirmRevertRow(null);
+            }}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Dialog: Issue for Drying */}
+      <Dialog
+        open={confirmIssueDryingOpen}
+        onClose={() => setConfirmIssueDryingOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "8px",
+              minWidth: 360,
+              maxWidth: 420,
+              p: 1,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+          Confirm Issue for Drying
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Do you really want to issue for drying?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setConfirmIssueDryingOpen(false)}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            No
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              selectedListingRows.forEach((selectedRow) => {
+                issueFactoryWork({
+                  destinationProcess: "Drying",
+                  sourceSlug: definition.slug,
+                  sourceProcess: "Slicing",
+                  sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
+                  sourceRow: selectedRow,
+                });
+              });
+              setRevertedRowIds((current) => [
+                ...current,
+                ...selectedListingRows.map((r) => r.id),
+              ]);
+              setSelectedListingRows([]);
+              setConfirmIssueDryingOpen(false);
+            }}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Dialog: Issue for Inspection */}
+      <Dialog
+        open={confirmIssueInspectionOpen}
+        onClose={() => setConfirmIssueInspectionOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "8px",
+              minWidth: 360,
+              maxWidth: 420,
+              p: 1,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+          Confirm Issue for Inspection
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Do you really want to issue for inspection?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setConfirmIssueInspectionOpen(false)}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            No
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              selectedListingRows.forEach((selectedRow) => {
+                issueFactoryWork({
+                  destinationProcess: "Inspection",
+                  sourceSlug: definition.slug,
+                  sourceProcess: "Drying",
+                  sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
+                  sourceRow: selectedRow,
+                });
+              });
+              setRevertedRowIds((current) => [
+                ...current,
+                ...selectedListingRows.map((r) => r.id),
+              ]);
+              setSelectedListingRows([]);
+              setConfirmIssueInspectionOpen(false);
+            }}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            Yes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

@@ -568,8 +568,8 @@ export const sawingInspectionListingColumns = columns([
   ["sawingDate", "Sawing Date"],
   ["itemName", "Item Name"],
   ["subCategory", "Sub Category"],
-  ["batchNo", "Batch No"],
-  ["batchNoCode", "Batch No. Code"],
+  ["batchNo", "Log No."],
+  ["batchNoCode", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -813,20 +813,22 @@ const dryingAddItemFields = [
 ] as const;
 
 const slicingProcessDetailFields = [
+  ["storageSrNo", "Storage Sr No."],
+  ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
-  ["logNo", "Log No."],
-  ...commonFactoryItemFieldSpecs.map(([key, label]) =>
-    key === "length"
-      ? (["length", "Length (m)"] as const)
-      : key === "width"
-        ? (["width", "Width (m)"] as const)
-        : key === "height"
-          ? (["height", "Thickness (m)"] as const)
-          : ([key, label] as const),
-  ),
+  ["subCategory", "Sub Category"],
+  ["logCode", "Log Code"],
+  ["bundleNumber", "Bundle Number"],
+  ["palletNo", "Pallet No"],
+  ["length", "Length"],
+  ["width", "Width"],
+  ["thickness", "Thickness"],
+  ["noOfLeaves", "No of Leaves"],
+  ["sqm", "SQM"],
+  ["sqf", "SQF"],
   ["remark", "Remark"],
+  ["createdBy", "Created"],
+  ["updatedBy", "Updated"],
 ] as const;
 
 const sawingProcessDetailFields = [
@@ -837,8 +839,6 @@ const sawingProcessDetailFields = [
   ["thickness", "Thickness"],
   ["cbm", "CBM"],
   ["cbf", "CBF"],
-  ["receivedCbm", "Received CBM"],
-  ["availableCbm", "Available CBM"],
   ["remark", "Remark"],
 ] as const;
 
@@ -863,10 +863,7 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Process Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
-        fieldDefinition.key === "cbm" ||
-          fieldDefinition.key === "cbf" ||
-          fieldDefinition.key === "receivedCbm" ||
-          fieldDefinition.key === "availableCbm"
+        fieldDefinition.key === "cbm" || fieldDefinition.key === "cbf"
           ? { ...fieldDefinition, readOnly: true }
           : fieldDefinition,
       ),
