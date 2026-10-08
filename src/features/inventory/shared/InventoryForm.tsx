@@ -18,8 +18,10 @@ import type { Theme } from "@mui/material/styles";
 import { ChevronLeft, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
+import { env } from "../../../config/env";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { buildInwardHeaderAutofillValues } from "../../warehouses/inward/inwardAddAutofill";
 import {
   MasterFormFields,
   MasterSectionCard,
@@ -324,7 +326,10 @@ function InventoryFormContent<Row extends InventoryRecord>({
   const [saveError, setSaveError] = useState("");
   const [supplierOptionsRevision, setSupplierOptionsRevision] = useState(0);
   const [warehouseState, setWarehouseState] = useState("");
+  const [autofillItemCount, setAutofillItemCount] = useState("1");
   const warehouseAWorkspaceRef = useRef<WarehouseAAddStockWorkspaceHandle>(null);
+  const showInwardAutofill =
+    env.VITE_INWARD_AUTOFILL && Boolean(warehouseAAddStockSlug) && mode === "add";
 
   useEffect(() => {
     if (warehouseAAddStockSlug) {
@@ -504,7 +509,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
     ? "Add Stock"
     : getInventoryPageTitle(definition, mode);
   const pageSubtitle = warehouseAAddStockSlug
-    ? "Record supplier invoice and inward stock details."
+    ? " "
     : undefined;
   const warehouseInventoryBreadcrumbs = warehouseAAddStockSlug
     ? [
@@ -743,6 +748,63 @@ function InventoryFormContent<Row extends InventoryRecord>({
               </>
             ) : (
               <>
+                {showInwardAutofill ? (
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    sx={{ mr: "auto" }}
+                  >
+                    <TextField
+                      type="number"
+                      size="small"
+                      label="Items"
+                      value={autofillItemCount}
+                      disabled={isSaving}
+                      onChange={(event) => {
+                        setAutofillItemCount(event.target.value);
+                      }}
+                      inputProps={{ min: 1, max: 50, step: 1 }}
+                      sx={{ width: 88 }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      disabled={isSaving}
+                      sx={recordFormActionButtonSx}
+                      onClick={() => {
+                        void (async () => {
+                          setSaveError("");
+                          try {
+                            await refreshSupplierMasterCache();
+                            setSupplierOptionsRevision((current) => current + 1);
+                          } catch {
+                            // Still attempt autofill from whatever options are cached.
+                          }
+
+                          const count = Math.min(
+                            50,
+                            Math.max(
+                              1,
+                              Math.floor(Number(autofillItemCount) || 1),
+                            ),
+                          );
+                          setAutofillItemCount(String(count));
+
+                          setValues((current) =>
+                            buildInwardHeaderAutofillValues(current),
+                          );
+                          warehouseAWorkspaceRef.current?.applyTestAutofill(
+                            count,
+                          );
+                        })();
+                      }}
+                    >
+                      Autofill test data
+                    </Button>
+                  </Stack>
+                ) : null}
+
                 <Button
                   type="button"
                   variant="outlined"
@@ -776,15 +838,9 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         return;
                       }
 
-                      if (
-                        warehouseAAddStockSlug &&
-                        warehouseAAddStockSlug !== "consumables"
-                      ) {
+                      if (warehouseAAddStockSlug) {
                         const lineItems =
                           warehouseAWorkspaceRef.current?.getLineItems() ?? [];
-                        const otherConsumables =
-                          warehouseAWorkspaceRef.current?.getOtherConsumables() ??
-                          [];
                         const additionalCharges =
                           warehouseAWorkspaceRef.current?.getAdditionalCharges() ??
                           [];
@@ -836,7 +892,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         if (apiWarehouseId) {
                           if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
                             setSaveError(
-                              "Only Veneer Blocks, Raw Veneer, and Plywood inward are supported currently.",
+                              "Only Veneer Blocks, Raw Veneer, Plywood, MDF, and Consumables inward are supported currently.",
                             );
                             return;
                           }
@@ -848,7 +904,6 @@ function InventoryFormContent<Row extends InventoryRecord>({
                               inventorySlug: warehouseAAddStockSlug,
                               header,
                               lineItems,
-                              otherConsumables,
                               additionalCharges,
                             });
                             await createInwardApi(payload);
@@ -866,11 +921,13 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         }
 
                         // Legacy local-only path (no warehouseId query).
-                        saveWarehouseAInwardItems({
-                          header,
-                          lineItems,
-                          slug: warehouseAAddStockSlug,
-                        });
+                        if (warehouseAAddStockSlug !== "consumables") {
+                          saveWarehouseAInwardItems({
+                            header,
+                            lineItems,
+                            slug: warehouseAAddStockSlug,
+                          });
+                        }
                       }
 
                       closeInventoryForm();

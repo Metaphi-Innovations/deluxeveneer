@@ -270,7 +270,6 @@ export function WarehouseAInventoryModulePage({
         { label: warehouseName },
         { label: activeConfig.title },
       ]}
-      subtitle="Incoming material and warehouse inventory."
       title={warehouseName}
     >
       <Stack

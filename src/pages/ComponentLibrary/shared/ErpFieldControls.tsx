@@ -199,31 +199,39 @@ function getInteractiveFieldStyles(
       ? theme.palette.text.disabled
       : theme.palette.text.primary,
     cursor: isDisabled || isReadOnly ? "not-allowed" : "pointer",
-    helperColor: isError ? theme.palette.error.main : theme.palette.text.secondary,
+    helperColor: isError
+      ? theme.palette.error.main
+      : theme.palette.text.secondary,
   } as const;
 }
 
 function FieldValue({
+  placeholder,
   size,
   theme,
   value,
 }: {
+  placeholder?: string | undefined;
   size: FieldSize;
   theme: Theme;
   value: string;
 }) {
   const hasValue = value.trim().length > 0;
+  const emptyLabel = placeholder?.trim() || "";
 
   return (
     <Typography
       title={hasValue ? value : undefined}
       variant="body2"
       sx={{
-        color: hasValue ? theme.palette.text.primary : theme.palette.text.secondary,
+        color: hasValue
+          ? theme.palette.text.primary
+          : theme.palette.text.disabled,
+        fontStyle: hasValue ? "normal" : emptyLabel ? "italic" : "normal",
         ...getSelectClosedValueSx(theme, size === "dense"),
       }}
     >
-      {hasValue ? value : "\u00a0"}
+      {hasValue ? value : emptyLabel || "\u00a0"}
     </Typography>
   );
 }
@@ -609,7 +617,7 @@ export function ErpSelectField({
   maxVisibleOptions = defaultVisibleOptionLimit,
   onChange,
   options,
-  placeholder: _placeholder,
+  placeholder,
   searchable = true,
   size = "regular",
   state = "default",
@@ -675,6 +683,7 @@ export function ErpSelectField({
           <TextField
             fullWidth
             disabled={state === "disabled"}
+            placeholder={!open && !value.trim() ? placeholder : undefined}
             title={!open && value.trim() ? value : undefined}
             value={fieldSearchValue}
             onChange={(event) => {
@@ -736,16 +745,19 @@ export function ErpSelectField({
                 boxShadow: styles.boxShadow,
                 color: styles.color,
                 cursor: styles.cursor,
+                transition: theme.transitions.create(
+                  ["background-color", "border-color"],
+                  { duration: theme.transitions.duration.shorter },
+                ),
                 "& .MuiOutlinedInput-notchedOutline": {
                   borderColor: styles.borderColor,
                 },
                 "&:hover .MuiOutlinedInput-notchedOutline": {
                   borderColor:
-                    state === "disabled" ||
-                    state === "readOnly" ||
-                    state === "error"
+                    state === "disabled" || state === "error"
                       ? styles.borderColor
                       : theme.customTokens.borders.hover,
+                  borderWidth: state === "disabled" ? 1 : 2,
                 },
                 "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                   borderColor: styles.borderColor,
@@ -788,19 +800,17 @@ export function ErpSelectField({
               gap: theme.spacing(1),
               "&:hover": {
                 borderColor:
-                  state === "disabled" || state === "readOnly" || state === "error"
+                  state === "disabled" || state === "error"
                     ? styles.borderColor
                     : theme.customTokens.borders.hover,
-                backgroundColor:
-                  state === "disabled" || state === "readOnly"
-                    ? styles.backgroundColor
-                    : theme.customTokens.surfaces.surface,
+                borderWidth: state === "disabled" ? 1 : 2,
               },
             }}
             type="button"
           >
             <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
               <FieldValue
+                placeholder={placeholder}
                 size={size}
                 theme={theme}
                 value={value}
@@ -1023,9 +1033,10 @@ export function ErpDatePickerField({
           gap: theme.spacing(1),
           "&:hover": {
             borderColor:
-              state === "disabled" || state === "readOnly" || state === "error"
+              state === "disabled" || state === "error"
                 ? styles.borderColor
                 : theme.customTokens.borders.hover,
+            borderWidth: state === "disabled" ? 1 : 2,
           },
         }}
         type="button"

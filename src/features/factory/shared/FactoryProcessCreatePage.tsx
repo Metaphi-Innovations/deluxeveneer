@@ -33,7 +33,10 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
-import { recordFormActionButtonSx } from "../../shared/buttonStyles";
+import {
+  highlightedRecordFormPrimaryButtonSx,
+  recordFormActionButtonSx,
+} from "../../shared/buttonStyles";
 import {
   formInlineActionButtonSx,
   formSectionCardSx,
@@ -50,6 +53,7 @@ import {
   useFactoryProcessRunTotals,
 } from "./factoryProcessRunStore";
 import { completeFactoryIssuedWork } from "./factoryIssuedWorkStore";
+import { createSawingProcessApi } from "../sawing/api/sawingApi";
 import {
   buildFactorySourceAllocationKey,
   computeProcessEntryBalance,
@@ -152,26 +156,18 @@ const groupingHiddenSourceKeys = new Set([
 ]);
 
 const sourceColumnDefinitions: readonly SourceColumnDefinition[] = [
-  { key: "issuedFrom", keys: ["issuedFrom", "issuedFor", "process"], label: "Issued From", minWidth: 180 },
-  { key: "orderNo", keys: ["orderNo"], label: "Order No", minWidth: 140 },
-  { key: "orderItemNo", keys: ["orderItemNo"], label: "Order Item No", minWidth: 140 },
-  { key: "issuedDate", keys: ["issuedDate", "issueDate", "processDate", "sampleDate"], label: "Date", minWidth: 130 },
-  { key: "supplierName", keys: ["supplierName", "customerName"], label: "Source Name", minWidth: 180 },
+  { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
+  { key: "issuedDate", keys: ["issuedDate", "issueDate", "processDate", "date", "sampleDate"], label: "Date", minWidth: 130 },
   { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
-  { key: "groupNo", keys: ["groupNo"], label: "Group No.", minWidth: 160 },
-  { key: "bundleNumber", keys: ["bundleNumber", "noOfBundle"], label: "Bundle No", minWidth: 140 },
-  { key: "palletNo", keys: ["palletNo"], label: "Pallet No", minWidth: 140 },
-  { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory"], label: "Item Sub Category", minWidth: 170 },
-  { key: "color", keys: ["color", "colour", "processColour"], label: "Color", minWidth: 140 },
-  { key: "logNo", keys: ["logNo", "logCode"], label: "Log No.", minWidth: 130 },
-  { key: "grade", keys: ["grade"], label: "Grade", minWidth: 110 },
+  { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
+  { key: "batchNo", keys: ["batchNo", "logNo", "logCode"], label: "Batch No", minWidth: 140 },
   { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
   { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
-  { key: "height", keys: ["height", "thickness", "thickess"], label: "Thickness", minWidth: 120 },
-  { key: "noOfSheets", keys: ["noOfSheets", "sampleSheets", "finishedSheets", "issuedLeaves", "noOfLeaves", "noOfLeavesSheets"], label: "Original Quantity", minWidth: 140 },
-  { key: "sqm", keys: ["sqm", "totalSqm", "availableSqm", "avSqm", "issuedSqm", "outputSqm", "consumedSqm", "consumeSqm", "finishedSqm"], label: "SQM", minWidth: 120 },
-  { key: "sqf", keys: ["sqf", "totalSqf", "availableSqf", "avSqf", "issuedSqf", "outputSqf", "consumedSqf", "consumeSqf", "finishedSqf"], label: "SQF", minWidth: 120 },
-  { key: "amount", keys: ["amount"], label: "Amount", minWidth: 130 },
+  { key: "height", keys: ["height", "thickness", "thickess"], label: "Height", minWidth: 120 },
+  { key: "cbm", keys: ["cbm", "totalCbm", "volumeCbm"], label: "CBM", minWidth: 120 },
+  { key: "receivedCbm", keys: ["receivedCbm", "cbm", "sourceCbm"], label: "Received CBM", minWidth: 130 },
+  { key: "availableCbm", keys: ["availableCbm", "cbm"], label: "Available CBM", minWidth: 130 },
+  { key: "cbf", keys: ["cbf", "totalCbf", "volumeCbf"], label: "CBF", minWidth: 120 },
   { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
 ] as const;
 
@@ -223,6 +219,7 @@ type ProcessDateConfig = {
 };
 
 const processDateBySlug: Record<string, ProcessDateConfig> = {
+  sawing: { key: "processDate", label: "Sawing Date", aliases: ["issueDate", "issuedDate"] },
   slicing: { key: "slicingDate", label: "Slicing Date" },
   drying: { key: "dryingDate", label: "Drying Date" },
   grouping: { key: "groupingDate", label: "Grouping Date" },
@@ -382,10 +379,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           : "",
       purpose:
         locationState?.sourceRow?.for === "Sample" ||
-        typeof locationState?.sourceRow?.sampleNo === "string"
+          typeof locationState?.sourceRow?.sampleNo === "string"
           ? "Sample Sheets"
           : typeof locationState?.sourceRow?.orderNo === "string" &&
-              locationState.sourceRow.orderNo
+            locationState.sourceRow.orderNo
             ? "Order"
             : "",
       sampleNo:
@@ -397,9 +394,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     createEmptyLineItemValues(lineItemFields),
   );
   const [editingSubmitAttempted, setEditingSubmitAttempted] = useState(false);
-  const [rejectAvailableValues, setRejectAvailableValues] = useState(() =>
-    createEmptyRejectAvailableValues(),
-  );
+  const [rejectAvailableValues, setRejectAvailableValues] = useState(() => {
+    const initial = createEmptyRejectAvailableValues();
+    if (definition.slug === "sawing") {
+      initial.type = "Available";
+    }
+    return initial;
+  });
   const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
     useState(false);
 
@@ -428,9 +429,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
     return quantityConfig
       ? resolveOriginalQuantity(
-          sourceRow as Record<string, unknown> | undefined,
-          quantityConfig,
-        )
+        sourceRow as Record<string, unknown> | undefined,
+        quantityConfig,
+      )
       : 0;
   }, [definition.slug, locationState?.issueSheets, quantityConfig, sourceRow]);
   const currentProcessedQuantity = useMemo(
@@ -499,6 +500,19 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
+    if (definition.slug === "sawing") {
+      const draftCbm = Number.parseFloat(draftValues.cbm || "0") || 0;
+      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
+      const currentlyUsedCbm = lineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
+      const remainingCbm = Math.max(0, initialRecCbm - currentlyUsedCbm);
+
+      if (initialRecCbm > 0 && draftCbm > remainingCbm + 0.00001) {
+        alert(`Process CBM (${draftCbm.toFixed(4)}) cannot exceed available received CBM (${remainingCbm.toFixed(4)} CBM).`);
+        setDraftSubmitAttempted(true);
+        return;
+      }
+    }
+
     const draftProcessedQty = resolveLineItemProcessedQuantity(
       draftValues,
       definition.slug,
@@ -518,14 +532,28 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     const nextId = `${definition.slug}-line-item-${nextRowId.current}`;
     nextRowId.current += 1;
 
-    setLineItems((current) => [
-      ...current,
+    const nextLineItems = [
+      ...lineItems,
       {
         id: nextId,
         values: { ...draftValues },
       },
-    ]);
-    setDraftValues(buildDefaultLineItemValues(lineItemFields, sourceRow));
+    ];
+    setLineItems(nextLineItems);
+
+    if (definition.slug === "sawing") {
+      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
+      const newTotalUsedCbm = nextLineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
+      const newRemainingCbm = Math.max(0, initialRecCbm - newTotalUsedCbm);
+
+      const clearedValues = createEmptyLineItemValues(lineItemFields);
+      clearedValues.logNo = draftValues.logNo || "";
+      clearedValues.receivedCbm = initialRecCbm ? initialRecCbm.toFixed(4).replace(/\.?0+$/u, "") : "";
+      clearedValues.availableCbm = newRemainingCbm.toFixed(4).replace(/\.?0+$/u, "");
+      setDraftValues(clearedValues);
+    } else {
+      setDraftValues(buildDefaultLineItemValues(lineItemFields, sourceRow));
+    }
     setDraftSubmitAttempted(false);
   };
 
@@ -579,9 +607,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       current.map((row) =>
         row.id === rowId
           ? {
-              ...row,
-              values: { ...editingValues },
-            }
+            ...row,
+            values: { ...editingValues },
+          }
           : row,
       ),
     );
@@ -741,14 +769,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           </Box>
         </Stack>
 
-          {lineItems.length > 0 ? (
-            <Stack
-              sx={(currentTheme) => ({
-                ...formSectionCardSx(currentTheme),
-                gap: currentTheme.spacing(1.5),
-              })}
-            >
-              <FactoryCreateSectionTitle title="Processed Items" />
+        {lineItems.length > 0 ? (
+          <Stack
+            sx={(currentTheme) => ({
+              ...formSectionCardSx(currentTheme),
+              gap: currentTheme.spacing(1.5),
+            })}
+          >
+            <FactoryCreateSectionTitle title="Processed Items" />
             <Box
               sx={{
                 border: `1px solid ${theme.customTokens.borders.default}`,
@@ -797,27 +825,27 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                             <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                               {isEditing
                                 ? renderEditableField({
-                                    column,
-                                    onChange: (value) =>
-                                        setEditingValues((current) =>
-                                        applySawingVolumeCalculation(
-                                          definition.slug,
-                                          applyFactoryLineItemValueChange(
-                                            current,
-                                            column.key,
-                                            value,
-                                          ),
+                                  column,
+                                  onChange: (value) =>
+                                    setEditingValues((current) =>
+                                      applySawingVolumeCalculation(
+                                        definition.slug,
+                                        applyFactoryLineItemValueChange(
+                                          current,
+                                          column.key,
+                                          value,
                                         ),
                                       ),
-                                    theme,
-                                    value: editingValues[column.key] ?? "",
-                                    errorText: editingSubmitAttempted
-                                      ? getFieldValidationError(
-                                          column,
-                                          editingValues,
-                                        )
-                                      : "",
-                                  })
+                                    ),
+                                  theme,
+                                  value: editingValues[column.key] ?? "",
+                                  errorText: editingSubmitAttempted
+                                    ? getFieldValidationError(
+                                      column,
+                                      editingValues,
+                                    )
+                                    : "",
+                                })
                                 : renderReadOnlyCell(row.values[column.key] ?? "", theme)}
                             </TableCell>
                           ))}
@@ -858,18 +886,31 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 </Table>
               </Box>
             </Box>
-            </Stack>
-          ) : null}
+          </Stack>
+        ) : null}
 
         {definition.slug !== "cnc-fluting" && definition.slug !== "embossing" ? (
           <RejectAvailableDetailsTable
+            disabledType={definition.slug === "sawing" || definition.slug === "slicing"}
+            title={
+              definition.slug === "sawing" || definition.slug === "slicing"
+                ? "Available Details"
+                : undefined
+            }
+            volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
+            hideAmount={definition.slug === "sawing" || definition.slug === "slicing"}
             fieldIssues={getVisibleRejectAvailableValidationIssues(
               rejectAvailableValidationErrors,
               rejectAvailableSubmitAttempted,
             )}
             onChange={(key, value) =>
               setRejectAvailableValues((current) =>
-                getNextRejectAvailableValues(current, key, value),
+                getNextRejectAvailableValues(
+                  current,
+                  key,
+                  value,
+                  definition.slug === "sawing" || definition.slug === "slicing",
+                ),
               )
             }
             values={rejectAvailableValues}
@@ -897,8 +938,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             type="button"
             variant="contained"
             disableElevation
-            sx={recordFormActionButtonSx}
-            onClick={() => {
+            sx={{
+              ...highlightedRecordFormPrimaryButtonSx,
+              backgroundColor: (t) => t.palette.primary.main,
+              color: "#FFFFFF",
+              fontWeight: 700,
+              px: 2.5,
+              "&:hover": {
+                backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
+              },
+            }}
+            onClick={async () => {
               setHasSubmitted(true);
               const draftHasValues = !allValuesEmpty(draftValues);
               const draftErrors = getLineItemValidationErrors(
@@ -972,10 +1022,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     : {}),
                   ...(primaryLineItem
                     ? Object.fromEntries(
-                        Object.entries(primaryLineItem).filter(
-                          ([key]) => key !== "id",
-                        ),
-                      )
+                      Object.entries(primaryLineItem).filter(
+                        ([key]) => key !== "id",
+                      ),
+                    )
                     : {}),
                 };
 
@@ -999,7 +1049,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   }
                 }
 
-                completeFactoryIssuedWork(workItemId, resultSnapshot);
+                if (definition.slug !== "sawing") {
+                  completeFactoryIssuedWork(workItemId, resultSnapshot);
+                }
               }
 
               const sampleNo =
@@ -1010,6 +1062,128 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
               if (sampleNo) {
                 markSampleProcessDone(sampleNo, definition.slug);
+              }
+
+              if (definition.slug === "sawing") {
+                const sawingSource = sourceRow as Record<string, any> | undefined;
+                const locState = locationState as Record<string, any> | null;
+                const issueItemId = locState?.issueItemId || sawingSource?.id;
+                const issueId = locState?.issueId || sawingSource?.issueId;
+                const storageWarehouseId = locState?.storageWarehouseId || sawingSource?.storageWarehouseId;
+
+                const processedItemsPayload = lineItems.map((item) => {
+                  const vals = item.values;
+                  const l = Number.parseFloat(vals.length || "0") || 0;
+                  const w = Number.parseFloat(vals.width || "0") || 0;
+                  const t = Number.parseFloat(vals.height || vals.thickness || "0") || 0;
+                  const cbmVal = Number.parseFloat(vals.cbm || "0") || 0;
+                  const cbfVal = Number.parseFloat(vals.cbf || "0") || 0;
+                  const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
+                  const amtVal = Number.parseFloat(vals.amount || "0");
+                  return {
+                    batchNo: vals.logNo || vals.batchNo || "",
+                    length: l,
+                    width: w,
+                    thickness: t,
+                    cbm: cbmVal,
+                    cbf: cbfVal,
+                    ...(Number.isFinite(rateVal) && rateVal > 0 ? { ratePerCbf: rateVal } : {}),
+                    ...(Number.isFinite(amtVal) && amtVal > 0 ? { amount: amtVal } : {}),
+                    ...(vals.remark ? { remark: vals.remark } : {}),
+                  };
+                });
+
+                const processDateVal = formValues.processDate
+                  ? (formValues.processDate instanceof Date ? formValues.processDate.toISOString() : String(formValues.processDate))
+                  : undefined;
+
+                // Calculate total processed CBM
+                const totalSawedCbm = processedItemsPayload.reduce(
+                  (sum, item) => sum + (item.cbm || 0),
+                  0,
+                );
+
+                // Determine previous available CBM
+                let storedCbmMap: Record<string, number> = {};
+                try {
+                  const raw = localStorage.getItem("sawing_available_cbm_map");
+                  if (raw) storedCbmMap = JSON.parse(raw);
+                } catch {
+                  // ignore
+                }
+
+                const itemKey = String(issueItemId || sawingSource?.storageSrNo || "");
+                const fallbackBaseCbm = Number(sawingSource?.availableCbm ?? sawingSource?.receivedCbm ?? sawingSource?.cbm ?? 0);
+                const previousAvailableCbm =
+                  itemKey in storedCbmMap
+                    ? (storedCbmMap[itemKey] ?? fallbackBaseCbm)
+                    : fallbackBaseCbm;
+
+                const remainingCbm = Math.max(0, Number(((previousAvailableCbm ?? 0) - totalSawedCbm).toFixed(4)));
+
+                // Update stored available CBM
+                if (itemKey) {
+                  storedCbmMap[itemKey] = remainingCbm;
+                  try {
+                    localStorage.setItem("sawing_available_cbm_map", JSON.stringify(storedCbmMap));
+                  } catch {
+                    // ignore
+                  }
+                }
+
+                // If workItemId exists, only complete it when remainingCbm reaches 0
+                if (workItemId) {
+                  if (remainingCbm <= 0) {
+                    completeFactoryIssuedWork(workItemId);
+                  }
+                }
+
+                // Create done items in local store so they appear in Sawing Done
+                try {
+                  const rawCreated = localStorage.getItem("sawing_done_created_items");
+                  const createdList = rawCreated ? JSON.parse(rawCreated) : [];
+                  const newDoneItems = processedItemsPayload.map((p, idx) => ({
+                    id: `done-${Date.now()}-${idx}`,
+                    doneId: `done-${Date.now()}-${idx}`,
+                    storageSrNo: sawingSource?.storageSrNo || "-",
+                    processDate: processDateVal ? processDateVal.slice(0, 10) : new Date().toISOString().slice(0, 10),
+                    itemName: sawingSource?.itemName || "Veneer Block",
+                    subCategory: sawingSource?.subCategory || sawingSource?.itemSubCategory || "-",
+                    batchNo: sawingSource?.batchNo || "-",
+                    batchNoCode: p.batchNo || sawingSource?.batchNo || "-",
+                    length: p.length,
+                    width: p.width,
+                    thickness: p.thickness,
+                    height: p.thickness,
+                    cbm: p.cbm,
+                    cbf: p.cbf,
+                    remark: p.remark || sawingSource?.remark || "-",
+                    createdBy: sawingSource?.createdBy || "Admin",
+                    updatedBy: sawingSource?.updatedBy || "Admin",
+                    listingState: "done",
+                  }));
+                  localStorage.setItem(
+                    "sawing_done_created_items",
+                    JSON.stringify([...newDoneItems, ...createdList]),
+                  );
+                } catch {
+                  // ignore
+                }
+
+                try {
+                  await createSawingProcessApi({
+                    ...(issueItemId ? { issueItemId } : {}),
+                    ...(issueId ? { issueId } : {}),
+                    ...(storageWarehouseId ? { storageWarehouseId } : {}),
+                    ...(processDateVal ? { processDate: processDateVal } : {}),
+                    processedItems: processedItemsPayload,
+                  });
+                } catch (err) {
+                  console.error("Failed to save sawing process to backend:", err);
+                }
+
+                navigate("/factory/sawing?tab=done");
+                return;
               }
 
               navigate(paths.list);
@@ -1085,7 +1259,43 @@ function resolveProcessHeaderDateFields(
 }
 
 function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
-  const visibleColumns = sourceColumnDefinitions.filter((column) => {
+  if (slug === "slicing") {
+    return [
+      { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
+      { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },
+      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
+      { key: "subCategory", keys: ["subCategory", "itemSubCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
+      { key: "logNo", keys: ["logNo", "batchNo", "logCode", "batchNoCode"], label: "Log No.", minWidth: 140 },
+      { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
+      { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
+      { key: "height", keys: ["height", "thickness"], label: "Height", minWidth: 120 },
+      { key: "receivedCbm", keys: ["receivedCbm", "cbm"], label: "Received CBM", minWidth: 140 },
+      { key: "availableCbm", keys: ["availableCbm", "receivedCbm", "cbm"], label: "Available CBM", minWidth: 140 },
+      { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
+      { key: "createdBy", keys: ["createdBy"], label: "Created", minWidth: 140 },
+      { key: "updatedBy", keys: ["updatedBy"], label: "Updated", minWidth: 140 },
+    ];
+  }
+
+  if (slug === "drying") {
+    return [
+      { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
+      { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },
+      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
+      { key: "subCategory", keys: ["subCategory", "itemSubCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
+      { key: "logCode", keys: ["logCode", "batchNoCode", "batchNo", "logNo"], label: "Log Code", minWidth: 140 },
+      { key: "bundleNumber", keys: ["bundleNumber", "bundleNo"], label: "Bundle Number", minWidth: 140 },
+      { key: "palletNo", keys: ["palletNo"], label: "Pallet No", minWidth: 140 },
+      { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
+      { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
+      { key: "thickness", keys: ["thickness", "height"], label: "Thickness", minWidth: 120 },
+      { key: "noOfLeaves", keys: ["noOfLeaves", "noOfSheets", "leaves"], label: "No of Leaves", minWidth: 130 },
+      { key: "totalSqMeter", keys: ["totalSqMeter", "sqm"], label: "Total Sq Meter", minWidth: 140 },
+      { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
+    ];
+  }
+
+  return sourceColumnDefinitions.filter((column) => {
     if (slug === "drying" && column.key === "remark") {
       return false;
     }
@@ -1098,17 +1308,12 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
       return false;
     }
 
-    const value = getSourceValue(sourceRow, column.keys);
-    return value !== null && typeof value !== "undefined" && String(value).trim().length > 0;
+    return true;
   });
-
-  return visibleColumns.length > 0
-    ? visibleColumns
-    : sourceColumnDefinitions.slice(0, 6);
 }
 
 const sourceOverviewLabelOverrides: Partial<Record<string, string>> = {
-  supplierName: "Source / Customer",
+  supplierName: "Supplier Name",
   itemName: "Item Name",
   itemSubCategory: "Sub Category",
   issuedFrom: "Issued From",
@@ -1129,9 +1334,11 @@ function buildSourceOverviewItems(
   const items: Array<{ label: string; value: string }> = [];
 
   columns.forEach((column) => {
-    const value = formatSourceValue(getSourceValue(sourceRow, column.keys));
-    if (!value) {
-      return;
+    const rawValue = getSourceValue(sourceRow, column.keys);
+    let value = formatSourceValue(rawValue);
+
+    if (!value || value.trim() === "") {
+      value = "-";
     }
 
     items.push({
@@ -1174,10 +1381,10 @@ function MarquetryOrderDetails({
       [key]: nextValue,
       ...(key === "purpose"
         ? {
-            orderNo: nextValue === "Order" ? current.orderNo : "",
-            orderItemNo: nextValue === "Order" ? current.orderItemNo : "",
-            sampleNo: nextValue === "Sample Sheets" ? current.sampleNo : "",
-          }
+          orderNo: nextValue === "Order" ? current.orderNo : "",
+          orderItemNo: nextValue === "Order" ? current.orderItemNo : "",
+          sampleNo: nextValue === "Sample Sheets" ? current.sampleNo : "",
+        }
         : {}),
       ...(key === "orderNo" ? { orderItemNo: "" } : {}),
     }));
@@ -1310,19 +1517,31 @@ function buildLineItemFields(
     ).map((field) =>
       field.type === "textarea"
         ? {
-            ...field,
-            type: "text" as const,
-          }
+          ...field,
+          type: "text" as const,
+        }
         : field,
     ),
     sourceRow,
   );
 
   if (relevantFields.length > 0) {
-    return orderProcessSpecificFields(
+    const ordered = orderProcessSpecificFields(
       slug,
       mergeCommonFactoryItemFields(relevantFields),
     );
+
+    if (slug === "slicing" || slug === "drying") {
+      const processExcludedKeys = new Set([
+        "itemName",
+        "itemSubCategory",
+        "ratePerSqf",
+        "amount",
+      ]);
+      return ordered.filter((field) => !processExcludedKeys.has(field.key));
+    }
+
+    return ordered;
   }
 
   const fallbackFields: MasterFieldDefinition[] = [
@@ -1363,7 +1582,7 @@ function orderProcessSpecificFields(
         ? "structureCode"
         : slug === "grouping"
           ? "groupPhoto"
-        : "";
+          : "";
 
   if (!specialFieldKey) {
     return [...fields];
@@ -1381,8 +1600,8 @@ function orderProcessSpecificFields(
     specialFieldKey === "groupPhoto"
       ? withoutSpecialField.findIndex((field) => field.key === "remark")
       : withoutSpecialField.findIndex(
-          (field) => field.key === "itemSubCategory",
-        ) + 1;
+        (field) => field.key === "itemSubCategory",
+      ) + 1;
 
   withoutSpecialField.splice(
     insertionIndex >= 0 ? insertionIndex : withoutSpecialField.length,
@@ -1450,23 +1669,38 @@ function applySawingVolumeCalculation(
 }
 
 function calculateSawingVolumeValues(values: Record<string, string>) {
-  if (!("cbm" in values) || !("cbf" in values)) {
+  if (!("cbm" in values) && !("cbf" in values)) {
     return values;
   }
 
   const length = Number.parseFloat(values.length ?? "");
   const width = Number.parseFloat(values.width ?? "");
-  const thickness = Number.parseFloat(values.thickness ?? values.height ?? "");
+  const heightVal = Number.parseFloat(values.height ?? values.thickness ?? "");
 
-  if (![length, width, thickness].every(Number.isFinite)) {
-    return { ...values, cbm: "", cbf: "" };
+  if (![length, width, heightVal].every(Number.isFinite) || length <= 0 || width <= 0 || heightVal <= 0) {
+    return { ...values, cbm: "", cbf: "", availableCbm: values.receivedCbm || "" };
   }
 
-  const cbm = length * width * thickness;
+  // Option A: cm (/ 1,000,000) vs Option B: mm (/ 1,000,000,000)
+  // Factory lumber/timber dimensions > 50 are in millimeters (mm), otherwise centimeters (cm).
+  const isMm = length > 50 || width > 50;
+  const cbm = isMm
+    ? (length * width * heightVal) / 1_000_000_000
+    : (length * width * heightVal) / 1_000_000;
+  const cbf = cbm * 35.3147;
+
+  const recCbmVal = Number.parseFloat(values.receivedCbm ?? "") || 0;
+  const availCbm = recCbmVal > 0 ? Math.max(0, recCbmVal - cbm) : 0;
+
+  const ratePerCbf = Number.parseFloat(values.ratePerSqf ?? values.ratePerCbf ?? "");
+  const amount = Number.isFinite(ratePerCbf) && ratePerCbf > 0 ? (cbf * ratePerCbf).toFixed(2) : values.amount ?? "";
+
   return {
     ...values,
-    cbm: cbm.toFixed(3),
-    cbf: (cbm * 35.315).toFixed(3),
+    cbm: cbm.toFixed(6).replace(/\.?0+$/u, "") || "0",
+    cbf: cbf.toFixed(4).replace(/\.?0+$/u, "") || "0",
+    availableCbm: availCbm ? availCbm.toFixed(6).replace(/\.?0+$/u, "") : (recCbmVal > 0 ? "0" : (values.availableCbm ?? "")),
+    ...(amount ? { amount } : {}),
   };
 }
 
@@ -1569,6 +1803,10 @@ function getSourceValue(sourceRow: SourceRow | undefined, keys: readonly string[
     if (typeof value === "string" && value.trim().length > 0) {
       return value;
     }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
   }
 
   return "";
@@ -1583,7 +1821,16 @@ function formatSourceValue(value: unknown) {
     }).format(value);
   }
 
-  return typeof value === "string" ? value : "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "string") {
+    // Strip unit suffixes like m³, ft³, mm, m, etc. from dummy/source values
+    return value.replace(/\s*(m³|ft³|mm|mtr|m)\b/gi, "").trim();
+  }
+
+  return "";
 }
 
 function mapFieldToColumn(field: MasterFieldDefinition): LineItemColumnDefinition {

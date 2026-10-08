@@ -199,9 +199,9 @@ function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") 
     color: colors[index % colors.length],
     bundleNumber: `BDL-${warehouseCode}-${String(410 + sequence).padStart(3, "0")}`,
     palletNo: `PAL-${warehouseCode}-${String(20 + sequence).padStart(2, "0")}`,
-    length: `${2440 + index * 20} mm`,
-    width: `${1220 + index * 10} mm`,
-    height: `${4 + index} mm`,
+    length: `${2440 + index * 20}`,
+    width: `${1220 + index * 10}`,
+    height: `${4 + index}`,
     thickness: `${0.6 + index * 0.1}`,
     sqm,
     sqf: toSqf(sqm),
@@ -256,7 +256,7 @@ function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") 
     ]),
     instructions: "Follow production tolerance sheet.",
     pressingId: `PRS-${String(900 + sequence)}`,
-    baseThickness: `${12 + index} mm`,
+    baseThickness: `${12 + index}`,
     veneerThickness: `${0.6 + index * 0.1}`,
     baseType: pick([
       "Plywood",
@@ -274,9 +274,9 @@ function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") 
       "Plywood",
       "Warehouse C",
     ]),
-    consumedLength: `${2400 + index * 20} mm`,
-    consumedWidth: `${1200 + index * 10} mm`,
-    consumedThickness: `${10 + index} mm`,
+    consumedLength: `${2400 + index * 20}`,
+    consumedWidth: `${1200 + index * 10}`,
+    consumedThickness: `${10 + index}`,
     consumedNoOfSheets: String(10 + index),
     consumeSheets: String(6 + index),
     consumedSqm,
@@ -337,25 +337,94 @@ function getDefaultIssuedFromProcess(prefix: string, index: number) {
   return issuedFromByProcess[prefix] ?? "Inventory";
 }
 
-const slicingRows = factoryRows("slicing", "Warehouse B", (row, index) => ({
-  ...row,
-  issuedFor: "Drying",
-  // Slicing dimensions are stored/displayed in metres for SQM calculation.
-  length: `${(2.44 + index * 0.02).toFixed(2)} m`,
-  width: `${(1.22 + index * 0.01).toFixed(2)} m`,
-  height: `${(0.004 + index * 0.001).toFixed(3)} m`,
-}));
+const slicingRows = factoryRows("slicing", "Warehouse B", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  const lengthVal = +(2.44 + index * 0.02).toFixed(2);
+  const widthVal = +(1.22 + index * 0.01).toFixed(2);
+  const heightVal = +(0.15 + index * 0.01).toFixed(2);
+  const cbmVal = +(lengthVal * widthVal * heightVal).toFixed(3);
 
-const dryingRows = factoryRows("drying", "Warehouse B", (row) => ({
-  ...row,
-  issuedFor: "Inspection",
-}));
+  return {
+    ...row,
+    storageSrNo: `STG-VB-${year}-${sequence}`,
+    batchNo: `BATCH-SL-${sequence}`,
+    issueDate: row.issuedDate,
+    length: `${lengthVal.toFixed(2)}`,
+    width: `${widthVal.toFixed(2)}`,
+    height: `${heightVal.toFixed(2)}`,
+    receivedCbm: `${cbmVal.toFixed(3)}`,
+    availableCbm: `${cbmVal.toFixed(3)}`,
+    quantity: String(index % 3 === 0 ? 10 : index % 3 === 1 ? 5 : 8),
+    status: index % 2 === 0 ? "Partial Done" : "Pending",
+    issuedFor: "Drying",
+  };
+});
 
-const groupingRows = factoryRows("grouping", "Warehouse C", (row, index) => ({
-  ...row,
-  issuedFor: "Splicing",
-  groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
-}));
+const dryingRows = factoryRows("drying", "Warehouse B", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  const lengthVal = +(2.44 + index * 0.02).toFixed(2);
+  const widthVal = +(1.22 + index * 0.01).toFixed(2);
+  const heightVal = +(0.15 + index * 0.01).toFixed(2);
+  const cbmVal = +(lengthVal * widthVal * heightVal).toFixed(3);
+
+  return {
+    ...row,
+    storageSrNo: `STG-VB-${year}-${sequence}`,
+    batchNo: `BATCH-DR-${sequence}`,
+    issueDate: row.issuedDate,
+    length: `${lengthVal.toFixed(2)}`,
+    width: `${widthVal.toFixed(2)}`,
+    height: `${heightVal.toFixed(2)}`,
+    receivedCbm: `${cbmVal.toFixed(3)}`,
+    availableCbm: `${cbmVal.toFixed(3)}`,
+    issuedFor: "Inspection",
+  };
+});
+
+const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  const lengthVal = 2.4 + index * 0.1;
+  const widthVal = 1.2 + index * 0.05;
+  const heightVal = 0.8 + index * 0.05;
+  const cbmVal = +(lengthVal * widthVal * heightVal).toFixed(3);
+  const cbfVal = +(cbmVal * 35.3147).toFixed(2);
+
+  return {
+    ...row,
+    storageSrNo: `STG-VB-${year}-${sequence}`,
+    batchNo: `BATCH-SW-${sequence}`,
+    logNo: `BATCH-SW-${sequence}`,
+    length: `${lengthVal.toFixed(2)}`,
+    width: `${widthVal.toFixed(2)}`,
+    height: `${heightVal.toFixed(2)}`,
+    receivedCbm: `${cbmVal.toFixed(3)}`,
+    availableCbm: `${cbmVal.toFixed(3)}`,
+    cbm: `${cbmVal.toFixed(3)}`,
+    cbf: `${cbfVal.toFixed(2)}`,
+    availableCbf: `${cbfVal.toFixed(2)}`,
+    quantity: String(10 + (index % 5) * 5),
+    status: index % 2 === 0 ? "Pending" : "Partial Done",
+    issueDate: row.issuedDate,
+    processDate: row.issuedDate,
+    issuedFor: "Sawing Inspection",
+  };
+});
+
+const groupingRows = factoryRows("grouping", "Warehouse C", (row, index) => {
+  const seq = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  return {
+    ...row,
+    storageSrNo: `STG-RV-${year}-${seq}`,
+    issuedFor: "Splicing",
+    groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
+    groupPhoto: "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
+    issueTo: index % 2 === 0 ? "Order" : "Sample Sheet",
+  };
+});
 
 const sampleSheetProcessTypes = [
   "Fluting",
@@ -386,12 +455,17 @@ const withCarriedGroupNo = (row: FactoryRowSeed, index: number) => ({
   groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
 });
 
-const splicingRows = factoryRows("splicing", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
-    Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
-  ],
-}));
+const splicingRows = factoryRows("splicing", "Warehouse C", (row, index) => {
+  const seq = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  return {
+    ...withCarriedGroupNo(row, index),
+    storageSrNo: `STG-RV-${year}-${seq}`,
+    issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
+      Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
+    ],
+  };
+});
 
 const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
@@ -417,53 +491,57 @@ const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => ({
   issuedFor: "Packing",
 }));
 
-const marquetryRows = factoryRows("marquetry", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: "Pressing",
-}));
+const marquetryRows = factoryRows("marquetry", "Warehouse C", (row, index) => {
+  const seq = String(index + 1).padStart(4, "0");
+  const year = new Date().getFullYear().toString().slice(-2);
+  // Source storage warehouse serial number (e.g. Raw Veneer STG-RV-26-0001 or Veneer Blocks STG-VB-26-0001)
+  const storageWarehouseSrNo = `STG-RV-${year}-${seq}`;
+  return {
+    ...withCarriedGroupNo(row, index),
+    storageSrNo: storageWarehouseSrNo,
+    issuedFor: "Pressing",
+  };
+});
 
 const exportOemRows = factoryRows("export-oem", "Warehouse C", (row) => ({
   ...row,
   issuedFor: "Dispatch",
 }));
 
-/** Drying keeps the prior shared column set (not the Slicing field standard). */
-const dryingListingColumns = listingColumns([
-  ["warehouseName", "Warehouses"],
-  ["issuedFrom", "Issued From"],
-  ["issuedDate", "Issued Date"],
+const dryingListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
+  ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
-  ["itemSubCategory", "Item Sub Category"],
-  ["color", "Color"],
+  ["subCategory", "Sub Category"],
+  ["logCode", "Log Code"],
+  ["bundleNumber", "Bundle Number"],
+  ["palletNo", "Pallet No"],
   ["length", "Length"],
   ["width", "Width"],
-  ["height", "Thickness"],
-  ["sqm", "SQM"],
-  ["sqf", "SQF"],
-  ["amount", "Amount"],
+  ["thickness", "Thickness"],
+  ["noOfLeaves", "No of Leaves"],
+  ["totalSqMeter", "Total Sq Meter"],
   ["remark", "Remark"],
-  ["createdBy", "Created By"],
-  ["createdAt", "Created At"],
-  ["updatedBy", "Updated By"],
-  ["updatedAt", "Updated At"],
+  ["createdBy", "Created"],
+  ["updatedBy", "Updated"],
 ] as const);
 
-const slicingListingColumns = listingColumns([
-  ["warehouseName", "Warehouses"],
-  ["issuedFrom", "Issued From"],
-  ["issuedDate", "Issued Date"],
+const slicingListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
+  ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
-  ["logNo", "Log No."],
-  ["length", "Length (m)"],
-  ["width", "Width (m)"],
-  ["height", "Thickness (m)"],
-  ["noOfLeaves", "No. of Leaves"],
-  ["sqm", "SQM"],
-  ["sqf", "SQF"],
-  ["amount", "Amount"],
+  ["subCategory", "Sub Category"],
+  ["logCode", "Log Code"],
+  ["bundleNumber", "Bundle Number"],
+  ["palletNo", "Pallet No"],
+  ["length", "Length"],
+  ["width", "Width"],
+  ["thickness", "Thickness"],
+  ["noOfLeaves", "No of Leaves"],
+  ["totalSqMeter", "Total Sq Meter"],
   ["remark", "Remark"],
+  ["createdBy", "Created"],
+  ["updatedBy", "Updated"],
 ] as const);
 
 const sawingListingColumns = columns([
@@ -476,7 +554,7 @@ const sawingListingColumns = columns([
   ["logNo", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
-  ["height", "Thickness"],
+  ["height", "Height"],
   ["cbm", "CBM"],
   ["cbf", "CBF"],
   ["ratePerSqf", "Rate per CBF"],
@@ -484,9 +562,27 @@ const sawingListingColumns = columns([
   ["remark", "Remark"],
 ] as const);
 
-const splicingListingColumns = listingColumns([
-  ["warehouseName", "Warehouses"],
-  ["issuedFrom", "Issued From"],
+export const sawingInspectionListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
+  ["issuedDate", "Issued Inspection Date"],
+  ["sawingDate", "Sawing Date"],
+  ["itemName", "Item Name"],
+  ["subCategory", "Sub Category"],
+  ["batchNo", "Log No."],
+  ["batchNoCode", "Batch No"],
+  ["length", "Length"],
+  ["width", "Width"],
+  ["thickness", "Thickness"],
+  ["cbm", "CBM"],
+  ["cbf", "CBF"],
+  ["qcStatus", "Status"],
+  ["remark", "Remark"],
+  ["createdBy", "Created"],
+  ["updatedBy", "Updated"],
+] as const);
+
+const splicingListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
   ["orderDate", "Order Date"],
@@ -494,8 +590,6 @@ const splicingListingColumns = listingColumns([
   ["customerName", "Customer Name"],
   ["orderNo", "Order No"],
   ["orderItemNo", "Order Item No"],
-  ["itemName", "Item Name"],
-  ["itemSubCategory", "Item Sub Category"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -503,8 +597,6 @@ const splicingListingColumns = listingColumns([
   ["sqm", "SQM"],
   ["sqf", "SQF"],
   ["cut", "Cut"],
-  ["color", "Color"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
   ["createdBy", "Created By"],
   ["createdAt", "Created At"],
@@ -540,16 +632,40 @@ const productionListingColumns = listingColumns([
   ["updatedAt", "Updated At"],
 ] as const);
 
-/** Grouping is stock/process focused — no order or customer columns. */
-const groupingListingColumns = listingColumns([
-  ["warehouseName", "Warehouses"],
-  ["issuedFrom", "Issued From"],
+/** Marquetry listing columns */
+const marquetryListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
+  ["issuedFor", "Issued For"],
+  ["orderDate", "Order Date"],
+  ["issuedDate", "Issued Date"],
+  ["customerName", "Customer Name"],
+  ["orderNo", "Order No"],
+  ["orderItemNo", "Order Item No"],
+  ["itemName", "Item Name"],
+  ["itemSubCategory", "Item Sub Category"],
+  ["length", "Length"],
+  ["width", "Width"],
+  ["thickness", "Thickness"],
+  ["noOfSheets", "No of Sheets"],
+  ["sqm", "SQM"],
+  ["sqf", "SQF"],
+  ["amount", "Amount"],
+  ["grade", "Grade"],
+  ["remark", "Remark"],
+  ["createdBy", "Created By"],
+  ["createdAt", "Created At"],
+  ["updatedBy", "Updated By"],
+  ["updatedAt", "Updated At"],
+] as const);
+
+/** Grouping listing columns */
+const groupingListingColumns = columns([
+  ["storageSrNo", "Storage Sr No."],
   ["issuedDate", "Issued Date"],
   ["groupNo", "Group No."],
   ["groupingDate", "Grouping Date"],
-  ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
+  ["groupPhoto", "Group Photo"],
+  ["issueTo", "Issue To"],
   ["logNo", "Log No."],
   ["grade", "Grade"],
   ["length", "Length"],
@@ -697,34 +813,32 @@ const dryingAddItemFields = [
 ] as const;
 
 const slicingProcessDetailFields = [
+  ["storageSrNo", "Storage Sr No."],
+  ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
-  ["logNo", "Log No."],
-  ...commonFactoryItemFieldSpecs.map(([key, label]) =>
-    key === "length"
-      ? (["length", "Length (m)"] as const)
-      : key === "width"
-        ? (["width", "Width (m)"] as const)
-        : key === "height"
-          ? (["height", "Thickness (m)"] as const)
-          : ([key, label] as const),
-  ),
+  ["subCategory", "Sub Category"],
+  ["logCode", "Log Code"],
+  ["bundleNumber", "Bundle Number"],
+  ["palletNo", "Pallet No"],
+  ["length", "Length"],
+  ["width", "Width"],
+  ["thickness", "Thickness"],
+  ["noOfLeaves", "No of Leaves"],
+  ["sqm", "SQM"],
+  ["sqf", "SQF"],
   ["remark", "Remark"],
+  ["createdBy", "Created"],
+  ["updatedBy", "Updated"],
 ] as const;
 
 const sawingProcessDetailFields = [
-  ["itemName", "Item Name"],
-  ["itemSubCategory", "Sub Category"],
-  ["color", "Color"],
-  ["logNo", "Batch No"],
+  ["logNo", "Log No."],
+  ["batchNoCode", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
-  ["height", "Thickness"],
+  ["thickness", "Thickness"],
   ["cbm", "CBM"],
   ["cbf", "CBF"],
-  ["ratePerSqf", "Rate per CBF"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const;
 
@@ -933,15 +1047,24 @@ export const slicingDefinition: FactoryDefinition = {
   listColumns: slicingListingColumns,
   formSections: buildSlicingFormSections(slicingRows),
   rows: expandFactoryRowsForTabs("slicing", slicingRows),
-  initialSort: { key: "issuedDate", direction: "desc" },
+  initialSort: { key: "issueDate", direction: "desc" },
 };
 
 export const sawingDefinition: FactoryDefinition = {
   slug: "sawing",
   title: "Sawing",
   listColumns: sawingListingColumns,
-  formSections: buildSawingFormSections(slicingRows),
-  rows: expandFactoryRowsForTabs("sawing", slicingRows),
+  formSections: buildSawingFormSections(sawingRows),
+  rows: expandFactoryRowsForTabs("sawing", sawingRows),
+  initialSort: { key: "issuedDate", direction: "desc" },
+};
+
+export const sawingInspectionDefinition: FactoryDefinition = {
+  slug: "sawing-inspection",
+  title: "Sawing Inspection",
+  listColumns: sawingInspectionListingColumns,
+  formSections: buildSawingFormSections(sawingRows),
+  rows: expandFactoryRowsForTabs("sawing-inspection", sawingRows),
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
@@ -951,17 +1074,19 @@ export const dryingDefinition: FactoryDefinition = {
   listColumns: dryingListingColumns,
   formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
   rows: expandFactoryRowsForTabs("drying", dryingRows),
+  initialSort: { key: "issueDate", direction: "desc" },
+};
+
+export const dryingInspectionDefinition: FactoryDefinition = {
+  slug: "drying-inspection",
+  title: "Drying Inspection",
+  listColumns: dryingListingColumns,
+  formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
+  rows: expandFactoryRowsForTabs("drying-inspection", dryingRows),
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
-export const inspectionDefinition: FactoryDefinition = {
-  slug: "inspection",
-  title: "Inspection",
-  listColumns: dryingListingColumns,
-  formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
-  rows: expandFactoryRowsForTabs("inspection", dryingRows),
-  initialSort: { key: "issuedDate", direction: "desc" },
-};
+export const inspectionDefinition = dryingInspectionDefinition;
 
 /** Confirmed Slicing item field keys (listing + process details). */
 export const slicingItemTableFieldKeys = [
@@ -1059,7 +1184,7 @@ export const exportOemDefinition: FactoryDefinition = {
 export const marquetryDefinition: FactoryDefinition = {
   slug: "marquetry",
   title: "Marquetry",
-  listColumns: productionListingColumns,
+  listColumns: marquetryListingColumns,
   formSections: sectionSet(marquetryRows, marquetryCreateFields, groupingAddItemFields),
   rows: expandFactoryRowsForTabs("marquetry", marquetryRows),
   initialSort: { key: "issuedDate", direction: "desc" },

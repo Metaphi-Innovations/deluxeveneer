@@ -15,6 +15,9 @@ export interface BackendItemItem {
   colorId: string | null;
   color: string;
   colorName: string;
+  unitId?: string | null;
+  unit?: string;
+  unitName?: string;
   hsnId: string | null;
   hsn: string;
   hsnCode: string;
@@ -91,6 +94,9 @@ export function mapBackendItemToMasterRecord(
     colorId: item.colorId || "",
     color: item.color || item.colorName || "",
     colorName: item.colorName || item.color || "",
+    unitId: item.unitId || "",
+    unit: item.unit || item.unitName || "",
+    unitName: item.unitName || item.unit || "",
     hsnId: item.hsnId || "",
     hsn: item.hsn || item.hsnCode || "",
     hsnCode: item.hsnCode || item.hsn || "",
@@ -287,6 +293,8 @@ export async function createItemApi(values: {
   category?: string | undefined;
   subCategory?: string | undefined;
   color?: string | undefined;
+  unit?: string | undefined;
+  unitName?: string | undefined;
   hsn?: string | undefined;
   hsnCode?: string | undefined;
   gst?: string | undefined;
@@ -327,6 +335,12 @@ export async function createItemApi(values: {
 
   const color = (values.color || "").trim();
   if (color) body.color = color;
+
+  const unitName = (values.unitName || values.unit || "").trim();
+  if (unitName) {
+    body.unit = unitName;
+    body.unitName = unitName;
+  }
 
   const hsn = (values.hsn || values.hsnCode || "").trim();
   if (hsn) {
@@ -384,6 +398,8 @@ export async function updateItemApi(
     category?: string | undefined;
     subCategory?: string | undefined;
     color?: string | undefined;
+    unit?: string | undefined;
+    unitName?: string | undefined;
     hsn?: string | undefined;
     hsnCode?: string | undefined;
     gst?: string | undefined;
@@ -420,6 +436,11 @@ export async function updateItemApi(
   if (values.category && values.category.trim()) body.category = values.category.trim();
   if (values.subCategory && values.subCategory.trim()) body.subCategory = values.subCategory.trim();
   if (values.color && values.color.trim()) body.color = values.color.trim();
+  const unitName = (values.unitName || values.unit)?.trim();
+  if (unitName) {
+    body.unit = unitName;
+    body.unitName = unitName;
+  }
   const hsn = (values.hsn || values.hsnCode)?.trim();
   if (hsn) {
     body.hsn = hsn;

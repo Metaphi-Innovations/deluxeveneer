@@ -5,6 +5,8 @@ import {
   FactoryProcessCreatePage,
 } from "../../shared";
 
+import { DryingCreatePage } from "./DryingCreatePage";
+
 export function DryingListPage() {
   return <FactoryListing definition={dryingDefinition} />;
 }

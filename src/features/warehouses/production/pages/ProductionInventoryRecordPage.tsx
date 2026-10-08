@@ -143,7 +143,6 @@ export function ProductionInventoryRecordPage({
   const headerFields = useMemo(() => {
     if (!detail) return [];
     return [
-      { label: "Production Sr No", value: display(detail.productionSrNo) },
       { label: "Storage Sr No", value: display(detail.storageSrNo) },
       { label: "Inward Date", value: formatDateDisplay(detail.inwardDate) },
       { label: "Inventory Type", value: inventoryLabel },
@@ -161,7 +160,9 @@ export function ProductionInventoryRecordPage({
   const itemTableHeaders = useMemo(() => {
     if (inventorySlug === "plywood") {
       return [
+        "Inward Item Code",
         "Item Name",
+        "Factory Code",
         "Sub Category",
         "Color",
         "L",
@@ -179,7 +180,9 @@ export function ProductionInventoryRecordPage({
     }
     if (inventorySlug === "mdf") {
       return [
+        "Inward Item Code",
         "Item Name",
+        "Factory Code",
         "MDF Type",
         "L",
         "W",
@@ -195,7 +198,9 @@ export function ProductionInventoryRecordPage({
       ];
     }
     return [
+      "Inward Item Code",
       "Item Name",
+      "Factory Code",
       "Sub Category",
       "L",
       "W",
@@ -348,7 +353,7 @@ export function ProductionInventoryRecordPage({
                 color: theme.customTokens.text.secondary,
               }}
             >
-              Production Sr No
+              Storage Sr No
             </Typography>
             <Typography
               sx={{
@@ -359,7 +364,7 @@ export function ProductionInventoryRecordPage({
                 color: theme.customTokens.text.primary,
               }}
             >
-              {display(detail.productionSrNo)}
+              {display(detail.storageSrNo)}
             </Typography>
             <Typography
               sx={{
@@ -367,8 +372,7 @@ export function ProductionInventoryRecordPage({
                 color: theme.customTokens.text.secondary,
               }}
             >
-              {display(detail.itemName)} · Storage{" "}
-              {display(detail.storageSrNo)}
+              {display(detail.itemName)}
             </Typography>
           </Stack>
 
@@ -439,7 +443,13 @@ export function ProductionInventoryRecordPage({
                   <TableBody>
                     <TableRow>
                       <TableCell sx={getViewBodyCellSx(theme)}>
+                        {display(detail.inwardItemCode)}
+                      </TableCell>
+                      <TableCell sx={getViewBodyCellSx(theme)}>
                         {display(detail.itemName)}
+                      </TableCell>
+                      <TableCell sx={getViewBodyCellSx(theme)}>
+                        {display(detail.factoryCode)}
                       </TableCell>
                       {inventorySlug === "mdf" ? (
                         <TableCell sx={getViewBodyCellSx(theme)}>

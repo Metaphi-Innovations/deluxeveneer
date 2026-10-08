@@ -2,7 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import { Box, Link, Stack, Typography, useTheme } from "@mui/material";
-import { Link as RouterLink, useLocation } from "react-router";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
 import {
   portalIconSize,
@@ -15,6 +15,7 @@ import { resolvePortalPageIcon } from "./portalPageIcons";
 export type PageHeaderBackNav = {
   label: string;
   to: string;
+  onBack?: () => void;
 };
 
 export interface PageHeaderProps {
@@ -73,6 +74,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   const theme = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
   const resolvedBackNav = backNav ?? resolvePageBackNav(breadcrumbs, title);
   const Icon = iconProp ?? resolvePortalPageIcon(location.pathname);
 
@@ -87,8 +89,24 @@ export function PageHeader({
     >
       {resolvedBackNav ? (
         <Link
-          component={RouterLink}
-          to={resolvedBackNav.to}
+          component={resolvedBackNav.onBack ? "button" : RouterLink}
+          {...(resolvedBackNav.onBack
+            ? {
+                type: "button" as const,
+                onClick: (e: React.MouseEvent) => {
+                  e.preventDefault();
+                  resolvedBackNav.onBack?.();
+                },
+              }
+            : {
+                to: resolvedBackNav.to,
+                onClick: (e: React.MouseEvent) => {
+                  if (window.history.length > 1) {
+                    e.preventDefault();
+                    navigate(-1);
+                  }
+                },
+              })}
           underline="none"
           sx={{
             display: "inline-flex",
@@ -100,6 +118,11 @@ export function PageHeader({
             fontWeight: portalTypography.breadcrumb.fontWeight,
             lineHeight: portalTypography.breadcrumb.lineHeight,
             mb: 0.25,
+            border: "none",
+            background: "none",
+            padding: 0,
+            cursor: "pointer",
+            fontFamily: "inherit",
             "&:hover": {
               color: theme.customTokens.brand.primaryScale[800],
             },

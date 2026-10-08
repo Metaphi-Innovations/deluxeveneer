@@ -20,6 +20,8 @@ export interface StorageInventoryItem {
   currency: string;
   itemId: string | null;
   itemName: string;
+  inwardItemCode?: string | null;
+  factoryCode?: string | null;
   itemCategoryId: string | null;
   itemCategoryName: string | null;
   itemSubCategoryId: string | null;
@@ -45,6 +47,7 @@ export interface StorageInventoryItem {
   qcStatus: string;
   qcRemark: string | null;
   remark: string | null;
+  issueTo?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -105,14 +108,16 @@ export function mapStorageItemToRow(
     supplierName: item.supplierName ?? "",
     supplierItemName: "",
     supplierCode: "",
+    inwardItemCode: item.inwardItemCode ?? "",
     itemName: item.itemName ?? "",
-    subCategory: item.itemSubCategoryName ?? "",
+    factoryCode: item.factoryCode ?? "",
+    subCategory: "",
     unitName: "",
     color: "",
     palletNo: item.palletNo ?? "",
-    length: item.length != null ? `${item.length} mm` : "",
-    width: item.width != null ? `${item.width} mm` : "",
-    thickness: item.thickness != null ? `${item.thickness} mm` : "",
+    length: item.length != null ? `${item.length} m` : "",
+    width: item.width != null ? `${item.width} m` : "",
+    thickness: item.thickness != null ? `${item.thickness} m` : "",
     totalUnits: (() => {
       // Received stock unit: raw veneer = leaves; plywood/mdf = sheets.
       if (item.receivedQuantity != null) return String(item.receivedQuantity);
@@ -192,6 +197,7 @@ export function mapStorageItemToRow(
         : "",
     plywoodType: "",
     mdfType: "",
+    issueTo: item.issueTo || "",
     updatedBy: item.updatedBy ?? "",
   };
 }
@@ -274,6 +280,17 @@ export async function revertStorageItemApi(
   await apiRequest<ApiResponse<{ id: string }>>(endpoint, {
     method: "POST",
     body: { remark },
+  });
+}
+
+export async function issueVeneerBlocksToSlicingApi(
+  ids: string[],
+  remark?: string | null
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/veneer-blocks/issue-to-slicing`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: { ids, remark },
   });
 }
 

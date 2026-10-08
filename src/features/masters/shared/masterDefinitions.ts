@@ -532,6 +532,7 @@ export const itemMasterDefinition: MasterDefinition = {
       options: [],
     },
     { key: "color", label: "Color", type: "select", options: [] },
+    { key: "unitName", label: "Unit Name", type: "select", options: [] },
     {
       key: "hsn",
       label: "HSN Code",

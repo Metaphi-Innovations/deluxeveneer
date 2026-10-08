@@ -140,7 +140,7 @@ export function UserManagementViewPage() {
           { label: "View User" },
         ]}
         title="View User"
-        subtitle="Review user profile and account access."
+        subtitle=" "
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -181,7 +181,7 @@ export function UserManagementViewPage() {
         { label: "View User" },
       ]}
       title="View User"
-      subtitle="Review user profile and account access."
+      subtitle=" "
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

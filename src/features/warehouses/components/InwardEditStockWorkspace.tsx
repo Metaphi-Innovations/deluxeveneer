@@ -28,6 +28,7 @@ import {
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
 import { formatAmount as formatAmountShared } from "../../shared/numberFormat";
+import { buildInvoiceTotalsSummary } from "../shared/invoiceTotalsSummary";
 import {
   InwardEditStockLineItems,
   type InwardEditStockLineItemsHandle,
@@ -41,12 +42,6 @@ type AdditionalChargeRow = {
   name: string;
 };
 
-type OtherConsumableRow = {
-  id: string;
-  name: string;
-  price: string;
-};
-
 const emptyLineTotals: WarehouseALineItemsTotals = {
   cgst: 0,
   igst: 0,
@@ -57,7 +52,6 @@ const emptyLineTotals: WarehouseALineItemsTotals = {
 
 export interface InwardEditStockWorkspaceHandle {
   getAdditionalCharges: () => Array<{ chargeName: string; amount: string }>;
-  getOtherConsumables: () => Array<{ consumableName: string; price: string }>;
   getLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
 }
@@ -67,7 +61,6 @@ export const InwardEditStockWorkspace = forwardRef<
   {
     invoiceDate?: Date | null;
     initialAdditionalCharges?: Array<{ chargeName: string; amount: string }>;
-    initialOtherConsumables?: Array<{ consumableName: string; price: string }>;
     initialLineItems?: Array<{ id?: string; values: Record<string, string> }>;
     onRemarkChange?: (value: string) => void;
     readOnly?: boolean;
@@ -79,7 +72,6 @@ export const InwardEditStockWorkspace = forwardRef<
   }
 >(function InwardEditStockWorkspace({
   initialAdditionalCharges,
-  initialOtherConsumables,
   initialLineItems,
   onRemarkChange,
   readOnly = false,
@@ -92,17 +84,8 @@ export const InwardEditStockWorkspace = forwardRef<
   const theme = useTheme();
   const lineItemsRef = useRef<InwardEditStockLineItemsHandle>(null);
   const nextChargeId = useRef((initialAdditionalCharges?.length ?? 0) + 1);
-  const nextConsumableId = useRef((initialOtherConsumables?.length ?? 0) + 1);
   const [lineTotals, setLineTotals] =
     useState<WarehouseALineItemsTotals>(emptyLineTotals);
-  const [otherConsumables, setOtherConsumables] = useState<OtherConsumableRow[]>(
-    () =>
-      (initialOtherConsumables ?? []).map((row, index) => ({
-        id: `consumable-${index + 1}`,
-        name: row.consumableName,
-        price: row.price,
-      })),
-  );
   const [additionalCharges, setAdditionalCharges] = useState<
     AdditionalChargeRow[]
   >(() =>
@@ -118,15 +101,6 @@ export const InwardEditStockWorkspace = forwardRef<
     return getInwardGstMode(warehouseState, resolvedSupplierState);
   }, [supplierName, supplierState, warehouseState]);
 
-  const otherConsumablesTotal = useMemo(
-    () =>
-      otherConsumables.reduce(
-        (total, row) => total + parseNumber(row.price),
-        0,
-      ),
-    [otherConsumables],
-  );
-
   const additionalChargesTotal = useMemo(
     () =>
       additionalCharges.reduce(
@@ -136,56 +110,18 @@ export const InwardEditStockWorkspace = forwardRef<
     [additionalCharges],
   );
 
-  const invoiceSummary = useMemo(() => {
-    const itemSubTotal = lineTotals.itemAmount;
-    const cgst = lineTotals.cgst;
-    const sgst = lineTotals.sgst;
-    const igst = lineTotals.igst;
-    const itemSubTotalWithTax = itemSubTotal + cgst + sgst + igst;
-    const grandTotal =
-      itemSubTotalWithTax + otherConsumablesTotal + additionalChargesTotal;
-
-    return {
-      additionalCharges: additionalChargesTotal,
-      cgst,
-      grandTotal,
-      igst,
-      itemSubTotal,
-      itemSubTotalWithTax,
-      otherConsumables: otherConsumablesTotal,
-      sgst,
-    };
-  }, [additionalChargesTotal, lineTotals, otherConsumablesTotal]);
-
-  const handleAddConsumable = () => {
-    const id = `consumable-${nextConsumableId.current}`;
-    nextConsumableId.current += 1;
-    setOtherConsumables((current) => [
-      ...current,
-      { id, name: "", price: "" },
-    ]);
-  };
-
-  const handleConsumableChange = (
-    id: string,
-    key: keyof Omit<OtherConsumableRow, "id">,
-    value: string,
-  ) => {
-    setOtherConsumables((current) =>
-      current.map((row) =>
-        row.id === id
-          ? {
-              ...row,
-              [key]: value,
-            }
-          : row,
-      ),
-    );
-  };
-
-  const handleRemoveConsumable = (id: string) => {
-    setOtherConsumables((current) => current.filter((row) => row.id !== id));
-  };
+  const invoiceSummary = useMemo(
+    () =>
+      buildInvoiceTotalsSummary({
+        itemSubTotal: lineTotals.itemAmount,
+        additionalCharges: additionalChargesTotal,
+        cgst: lineTotals.cgst,
+        sgst: lineTotals.sgst,
+        igst: lineTotals.igst,
+        gstMode,
+      }),
+    [additionalChargesTotal, gstMode, lineTotals],
+  );
 
   const handleAddCharge = () => {
     const id = `charge-${nextChargeId.current}`;
@@ -227,17 +163,10 @@ export const InwardEditStockWorkspace = forwardRef<
             chargeName: row.name.trim(),
             amount: row.amount.trim(),
           })),
-      getOtherConsumables: () =>
-        otherConsumables
-          .filter((row) => row.name.trim() || row.price.trim())
-          .map((row) => ({
-            consumableName: row.name.trim(),
-            price: row.price.trim(),
-          })),
       getLineItems: () => lineItemsRef.current?.getFilledLineItems() ?? [],
       validate: () => lineItemsRef.current?.validate() ?? true,
     }),
-    [additionalCharges, otherConsumables],
+    [additionalCharges],
   );
 
   return (
@@ -256,144 +185,6 @@ export const InwardEditStockWorkspace = forwardRef<
             slug={slug}
             onTotalsChange={setLineTotals}
           />
-
-          <Box>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                mb: 1,
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-              }}
-            >
-              Other Consumables
-            </Typography>
-
-            <Stack spacing={1}>
-              {otherConsumables.length > 0 ? (
-                <Box
-                  sx={{
-                    display: { xs: "none", md: "grid" },
-                    gap: 1,
-                    gridTemplateColumns: readOnly
-                      ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
-                      : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                    px: 0.25,
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                    Consumable Name
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" fontWeight={600}>
-                    Price
-                  </Typography>
-                  {!readOnly ? <span /> : null}
-                </Box>
-              ) : null}
-
-              {otherConsumables.map((row) => (
-                <Box
-                  key={row.id}
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    alignItems: "center",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: readOnly
-                        ? "minmax(200px, 1.4fr) minmax(120px, 0.7fr)"
-                        : "minmax(200px, 1.4fr) minmax(120px, 0.7fr) 40px",
-                    },
-                  }}
-                >
-                  <TextField
-                    fullWidth
-                    placeholder="Enter consumable name"
-                    size="small"
-                    value={row.name}
-                    onChange={(event) =>
-                      handleConsumableChange(row.id, "name", event.target.value)
-                    }
-                    sx={getCompactFieldSx(
-                      theme,
-                      readOnly ? "readOnly" : "default",
-                      { dense: true },
-                    )}
-                    slotProps={{
-                      input: {
-                        readOnly,
-                      },
-                    }}
-                  />
-                  <TextField
-                    fullWidth
-                    placeholder="Price"
-                    size="small"
-                    value={row.price}
-                    onChange={(event) =>
-                      handleConsumableChange(row.id, "price", event.target.value)
-                    }
-                    sx={getCompactFieldSx(
-                      theme,
-                      readOnly ? "readOnly" : "default",
-                      { dense: true },
-                    )}
-                    slotProps={{
-                      input: {
-                        readOnly,
-                      },
-                    }}
-                  />
-                  {!readOnly ? (
-                    <IconButton
-                      aria-label="Remove consumable"
-                      onClick={() => handleRemoveConsumable(row.id)}
-                      size="small"
-                      sx={{
-                        color: theme.customTokens.text.secondary,
-                        "&:hover": {
-                          color: theme.palette.error.main,
-                        },
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </IconButton>
-                  ) : null}
-                </Box>
-              ))}
-
-              {!readOnly ? (
-                <Box>
-                  <Button
-                    disableElevation
-                    onClick={handleAddConsumable}
-                    startIcon={<Plus size={14} />}
-                    size="small"
-                    sx={{
-                      minHeight: 32,
-                      textTransform: "none",
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                    }}
-                    variant="text"
-                  >
-                    Add Consumable
-                  </Button>
-                </Box>
-              ) : null}
-
-              {readOnly && otherConsumables.length === 0 ? (
-                <Typography
-                  sx={{
-                    fontSize: "0.8125rem",
-                    color: theme.customTokens.text.secondary,
-                  }}
-                >
-                  No other consumables.
-                </Typography>
-              ) : null}
-            </Stack>
-          </Box>
 
           <Box
             sx={{
@@ -591,34 +382,29 @@ export const InwardEditStockWorkspace = forwardRef<
 
               <Stack spacing={0.75}>
                 <SummaryLine
-                  label="Item Sub Total"
-                  value={invoiceSummary.itemSubTotal}
-                />
-                {gstMode === "intra" ? (
-                  <>
-                    <SummaryLine label="CGST" value={invoiceSummary.cgst} />
-                    <SummaryLine label="SGST" value={invoiceSummary.sgst} />
-                  </>
-                ) : (
-                  <SummaryLine label="IGST" value={invoiceSummary.igst} />
-                )}
-                <SummaryLine
-                  label="Taxable Sub Total"
-                  value={invoiceSummary.itemSubTotalWithTax}
-                />
-                <SummaryLine
-                  label="Other Consumables"
-                  value={invoiceSummary.otherConsumables}
+                  label="Sub Total"
+                  value={invoiceSummary.subTotal}
                 />
                 <SummaryLine
                   label="Additional Charges"
                   value={invoiceSummary.additionalCharges}
                 />
+                <SummaryLine
+                  label="Taxable Amount"
+                  value={invoiceSummary.taxableAmount}
+                />
+                {invoiceSummary.gstLines.map((line) => (
+                  <SummaryLine
+                    key={line.label}
+                    label={line.label}
+                    value={line.value}
+                  />
+                ))}
                 <Divider sx={{ borderColor: theme.customTokens.borders.default }} />
                 <SummaryLine
                   emphasize
-                  label="Grand Total"
-                  value={invoiceSummary.grandTotal}
+                  label="Total"
+                  value={invoiceSummary.total}
                 />
               </Stack>
             </Box>

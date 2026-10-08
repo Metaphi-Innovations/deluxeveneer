@@ -161,7 +161,7 @@ export function MasterListingPage({
         { label: localDefinition.title },
       ]}
       title={localDefinition.title}
-      subtitle={`Manage ${entityLabel.toLowerCase()} records used across the system.`}
+      subtitle=" "
       contentGap={2}
     >
       {!canOpenPage ? (

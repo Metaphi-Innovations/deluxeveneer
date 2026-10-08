@@ -4,12 +4,16 @@ export type ProductionWarehouseTabSlug =
   | "raw-veneer"
   | "plywood"
   | "mdf"
+  | "consumables"
+  | "sawing"
   | "sample-sheets";
 
 export const productionWarehouseTabs = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
+  { label: "Consumables", value: "consumables" },
+  { label: "Sawing", value: "sawing" },
   { label: "Sample Sheets", value: "sample-sheets" },
 ] as const;
 
@@ -17,7 +21,9 @@ export interface RawVeneerRow extends EnterpriseTableRow {
   productionSrNo: string;
   storageSrNo: string;
   inwardDate: string | Date;
+  inwardItemCode: string;
   itemName: string;
+  factoryCode: string;
   subCategory: string;
   length: string;
   width: string;
@@ -36,10 +42,11 @@ export interface RawVeneerRow extends EnterpriseTableRow {
 }
 
 export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = [
-  { key: "productionSrNo", label: "Production Sr No" },
   { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
+  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
+  { key: "factoryCode", label: "Factory Code" },
   { key: "subCategory", label: "Sub Category" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
@@ -59,7 +66,9 @@ export interface PlywoodRow extends EnterpriseTableRow {
   productionSrNo: string;
   storageSrNo: string;
   inwardDate: string | Date;
+  inwardItemCode: string;
   itemName: string;
+  factoryCode: string;
   subCategory: string;
   color: string;
   length: string;
@@ -79,10 +88,11 @@ export interface PlywoodRow extends EnterpriseTableRow {
 }
 
 export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
-  { key: "productionSrNo", label: "Production Sr No" },
   { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
+  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
+  { key: "factoryCode", label: "Factory Code" },
   { key: "subCategory", label: "Sub Category" },
   { key: "color", label: "Color" },
   { key: "length", label: "Length" },
@@ -103,7 +113,9 @@ export interface MdfRow extends EnterpriseTableRow {
   productionSrNo: string;
   storageSrNo: string;
   inwardDate: string | Date;
+  inwardItemCode: string;
   itemName: string;
+  factoryCode: string;
   mdfType: string;
   length: string;
   width: string;
@@ -122,10 +134,11 @@ export interface MdfRow extends EnterpriseTableRow {
 }
 
 export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
-  { key: "productionSrNo", label: "Production Sr No" },
   { key: "storageSrNo", label: "Storage Sr No" },
   { key: "inwardDate", label: "Inward Date" },
+  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
+  { key: "factoryCode", label: "Factory Code" },
   { key: "mdfType", label: "MDF Type" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
@@ -135,6 +148,79 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "sqf", label: "SQF" },
   { key: "grade", label: "Grade" },
   { key: "currency", label: "Currency" },
+  { key: "amount", label: "Amount" },
+  { key: "totalAmount", label: "Total Amount" },
+  { key: "remark", label: "Remark" },
+  { key: "updatedBy", label: "Updated By" },
+];
+
+export interface ConsumablesRow extends EnterpriseTableRow {
+  productionSrNo: string;
+  storageSrNo: string;
+  inwardDate: string | Date;
+  inwardItemCode: string;
+  itemName: string;
+  factoryCode: string;
+  receivedQuantity: string;
+  availableQuantity: string;
+  currency: string;
+  amount: string;
+  totalAmount: string;
+  remark: string;
+  inventorySlug?: string;
+  inventoryRecordId?: string;
+  updatedBy: string;
+}
+
+export const consumablesColumns: readonly EnterpriseTableColumn<ConsumablesRow>[] =
+  [
+    { key: "storageSrNo", label: "Storage Sr No" },
+    { key: "inwardDate", label: "Inward Date" },
+    { key: "inwardItemCode", label: "Inward Item Code" },
+    { key: "itemName", label: "Item Name" },
+    { key: "factoryCode", label: "Factory Code" },
+    { key: "receivedQuantity", label: "Received Qty" },
+    { key: "availableQuantity", label: "Available Qty" },
+    { key: "currency", label: "Currency" },
+    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
+    { key: "remark", label: "Remark" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
+
+export interface SawingRow extends EnterpriseTableRow {
+  productionSrNo: string;
+  storageSrNo: string;
+  inwardDate: string | Date;
+  itemName: string;
+  subCategory: string;
+  color: string;
+  batchNo: string;
+  length: string;
+  width: string;
+  height: string;
+  cbm: string;
+  cbf: string;
+  amount: string;
+  totalAmount: string;
+  remark: string;
+  inventorySlug?: string;
+  inventoryRecordId?: string;
+  updatedBy: string;
+}
+
+export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
+  { key: "storageSrNo", label: "Storage Sr No" },
+  { key: "inwardDate", label: "Process Date" },
+  { key: "itemName", label: "Item Name" },
+  { key: "subCategory", label: "Sub Category" },
+  { key: "color", label: "Color" },
+  { key: "batchNo", label: "Batch No" },
+  { key: "length", label: "Length" },
+  { key: "width", label: "Width" },
+  { key: "height", label: "Thickness" },
+  { key: "cbm", label: "CBM" },
+  { key: "cbf", label: "CBF" },
   { key: "amount", label: "Amount" },
   { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },

@@ -18,6 +18,10 @@ import {
   Button,
   Chip,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   IconButton,
   MenuItem,
   Select,
@@ -28,6 +32,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
@@ -240,9 +245,9 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const sortConfig: EnterpriseTableSortConfig<Row> = sorting
     ? sorting.sortBy && sorting.sortOrder
       ? {
-          key: sorting.sortBy as keyof Row & string,
-          direction: sorting.sortOrder,
-        }
+        key: sorting.sortBy as keyof Row & string,
+        direction: sorting.sortOrder,
+      }
       : null
     : internalSortConfig;
   const filters =
@@ -277,8 +282,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     next:
       | Partial<Record<keyof Row & string, ColumnFilterValue>>
       | ((
-          current: Partial<Record<keyof Row & string, ColumnFilterValue>>,
-        ) => Partial<Record<keyof Row & string, ColumnFilterValue>>),
+        current: Partial<Record<keyof Row & string, ColumnFilterValue>>,
+      ) => Partial<Record<keyof Row & string, ColumnFilterValue>>),
   ) => {
     const resolved = typeof next === "function" ? next(filters) : next;
 
@@ -525,9 +530,9 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       values.length === 0
         ? null
         : {
-            type: "multiSelect",
-            values,
-          },
+          type: "multiSelect",
+          values,
+        },
     );
   };
 
@@ -833,117 +838,117 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
               {!loading
                 ? currentPageRows.map((row) => {
-                const isSelected = selectedRowIds.includes(row.id);
+                  const isSelected = selectedRowIds.includes(row.id);
 
-                return (
-                  <TableRow
-                    key={row.id}
-                    hover
-                    onClick={
-                      selectable
-                        ? () => handleToggleRowSelection(row.id)
-                        : undefined
-                    }
-                    sx={{
-                      cursor: selectable ? "pointer" : "default",
-                      "& td": {
-                        backgroundColor: isSelected
-                          ? theme.customTokens.navigation.activeBackground
-                          : theme.customTokens.surfaces.surface,
-                      },
-                      "&:hover td": {
-                        backgroundColor: isSelected
-                          ? theme.customTokens.brand.primaryScale[100]
-                          : theme.customTokens.surfaces.alt,
-                      },
-                    }}
-                  >
-                    {selectable ? (
-                      <TableCell
-                        sx={[
-                          listingTableBodyCellSx(theme),
-                          compactCheckboxCellSx,
-                        ]}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={() => handleToggleRowSelection(row.id)}
-                          size="small"
-                          sx={compactCheckboxSx}
-                        />
-                      </TableCell>
-                    ) : null}
-
-                    {displayColumns.map((column) => {
-                      const columnMinWidth = getListingColumnMinWidth(
-                        column.key,
-                        column.label,
-                      );
-
-                      return (
+                  return (
+                    <TableRow
+                      key={row.id}
+                      hover
+                      onClick={
+                        selectable
+                          ? () => handleToggleRowSelection(row.id)
+                          : undefined
+                      }
+                      sx={{
+                        cursor: selectable ? "pointer" : "default",
+                        "& td": {
+                          backgroundColor: isSelected
+                            ? theme.customTokens.navigation.activeBackground
+                            : theme.customTokens.surfaces.surface,
+                        },
+                        "&:hover td": {
+                          backgroundColor: isSelected
+                            ? theme.customTokens.brand.primaryScale[100]
+                            : theme.customTokens.surfaces.alt,
+                        },
+                      }}
+                    >
+                      {selectable ? (
                         <TableCell
-                          key={column.key}
-                          sx={{
-                            ...listingTableBodyCellSx(theme),
-                            ...(columnMinWidth
-                              ? { minWidth: columnMinWidth }
-                              : {}),
-                          }}
+                          sx={[
+                            listingTableBodyCellSx(theme),
+                            compactCheckboxCellSx,
+                          ]}
                         >
-                          {renderEnterpriseTableCell(
-                            row,
-                            column,
-                            statusOverrides,
-                            setStatusOverrides,
-                            isStatusChangeDisabled,
-                            onStatusChange,
-                            theme,
+                          <Checkbox
+                            checked={isSelected}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={() => handleToggleRowSelection(row.id)}
+                            size="small"
+                            sx={compactCheckboxSx}
+                          />
+                        </TableCell>
+                      ) : null}
+
+                      {displayColumns.map((column) => {
+                        const columnMinWidth = getListingColumnMinWidth(
+                          column.key,
+                          column.label,
+                        );
+
+                        return (
+                          <TableCell
+                            key={column.key}
+                            sx={{
+                              ...listingTableBodyCellSx(theme),
+                              ...(columnMinWidth
+                                ? { minWidth: columnMinWidth }
+                                : {}),
+                            }}
+                          >
+                            {renderEnterpriseTableCell(
+                              row,
+                              column,
+                              statusOverrides,
+                              setStatusOverrides,
+                              isStatusChangeDisabled,
+                              onStatusChange,
+                              theme,
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      {hasActions ? (
+                        <TableCell
+                          sx={actionBodyCellSx(theme, actionColumnWidth)}
+                        >
+                          {renderActionCell ? (
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {renderActionCell(row)}
+                            </Box>
+                          ) : (
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <IconButton
+                                size="small"
+                                aria-label="Open row actions"
+                                onClick={(event) =>
+                                  handleOpenActionMenu(row.id, event)
+                                }
+                                sx={actionMenuTriggerSx(theme)}
+                              >
+                                <MoreHorizontal
+                                  size={portalIconSize.md}
+                                  strokeWidth={portalIconStroke.default}
+                                />
+                              </IconButton>
+                            </Box>
                           )}
                         </TableCell>
-                      );
-                    })}
-
-                    {hasActions ? (
-                      <TableCell
-                        sx={actionBodyCellSx(theme, actionColumnWidth)}
-                      >
-                        {renderActionCell ? (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                            }}
-                          >
-                            {renderActionCell(row)}
-                          </Box>
-                        ) : (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <IconButton
-                              size="small"
-                              aria-label="Open row actions"
-                              onClick={(event) =>
-                                handleOpenActionMenu(row.id, event)
-                              }
-                              sx={actionMenuTriggerSx(theme)}
-                            >
-                              <MoreHorizontal
-                                size={portalIconSize.md}
-                                strokeWidth={portalIconStroke.default}
-                              />
-                            </IconButton>
-                          </Box>
-                        )}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                );
-              })
+                      ) : null}
+                    </TableRow>
+                  );
+                })
                 : null}
             </TableBody>
           </Table>
@@ -1082,12 +1087,12 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         actions={
           activeRow
             ? activeRowActions.map((action) => ({
-                id: action.id,
-                label: action.label,
-                icon: action.icon,
-                tone: action.tone,
-                onSelect: () => action.onSelect(activeRow),
-              }))
+              id: action.id,
+              label: action.label,
+              icon: action.icon,
+              tone: action.tone,
+              onSelect: () => action.onSelect(activeRow),
+            }))
             : []
         }
       />
@@ -1274,12 +1279,20 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
     );
   }
 
-  if (column.key === "qcStatus" || column.key === "inspectionStatus") {
+  if (
+    column.key === "qcStatus" ||
+    column.key === "inspectionStatus" ||
+    (column.key === "status" && getEnterpriseStatusToggleState(column, row[column.key]) === null)
+  ) {
     return renderQcStatusChip(row[column.key], theme);
   }
 
-  if (column.key === "for" || column.key === "forLabel") {
+  if (column.key === "for" || column.key === "forLabel" || column.key === "issueTo") {
     return renderForPurposeBadge(row[column.key], theme);
+  }
+
+  if (column.key === "groupPhoto") {
+    return renderGroupPhotoCell(row[column.key], theme);
   }
 
   if (isInspectionStatusValue(row[column.key])) {
@@ -1558,11 +1571,10 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
         height: 22,
         px: 1,
         borderRadius: "999px",
-        border: `1px solid ${
-          isSample
+        border: `1px solid ${isSample
             ? theme.customTokens.brand.primary
             : theme.customTokens.borders.default
-        }`,
+          }`,
         backgroundColor: isSample
           ? `${theme.customTokens.brand.primary}14`
           : theme.customTokens.neutrals[100],
@@ -1580,6 +1592,96 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
       {normalized}
     </Box>
   );
+}
+
+function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <Tooltip title="View Group Photo">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(true);
+            }}
+            sx={{
+              color: theme.customTokens.brand.primary,
+              backgroundColor: `${theme.customTokens.brand.primary}12`,
+              "&:hover": {
+                backgroundColor: `${theme.customTokens.brand.primary}24`,
+              },
+              p: 0.75,
+              borderRadius: "6px",
+            }}
+          >
+            <Eye size={16} />
+          </IconButton>
+        </Tooltip>
+        <Typography
+          variant="caption"
+          sx={{
+            color: theme.customTokens.text.secondary,
+            cursor: "pointer",
+            fontWeight: 500,
+            "&:hover": { color: theme.customTokens.brand.primary },
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          View Photo
+        </Typography>
+      </Stack>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        maxWidth="md"
+        fullWidth
+        onClick={(e) => e.stopPropagation()}
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="h6" fontWeight={600}>Group Photo</Typography>
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", p: 2 }}>
+          <Box
+            component="img"
+            src={photoUrl}
+            alt="Group Photo"
+            sx={{
+              maxWidth: "100%",
+              maxHeight: "70vh",
+              borderRadius: "8px",
+              objectFit: "contain",
+              boxShadow: theme.shadows[3],
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpen(false)} variant="outlined">
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  );
+}
+
+function renderGroupPhotoCell(value: EnterpriseTableCellValue, theme: Theme) {
+  const photoUrl = typeof value === "string" && value.trim() ? value.trim() : "";
+  if (!photoUrl) {
+    return (
+      <Typography variant="caption" sx={{ color: theme.customTokens.text.disabled }}>
+        —
+      </Typography>
+    );
+  }
+
+  return <GroupPhotoCell photoUrl={photoUrl} theme={theme} />;
 }
 
 function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
@@ -1602,10 +1704,20 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
   const isPartial =
     normalizedValue === "partially done" ||
     normalizedValue === "partial" ||
+    normalizedValue === "partially pending" ||
     normalizedValue === "qc partial" ||
     normalizedValue === "inspection partial";
 
-  const label = normalizedValue === "inspection pass"
+  const isRecheck =
+    normalizedValue === "recheck" ||
+    normalizedValue === "inspection recheck" ||
+    normalizedValue === "re-check";
+
+  const label = isRecheck
+    ? "Recheck"
+    : normalizedValue === "partially pending"
+    ? "Partially Pending"
+    : normalizedValue === "inspection pass"
     ? "Inspection Pass"
     : normalizedValue === "inspection fail"
       ? "Inspection Fail"
@@ -1614,18 +1726,24 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
           ? "Inspection Done"
           : isPartial
             ? "Partially Done"
-            : "Inspection Pending"
-    : isDone
-      ? "QC Done"
-      : isPartial
-        ? "Partially Done"
-        : isPass
-          ? "QC Pass"
-          : isFail
-            ? "QC Fail"
-            : "Pending";
+            : "Pending"
+        : normalizedValue === "done"
+          ? "Done"
+          : isDone
+            ? "QC Done"
+            : isPartial
+              ? "Partially Done"
+              : isPass
+                ? "QC Pass"
+                : isFail
+                  ? "QC Fail"
+                  : normalizedValue === "pending"
+                    ? "Pending"
+                    : formatEnterpriseValue(value);
 
-  const palette = isDone || isPass
+  const palette = isRecheck
+    ? theme.customTokens.semanticScale.info
+    : isDone || isPass
     ? theme.customTokens.semanticScale.success
     : isPartial
       ? theme.customTokens.semanticScale.info

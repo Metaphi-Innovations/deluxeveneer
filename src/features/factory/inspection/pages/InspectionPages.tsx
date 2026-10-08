@@ -1,6 +1,3 @@
-import { FactoryListing } from "../../shared/FactoryListing";
-import { inspectionDefinition } from "../../shared/factoryDefinitions";
+export { SawingInspectionListPage } from "../../sawing-inspection";
+export { DryingInspectionListPage, InspectionListPage } from "../../drying-inspection";
 
-export function InspectionListPage() {
-  return <FactoryListing definition={inspectionDefinition} />;
-}
