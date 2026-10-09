@@ -6,17 +6,14 @@ import { useNavigate } from "react-router";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
-  type EnterpriseTableCellValue,
 } from "../../../components/data-display/EnterpriseDataTable";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
 import {
-  dispatchDoneListingColumns,
-  dispatchIssuedListingColumns,
   type DispatchTabValue,
   type PackingRecord,
-  usePackingRecords,
 } from "../../packing/shared/packingStore";
+import { useDispatchList } from "../hooks/useDispatchList";
 import { canAccessPermission } from "../../permissions";
 import { listingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
@@ -29,42 +26,20 @@ const dispatchTabs = [
 
 export function DispatchPage() {
   const navigate = useNavigate();
-  const records = usePackingRecords();
-  const [activeTab, setActiveTab] = useState<DispatchTabValue>("issued");
-  const [searchValue, setSearchValue] = useState("");
+  const {
+    activeTab,
+    columns,
+    rows,
+    searchValue,
+    setActiveTab,
+    setSearchValue,
+  } = useDispatchList();
   const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
     null,
   );
   const canCreate = canAccessPermission("dispatch", "create");
   const canEdit = canAccessPermission("dispatch", "edit");
   const canView = canAccessPermission("dispatch", "view");
-
-  const columns = useMemo(
-    () =>
-      activeTab === "issued"
-        ? dispatchIssuedListingColumns
-        : dispatchDoneListingColumns,
-    [activeTab],
-  );
-
-  const rows = useMemo(() => {
-    const tabRows = records.filter((record) =>
-      activeTab === "issued"
-        ? record.packingState === "done"
-        : record.packingState === "dispatched",
-    );
-    const normalizedSearch = searchValue.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return tabRows;
-    }
-
-    return tabRows.filter((row) =>
-      Object.values(row).some((value) =>
-        formatDispatchSearchValue(value).includes(normalizedSearch),
-      ),
-    );
-  }, [activeTab, records, searchValue]);
 
   const issuedActions = useMemo<
     ReadonlyArray<EnterpriseTableAction<PackingRecord>>
@@ -187,22 +162,4 @@ export function DispatchPage() {
       />
     </MasterPageShell>
   );
-}
-
-function formatDispatchSearchValue(value: EnterpriseTableCellValue) {
-  if (value instanceof Date) {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-      .format(value)
-      .toLowerCase();
-  }
-
-  if (value === null || typeof value === "undefined") {
-    return "";
-  }
-
-  return String(value).toLowerCase();
 }

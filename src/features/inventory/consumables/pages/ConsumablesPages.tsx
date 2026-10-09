@@ -1,6 +1,7 @@
 import { Navigate } from "react-router";
 
-import { InventoryForm, consumablesDefinition } from "../../shared";
+import { InventoryForm } from "../../shared";
+import { consumablesDefinition } from "../consumablesDefinition";
 
 export function ConsumablesListPage() {
   return (

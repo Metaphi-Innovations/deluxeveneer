@@ -6,7 +6,6 @@ import { useNavigate } from "react-router";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
-  type EnterpriseTableCellValue,
 } from "../../../components/data-display/EnterpriseDataTable";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
@@ -14,13 +13,11 @@ import { canAccessPermission } from "../../permissions";
 import { listingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { PackingMarkDoneDialog } from "../form/PackingMarkDoneDialog";
+import { usePackingList } from "../hooks/usePackingList";
 import {
   getPackingPaths,
-  packingDoneListingColumns,
-  packingIssuedListingColumns,
   type PackingRecord,
   type PackingTabValue,
-  usePackingRecords,
 } from "../shared/packingStore";
 
 const packingTabs = [
@@ -29,11 +26,16 @@ const packingTabs = [
 ] as const satisfies readonly { label: string; value: PackingTabValue }[];
 
 export function PackingListingPage() {
-  const records = usePackingRecords();
   const navigate = useNavigate();
   const paths = getPackingPaths();
-  const [activeTab, setActiveTab] = useState<PackingTabValue>("issued");
-  const [searchValue, setSearchValue] = useState("");
+  const {
+    activeTab,
+    columns,
+    rows,
+    searchValue,
+    setActiveTab,
+    setSearchValue,
+  } = usePackingList();
   const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
     null,
   );
@@ -42,33 +44,6 @@ export function PackingListingPage() {
   const canViewPacking = canAccessPermission("packing", "view");
   const canCreateDispatch = canAccessPermission("dispatch", "create");
   const canViewDispatch = canAccessPermission("dispatch", "view");
-
-  const columns = useMemo(
-    () =>
-      activeTab === "issued"
-        ? packingIssuedListingColumns
-        : packingDoneListingColumns,
-    [activeTab],
-  );
-
-  const rows = useMemo(() => {
-    const tabRows = records.filter((record) =>
-      activeTab === "issued"
-        ? record.packingState === "issued"
-        : record.packingState === "done",
-    );
-    const normalizedSearch = searchValue.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return tabRows;
-    }
-
-    return tabRows.filter((row) =>
-      Object.values(row).some((value) =>
-        formatPackingSearchValue(value).includes(normalizedSearch),
-      ),
-    );
-  }, [activeTab, records, searchValue]);
 
   const issuedActions = useMemo<readonly EnterpriseTableAction<PackingRecord>[]>(
     () => [
@@ -201,22 +176,4 @@ export function PackingListingPage() {
       />
     </MasterPageShell>
   );
-}
-
-function formatPackingSearchValue(value: EnterpriseTableCellValue) {
-  if (value instanceof Date) {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-      .format(value)
-      .toLowerCase();
-  }
-
-  if (value === null || typeof value === "undefined") {
-    return "";
-  }
-
-  return String(value).toLowerCase();
 }

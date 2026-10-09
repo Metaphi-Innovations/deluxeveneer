@@ -363,6 +363,11 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
   const currentPass = Number(passQtyStr) || 0;
   const currentFail = Number(failQtyStr) || 0;
   const exceedsTotal = totalQuantity > 0 && currentPass + currentFail > totalQuantity;
+  const dryingQuantitiesInvalid =
+    currentPass < 0 ||
+    currentFail < 0 ||
+    currentPass + currentFail <= 0 ||
+    exceedsTotal;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -554,36 +559,54 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
-        <Button
-          color="error"
-          disabled={exceedsTotal}
-          onClick={() =>
-            onFail(row, remark, inspectionDate, {
-              passQty: isSawingInspection ? 0 : currentPass,
-              failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
-            })
-          }
-          startIcon={<AlertCircle size={16} />}
-          sx={recordFormActionButtonSx}
-          variant="contained"
-        >
-          Fail Inspection
-        </Button>
-        <Button
-          color="success"
-          disabled={exceedsTotal}
-          onClick={() =>
-            onPass(row, remark, inspectionDate, {
-              passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
-              failQty: isSawingInspection ? 0 : currentFail,
-            })
-          }
-          startIcon={<CheckCircle2 size={16} />}
-          sx={recordFormActionButtonSx}
-          variant="contained"
-        >
-          Pass Inspection
-        </Button>
+        {isDryingInspection ? (
+          <Button
+            disabled={dryingQuantitiesInvalid}
+            onClick={() =>
+              onPass(row, remark, inspectionDate, {
+                passQty: currentPass,
+                failQty: currentFail,
+              })
+            }
+            sx={recordFormActionButtonSx}
+            variant="contained"
+          >
+            Done
+          </Button>
+        ) : (
+          <>
+            <Button
+              color="error"
+              disabled={exceedsTotal}
+              onClick={() =>
+                onFail(row, remark, inspectionDate, {
+                  passQty: isSawingInspection ? 0 : currentPass,
+                  failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
+                })
+              }
+              startIcon={<AlertCircle size={16} />}
+              sx={recordFormActionButtonSx}
+              variant="contained"
+            >
+              Fail Inspection
+            </Button>
+            <Button
+              color="success"
+              disabled={exceedsTotal}
+              onClick={() =>
+                onPass(row, remark, inspectionDate, {
+                  passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
+                  failQty: isSawingInspection ? 0 : currentFail,
+                })
+              }
+              startIcon={<CheckCircle2 size={16} />}
+              sx={recordFormActionButtonSx}
+              variant="contained"
+            >
+              Pass Inspection
+            </Button>
+          </>
+        )}
       </DialogActions>
     </Dialog>
   );

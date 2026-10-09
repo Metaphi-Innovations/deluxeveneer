@@ -7,7 +7,7 @@ import {
   ViewOrderPage,
 } from "./pages";
 
-export const ordersRoutes: RouteObject[] = [
+export const orderRoutes: RouteObject[] = [
   { path: "orders", Component: OrdersPage },
   { path: "orders/add", Component: AddOrderPage },
   { path: "orders/edit/:id", Component: EditOrderPage },

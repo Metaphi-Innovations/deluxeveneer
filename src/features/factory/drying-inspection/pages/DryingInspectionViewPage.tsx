@@ -31,11 +31,26 @@ export const DryingInspectionViewPage: React.FC = () => {
     return workItem ? factoryIssuedWorkToRow(workItem) : undefined;
   }, [id, stateData?.record]);
 
-  const tab = stateData?.tab || (record?.listingState === "done" ? "done" : record?.listingState === "failed" ? "failed" : "issued");
+  const tab =
+    stateData?.tab ||
+    (record?.listingState === "done"
+      ? "done"
+      : record?.listingState === "history" || record?.listingState === "failed"
+        ? "history"
+        : "issued");
 
-  const isPass = tab === "done" || record?.qcStatus === "Pass";
-  const isFail = tab === "failed" || record?.qcStatus === "Fail";
-  const isPending = !isPass && !isFail;
+  const isDone = tab === "done";
+  const isHistory = tab === "history";
+  const isPending = !isDone && !isHistory;
+  const warehouseStatus =
+    record?.warehouseBStatus ||
+    (record?.status === "Transferred to Warehouse B" ? "Transferred to Warehouse B" : "Not transferred");
+  const historyStatus =
+    typeof record?.inspectionEventStatus === "string" &&
+    record.inspectionEventStatus.trim() !== "" &&
+    record.inspectionEventStatus !== "-"
+      ? record.inspectionEventStatus
+      : "Inspection History";
 
   const sourceOverviewItems = useMemo(() => {
     if (!record) return [];
@@ -71,19 +86,19 @@ export const DryingInspectionViewPage: React.FC = () => {
               sx={{ fontWeight: 600 }}
             />
           )}
-          {isPass && (
+          {isDone && (
             <Chip
-              label="Inspection Pass"
+              label={String(warehouseStatus)}
               size="small"
-              color="success"
+              color={warehouseStatus === "Transferred to Warehouse B" ? "success" : "warning"}
               sx={{ fontWeight: 600 }}
             />
           )}
-          {isFail && (
+          {isHistory && (
             <Chip
-              label="Inspection Fail"
+              label={String(historyStatus)}
               size="small"
-              color="error"
+              color="info"
               sx={{ fontWeight: 600 }}
             />
           )}
@@ -102,11 +117,11 @@ export const DryingInspectionViewPage: React.FC = () => {
           <Stack spacing={2.5}>
             <FormSectionHeader
               title={
-                isFail
-                  ? "Failed Inspection Details"
-                  : isPass
-                  ? "Completed Inspection Details"
-                  : "Inspection Pending Details"
+                isHistory
+                  ? "Inspection History"
+                  : isDone
+                    ? "Completed Inspection Details"
+                    : "Inspection Pending Details"
               }
             />
 
@@ -139,10 +154,20 @@ export const DryingInspectionViewPage: React.FC = () => {
                   { label: "Pallet No", value: record.palletNo || "-" },
                   { label: "Dimensions (L × W × T)", value: record.length ? `${record.length} × ${record.width} × ${record.thickness ?? record.height ?? "-"}` : "-" },
                   { label: "No of Leaves", value: record.noOfLeaves ?? record.totalLeaves ?? record.noOfSheets ?? "-" },
+                  ...(isDone || isHistory
+                    ? [
+                        { label: "Pass Qty (Leaves)", value: record.passQty ?? "-" },
+                        { label: "Failed Qty (Leaves)", value: record.failQty ?? "-" },
+                      ]
+                    : []),
                   { label: "Total Sq Meter", value: record.totalSqMeter ?? record.sqm ?? "-" },
                   {
                     label: "Status",
-                    value: record.status || (isFail ? "Fail" : isPass ? "Pass" : "Pending"),
+                    value: isHistory
+                      ? historyStatus
+                      : isDone
+                        ? warehouseStatus
+                        : record.status || "Pending",
                   },
                   { label: "Warehouse", value: record.storageWarehouseName || record.warehouseName || "-" },
                   { label: "Remark", value: record.remark || "-", fullWidth: true },
@@ -152,7 +177,10 @@ export const DryingInspectionViewPage: React.FC = () => {
                     spacing={0.5}
                     sx={{
                       minWidth: 0,
-                      gridColumn: field.fullWidth ? { xs: "1fr", sm: "span 2", md: "span 4" } : undefined,
+                      gridColumn:
+                        "fullWidth" in field && field.fullWidth
+                          ? { xs: "1fr", sm: "span 2", md: "span 4" }
+                          : undefined,
                     }}
                   >
                     <Typography

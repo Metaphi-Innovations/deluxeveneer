@@ -205,14 +205,14 @@ export function WarehouseBInventoryModulePage({
       : activeRawVeneerConfig?.rows ?? activeWarehouseInventoryConfig.rows
   ) as readonly InventoryRecord[];
   const activeRows: readonly InventoryRecord[] = useMemo(() => {
-    if (activeInventory === "raw-veneer") {
+    if (activeInventory === "raw-veneer" && activeRawVeneerTab !== "purchase") {
       return [
         ...(warehouseBMovedInspectionRows as readonly InventoryRecord[]),
         ...baseActiveRows,
       ];
     }
     return baseActiveRows;
-  }, [activeInventory, baseActiveRows, warehouseBMovedInspectionRows]);
+  }, [activeInventory, activeRawVeneerTab, baseActiveRows, warehouseBMovedInspectionRows]);
   const movedWarehouseRowIds = useMemo(
     () =>
       new Set(

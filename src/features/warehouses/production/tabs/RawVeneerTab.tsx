@@ -24,6 +24,8 @@ import {
   useFactoryIssuedWorkItems,
 } from "../../../factory/shared/factoryIssuedWorkStore";
 import type { FactoryRecord } from "../../../factory/shared/types";
+import { useWarehouseCMovedRows } from "../../shared/warehouseCTransferStore";
+import type { WarehouseInventoryRow } from "../../shared/warehouseTableData";
 import {
   fetchProductionColumnDropdown,
   fetchProductionWarehouseInventory,
@@ -31,6 +33,13 @@ import {
 } from "../api/productionWarehouseApi";
 import { queryKeys } from "../../../../query/queryKeys";
 import { useDebouncedValue } from "../../../../query/useDebouncedValue";
+import { IssueForGroupingDialog } from "../IssueForGroupingDialog";
+import {
+  groupingIssuedLeavesBySource,
+  groupingIssuedSliceAreas,
+  parseLeafCount,
+  withGroupingAvailability,
+} from "../rawVeneerGroupingQuantity";
 import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
 import type { ProductionListQueryState } from "../productionListQuery";
 
@@ -43,15 +52,58 @@ export interface RawVeneerTabProps {
   onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
 }
 
+const rawVeneerApiColumnKeys: Record<string, string> = {
+  receivedNoOfLeaves: "noOfLeaves",
+  receivedSqf: "sqf",
+  receivedSqm: "sqm",
+};
+
+const clientQuantityColumnKeys = new Set([
+  "availableNoOfLeaves",
+  "availableSqf",
+  "availableSqm",
+]);
+
+function toApiColumnKey(columnKey: string) {
+  return rawVeneerApiColumnKeys[columnKey] ?? columnKey;
+}
+
 function toApiColumnFilters(
   columnFilters: Partial<Record<string, ColumnFilterValue>>,
 ): Record<string, string[]> {
   const filters: Record<string, string[]> = {};
   for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) continue;
-    filters[key] = filter.values;
+    if (!isActiveColumnFilter(filter) || clientQuantityColumnKeys.has(key)) continue;
+    filters[toApiColumnKey(key)] = filter.values;
   }
   return filters;
+}
+
+function mapWarehouseCRawVeneerRow(row: WarehouseInventoryRow): RawVeneerRow {
+  return {
+    id: row.id,
+    productionSrNo: "",
+    storageSrNo: row.storageSrNo ?? row.veneerSrNo ?? "",
+    inwardDate: row.inwardDate,
+    inwardItemCode: row.inwardItemCode ?? "",
+    itemName: row.itemName,
+    factoryCode: row.factoryCode ?? "",
+    subCategory: row.subCategory,
+    length: row.length,
+    width: row.width,
+    thickness: row.thickness,
+    noOfLeaves: row.noOfLeaves || row.totalUnits,
+    sqm: row.totalSqm,
+    sqf: row.totalSqf,
+    grade: row.grade,
+    currency: row.currency,
+    amount: row.amount,
+    totalAmount: row.totalAmount ?? row.amount,
+    remark: row.remark,
+    updatedBy: row.updatedBy ?? "",
+    inventorySlug: "raw-veneer",
+    inventoryRecordId: row.inventoryRecordId,
+  };
 }
 
 function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
@@ -97,6 +149,11 @@ export function RawVeneerTab({
   const [marquetryIssuedRowIds, setMarquetryIssuedRowIds] = useState<string[]>(
     [],
   );
+  const [groupingIssueRow, setGroupingIssueRow] = useState<RawVeneerRow | null>(
+    null,
+  );
+  const isWarehouseC = warehouseName.trim().toLowerCase() === "warehouse c";
+  const warehouseCMovedRows = useWarehouseCMovedRows();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -118,19 +175,30 @@ export function RawVeneerTab({
     () =>
       new Set(
         factoryIssuedWorkItems
-          .filter((item) => item.sourceSlug === warehouseName)
+          .filter(
+            (item) =>
+              item.sourceSlug === warehouseName &&
+              item.destinationSlug !== "grouping",
+          )
           .map((item) => item.sourceRowId),
       ),
     [factoryIssuedWorkItems, warehouseName],
   );
 
+  const groupingIssuedLeavesByRowId = useMemo(
+    () => groupingIssuedLeavesBySource(factoryIssuedWorkItems, warehouseName),
+    [factoryIssuedWorkItems, warehouseName],
+  );
+
   const apiFilters = toApiColumnFilters(columnFilters);
+  const apiSortBy =
+    sortBy && !clientQuantityColumnKeys.has(sortBy) ? toApiColumnKey(sortBy) : null;
   const listParams = {
     warehouseId,
     page,
     limit: rowsPerPage,
     search: debouncedSearch.trim(),
-    sortBy,
+    sortBy: apiSortBy,
     sortOrder,
     filters: apiFilters,
   };
@@ -145,7 +213,7 @@ export function RawVeneerTab({
         page,
         limit: rowsPerPage,
         ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
-        ...(sortBy ? { sortBy } : {}),
+        ...(apiSortBy ? { sortBy: apiSortBy } : {}),
         ...(sortOrder ? { sortOrder } : {}),
         ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
       }),
@@ -154,27 +222,46 @@ export function RawVeneerTab({
     listQuery.data && Array.isArray(listQuery.data.items)
       ? listQuery.data.items.map(mapApiItem)
       : [];
-  const totalCount = listQuery.data?.total ?? 0;
   const isLoading = Boolean(warehouseId) && listQuery.isLoading;
 
   const visibleRows = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          !marquetryIssuedRowIds.includes(String(row.id)) &&
-          !movedWarehouseRowIds.has(String(row.id)),
-      ),
-    [rows, marquetryIssuedRowIds, movedWarehouseRowIds],
+    () => {
+      const localRows =
+        isWarehouseC && !warehouseId
+          ? warehouseCMovedRows
+              .filter((row) => row.inventorySlug === "raw-veneer")
+              .map(mapWarehouseCRawVeneerRow)
+          : [];
+      return [...localRows, ...rows]
+        .filter(
+          (row) =>
+            !marquetryIssuedRowIds.includes(String(row.id)) &&
+            !movedWarehouseRowIds.has(String(row.id)),
+        )
+        .map((row) => withGroupingAvailability(row, groupingIssuedLeavesByRowId));
+    },
+    [
+      groupingIssuedLeavesByRowId,
+      isWarehouseC,
+      marquetryIssuedRowIds,
+      movedWarehouseRowIds,
+      rows,
+      warehouseCMovedRows,
+      warehouseId,
+    ],
   );
+  const totalCount = warehouseId
+    ? (listQuery.data?.total ?? 0)
+    : visibleRows.length;
 
   useEffect(() => {
     onListQueryChange?.({
-      sortBy,
+      sortBy: apiSortBy,
       sortOrder,
       filters: toApiColumnFilters(columnFilters),
       totalCount,
     });
-  }, [sortBy, sortOrder, columnFilters, totalCount, onListQueryChange]);
+  }, [apiSortBy, sortOrder, columnFilters, totalCount, onListQueryChange]);
 
   const loadDropdownOptions = useCallback(
     async (columnKey: string) => {
@@ -183,7 +270,7 @@ export function RawVeneerTab({
         const result = await fetchProductionColumnDropdown({
           warehouseId,
           tab: "raw-veneer",
-          column: columnKey,
+          column: toApiColumnKey(columnKey),
         });
         setFilterOptionsByColumn((prev) => ({
           ...prev,
@@ -269,14 +356,78 @@ export function RawVeneerTab({
             );
           },
         });
+
+        list.push({
+          id: "issue-for-grouping",
+          label: "Issue for Grouping",
+          icon: Plus,
+          tone: "primary",
+          onSelect: (row: RawVeneerRow) => {
+            setGroupingIssueRow(withGroupingAvailability(row, groupingIssuedLeavesByRowId));
+          },
+        });
       }
 
       return list;
     },
-    [canView, canEdit, navigate, warehouseId, warehouseName],
+    [canView, canEdit, groupingIssuedLeavesByRowId, navigate, warehouseId, warehouseName],
+  );
+
+  const groupingIssueAvailableLeaves = parseLeafCount(
+    groupingIssueRow?.availableNoOfLeaves ?? groupingIssueRow?.noOfLeaves,
   );
 
   return (
+    <>
+    <IssueForGroupingDialog
+      availableLeaves={groupingIssueAvailableLeaves}
+      onClose={() => setGroupingIssueRow(null)}
+      onConfirm={(leaves) => {
+        if (!groupingIssueRow) return;
+        const availableLeaves = parseLeafCount(groupingIssueRow.availableNoOfLeaves);
+        if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) return;
+        const issuedAreas = groupingIssuedSliceAreas(groupingIssueRow, leaves);
+        issueFactoryWork({
+          destinationProcess: "Grouping",
+          sourceSlug: warehouseName,
+          sourceProcess: "Inventory",
+          sourceWarehouseName: warehouseName,
+          sourceRow: {
+            ...groupingIssueRow,
+            itemName: groupingIssueRow.itemName,
+            productName: groupingIssueRow.itemName,
+            factoryCode: groupingIssueRow.factoryCode,
+            subCategory: groupingIssueRow.subCategory,
+            itemSubCategory: groupingIssueRow.subCategory,
+            length: groupingIssueRow.length,
+            width: groupingIssueRow.width,
+            thickness: groupingIssueRow.thickness,
+            height: groupingIssueRow.thickness,
+            grade: groupingIssueRow.grade,
+            currency: groupingIssueRow.currency,
+            remark: groupingIssueRow.remark,
+            updatedBy: groupingIssueRow.updatedBy,
+            storageSrNo: groupingIssueRow.storageSrNo,
+            noOfLeaves: String(leaves),
+            sqm: issuedAreas.sqm,
+            sqf: issuedAreas.sqf,
+            totalSqMeter: issuedAreas.sqm,
+            totalSqm: issuedAreas.sqm,
+            totalSqf: issuedAreas.sqf,
+            issuedLeafCount: String(leaves),
+            groupingIssuedLeaves: String(leaves),
+            issuedFrom: "Inventory",
+            issuedFor: "Grouping",
+            issuedDate: new Date(),
+            issueDate: new Date(),
+            warehouseName,
+          } as FactoryRecord,
+        });
+        setGroupingIssueRow(null);
+      }}
+      open={Boolean(groupingIssueRow)}
+      row={groupingIssueRow}
+    />
     <EnterpriseDataTable
       key="production-raw-veneer"
       actions={actions}
@@ -286,7 +437,13 @@ export function RawVeneerTab({
       filterOptionsByColumn={filterOptionsByColumn}
       loading={isLoading}
       loadingLabel="Loading raw veneer inventory..."
+      getRowActions={(row) =>
+        parseLeafCount(row.availableNoOfLeaves) >= 1
+          ? actions
+          : actions.filter((action) => action.id !== "issue-for-grouping")
+      }
       onColumnFilterOpen={(columnKey) => {
+        if (clientQuantityColumnKeys.has(columnKey)) return;
         void loadDropdownOptions(columnKey);
       }}
       onColumnFiltersChange={(next) => {
@@ -308,11 +465,13 @@ export function RawVeneerTab({
         sortBy,
         sortOrder,
         onSortChange: (key: string, order: "asc" | "desc") => {
+          if (clientQuantityColumnKeys.has(key)) return;
           setSortBy(key);
           setSortOrder(order);
           setPage(1);
         },
       }}
     />
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import {
   portalIconSize,
   portalIconStroke,
-} from "../../features/shared/portalIconStandards";
+} from "../shared/portalIconStandards";
 import { portalTypography } from "../../theme/typography";
 import type { ErpBreadcrumbItem } from "./ErpBreadcrumbs";
 import { resolvePortalPageIcon } from "./portalPageIcons";

@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { Box, Button, Dialog, DialogContent, Stack, Typography } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 
-import { recordFormActionButtonSx } from "../../features/shared/buttonStyles";
+import { recordFormActionButtonSx } from "../shared/buttonStyles";
 
 export interface ConfirmationDialogProps {
   cancelLabel?: string;

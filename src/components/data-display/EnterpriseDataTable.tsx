@@ -40,8 +40,8 @@ import type { Theme } from "@mui/material/styles";
 
 import { ContentLoader } from "../feedback/ContentLoader";
 import { ErpToggleSwitch } from "../inputs/ErpToggleSwitch";
-import type { ColumnFilterOption } from "../../features/shared/SearchableMultiSelectColumnFilter";
-import { formatDisplayValueByField } from "../../features/shared/numberFormat";
+import type { ColumnFilterOption } from "../shared/SearchableMultiSelectColumnFilter";
+import { formatDisplayValueByField } from "../shared/numberFormat";
 import {
   ActiveColumnFiltersBar,
   buildActiveFilterChips,
@@ -52,12 +52,12 @@ import {
   matchColumnFilter,
   type ColumnFilterType,
   type ColumnFilterValue,
-} from "../../features/shared/columnFilters";
-import { actionMenuTriggerSx } from "../../features/shared/actionMenuStyles";
+} from "../shared/columnFilters";
+import { actionMenuTriggerSx } from "../shared/actionMenuStyles";
 import {
   isFilterableListingColumn,
   resolveListingColumnFilterType,
-} from "../../features/shared/listingColumnFilters";
+} from "../shared/listingColumnFilters";
 import {
   getListingColumnMinWidth,
   listingPageNumberButtonSx,
@@ -66,12 +66,12 @@ import {
   listingTableContainerSx,
   listingTableHeaderCellSx,
   listingTableHeaderIconButtonSx,
-} from "../../features/shared/listingTableStyles";
+} from "../shared/listingTableStyles";
 import {
   portalIconSize,
   portalIconStroke,
-} from "../../features/shared/portalIconStandards";
-import { RowActionsMenu } from "../../features/shared/RowActionsMenu";
+} from "../shared/portalIconStandards";
+import { RowActionsMenu } from "../shared/RowActionsMenu";
 
 export type EnterpriseTableCellValue =
   | string

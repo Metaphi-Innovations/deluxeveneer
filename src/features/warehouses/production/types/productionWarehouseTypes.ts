@@ -29,8 +29,14 @@ export interface RawVeneerRow extends EnterpriseTableRow {
   width: string;
   thickness: string;
   noOfLeaves: string;
+  receivedNoOfLeaves?: string;
+  availableNoOfLeaves?: string;
   sqm: string;
+  receivedSqm?: string;
+  availableSqm?: string;
   sqf: string;
+  receivedSqf?: string;
+  availableSqf?: string;
   grade: string;
   currency: string;
   amount: string;
@@ -51,9 +57,16 @@ export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = 
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
-  { key: "noOfLeaves", label: "No of Leaves" },
-  { key: "sqm", label: "SQM" },
-  { key: "sqf", label: "SQF" },
+  { key: "receivedNoOfLeaves", label: "Received No of Leaves" },
+  {
+    key: "availableNoOfLeaves",
+    label: "Available No of Leaves",
+    filterable: false,
+  },
+  { key: "receivedSqm", label: "Received SQM" },
+  { key: "availableSqm", label: "Available SQM", filterable: false },
+  { key: "receivedSqf", label: "Received SQF" },
+  { key: "availableSqf", label: "Available SQF", filterable: false },
   { key: "grade", label: "Grade" },
   { key: "currency", label: "Currency" },
   { key: "amount", label: "Amount" },

@@ -39,11 +39,16 @@ import { MdfTab } from "../production/tabs/MdfTab";
 import { ConsumablesTab } from "../production/tabs/ConsumablesTab";
 import { SawingTab } from "../production/tabs/SawingTab";
 import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
+import { getFactoryIssuedWorkItems } from "../../factory/shared/factoryIssuedWorkStore";
 import {
   exportProductionInventoryApi,
   issueOrderToProduction,
   type ProductionInventoryItem,
 } from "../production/api/productionWarehouseApi";
+import {
+  groupingIssuedLeavesBySource,
+  withGroupingAvailability,
+} from "./rawVeneerGroupingQuantity";
 import { invalidateWarehouseProduction } from "../../../query/queryClient";
 import {
   EMPTY_PRODUCTION_LIST_QUERY,
@@ -201,9 +206,13 @@ export function ProductionWarehousePage({
         return;
       }
 
-      const rows = items.map(mapExportItem) as Array<
-        Record<string, string | Date>
-      >;
+      const issuedLeavesByRowId = groupingIssuedLeavesBySource(
+        getFactoryIssuedWorkItems(),
+        warehouseName,
+      );
+      const rows = items.map((item) =>
+        mapExportItem(item, issuedLeavesByRowId),
+      ) as Array<Record<string, string | Date>>;
       if (tab === "plywood") {
         exportRowsToCsv(rows, plywoodColumns, `${warehouseName}-plywood`);
       } else if (tab === "mdf") {
@@ -412,8 +421,11 @@ export function ProductionWarehousePage({
   );
 }
 
-function mapExportItem(item: ProductionInventoryItem) {
-  return {
+function mapExportItem(
+  item: ProductionInventoryItem,
+  issuedLeavesByRowId: ReadonlyMap<string, number>,
+) {
+  const row = {
     id: String(item.id),
     productionSrNo: String(item.productionSrNo ?? ""),
     storageSrNo: String(item.storageSrNo ?? ""),
@@ -444,6 +456,7 @@ function mapExportItem(item: ProductionInventoryItem) {
     remark: String(item.remark ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
   };
+  return withGroupingAvailability(row, issuedLeavesByRowId);
 }
 
 function getActiveTab(value: string | null): ProductionWarehouseTabSlug {

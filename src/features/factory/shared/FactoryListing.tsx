@@ -49,7 +49,10 @@ import {
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { recordFormActionButtonSx } from "../../shared/buttonStyles";
+import {
+  getListingToolbarOutlinedButtonSx,
+  recordFormActionButtonSx,
+} from "../../shared/buttonStyles";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -74,6 +77,20 @@ import {
 } from "./groupedStockIssueStore";
 import { ConfirmIssueForInspectionDialog } from "../drying/ConfirmIssueForInspectionDialog";
 import { applyDryingListingColumns } from "../drying/dryingListingColumns";
+import { appendCncFlutingSampleIssueActions } from "../cnc-fluting/cncFlutingSampleActions";
+import { applyInspectionListingColumns } from "../inspection/inspectionListingColumns";
+import { EditDryingInspectionQtyDialog } from "../inspection/EditDryingInspectionQtyDialog";
+import { MoveToWarehouseBDialog } from "../inspection/MoveToWarehouseBDialog";
+import {
+  buildInspectionDoneRowActions,
+  buildInspectionFailedRowActions,
+  buildInspectionIssuedRowActions,
+} from "../inspection/inspectionRowActions";
+import { appendEmbossingSampleIssueActions } from "../embossing/embossingSampleActions";
+import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColumns";
+import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
+import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
+import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
 import { applyPressingIssuedForLabels } from "../pressing/pressingIssuedForLabel";
 import { appendPressingSampleIssueActions } from "../pressing/pressingSampleActions";
 import { appendSplicingSampleIssueActions } from "../splicing/splicingSampleActions";
@@ -100,6 +117,8 @@ import {
   factoryIssuedWorkToRow,
   completeFactoryIssuedWork,
   failFactoryIssuedWork,
+  revertFactoryIssuedWork,
+  updateFactoryIssuedWorkSnapshot,
   getFactoryIssuedWorkForListing,
   issueFactoryWork,
   resolveFactoryProcessLabel,
@@ -117,8 +136,6 @@ import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
   buildGroupingOrderIssueSourceRow,
   createRejectFactoryAction,
-  createSampleIssueProcessAction,
-  createSplicingOrderIssueAction,
   DialogFieldLabel,
   DryingInspectionIssueDialog,
   formatDialogMeasure,
@@ -134,7 +151,6 @@ import {
   GroupingSampleIssueDialog,
   inspectionDialogPaperSx,
   InspectionDecisionDialog,
-  issueToNextFactoryProcess,
   normalizeFactorySourceColumns,
   ReadOnlyDialogField,
   SplicingOrderIssueDialog,
@@ -147,6 +163,20 @@ import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTr
 import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
 
 type ListingTab = FactoryProcessTab;
+
+function isDryingInspectionSlug(slug: string) {
+  return slug === "drying-inspection" || slug === "inspection";
+}
+
+function formatInspectionLeafQty(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return value.trim();
+  }
+  return "-";
+}
 
 interface FactoryListingProps<Row extends FactoryRecord> {
   definition: FactoryDefinition<Row>;
@@ -163,9 +193,12 @@ export function FactoryListing<Row extends FactoryRecord>({
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
   const [searchParams, setSearchParams] = useSearchParams();
+  const isDryingInspectionModule = isDryingInspectionSlug(definition.slug);
   const urlTab = searchParams.get("tab") as ListingTab | null;
   const [activeTabState, setActiveTabState] = useState<ListingTab>(() => urlTab || "issued");
-  const activeTab = urlTab || activeTabState;
+  const requestedTab = urlTab || activeTabState;
+  const activeTab =
+    isDryingInspectionModule && requestedTab === "failed" ? "history" : requestedTab;
 
   const setActiveTab = (newTab: ListingTab) => {
     setActiveTabState(newTab);
@@ -175,6 +208,12 @@ export function FactoryListing<Row extends FactoryRecord>({
       return next;
     });
   };
+
+  useEffect(() => {
+    if (isDryingInspectionModule && urlTab === "failed") {
+      setActiveTab("history");
+    }
+  }, [isDryingInspectionModule, urlTab]);
 
   const [searchValue, setSearchValue] = useState("");
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
@@ -230,9 +269,13 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
   const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
   const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] = useState<Row[]>([]);
+  const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<Row[]>([]);
+  const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<string[]>([]);
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
     Record<string, { issuedLeaves: number; availableLeaves: number; status: "Pending" | "Partially Done" | "Done" }>
   >({});
+  const [warehouseBMoveRow, setWarehouseBMoveRow] = useState<Row | null>(null);
+  const [dryingInspectionQtyEditRow, setDryingInspectionQtyEditRow] = useState<Row | null>(null);
   const [inspectionTrackingMap, setInspectionTrackingMap] = useState<
     Record<string, { passQty: number; failQty: number; availableLeaves: number; status: "Pending" | "Partially Pending" | "Done" }>
   >({});
@@ -290,6 +333,8 @@ export function FactoryListing<Row extends FactoryRecord>({
         ? [...baseRowsForTab, ...rejectedDoneRows]
         : definition.slug === "drying" && activeTab === "history"
           ? [...dryingInspectionHistoryRows, ...baseRowsForTab]
+        : isDryingInspectionModule && activeTab === "history"
+          ? [...dryingInspectionEventRows, ...baseRowsForTab]
         : isInspectionModule && activeTab === "issued"
           ? baseRowsForTab.filter((row) => {
             const tracking = inspectionTrackingMap[String(row.id)];
@@ -320,12 +365,11 @@ export function FactoryListing<Row extends FactoryRecord>({
           !(activeTab === "done" && dryingDoneRemovedIds.includes(row.id)),
       )
       .map((row) => {
-        const sourceNormalizedRow = {
-          ...normalizeFactorySourceColumns(row, definition.slug),
-          ...(definition.slug === "marquetry"
-            ? { issuedFrom: "Inventory" }
-            : {}),
-        } as Row;
+        const sourceNormalizedRow = (
+          definition.slug === "marquetry"
+            ? withMarquetryIssuedFrom(normalizeFactorySourceColumns(row, definition.slug))
+            : normalizeFactorySourceColumns(row, definition.slug)
+        ) as Row;
 
         if (isGroupingModule) {
           return mapGroupingListingRow(sourceNormalizedRow, activeTab);
@@ -350,6 +394,20 @@ export function FactoryListing<Row extends FactoryRecord>({
 
         if (isInspectionModule) {
           const rowId = String(sourceNormalizedRow.id);
+          if (isDryingInspectionModule && (activeTab === "done" || activeTab === "history")) {
+            const transferred = warehouseBTransferredIds.includes(rowId);
+            const eventStatus = formatInspectionLeafQty(sourceNormalizedRow.inspectionEventStatus);
+            return {
+              ...sourceNormalizedRow,
+              passQty: formatInspectionLeafQty(sourceNormalizedRow.passQty),
+              failQty: formatInspectionLeafQty(sourceNormalizedRow.failQty),
+              warehouseBStatus: transferred
+                ? "Transferred to Warehouse B"
+                : "Not transferred",
+              inspectionEventStatus: activeTab === "history" ? eventStatus : sourceNormalizedRow.inspectionEventStatus,
+            } as Row;
+          }
+
           const origLeaves = Number(sourceNormalizedRow.noOfLeaves ?? sourceNormalizedRow.totalLeaves ?? sourceNormalizedRow.noOfSheets ?? 0) || 0;
           const tracking = inspectionTrackingMap[rowId];
           const availableLeaves = tracking ? tracking.availableLeaves : origLeaves;
@@ -427,6 +485,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     dryingDoneLeafPatches,
     dryingDoneRemovedIds,
     dryingFlowState,
+    dryingInspectionEventRows,
     dryingInspectionHistoryRows,
     dryingIssueStateMap,
     factoryIssuedWorkItems,
@@ -434,12 +493,16 @@ export function FactoryListing<Row extends FactoryRecord>({
     groupedStockIssues,
     isGroupingDoneTab,
     inspectionCompletedRows,
+    inspectionFailedRows,
+    inspectionTrackingMap,
+    isDryingInspectionModule,
     isInspectionModule,
     rejectedDoneRowIds,
     rejectedDoneRows,
     revertedRowIds,
     sampleSheetRecords,
     supportsSamplePurposeColumn,
+    warehouseBTransferredIds,
   ]);
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
@@ -476,14 +539,17 @@ export function FactoryListing<Row extends FactoryRecord>({
     let columns = definition.listColumns;
 
     if (definition.slug === "marquetry") {
-      columns = columns.filter((column) => column.key !== "groupNo");
+      columns = applyMarquetryListingColumns(columns, activeTab);
     }
 
     if (definition.slug === "grouping") {
       return applyGroupingListingColumns(columns, activeTab);
     }
 
-    if (supportsSamplePurposeColumn) {
+    if (
+      supportsSamplePurposeColumn &&
+      !(definition.slug === "marquetry" && activeTab === "issued")
+    ) {
       columns = withOptionalColumn(
         columns,
         {
@@ -494,10 +560,8 @@ export function FactoryListing<Row extends FactoryRecord>({
       );
     }
 
-    if (isInspectionModule && (activeTab === "done" || activeTab === "failed")) {
-      return columns.filter(
-        (column) => column.key !== "qcStatus" && column.key !== "status",
-      );
+    if (isInspectionModule) {
+      return applyInspectionListingColumns(columns, definition.slug, activeTab);
     }
 
     if (definition.slug === "slicing") {
@@ -506,30 +570,6 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     if (definition.slug === "drying") {
       return applyDryingListingColumns(columns, activeTab);
-    }
-
-    if (
-      (definition.slug === "drying-inspection" || definition.slug === "inspection") &&
-      activeTab === "issued"
-    ) {
-      columns = columns.map((col) =>
-        col.key === "issueDate" || col.key === "issuedDate"
-          ? { ...col, label: "Issued Inspection Date" }
-          : col,
-      );
-      const insertIndex = columns.findIndex((col) => col.key === "noOfLeaves");
-      const inspCols = [
-        { key: "status", label: "Status" },
-      ];
-      if (insertIndex >= 0) {
-        columns = [
-          ...columns.slice(0, insertIndex + 1),
-          ...inspCols,
-          ...columns.slice(insertIndex + 1),
-        ];
-      } else {
-        columns = [...columns, ...inspCols];
-      }
     }
 
     return columns;
@@ -587,7 +627,12 @@ export function FactoryListing<Row extends FactoryRecord>({
           : []),
       ];
 
-      if (activeTab === "issued" && canCreate && !isInspectionModule) {
+      if (
+        activeTab === "issued" &&
+        canCreate &&
+        !isInspectionModule &&
+        definition.slug !== "marquetry"
+      ) {
         baseActions.unshift({
           id: "create-process",
           label: `Create ${definition.title}`,
@@ -730,188 +775,113 @@ export function FactoryListing<Row extends FactoryRecord>({
       };
     }
 
+    const openInspectionRecord = (selectedRow: Row) =>
+      navigate(paths.view(selectedRow.id), { state: { record: selectedRow, tab: activeTab } });
+
     if (isInspectionModule && activeTab === "issued") {
-      return (row) => [
-        ...(canView
+      return buildInspectionIssuedRowActions<Row>({
+        canCreate,
+        canEdit,
+        canView,
+        onInspect: setInspectionDecisionTargetRow,
+        onView: openInspectionRecord,
+      });
+    }
+
+    if (isDryingInspectionModule && activeTab === "history") {
+      return () =>
+        canView
           ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id), { state: { record: selectedRow, tab: activeTab } }),
-            },
-          ]
-          : []),
-        ...(canCreate || canEdit
-          ? [
-            {
-              id: "inspect",
-              label: "Inspect",
-              icon: Plus,
-              tone: "primary" as const,
-              onSelect: (selectedRow: Row) => {
-                setInspectionDecisionTargetRow(selectedRow);
+              {
+                id: "view",
+                label: "View",
+                icon: Eye,
+                onSelect: openInspectionRecord,
               },
-            },
-          ]
-          : []),
-      ];
+            ]
+          : [];
     }
 
     if (isInspectionModule && activeTab === "done") {
       const isSawingInspection = definition.slug === "sawing-inspection";
-      return (row) => [
-        ...(canView
-          ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id), { state: { record: selectedRow, tab: activeTab } }),
-            },
-          ]
-          : []),
-        ...(!isSawingInspection && (canEdit || canCreate)
-          ? [
-            {
-              id: "reject-inspection",
-              label: "Reject Inspection",
-              icon: XCircle,
-              tone: "danger" as const,
-              onSelect: (selectedRow: Row) => {
-                const workItemId = getFactoryString(selectedRow.workItemId);
-                if (workItemId) {
-                  failFactoryIssuedWork(workItemId);
-                } else {
-                  setInspectionCompletedRows((current) =>
-                    current.filter((entry) => entry.id !== selectedRow.id),
-                  );
-                  setInspectionFailedRows((current) =>
-                    current.some((entry) => entry.id === selectedRow.id)
-                      ? current
-                      : [...current, { ...selectedRow, listingState: "failed" }],
-                  );
-                }
-                setActiveTab("failed");
-              },
-            },
-          ]
-          : []),
-        ...(canCreate
-          ? [
-            {
-              id: isSawingInspection ? "move-to-warehouse-c" : "move-to-warehouse-b",
-              label: isSawingInspection ? "Move to Warehouse C" : "Move to Warehouse B",
-              icon: Plus,
-              tone: "primary" as const,
-              onSelect: (selectedRow: Row) => {
-                if (isSawingInspection) {
-                  setSawingWarehouseMoveTarget("Production Warehouse");
-                  setSawingWarehouseMoveRows([selectedRow]);
-                  return;
-                }
-                moveFactoryRowToWarehouseB(selectedRow);
-                setRevertedRowIds((current) =>
-                  current.includes(selectedRow.id)
-                    ? current
-                    : [...current, selectedRow.id],
-                );
-              },
-            },
-          ]
-          : []),
-      ];
+      return buildInspectionDoneRowActions<Row>({
+        canCreate,
+        canEdit,
+        canView,
+        isSawingInspection,
+        ...(isSawingInspection ? {} : { onEdit: setDryingInspectionQtyEditRow }),
+        onMoveToWarehouseB: setWarehouseBMoveRow,
+        onMoveToWarehouseC: (selectedRow) => {
+          setSawingWarehouseMoveTarget("Production Warehouse");
+          setSawingWarehouseMoveRows([selectedRow]);
+        },
+        onRevert: (selectedRow) => {
+          const workItemId = getFactoryString(selectedRow.workItemId);
+          if (workItemId) {
+            revertFactoryIssuedWork(workItemId);
+          }
+          setInspectionCompletedRows((current) =>
+            current.filter((entry) => entry.id !== selectedRow.id),
+          );
+          (definition.rows as any) = (definition.rows as any).map((row: any) =>
+            row.id === selectedRow.id
+              ? { ...row, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
+              : row,
+          );
+          setActiveTab("issued");
+        },
+        onView: openInspectionRecord,
+      });
     }
 
     if (isInspectionModule && activeTab === "failed") {
       const isSawingInspection = definition.slug === "sawing-inspection";
-      return (row) => [
-        ...(canView
-          ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id), { state: { record: selectedRow, tab: activeTab } }),
-            },
-          ]
-          : []),
-        ...(isSawingInspection && (canCreate || canEdit)
-          ? [
-            {
-              id: "revert",
-              label: "Revert",
-              icon: RotateCcw,
-              tone: "danger" as const,
-              onSelect: (selectedRow: Row) => {
-                setInspectionFailedRows((current) =>
-                  current.filter((entry) => entry.id !== selectedRow.id),
-                );
-                // Return to pending tab with Recheck status
-                setInspectionCompletedRows((current) =>
-                  current.filter((entry) => entry.id !== selectedRow.id),
-                );
-                // Update row in definition so it appears in issued tab with Recheck
-                (definition.rows as any) = (definition.rows as any).map((r: any) =>
-                  r.id === selectedRow.id
-                    ? { ...r, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
-                    : r
-                );
-                setActiveTab("issued");
-              },
-            },
-          ]
-          : []),
-      ];
+      return buildInspectionFailedRowActions<Row>({
+        canCreate,
+        canEdit,
+        canView,
+        isSawingInspection,
+        onRevert: (selectedRow) => {
+          setInspectionFailedRows((current) =>
+            current.filter((entry) => entry.id !== selectedRow.id),
+          );
+          setInspectionCompletedRows((current) =>
+            current.filter((entry) => entry.id !== selectedRow.id),
+          );
+          (definition.rows as any) = (definition.rows as any).map((row: any) =>
+            row.id === selectedRow.id
+              ? { ...row, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
+              : row,
+          );
+          setActiveTab("issued");
+        },
+        onView: openInspectionRecord,
+      });
     }
 
     if (definition.slug === "finishing" && activeTab === "done") {
-      return (row) => {
-        if (isSampleFactoryRow(row)) {
-          const sampleActions: EnterpriseTableAction<Row>[] = [];
-          if (canView) {
-            sampleActions.push({
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id)),
-            });
-          }
-          return sampleActions;
-        }
-
-        return [
-          ...rowActions,
-          ...(canCreate
-            ? [
-              {
-                id: "revert-item",
-                label: "Revert",
-                icon: RotateCcw,
-                tone: "danger" as const,
-                onSelect: (selectedRow: Row) =>
-                  setRevertedRowIds((current) =>
-                    current.includes(selectedRow.id)
-                      ? current
-                      : [...current, selectedRow.id],
-                  ),
-              },
-              createSplicingOrderIssueAction<Row>((selectedRow) =>
-                setSplicingOrderIssue({
-                  issueDate: new Date(),
-                  issueSheets: "",
-                  orderItemNo: "",
-                  orderNo: "",
-                  orderType: "",
-                  row: selectedRow,
-                  submitted: false,
-                }),
-              ),
-            ]
-            : []),
-          ...(canEdit || canCreate ? [rejectDoneAction] : []),
-        ];
-      };
+      return buildFinishingDoneRowActions<Row>({
+        canCreate,
+        canEdit,
+        canView,
+        onOrderIssue: (selectedRow) =>
+          setSplicingOrderIssue({
+            issueDate: new Date(),
+            issueSheets: "",
+            orderItemNo: "",
+            orderNo: "",
+            orderType: "",
+            row: selectedRow,
+            submitted: false,
+          }),
+        onRevert: (selectedRow) =>
+          setRevertedRowIds((current) =>
+            current.includes(selectedRow.id) ? current : [...current, selectedRow.id],
+          ),
+        onView: (selectedRow) => navigate(paths.view(selectedRow.id)),
+        rejectDoneAction,
+        rowActions,
+      });
     }
 
     if (isGroupingDoneTab) {
@@ -959,36 +929,19 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (canCreate && definition.slug === "marquetry") {
-          sampleActions.push(
-            createSampleIssueProcessAction("Pressing", (selectedRow) => {
-              issueToNextFactoryProcess({
-                destinationProcess: "Pressing",
-                row: selectedRow,
-                sourceSlug: definition.slug,
-              });
-            }),
-          );
-          return sampleActions;
+          return appendMarquetrySampleIssueActions(sampleActions, definition.slug);
         }
 
         if (canCreate && definition.slug === "splicing") {
           return appendSplicingSampleIssueActions(sampleActions, definition.slug);
         }
 
-        if (
-          canCreate &&
-          (definition.slug === "cnc-fluting" || definition.slug === "embossing")
-        ) {
-          sampleActions.push(
-            createSampleIssueProcessAction("Finishing", (selectedRow) => {
-              issueToNextFactoryProcess({
-                destinationProcess: "Finishing",
-                row: selectedRow,
-                sourceSlug: definition.slug,
-              });
-            }),
-          );
-          return sampleActions;
+        if (canCreate && definition.slug === "cnc-fluting") {
+          return appendCncFlutingSampleIssueActions(sampleActions, definition.slug);
+        }
+
+        if (canCreate && definition.slug === "embossing") {
+          return appendEmbossingSampleIssueActions(sampleActions, definition.slug);
         }
 
         if (canCreate && definition.slug === "pressing") {
@@ -1039,6 +992,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     dryingDoneLeafPatches,
     dryingIssueStateMap,
     inspectionCompletedRows,
+    isDryingInspectionModule,
     isInspectionModule,
     isDryingDoneTab,
     isGroupingDoneTab,
@@ -1339,7 +1293,23 @@ export function FactoryListing<Row extends FactoryRecord>({
                 ) : null}
               </Stack>
             ) : (
-              <FactoryToolbar />
+              <Stack direction="row" spacing={1.25} alignItems="center">
+                {definition.slug === "marquetry" && activeTab === "issued" && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<Plus size={15} />}
+                    onClick={() => navigate(paths.add)}
+                    sx={(theme) => ({
+                      ...getListingToolbarOutlinedButtonSx(theme),
+                      backgroundColor: theme.palette.primary.main,
+                      color: theme.palette.primary.contrastText,
+                    })}
+                  >
+                    Add
+                  </Button>
+                ) : null}
+                <FactoryToolbar />
+              </Stack>
             )}
           </Stack>
 
@@ -1456,6 +1426,78 @@ export function FactoryListing<Row extends FactoryRecord>({
         </DialogActions>
       </Dialog>
 
+      <MoveToWarehouseBDialog
+        onClose={() => setWarehouseBMoveRow(null)}
+        onConfirm={(warehouse) => {
+          if (!warehouseBMoveRow) return;
+          const movedRow = warehouseBMoveRow;
+          moveFactoryRowToWarehouseB({
+            ...(movedRow as unknown as Record<string, unknown>),
+            storageWarehouseId: warehouse.id,
+            storageWarehouseName: warehouse.name,
+            warehouseName: warehouse.name,
+          });
+          setWarehouseBTransferredIds((current) =>
+            current.includes(movedRow.id) ? current : [...current, movedRow.id],
+          );
+          if (!warehouseBTransferredIds.includes(movedRow.id)) {
+            setDryingInspectionEventRows((current) => [
+              {
+                ...movedRow,
+                id: `drying-insp-history-move-${Date.now()}-${movedRow.id}`,
+                listingState: "history",
+                inspectionEventStatus: "Transferred to Warehouse B",
+                warehouseBStatus: "Transferred to Warehouse B",
+                passQty: formatInspectionLeafQty(movedRow.passQty),
+                failQty: formatInspectionLeafQty(movedRow.failQty),
+                issueDate: new Date().toISOString().slice(0, 10),
+              } as Row,
+              ...current,
+            ]);
+          }
+          setWarehouseBMoveRow(null);
+        }}
+        row={warehouseBMoveRow}
+      />
+
+      <EditDryingInspectionQtyDialog
+        open={Boolean(dryingInspectionQtyEditRow)}
+        row={dryingInspectionQtyEditRow}
+        onClose={() => setDryingInspectionQtyEditRow(null)}
+        onSave={(targetRow, quantities) => {
+          const patch = {
+            passQty: String(quantities.passQty),
+            failQty: String(quantities.failQty),
+          };
+          const workItemId = getFactoryString(targetRow.workItemId);
+          if (workItemId) {
+            updateFactoryIssuedWorkSnapshot(workItemId, patch);
+          }
+          setInspectionCompletedRows((current) =>
+            current.map((entry) =>
+              entry.id === targetRow.id ? { ...entry, ...patch } : entry,
+            ),
+          );
+          setInspectionTrackingMap((current) => {
+            const rowId = String(targetRow.id);
+            const existing = current[rowId];
+            if (!existing) return current;
+            return {
+              ...current,
+              [rowId]: {
+                ...existing,
+                passQty: quantities.passQty,
+                failQty: quantities.failQty,
+              },
+            };
+          });
+          (definition.rows as any) = definition.rows.map((entry) =>
+            entry.id === targetRow.id ? { ...entry, ...patch } : entry,
+          );
+          setDryingInspectionQtyEditRow(null);
+        }}
+      />
+
       <InspectionDecisionDialog
         open={Boolean(inspectionDecisionTargetRow)}
         row={inspectionDecisionTargetRow}
@@ -1472,6 +1514,81 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
         onClose={() => setInspectionDecisionTargetRow(null)}
         onPass={(targetRow, decisionRemark, inspectionDateVal, counts) => {
+          if (isDryingInspectionModule) {
+            const rowId = String(targetRow.id);
+            const currentTotal =
+              Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
+            const tracking = inspectionTrackingMap[rowId];
+            const prevPass = tracking?.passQty ?? 0;
+            const prevFail = tracking?.failQty ?? 0;
+            const thisPass = counts?.passQty ?? currentTotal;
+            const thisFail = counts?.failQty ?? 0;
+            const totalPass = prevPass + thisPass;
+            const totalFail = prevFail + thisFail;
+            const remaining = Math.max(0, currentTotal - (thisPass + thisFail));
+            const isFullyDone = remaining <= 0;
+            const newStatus: "Pending" | "Partially Pending" | "Done" = isFullyDone
+              ? "Done"
+              : "Partially Pending";
+            const inspectionDate = inspectionDateVal || new Date().toISOString().slice(0, 10);
+            const enteredRemark =
+              decisionRemark || getFactoryString(targetRow.remark) || "Inspection completed";
+            const inspectedLeaves = thisPass + thisFail;
+            const donePatch = {
+              inspectionDate,
+              remark: enteredRemark,
+              passQty: String(thisPass),
+              failQty: String(thisFail),
+              noOfLeaves: String(inspectedLeaves),
+              totalLeaves: String(inspectedLeaves),
+              warehouseBStatus: "Not transferred",
+              qcStatus: "Done",
+            };
+
+            setInspectionTrackingMap((prev) => ({
+              ...prev,
+              [rowId]: {
+                passQty: totalPass,
+                failQty: totalFail,
+                availableLeaves: remaining,
+                status: newStatus,
+              },
+            }));
+
+            const workItemId = getFactoryString(targetRow.workItemId);
+            if (workItemId && isFullyDone) {
+              completeFactoryIssuedWork(workItemId, { ...donePatch, listingState: "done" });
+            } else {
+              setInspectionCompletedRows((current) => [
+                ...current,
+                {
+                  ...targetRow,
+                  ...donePatch,
+                  id: isFullyDone ? targetRow.id : `insp-done-${Date.now()}-${targetRow.id}`,
+                  listingState: "done",
+                } as Row,
+              ]);
+            }
+
+            setDryingInspectionEventRows((current) => [
+              {
+                ...targetRow,
+                ...donePatch,
+                id: `drying-insp-history-${Date.now()}-${targetRow.id}`,
+                listingState: "history",
+                issueDate: inspectionDate,
+                inspectionEventStatus: "Inspection completed",
+              } as Row,
+              ...current,
+            ]);
+
+            setInspectionDecisionTargetRow(null);
+            if (isFullyDone) {
+              setActiveTab("done");
+            }
+            return;
+          }
+
           const rowId = String(targetRow.id);
           const currentTotal = Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
           const tracking = inspectionTrackingMap[rowId];
@@ -1498,14 +1615,16 @@ export function FactoryListing<Row extends FactoryRecord>({
           }));
 
           const workItemId = getFactoryString(targetRow.workItemId);
+          const enteredRemark = decisionRemark || getFactoryString(targetRow.remark);
           const basePatch = {
             inspectionDate: inspectionDateVal || new Date().toISOString().slice(0, 10),
-            remark: decisionRemark || targetRow.remark || "Passed inspection",
+            remark: enteredRemark || (thisPass > 0 ? "Passed inspection" : "Failed inspection"),
             passQty: thisPass,
             failQty: thisFail,
             noOfLeaves: String(thisPass),
             totalLeaves: String(thisPass),
           };
+          const closesIssuedWithBoth = Boolean(workItemId && isFullyDone && thisPass > 0 && thisFail > 0);
 
           if (thisPass > 0) {
             const passRecord = {
@@ -1517,7 +1636,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             };
             if (workItemId && isFullyDone && !thisFail) {
               completeFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Pass" });
-            } else {
+            } else if (!closesIssuedWithBoth) {
               setInspectionCompletedRows((current) => [...current, passRecord]);
             }
           }
@@ -1528,6 +1647,7 @@ export function FactoryListing<Row extends FactoryRecord>({
               ...basePatch,
               id: `insp-fail-${Date.now()}-${targetRow.id}`,
               qcStatus: "Fail",
+              remark: enteredRemark || "Failed inspection",
               noOfLeaves: String(thisFail),
               totalLeaves: String(thisFail),
               listingState: "failed",
@@ -1545,10 +1665,14 @@ export function FactoryListing<Row extends FactoryRecord>({
 
           setInspectionDecisionTargetRow(null);
           if (isFullyDone) {
-            setActiveTab("done");
+            setActiveTab(thisPass > 0 ? "done" : "failed");
           }
         }}
         onFail={(targetRow, decisionRemark, inspectionDateVal, counts) => {
+          if (isDryingInspectionModule) {
+            return;
+          }
+
           const rowId = String(targetRow.id);
           const currentTotal = Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
           const tracking = inspectionTrackingMap[rowId];
