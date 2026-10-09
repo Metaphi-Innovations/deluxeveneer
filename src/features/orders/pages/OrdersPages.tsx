@@ -1,4 +1,5 @@
-import { OrderRecordPage, OrdersListingPage } from "../shared";
+import { OrderRecordPage } from "../form/OrderRecordPage";
+import { OrdersListingPage } from "../listing/OrdersListingPage";
 
 export function OrdersPage() {
   return <OrdersListingPage />;

@@ -1,1 +1,1 @@
-export { itemSubCategoryMasterDefinition } from "../../shared/masterDefinitions";
+export { itemSubCategoryMasterDefinition } from "../itemSubCategoryMasterDefinition";

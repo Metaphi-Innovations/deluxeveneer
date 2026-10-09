@@ -1,22 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Button,
   Stack,
 } from "@mui/material";
-import { Plus } from "lucide-react";
-import { Link as RouterLink } from "react-router";
+import { Eye, Pencil, Plus } from "lucide-react";
+import { Link as RouterLink, useNavigate } from "react-router";
 
+import { EnterpriseDataTable } from "../../../components/data-display/EnterpriseDataTable";
+import type { EnterpriseTableAction } from "../../../components/data-display/EnterpriseDataTable";
 import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import {
   canAccessAnyAction,
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
 import { MasterPageShell } from "./MasterPageShell";
-import { MasterTable } from "./MasterTable";
 import {
   buildLocalMasterDefinition,
   updateLocalMasterStatus,
@@ -91,36 +91,11 @@ export function MasterListingPage({
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
   const canOpenPage = canAccessAnyAction(permissionKey);
+  const navigate = useNavigate();
   const [internalSearch, setInternalSearch] = useState("");
   const searchValue = controlledSearch ?? internalSearch;
   const setSearchValue = onSearchChange ?? setInternalSearch;
   const sourceRows = remoteRows ?? localDefinition.rows;
-
-  // Local input state and debounce effect to avoid immediate API firing on every keystroke
-  const [inputValue, setInputValue] = useState(searchValue);
-
-  useEffect(() => {
-    setInputValue(searchValue);
-  }, [searchValue]);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (inputValue !== searchValue) {
-        setSearchValue(inputValue);
-      }
-    }, 450);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue, searchValue, setSearchValue]);
-
-  const handleInputChange = (val: string) => {
-    setInputValue(val);
-    if (val === "") {
-      setSearchValue("");
-    }
-  };
 
   const filteredRows = useMemo(() => {
     if (serverSearch) {
@@ -179,8 +154,8 @@ export function MasterListingPage({
         spacing={1.5}
       >
         <ClearableSearchField
-          value={inputValue}
-          onChange={handleInputChange}
+          value={searchValue}
+          onChange={setSearchValue}
           placeholder={searchPlaceholder}
           sx={{
             width: { xs: "100%", sm: 300 },
@@ -206,22 +181,54 @@ export function MasterListingPage({
           pt: theme.spacing(0.5),
         })}
       >
-        <MasterTable
-          canChangeStatus={canEdit}
-          canEdit={canEdit}
-          canView={canView}
+        <EnterpriseDataTable
           columns={localDefinition.columns}
-          getEditPath={paths.edit}
-          getViewPath={paths.view}
-          onStatusChange={handleStatusChange}
           loading={loading}
+          onStatusChange={handleStatusChange}
+          rows={canView ? filteredRows : []}
+          {...(canEdit ? { isStatusChangeDisabled: () => false } : { isStatusChangeDisabled: () => true })}
+          {...(canView || canEdit
+            ? {
+                getRowActions: (row: MasterRecord) => {
+                  const rowActions: EnterpriseTableAction<MasterRecord>[] = [];
+
+                  if (canView) {
+                    rowActions.push({
+                      id: "view",
+                      label: "View",
+                      icon: Eye,
+                      onSelect: () => navigate(paths.view(row.id)),
+                    });
+                  }
+
+                  if (canEdit) {
+                    rowActions.push({
+                      id: "edit",
+                      label: "Edit",
+                      icon: Pencil,
+                      onSelect: () => navigate(paths.edit(row.id)),
+                    });
+                  }
+
+                  return rowActions;
+                },
+              }
+            : {})}
           {...(pagination ? { pagination } : {})}
-          {...(sorting ? { sorting } : {})}
+          {...(sorting
+            ? {
+                sorting: {
+                  sortBy: sorting.sortBy,
+                  sortOrder: sorting.sortOrder,
+                  onSortChange: sorting.onSortChange,
+                  onSortClear: () => sorting.onSortChange(null, null),
+                },
+              }
+            : {})}
           {...(columnFilters ? { columnFilters } : {})}
           {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
           {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
           {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
-          rows={canView ? filteredRows : []}
         />
       </Stack>
     </MasterPageShell>

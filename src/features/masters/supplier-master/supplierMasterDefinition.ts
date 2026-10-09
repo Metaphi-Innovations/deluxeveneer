@@ -1,4 +1,6 @@
 import type { MasterDefinition } from "../shared/types";
+import { activeOptions } from "../shared/masterRecordHelpers";
+import { getCachedSupplierMasterRows } from "./api/supplierMasterApi";
 
 export const MSME_TYPE_OPTIONS = [
   "Micro Enterprise",
@@ -47,3 +49,10 @@ export const supplierMasterDefinition: MasterDefinition = {
   ],
   rows: [],
 };
+
+export function getSupplierMasterOptions() {
+  return activeOptions(getCachedSupplierMasterRows(), "supplierName");
+}
+
+/** @deprecated Prefer getSupplierMasterOptions() for live API cache values. */
+export const supplierMasterOptions = getSupplierMasterOptions();

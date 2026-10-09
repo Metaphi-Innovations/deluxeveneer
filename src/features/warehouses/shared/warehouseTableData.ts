@@ -1,4 +1,8 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { warehouseAConsumablesColumns } from "./columns/consumablesColumns";
+import { warehouseAMdfColumns, warehouseCMdfColumns } from "./columns/mdfColumns";
+import { warehouseAPlywoodColumns, warehouseCPlywoodColumns } from "./columns/plywoodColumns";
+import { warehouseAVeneerColumns, warehouseCVeneerColumns } from "./columns/veneerColumns";
 import {
   formatAmount as formatAmountShared,
   formatSqfFromSqm as formatSqfFromSqmShared,
@@ -166,25 +170,6 @@ const withQcStatusColumn = (
   ];
 };
 
-const warehouseAVeneerColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "invoiceNo", label: "Invoice No" },
-    { key: "supplierName", label: "Supplier Name" },
-    { key: "subCategory", label: "Sub Category" },
-    { key: "itemName", label: "Item Name" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "noOfLeaves", label: "No of Leaves" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "grade", label: "Grade" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remark" },
-  ];
-
 const warehouseARawProductionColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   warehouseAVeneerColumns;
 
@@ -193,104 +178,6 @@ const warehouseBRawVeneerColumns: readonly EnterpriseTableColumn<WarehouseInvent
 
 const warehouseBRawProductionColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
   warehouseBRawVeneerColumns;
-
-const warehouseAPlywoodColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "invoiceNo", label: "Invoice No" },
-    { key: "supplierName", label: "Supplier Name" },
-    { key: "subCategory", label: "Sub Category" },
-    { key: "itemName", label: "Item Name" },
-    { key: "color", label: "Color" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "totalNoOfSheets", label: "No of Sheets" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remark" },
-  ];
-
-const warehouseAMdfColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "invoiceNo", label: "Invoice No" },
-    { key: "supplierName", label: "Supplier Name" },
-    { key: "itemName", label: "Item Name" },
-    { key: "mdfType", label: "MDF Type" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "noOfLeaves", label: "No of Leaves" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remarks" },
-  ];
-
-const warehouseAConsumablesColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardSrNo", label: "Inward Sr No" },
-    { key: "inwardType", label: "Inward Type" },
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "subCategory", label: "Category" },
-    { key: "totalUnits", label: "Quantity" },
-    { key: "availableUnits", label: "Available Quantity" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remark" },
-  ];
-
-const warehouseCVeneerColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "itemName", label: "Item Name" },
-    { key: "subCategory", label: "Sub Category" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "noOfLeaves", label: "No of Leaves" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "grade", label: "Grade" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remark" },
-  ];
-
-const warehouseCPlywoodColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "itemName", label: "Item Name" },
-    { key: "subCategory", label: "Sub Category" },
-    { key: "color", label: "Color" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "totalNoOfSheets", label: "No of Sheets" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remark" },
-  ];
-
-const warehouseCMdfColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "itemName", label: "Item Name" },
-    { key: "mdfType", label: "MDF Type" },
-    { key: "length", label: "Length" },
-    { key: "width", label: "Width" },
-    { key: "thickness", label: "Thickness" },
-    { key: "noOfLeaves", label: "No of Leaves" },
-    { key: "totalSqm", label: "SQM" },
-    { key: "totalSqf", label: "SQF" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "remark", label: "Remarks" },
-  ];
 
 const warehouseAVeneerColumnsWithQc = withQcStatusColumn(warehouseAVeneerColumns);
 const warehouseAPlywoodColumnsWithQc = withQcStatusColumn(warehouseAPlywoodColumns);

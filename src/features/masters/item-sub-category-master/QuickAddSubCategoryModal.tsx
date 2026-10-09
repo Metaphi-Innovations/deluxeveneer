@@ -13,12 +13,12 @@ import {
   Typography,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
-import { fetchItemCategoriesApi } from "../item-category-master/itemCategoryMasterApi";
+import { fetchItemCategoriesApi } from "../item-category-master/api/itemCategoryMasterApi";
 import {
   createItemSubCategoryApi,
   fetchItemSubCategoriesApi,
   syncItemSubCategoryMasterToStorage,
-} from "./itemSubCategoryMasterApi";
+} from "./api/itemSubCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 

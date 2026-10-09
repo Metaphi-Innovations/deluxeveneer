@@ -10,7 +10,7 @@ import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
-import { useDebouncedValue } from "../../shared/useDebouncedValue";
+import { useDebouncedValue } from "../../../query/useDebouncedValue";
 import {
   getOrderLineItems,
   useOrderRecords,

@@ -1,12 +1,12 @@
-import { fetchCurrenciesPaginated } from "../../masters/currency-master/currencyMasterApi";
-import { fetchGstsPaginated } from "../../masters/gst-master/gstMasterApi";
-import { fetchHsnsPaginated } from "../../masters/hsn-master/hsnMasterApi";
-import { fetchItemsPaginated } from "../../masters/item-name-master/itemMasterApi";
+import { fetchCurrenciesPaginated } from "../../masters/currency-master/api/currencyMasterApi";
+import { fetchGstsPaginated } from "../../masters/gst-master/api/gstMasterApi";
+import { fetchHsnsPaginated } from "../../masters/hsn-master/api/hsnMasterApi";
+import { fetchItemsPaginated } from "../../masters/item-name-master/api/itemMasterApi";
 import {
   getCachedSupplierMasterRows,
   refreshSupplierMasterCache,
 } from "../../masters/supplier-master/api/supplierMasterApi";
-import { fetchUnitsApi } from "../../masters/unit-master/unitMasterApi";
+import { fetchUnitsApi } from "../../masters/unit-master/api/unitMasterApi";
 import type { MasterRecord } from "../../masters/shared";
 import type {
   CreateInwardChargePayload,

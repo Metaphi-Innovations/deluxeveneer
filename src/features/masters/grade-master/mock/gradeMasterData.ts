@@ -1,1 +1,1 @@
-export { gradeMasterDefinition } from "../../shared/masterDefinitions";
+export { gradeMasterDefinition } from "../gradeMasterDefinition";

@@ -72,6 +72,14 @@ import {
 import type { WarehouseInventoryRow } from "../shared/warehouseTableData";
 import { IssueOrderDialog } from "../shared/IssueOrderDialog";
 import {
+  WarehouseBSectionTabs,
+  type WarehouseBInspectionTab,
+  type WarehouseBInventorySlug,
+  type WarehouseBSection,
+} from "../warehouse-b/WarehouseBSectionTabs";
+import { WarehouseBInspectionTable } from "../warehouse-b/tabs/WarehouseBInspectionTable";
+import { WarehouseBInventoryTable } from "../warehouse-b/tabs/WarehouseBInventoryTable";
+import {
   getWarehouseAInwardRows,
   subscribeWarehouseAInwardUpdates,
 } from "../shared/warehouseAInwardStore";
@@ -84,15 +92,6 @@ import {
   useOrderRecords,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
-
-type WarehouseBSection = "inspection" | "inventory";
-type WarehouseBInventorySlug =
-  | "mdf"
-  | "plywood"
-  | "raw-veneer"
-  | "veneer-blocks";
-type WarehouseBInspectionTab = "pending" | "done";
-type WarehouseBInspectionSlug = "veneer-blocks";
 
 const rawVeneerTabSelectOptions = ["All", "Purchase", "Production"] as const;
 
@@ -107,32 +106,6 @@ const rawVeneerTabLabelByValue: Record<WarehouseBRawVeneerTab, string> = {
   production: "Production",
   purchase: "Purchase",
 };
-
-const warehouseBInventoryTabs = [
-  { label: "Veneer Blocks", value: "veneer-blocks" },
-  { label: "Raw Veneer", value: "raw-veneer" },
-  { label: "Plywood", value: "plywood" },
-  { label: "MDF", value: "mdf" },
-] as const satisfies readonly {
-  label: string;
-  value: WarehouseBInventorySlug;
-}[];
-
-const warehouseBProcessTabs = [
-  { label: "Inventory", value: "issued" },
-  { label: "History", value: "history" },
-] as const satisfies readonly {
-  label: string;
-  value: InventoryProcessTab;
-}[];
-
-const warehouseBInspectionTabs = [
-  { label: "Inspection Pending", value: "pending" },
-  { label: "Inspection Done", value: "done" },
-] as const satisfies readonly {
-  label: string;
-  value: WarehouseBInspectionTab;
-}[];
 
 const inventoryDefinitions = {
   "veneer-blocks": veneerBlocksDefinition,
@@ -666,14 +639,16 @@ export function WarehouseBInventoryModulePage({
         warehouseName,
         warehouseRootPath,
       })}
-      processTabs={renderWarehouseBSectionTabs({
-        activeInventory,
-        activeInspectionTab,
-        activeProcessTab,
-        activeRawVeneerTab,
-        activeSection,
-        setSearchParams,
-      })}
+      processTabs={
+        <WarehouseBSectionTabs
+          activeInventory={activeInventory}
+          activeInspectionTab={activeInspectionTab}
+          activeProcessTab={activeProcessTab}
+          activeRawVeneerTab={activeRawVeneerTab}
+          activeSection={activeSection}
+          setSearchParams={setSearchParams}
+        />
+      }
       subtitle=" "
       title={warehouseName}
     >
@@ -876,16 +851,18 @@ export function WarehouseBInventoryModulePage({
         ) : null}
 
         {activeSection === "inventory" ? (
-          <EnterpriseDataTable
-            key={`${activeInventory}-${activeRawVeneerTab}-${activeProcessTab}`}
+          <WarehouseBInventoryTable
             actions={inventoryRowActions}
+            activeInventory={activeInventory}
+            activeProcessTab={activeProcessTab}
+            activeRawVeneerTab={activeRawVeneerTab}
+            canEdit={canEditWarehouseB}
+            canView={canViewWarehouseB}
             columns={activeInventoryColumns}
-            defaultRowsPerPage={10}
-            emptyStateLabel={`No ${activeDefinition.title.toLowerCase()} records are available for this tab.`}
+            emptyTitle={activeDefinition.title}
             onSelectionChange={setSelectedRows}
-            rows={canViewWarehouseB ? filteredInventoryRows : []}
+            rows={filteredInventoryRows}
             selectionResetKey={selectionResetKey}
-            selectable={activeProcessTab !== "history" && canEditWarehouseB}
             {...(activeDefinition.initialSort
               ? { initialSort: activeDefinition.initialSort }
               : {})}
@@ -893,21 +870,12 @@ export function WarehouseBInventoryModulePage({
         ) : null}
 
         {activeSection === "inspection" ? (
-          <EnterpriseDataTable
-            key={`warehouse-b-inspection-${activeInspectionTab}`}
+          <WarehouseBInspectionTable
             actions={inspectionRowActions}
+            activeInspectionTab={activeInspectionTab}
+            canView={canViewWarehouseB}
             columns={activeInspectionColumns}
-            defaultRowsPerPage={10}
-            initialSort={{ key: "inwardDate", direction: "desc" }}
-            rows={
-              activeInspectionTab === "pending"
-                ? canViewWarehouseB
-                  ? filteredInspectionRows
-                  : []
-                : canViewWarehouseB
-                  ? filteredInspectionRows
-                  : []
-            }
+            rows={filteredInspectionRows}
           />
         ) : null}
       </Stack>
@@ -916,92 +884,6 @@ export function WarehouseBInventoryModulePage({
   );
 }
 
-function renderWarehouseBSectionTabs({
-  activeInventory,
-  activeInspectionTab,
-  activeProcessTab,
-  activeRawVeneerTab,
-  activeSection,
-  setSearchParams,
-}: {
-  activeInventory: WarehouseBInventorySlug;
-  activeInspectionTab: WarehouseBInspectionTab;
-  activeProcessTab: InventoryProcessTab;
-  activeRawVeneerTab: WarehouseBRawVeneerTab;
-  activeSection: WarehouseBSection;
-  setSearchParams: ReturnType<typeof useSearchParams>[1];
-}) {
-  if (activeSection === "inspection") {
-    return (
-      <ModuleProcessTabs
-        onChange={(value) => {
-          setSearchParams(
-            {
-              section: "inspection",
-              ...(value === "pending" ? {} : { inspection: value }),
-            },
-            { replace: true },
-          );
-        }}
-        tabs={warehouseBInspectionTabs}
-        value={activeInspectionTab}
-      />
-    );
-  }
-
-  return (
-    <Stack
-      sx={(theme) => ({
-        gap: theme.spacing(0),
-      })}
-    >
-      <ModuleProcessTabs
-        onChange={(value) => {
-          setSearchParams(
-            value === "raw-veneer"
-              ? {
-                  section: "inventory",
-                  inventory: value,
-                  ...(activeProcessTab === "history" ? { tab: "history" } : {}),
-                }
-              : {
-                  section: "inventory",
-                  inventory: value,
-                  ...(activeProcessTab === "history" ? { tab: "history" } : {}),
-                },
-            { replace: true },
-          );
-        }}
-        tabs={warehouseBInventoryTabs}
-        value={activeInventory}
-      />
-
-      <ModuleProcessTabs
-        onChange={(value) => {
-          setSearchParams(
-            activeInventory === "raw-veneer"
-              ? {
-                  section: "inventory",
-                  inventory: activeInventory,
-                  ...(activeRawVeneerTab === "all"
-                    ? {}
-                    : { rawTab: activeRawVeneerTab }),
-                  ...(value === "history" ? { tab: value } : {}),
-                }
-              : {
-                  section: "inventory",
-                  inventory: activeInventory,
-                  ...(value === "history" ? { tab: value } : {}),
-                },
-            { replace: true },
-          );
-        }}
-        tabs={warehouseBProcessTabs}
-        value={activeProcessTab}
-      />
-    </Stack>
-  );
-}
 
 function getWarehouseBBreadcrumbs({
   activeDefinitionSlug,

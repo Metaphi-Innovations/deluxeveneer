@@ -1,1 +1,1 @@
-export { unitMasterDefinition } from "../../shared/masterDefinitions";
+export { unitMasterDefinition } from "../unitMasterDefinition";

@@ -1,8 +1,6 @@
-import {
-  UserManagementFormPage,
-  UserManagementListing,
-  UserManagementViewPage,
-} from "../shared";
+import { UserManagementFormPage } from "../form/UserManagementFormPage";
+import { UserManagementListing } from "../listing/UserManagementListing";
+import { UserManagementViewPage } from "../view/UserManagementViewPage";
 
 export function UserManagementPage() {
   return <UserManagementListing />;

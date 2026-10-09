@@ -14,8 +14,8 @@ import {
   Box,
 } from "@mui/material";
 import { X, Plus, Save } from "lucide-react";
-import { fetchHsnsApi } from "../hsn-master/hsnMasterApi";
-import { createItemCategoryApi, fetchItemCategoriesApi, syncItemCategoryMasterToStorage } from "./itemCategoryMasterApi";
+import { fetchHsnsApi } from "../hsn-master/api/hsnMasterApi";
+import { createItemCategoryApi, fetchItemCategoriesApi, syncItemCategoryMasterToStorage } from "./api/itemCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 

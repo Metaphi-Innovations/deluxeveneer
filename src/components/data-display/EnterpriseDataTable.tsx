@@ -162,6 +162,8 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
     onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+    /** Third click on the active column clears the sort instead of returning to ascending. */
+    onSortClear?: () => void;
   };
   /** When set with onColumnFiltersChange, filters are controlled (server-side). */
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
@@ -473,10 +475,15 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   }, []);
 
   const handleSort = (columnKey: keyof Row & string) => {
+    const sameColumn = sortConfig?.key === columnKey;
+
+    if (sorting?.onSortClear && sameColumn && sortConfig?.direction === "desc") {
+      sorting.onSortClear();
+      return;
+    }
+
     const nextDirection: EnterpriseTableSortDirection =
-      sortConfig?.key === columnKey && sortConfig.direction === "asc"
-        ? "desc"
-        : "asc";
+      sameColumn && sortConfig?.direction === "asc" ? "desc" : "asc";
 
     if (sorting) {
       sorting.onSortChange(columnKey, nextDirection);
