@@ -106,7 +106,7 @@ export function CutMasterListPage() {
   }, []);
 
   const handleSortChange = useCallback(
-    (nextSortBy: string, nextSortOrder: "asc" | "desc") => {
+    (nextSortBy: string | null, nextSortOrder: "asc" | "desc" | null) => {
       setSortBy(nextSortBy);
       setSortOrder(nextSortOrder);
       setPage(1);

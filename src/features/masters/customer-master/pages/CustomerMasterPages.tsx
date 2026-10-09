@@ -196,7 +196,7 @@ export function CustomerMasterListPage() {
   }, []);
 
   const handleSortChange = useCallback(
-    (nextSortBy: string, nextSortOrder: "asc" | "desc") => {
+    (nextSortBy: string | null, nextSortOrder: "asc" | "desc" | null) => {
       setSortBy(nextSortBy);
       setSortOrder(nextSortOrder);
       setPage(1);

@@ -98,7 +98,7 @@ export function CurrencyMasterListPage() {
 
   const handleSearchChange = useCallback((value: string) => { setSearchValue(value); setPage(1); }, []);
   const handleRowsPerPageChange = useCallback((nextRowsPerPage: number) => { setRowsPerPage(nextRowsPerPage); setPage(1); }, []);
-  const handleSortChange = useCallback((nextSortBy: string, nextSortOrder: "asc" | "desc") => { setSortBy(nextSortBy); setSortOrder(nextSortOrder); setPage(1); }, []);
+  const handleSortChange = useCallback((nextSortBy: string | null, nextSortOrder: "asc" | "desc" | null) => { setSortBy(nextSortBy); setSortOrder(nextSortOrder); setPage(1); }, []);
   const handleColumnFiltersChange = useCallback((nextFilters: Partial<Record<string, ColumnFilterValue>>) => { setColumnFilters(nextFilters); setPage(1); }, []);
 
   return (

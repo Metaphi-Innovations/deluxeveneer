@@ -51,7 +51,7 @@ interface MasterListingPageProps {
   sorting?: {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+    onSortChange: (sortBy: string | null, sortOrder: "asc" | "desc" | null) => void;
   };
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
   onColumnFiltersChange?: (
@@ -206,29 +206,23 @@ export function MasterListingPage({
           pt: theme.spacing(0.5),
         })}
       >
-        {loading && sourceRows.length === 0 ? (
-          <ContentLoader
-            label="Loading..."
-            minHeight={220}
-          />
-        ) : (
-          <MasterTable
-            canChangeStatus={canEdit}
-            canEdit={canEdit}
-            canView={canView}
-            columns={localDefinition.columns}
-            getEditPath={paths.edit}
-            getViewPath={paths.view}
-            onStatusChange={handleStatusChange}
-            {...(pagination ? { pagination } : {})}
-            {...(sorting ? { sorting } : {})}
-            {...(columnFilters ? { columnFilters } : {})}
-            {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
-            {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
-            {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
-            rows={canView ? filteredRows : []}
-          />
-        )}
+        <MasterTable
+          canChangeStatus={canEdit}
+          canEdit={canEdit}
+          canView={canView}
+          columns={localDefinition.columns}
+          getEditPath={paths.edit}
+          getViewPath={paths.view}
+          onStatusChange={handleStatusChange}
+          loading={loading}
+          {...(pagination ? { pagination } : {})}
+          {...(sorting ? { sorting } : {})}
+          {...(columnFilters ? { columnFilters } : {})}
+          {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
+          {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
+          {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
+          rows={canView ? filteredRows : []}
+        />
       </Stack>
     </MasterPageShell>
   );

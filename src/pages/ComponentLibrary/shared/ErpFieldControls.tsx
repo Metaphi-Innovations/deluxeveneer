@@ -53,6 +53,7 @@ export type ErpSelectFieldProps = BaseFieldProps & {
   maxVisibleOptions?: number | undefined;
   onChange: (value: string) => void;
   options: ReadonlyArray<string>;
+  renderBottomAction?: ((helpers: { close: () => void }) => ReactNode) | undefined;
   searchable?: boolean;
   value: string;
 };
@@ -618,6 +619,7 @@ export function ErpSelectField({
   onChange,
   options,
   placeholder,
+  renderBottomAction,
   searchable = true,
   size = "regular",
   state = "default",
@@ -914,6 +916,18 @@ export function ErpSelectField({
                 </MenuItem>
               ) : null}
             </Box>
+
+            {renderBottomAction ? (
+              <Box
+                sx={{
+                  borderTop: `1px solid ${theme.customTokens.borders.divider}`,
+                  p: 0.5,
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                }}
+              >
+                {renderBottomAction({ close: () => setAnchorEl(null) })}
+              </Box>
+            ) : null}
           </Paper>
         </Popper>
       </Stack>

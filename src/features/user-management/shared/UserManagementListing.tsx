@@ -12,6 +12,7 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
+  LinearProgress,
   MenuItem,
   Select,
   Stack,
@@ -86,7 +87,10 @@ import { useDebouncedValue } from "../../../query/useDebouncedValue";
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100, 200] as const;
 
 type ColumnFilterKey =
+  | "user"
   | "department"
+  | "email"
+  | "phone"
   | "status"
   | "createdBy"
   | "updatedBy";
@@ -96,7 +100,6 @@ type SortColumnKey =
   | "department"
   | "email"
   | "phone"
-  | "remarks"
   | "status"
   | "createdBy"
   | "updatedBy";
@@ -116,7 +119,10 @@ export function UserManagementListing() {
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
   const [searchValue, setSearchValue] = useState("");
+  const [userFilter, setUserFilter] = useState<string[]>([]);
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
+  const [emailFilter, setEmailFilter] = useState<string[]>([]);
+  const [phoneFilter, setPhoneFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [createdByFilter, setCreatedByFilter] = useState<string[]>([]);
   const [updatedByFilter, setUpdatedByFilter] = useState<string[]>([]);
@@ -142,7 +148,7 @@ export function UserManagementListing() {
   const rows = listQuery.data?.items ?? [];
   const totalCount = listQuery.data?.pagination.total ?? 0;
   const totalPages = Math.max(1, listQuery.data?.pagination.totalPages ?? 1);
-  const isLoading = listQuery.isLoading;
+  const isLoading = listQuery.isLoading || listQuery.isFetching;
   const errorMessage =
     actionError ||
     (listQuery.error instanceof Error ? listQuery.error.message : "");
@@ -169,18 +175,51 @@ export function UserManagementListing() {
   const [activeColumnFilter, setActiveColumnFilter] =
     useState<ColumnFilterKey | null>(null);
 
+  const userOptions = useMemo(
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => getUserDisplayName(row)),
+      ),
+    [rows],
+  );
+
   const departmentOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.department)),
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => row.department),
+      ),
+    [rows],
+  );
+
+  const emailOptions = useMemo(
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => row.email),
+      ),
+    [rows],
+  );
+
+  const phoneOptions = useMemo(
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => row.phoneNo),
+      ),
     [rows],
   );
 
   const createdByOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.createdBy)),
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => row.createdBy),
+      ),
     [rows],
   );
 
   const updatedByOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.updatedBy)),
+    () =>
+      getUniqueSortedValues(
+        rows.map((row: UserManagementRecord) => row.updatedBy),
+      ),
     [rows],
   );
 
@@ -197,10 +236,31 @@ export function UserManagementListing() {
   };
 
   const filteredRows = useMemo(() => {
-    const list = rows.filter((row) => {
+    const list = rows.filter((row: UserManagementRecord) => {
+      if (
+        userFilter.length > 0 &&
+        !userFilter.includes(getUserDisplayName(row))
+      ) {
+        return false;
+      }
+
       if (
         departmentFilter.length > 0 &&
         !departmentFilter.includes(row.department)
+      ) {
+        return false;
+      }
+
+      if (
+        emailFilter.length > 0 &&
+        !emailFilter.includes(row.email)
+      ) {
+        return false;
+      }
+
+      if (
+        phoneFilter.length > 0 &&
+        !phoneFilter.includes(row.phoneNo)
       ) {
         return false;
       }
@@ -259,11 +319,6 @@ export function UserManagementListing() {
             rightVal = (right.phoneNo || "").toLowerCase();
             break;
           }
-          case "remarks": {
-            leftVal = (left.remarks || "").toLowerCase();
-            rightVal = (right.remarks || "").toLowerCase();
-            break;
-          }
           case "status": {
             leftVal = left.isActive ? 1 : 0;
             rightVal = right.isActive ? 1 : 0;
@@ -306,17 +361,23 @@ export function UserManagementListing() {
   }, [
     createdByFilter,
     departmentFilter,
+    emailFilter,
+    phoneFilter,
     rows,
     sortConfig,
     statusFilter,
     updatedByFilter,
+    userFilter,
   ]);
 
   useEffect(() => {
     setPage(1);
   }, [
     searchValue,
+    userFilter,
     departmentFilter,
+    emailFilter,
+    phoneFilter,
     statusFilter,
     createdByFilter,
     updatedByFilter,
@@ -360,11 +421,31 @@ export function UserManagementListing() {
       : []),
   ];
 
-  const safePage = Math.min(page, totalPages);
-  const currentPageRows = canView ? filteredRows : [];
-  const visiblePaginationPages = getVisiblePaginationPages(totalPages);
-  const rangeStart = totalCount === 0 ? 0 : (safePage - 1) * rowsPerPage + 1;
-  const rangeEnd = Math.min(safePage * rowsPerPage, totalCount);
+  const activeColumnFilterCount =
+    (userFilter.length > 0 ? 1 : 0) +
+    (departmentFilter.length > 0 ? 1 : 0) +
+    (emailFilter.length > 0 ? 1 : 0) +
+    (phoneFilter.length > 0 ? 1 : 0) +
+    (statusFilter.length > 0 ? 1 : 0) +
+    (createdByFilter.length > 0 ? 1 : 0) +
+    (updatedByFilter.length > 0 ? 1 : 0);
+
+  const effectiveTotalCount =
+    activeColumnFilterCount > 0 ? filteredRows.length : totalCount;
+  const effectiveTotalPages = Math.max(
+    1,
+    Math.ceil(effectiveTotalCount / rowsPerPage),
+  );
+  const safePage = Math.min(page, effectiveTotalPages);
+  const pageStartIndex = (safePage - 1) * rowsPerPage;
+  const currentPageRows = canView
+    ? activeColumnFilterCount > 0
+      ? filteredRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
+      : filteredRows
+    : [];
+  const visiblePaginationPages = getVisiblePaginationPages(effectiveTotalPages);
+  const rangeStart = effectiveTotalCount === 0 ? 0 : pageStartIndex + 1;
+  const rangeEnd = Math.min(pageStartIndex + currentPageRows.length, effectiveTotalCount);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -505,20 +586,39 @@ export function UserManagementListing() {
     setActiveActionRowId(null);
   };
 
-  const activeColumnFilterCount =
-    (departmentFilter.length > 0 ? 1 : 0) +
-    (statusFilter.length > 0 ? 1 : 0) +
-    (createdByFilter.length > 0 ? 1 : 0) +
-    (updatedByFilter.length > 0 ? 1 : 0);
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveColumnFilterChip[] = [];
+
+    if (userFilter.length > 0) {
+      chips.push({
+        columnKey: "user",
+        columnLabel: "User",
+        filter: { type: "multiSelect", values: userFilter },
+      });
+    }
 
     if (departmentFilter.length > 0) {
       chips.push({
         columnKey: "department",
         columnLabel: "Department",
         filter: { type: "multiSelect", values: departmentFilter },
+      });
+    }
+
+    if (emailFilter.length > 0) {
+      chips.push({
+        columnKey: "email",
+        columnLabel: "Email",
+        filter: { type: "multiSelect", values: emailFilter },
+      });
+    }
+
+    if (phoneFilter.length > 0) {
+      chips.push({
+        columnKey: "phone",
+        columnLabel: "Phone",
+        filter: { type: "multiSelect", values: phoneFilter },
       });
     }
 
@@ -552,7 +652,15 @@ export function UserManagementListing() {
     }
 
     return chips;
-  }, [createdByFilter, departmentFilter, statusFilter, updatedByFilter]);
+  }, [
+    createdByFilter,
+    departmentFilter,
+    emailFilter,
+    phoneFilter,
+    statusFilter,
+    updatedByFilter,
+    userFilter,
+  ]);
 
   const handleOpenColumnFilter = (
     columnKey: ColumnFilterKey,
@@ -569,17 +677,35 @@ export function UserManagementListing() {
   };
 
   const handleClearAllFilters = () => {
+    setUserFilter([]);
     setDepartmentFilter([]);
+    setEmailFilter([]);
+    setPhoneFilter([]);
     setStatusFilter([]);
     setCreatedByFilter([]);
     setUpdatedByFilter([]);
     handleCloseColumnFilter();
   };
 
+  const userFilterOptions = useMemo(
+    () => userOptions.map((option) => ({ value: option, label: option })),
+    [userOptions],
+  );
+
   const departmentFilterOptions = useMemo(
     () =>
       departmentOptions.map((option) => ({ value: option, label: option })),
     [departmentOptions],
+  );
+
+  const emailFilterOptions = useMemo(
+    () => emailOptions.map((option) => ({ value: option, label: option })),
+    [emailOptions],
+  );
+
+  const phoneFilterOptions = useMemo(
+    () => phoneOptions.map((option) => ({ value: option, label: option })),
+    [phoneOptions],
   );
 
   const createdByFilterOptions = useMemo(
@@ -603,47 +729,77 @@ export function UserManagementListing() {
   );
 
   const activeFilterConfig =
-    activeColumnFilter === "department"
+    activeColumnFilter === "user"
       ? {
-          label: "Department",
-          options: departmentFilterOptions,
-          selectedValues: departmentFilter,
+          label: "User",
+          options: userFilterOptions,
+          selectedValues: userFilter,
           searchable: true,
           searchPlaceholder: "Search values...",
-          onApply: setDepartmentFilter,
-          onClear: () => setDepartmentFilter([]),
+          onApply: setUserFilter,
+          onClear: () => setUserFilter([]),
         }
-      : activeColumnFilter === "status"
+      : activeColumnFilter === "department"
         ? {
-            label: "Status",
-            options: statusFilterOptions,
-            selectedValues: statusFilter,
+            label: "Department",
+            options: departmentFilterOptions,
+            selectedValues: departmentFilter,
             searchable: true,
             searchPlaceholder: "Search values...",
-            onApply: setStatusFilter,
-            onClear: () => setStatusFilter([]),
+            onApply: setDepartmentFilter,
+            onClear: () => setDepartmentFilter([]),
           }
-        : activeColumnFilter === "createdBy"
+        : activeColumnFilter === "email"
           ? {
-              label: "Created By",
-              options: createdByFilterOptions,
-              selectedValues: createdByFilter,
+              label: "Email",
+              options: emailFilterOptions,
+              selectedValues: emailFilter,
               searchable: true,
               searchPlaceholder: "Search values...",
-              onApply: setCreatedByFilter,
-              onClear: () => setCreatedByFilter([]),
+              onApply: setEmailFilter,
+              onClear: () => setEmailFilter([]),
             }
-          : activeColumnFilter === "updatedBy"
+          : activeColumnFilter === "phone"
             ? {
-                label: "Updated By",
-                options: updatedByFilterOptions,
-                selectedValues: updatedByFilter,
+                label: "Phone",
+                options: phoneFilterOptions,
+                selectedValues: phoneFilter,
                 searchable: true,
                 searchPlaceholder: "Search values...",
-                onApply: setUpdatedByFilter,
-                onClear: () => setUpdatedByFilter([]),
+                onApply: setPhoneFilter,
+                onClear: () => setPhoneFilter([]),
               }
-            : null;
+            : activeColumnFilter === "status"
+              ? {
+                  label: "Status",
+                  options: statusFilterOptions,
+                  selectedValues: statusFilter,
+                  searchable: true,
+                  searchPlaceholder: "Search values...",
+                  onApply: setStatusFilter,
+                  onClear: () => setStatusFilter([]),
+                }
+              : activeColumnFilter === "createdBy"
+                ? {
+                    label: "Created By",
+                    options: createdByFilterOptions,
+                    selectedValues: createdByFilter,
+                    searchable: true,
+                    searchPlaceholder: "Search values...",
+                    onApply: setCreatedByFilter,
+                    onClear: () => setCreatedByFilter([]),
+                  }
+                : activeColumnFilter === "updatedBy"
+                  ? {
+                      label: "Updated By",
+                      options: updatedByFilterOptions,
+                      selectedValues: updatedByFilter,
+                      searchable: true,
+                      searchPlaceholder: "Search values...",
+                      onApply: setUpdatedByFilter,
+                      onClear: () => setUpdatedByFilter([]),
+                    }
+                  : null;
 
   return (
     <MasterPageShell
@@ -698,26 +854,10 @@ export function UserManagementListing() {
         <Alert severity="success">{passwordSuccessMessage}</Alert>
       ) : null}
 
-      {activeColumnFilterCount > 0 ? (
-        <ActiveColumnFiltersBar
-          filters={activeFilterChips}
-          onClearAll={handleClearAllFilters}
-          onRemove={(columnKey) => {
-            if (columnKey === "department") {
-              setDepartmentFilter([]);
-            } else if (columnKey === "status") {
-              setStatusFilter([]);
-            } else if (columnKey === "createdBy") {
-              setCreatedByFilter([]);
-            } else if (columnKey === "updatedBy") {
-              setUpdatedByFilter([]);
-            }
-          }}
-        />
-      ) : null}
 
       <Box
         sx={{
+          position: "relative",
           border: `1px solid ${theme.customTokens.borders.default}`,
           borderRadius: `${theme.customTokens.radius.md}px`,
           overflow: "hidden",
@@ -725,6 +865,22 @@ export function UserManagementListing() {
           boxShadow: theme.customTokens.elevation.xs,
         }}
       >
+        {isLoading ? (
+          <LinearProgress
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 10,
+              height: 3,
+              backgroundColor: theme.customTokens.surfaces.alt,
+              "& .MuiLinearProgress-bar": {
+                backgroundColor: theme.customTokens.brand.primary,
+              },
+            }}
+          />
+        ) : null}
         <TableContainer
           sx={{
             overflowX: "auto",
@@ -750,6 +906,10 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="User"
+                    selectedCount={userFilter.length}
+                    onOpen={(event) =>
+                      handleOpenColumnFilter("user", event)
+                    }
                     sortActive={sortConfig?.key === "user"}
                     sortDirection={sortConfig?.direction}
                     onSort={() => handleSort("user")}
@@ -782,6 +942,10 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="Email"
+                    selectedCount={emailFilter.length}
+                    onOpen={(event) =>
+                      handleOpenColumnFilter("email", event)
+                    }
                     sortActive={sortConfig?.key === "email"}
                     sortDirection={sortConfig?.direction}
                     onSort={() => handleSort("email")}
@@ -796,6 +960,10 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="Phone"
+                    selectedCount={phoneFilter.length}
+                    onOpen={(event) =>
+                      handleOpenColumnFilter("phone", event)
+                    }
                     sortActive={sortConfig?.key === "phone"}
                     sortDirection={sortConfig?.direction}
                     onSort={() => handleSort("phone")}
@@ -810,9 +978,6 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="Remarks"
-                    sortActive={sortConfig?.key === "remarks"}
-                    sortDirection={sortConfig?.direction}
-                    onSort={() => handleSort("remarks")}
                   />
                 </TableCell>
 

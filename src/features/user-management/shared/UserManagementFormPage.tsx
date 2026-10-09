@@ -86,10 +86,7 @@ const IDENTITY_DOCUMENT_FIELD_KEYS = [
 
 const ADDITIONAL_FIELD_KEYS = ["remarks"] as const;
 
-const STEPPER_STEPS: { id: WorkflowStep; label: string }[] = [
-  { id: "basic", label: "Basic Details" },
-  { id: "permissions", label: "Permissions" },
-];
+
 
 export function UserManagementFormPage({
   mode,
@@ -675,18 +672,10 @@ export function UserManagementFormPage({
           <ContentLoader label="Loading..." minHeight={240} />
         ) : canUseMode ? (
           <Stack spacing={2}>
-            {mode === "add" ? (
-              <WorkflowStepper
-                activeStep={activeStep}
-                onSelect={handleSectionSelect}
-                steps={STEPPER_STEPS}
-              />
-            ) : (
-              <SectionTabs
-                activeStep={activeStep}
-                onSelect={handleSectionSelect}
-              />
-            )}
+            <SectionTabs
+              activeStep={activeStep}
+              onSelect={handleSectionSelect}
+            />
 
             {activeStep === "permissions" ? (
               <UserPermissionMatrix
@@ -916,89 +905,7 @@ export function UserManagementFormPage({
   );
 }
 
-function WorkflowStepper({
-  activeStep,
-  onSelect,
-  steps,
-}: {
-  activeStep: WorkflowStep;
-  onSelect: (step: WorkflowStep) => void;
-  steps: { id: WorkflowStep; label: string }[];
-}) {
-  const theme = useTheme();
 
-  return (
-    <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
-      {steps.map((step, index) => {
-        const isActive = step.id === activeStep;
-        const isComplete =
-          step.id === "basic" ? activeStep === "permissions" : false;
-
-        return (
-          <Stack key={step.id} direction="row" alignItems="center" spacing={1}>
-            {index > 0 ? (
-              <Box
-                sx={{
-                  width: 20,
-                  height: 1,
-                  backgroundColor: theme.customTokens.borders.default,
-                }}
-              />
-            ) : null}
-            <Box
-              component="button"
-              type="button"
-              onClick={() => onSelect(step.id)}
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.75,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                p: 0,
-              }}
-            >
-              <Box
-                sx={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: "999px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  backgroundColor:
-                    isActive || isComplete
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.neutrals[100],
-                  color:
-                    isActive || isComplete
-                      ? "#FFFFFF"
-                      : theme.customTokens.text.secondary,
-                }}
-              >
-                {index + 1}
-              </Box>
-              <Typography
-                sx={{
-                  fontSize: "0.875rem",
-                  fontWeight: isActive ? 600 : 500,
-                  color: isActive
-                    ? theme.customTokens.text.primary
-                    : theme.customTokens.text.secondary,
-                }}
-              >
-                {step.label}
-              </Typography>
-            </Box>
-          </Stack>
-        );
-      })}
-    </Stack>
-  );
-}
 
 function SectionTabs({
   activeStep,

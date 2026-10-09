@@ -161,53 +161,22 @@ export function UserPermissionMatrix({
         overflow: "hidden",
       }}
     >
-      <Box sx={{ px: 2, pt: 2, pb: 1.5 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "stretch", sm: "flex-start" }}
-          spacing={1.25}
-        >
-          <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-            <Stack direction="row" alignItems="baseline" spacing={1}>
-              <Typography
-                sx={{
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  color: theme.customTokens.text.primary,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Permissions
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: "0.75rem",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                {totals.total} enabled
-              </Typography>
-            </Stack>
-            <Typography
-              sx={{
-                fontSize: "0.8125rem",
-                color: theme.customTokens.text.secondary,
-              }}
-            >
-              {readOnly
-                ? "Access currently assigned to this user."
-                : "Configure what this user can access."}
-            </Typography>
-          </Stack>
-        </Stack>
-
+      <Box
+        sx={{
+          px: 2,
+          py: 1.25,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+        }}
+      >
         <Stack
           direction="row"
           flexWrap="wrap"
           useFlexGap
           spacing={0.75}
-          sx={{ mt: 1.5 }}
+          sx={{ flex: 1, minWidth: 0 }}
         >
           {permissionSections.map((section) => {
             const selected = section.id === selectedSection?.id;
@@ -270,55 +239,49 @@ export function UserPermissionMatrix({
             );
           })}
         </Stack>
-      </Box>
 
-      <Box
-        sx={{
-          px: 2,
-          py: 1.25,
-          borderTop: `1px solid ${theme.customTokens.borders.divider}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          flexWrap: "wrap",
-        }}
-      >
-        <Stack spacing={0.15}>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              color: theme.customTokens.text.primary,
-            }}
-          >
-            {selectedSection?.label ?? "Permissions"}
-          </Typography>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 228,
+            flexShrink: 0,
+            gap: 1,
+          }}
+        >
           <Typography
             sx={{
               fontSize: "0.75rem",
-              color: theme.customTokens.text.secondary,
+              fontWeight: 600,
+              color: theme.customTokens.brand.primary,
+              backgroundColor: theme.customTokens.brand.primaryScale[50],
+              border: `1px solid ${theme.customTokens.brand.primaryScale[200]}`,
+              borderRadius: "999px",
+              px: 1.5,
+              py: 0.35,
+              lineHeight: 1.2,
+              textAlign: "center",
             }}
           >
-            {filteredItems.length} module
-            {filteredItems.length === 1 ? "" : "s"}
+            {totals.total} enabled
           </Typography>
-        </Stack>
 
-        {readOnly ? (
-          <Stack direction="row" spacing={0.75}>
-            <FilterChip
-              label="Granted Only"
-              selected={viewFilter === "granted"}
-              onClick={() => setViewFilter("granted")}
-            />
-            <FilterChip
-              label="All"
-              selected={viewFilter === "all"}
-              onClick={() => setViewFilter("all")}
-            />
-          </Stack>
-        ) : null}
+          {readOnly ? (
+            <Stack direction="row" spacing={0.75}>
+              <FilterChip
+                label="Granted Only"
+                selected={viewFilter === "granted"}
+                onClick={() => setViewFilter("granted")}
+              />
+              <FilterChip
+                label="All"
+                selected={viewFilter === "all"}
+                onClick={() => setViewFilter("all")}
+              />
+            </Stack>
+          ) : null}
+        </Box>
       </Box>
 
       <Box

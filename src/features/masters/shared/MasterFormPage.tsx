@@ -35,12 +35,13 @@ import {
 } from "./utils";
 
 interface MasterFormPageProps {
-  additionalValues?: Record<string, MasterFieldValue>;
+  additionalValues?: Record<string, MasterFieldValue> | undefined;
   afterFields?: ReactNode;
   beforeSave?: () => boolean;
   cancelTo?: string;
   definition: MasterDefinition;
   errorMessage?: string;
+  fieldActions?: Partial<Record<string, ReactNode>> | undefined;
   loading?: boolean;
   mode: "add" | "edit" | "view";
   /** When provided, used instead of looking up the row from local mock store. */
@@ -91,6 +92,7 @@ export function MasterFormPage({
   cancelTo,
   definition,
   errorMessage = "",
+  fieldActions,
   loading = false,
   mode,
   onFieldChange,
@@ -404,6 +406,7 @@ export function MasterFormPage({
           <MasterFormFields
             compact
             definition={formDefinition}
+            fieldActions={fieldActions}
             onChange={handleFieldChange}
             presentation={mode === "view" ? "details" : "form"}
             readOnly={mode === "view"}

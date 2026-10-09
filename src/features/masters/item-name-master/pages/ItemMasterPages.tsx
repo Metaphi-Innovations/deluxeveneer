@@ -27,6 +27,10 @@ import { fetchItemSubCategoriesApi } from "../../item-sub-category-master/itemSu
 import { fetchHsnsApi } from "../../hsn-master/hsnMasterApi";
 import { fetchColorsApi } from "../../color-master/colorMasterApi";
 import { fetchUnitsApi } from "../../unit-master/unitMasterApi";
+import { QuickAddCategoryModal } from "../../item-category-master/QuickAddCategoryModal";
+import { QuickAddSubCategoryModal } from "../../item-sub-category-master/QuickAddSubCategoryModal";
+import { Plus } from "lucide-react";
+import { Button } from "@mui/material";
 
 const ITEM_SORT_FIELD_MAP: Record<string, string> = {
   itemName: "name",
@@ -120,7 +124,7 @@ export function ItemMasterListPage() {
   }, []);
 
   const handleSortChange = useCallback(
-    (nextSortBy: string, nextSortOrder: "asc" | "desc") => {
+    (nextSortBy: string | null, nextSortOrder: "asc" | "desc" | null) => {
       setSortBy(nextSortBy);
       setSortOrder(nextSortOrder);
       setPage(1);
@@ -255,7 +259,39 @@ function useItemFormOptions(selectedCategory?: string) {
       .catch(() => {});
   }, []);
 
-  // Update sub-category options when selectedCategory or allSubCategoryRows changes
+  const loadCategories = useCallback(() => {
+    fetchItemCategoriesApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const names = active
+          .map((r) => String(r.categoryName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setCategoryOptions([...new Set(names)]);
+        const normalizedCategoryRows = active.map((r) => ({
+          ...r,
+          categoryName: r.categoryName || r.name || "",
+          name: r.name || r.categoryName || "",
+          hsnCode: r.hsnCode || r.hsn || "",
+          hsn: r.hsn || r.hsnCode || "",
+        }));
+        setCategoryRows(normalizedCategoryRows);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadSubCategories = useCallback(() => {
+    fetchItemSubCategoriesApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        setAllSubCategoryRows(active);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     const filtered = selectedCategory
       ? allSubCategoryRows.filter((r) => {
@@ -279,6 +315,10 @@ function useItemFormOptions(selectedCategory?: string) {
     hsnRows,
     colorOptions,
     unitOptions,
+    loadCategories,
+    loadSubCategories,
+    setCategoryOptions,
+    setSubCategoryOptions,
   };
 }
 
@@ -291,15 +331,81 @@ function buildItemDefinition(
   hsnRows: MasterRecord[],
   colorOptions: string[],
   unitOptions: string[],
+  callbacks?: {
+    onQuickAddCategory?: () => void;
+    onQuickAddSubCategory?: () => void;
+  },
 ): MasterDefinition {
   return {
     ...base,
     fields: base.fields.map((field) => {
-      if (field.key === "category" && categoryOptions.length) {
-        return { ...field, options: categoryOptions };
+      if (field.key === "category") {
+        return {
+          ...field,
+          options: categoryOptions,
+          ...(callbacks?.onQuickAddCategory
+            ? {
+                renderDropdownAction: ({ close }) => (
+                  <Button
+                    fullWidth
+                    size="small"
+                    startIcon={<Plus size={14} />}
+                    onClick={() => {
+                      close();
+                      callbacks.onQuickAddCategory?.();
+                    }}
+                    sx={(theme) => ({
+                      justifyContent: "flex-start",
+                      fontSize: "0.8125rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.brand.primary,
+                      py: 0.5,
+                      px: 1,
+                      "&:hover": {
+                        backgroundColor: theme.customTokens.navigation.hoverBackground,
+                      },
+                    })}
+                  >
+                    + Quick Add Category
+                  </Button>
+                ),
+              }
+            : {}),
+        };
       }
       if (field.key === "subCategory") {
-        return { ...field, options: subCategoryOptions };
+        return {
+          ...field,
+          options: subCategoryOptions,
+          ...(callbacks?.onQuickAddSubCategory
+            ? {
+                renderDropdownAction: ({ close }) => (
+                  <Button
+                    fullWidth
+                    size="small"
+                    startIcon={<Plus size={14} />}
+                    onClick={() => {
+                      close();
+                      callbacks.onQuickAddSubCategory?.();
+                    }}
+                    sx={(theme) => ({
+                      justifyContent: "flex-start",
+                      fontSize: "0.8125rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.brand.primary,
+                      py: 0.5,
+                      px: 1,
+                      "&:hover": {
+                        backgroundColor: theme.customTokens.navigation.hoverBackground,
+                      },
+                    })}
+                  >
+                    + Quick Add Sub-Category
+                  </Button>
+                ),
+              }
+            : {}),
+        };
       }
       if (field.key === "color" && colorOptions.length) {
         return { ...field, options: colorOptions };
@@ -348,6 +454,10 @@ function buildItemDefinition(
 
 export function AddItemMasterPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>("");
+  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
+  const [quickAddSubCategoryOpen, setQuickAddSubCategoryOpen] = useState(false);
+
   const {
     categoryOptions,
     categoryRows,
@@ -356,6 +466,10 @@ export function AddItemMasterPage() {
     hsnRows,
     colorOptions,
     unitOptions,
+    loadCategories,
+    loadSubCategories,
+    setCategoryOptions,
+    setSubCategoryOptions,
   } = useItemFormOptions(selectedCategory);
 
   const definition = useMemo(
@@ -369,6 +483,10 @@ export function AddItemMasterPage() {
         hsnRows,
         colorOptions,
         unitOptions,
+        {
+          onQuickAddCategory: () => setQuickAddCategoryOpen(true),
+          onQuickAddSubCategory: () => setQuickAddSubCategoryOpen(true),
+        },
       ),
     [
       categoryOptions,
@@ -463,17 +581,46 @@ export function AddItemMasterPage() {
     }
   };
 
+  const additionalValues = useMemo(() => {
+    const vals: Record<string, string> = {};
+    if (selectedCategory) vals.category = selectedCategory;
+    if (selectedSubCategory) vals.subCategory = selectedSubCategory;
+    return Object.keys(vals).length > 0 ? vals : undefined;
+  }, [selectedCategory, selectedSubCategory]);
+
   return (
-    <MasterFormPage
-      definition={definition}
-      mode="add"
-      onSave={handleSave}
-      onFieldChange={(key, value) => {
-        if (key === "category" && typeof value === "string") {
-          setSelectedCategory(value);
-        }
-      }}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={additionalValues}
+        definition={definition}
+        mode="add"
+        onSave={handleSave}
+        onFieldChange={(key, value) => {
+          if (key === "category" && typeof value === "string") {
+            setSelectedCategory(value);
+          }
+        }}
+      />
+      <QuickAddCategoryModal
+        open={quickAddCategoryOpen}
+        onClose={() => setQuickAddCategoryOpen(false)}
+        onSuccess={(newCat) => {
+          setCategoryOptions((prev) => [...new Set([newCat, ...prev])]);
+          setSelectedCategory(newCat);
+          loadCategories();
+        }}
+      />
+      <QuickAddSubCategoryModal
+        open={quickAddSubCategoryOpen}
+        defaultCategory={selectedCategory}
+        onClose={() => setQuickAddSubCategoryOpen(false)}
+        onSuccess={(newSubCat) => {
+          setSubCategoryOptions((prev) => [...new Set([newSubCat, ...prev])]);
+          setSelectedSubCategory(newSubCat);
+          loadSubCategories();
+        }}
+      />
+    </>
   );
 }
 
@@ -504,6 +651,10 @@ export function EditItemMasterPage() {
     }
   }, [id]);
 
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>("");
+  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
+  const [quickAddSubCategoryOpen, setQuickAddSubCategoryOpen] = useState(false);
+
   const {
     categoryOptions,
     categoryRows,
@@ -512,6 +663,10 @@ export function EditItemMasterPage() {
     hsnRows,
     colorOptions,
     unitOptions,
+    loadCategories,
+    loadSubCategories,
+    setCategoryOptions,
+    setSubCategoryOptions,
   } = useItemFormOptions(selectedCategory);
 
   const definition = useMemo(
@@ -525,6 +680,10 @@ export function EditItemMasterPage() {
         hsnRows,
         colorOptions,
         unitOptions,
+        {
+          onQuickAddCategory: () => setQuickAddCategoryOpen(true),
+          onQuickAddSubCategory: () => setQuickAddSubCategoryOpen(true),
+        },
       ),
     [
       categoryOptions,
@@ -617,19 +776,48 @@ export function EditItemMasterPage() {
     }
   };
 
+  const additionalValues = useMemo(() => {
+    const vals: Record<string, string> = {};
+    if (selectedCategory) vals.category = selectedCategory;
+    if (selectedSubCategory) vals.subCategory = selectedSubCategory;
+    return Object.keys(vals).length > 0 ? vals : undefined;
+  }, [selectedCategory, selectedSubCategory]);
+
   return (
-    <MasterFormPage
-      definition={definition}
-      mode="edit"
-      {...(record ? { record } : {})}
-      loading={isLoading}
-      onSave={handleSave}
-      onFieldChange={(key, value) => {
-        if (key === "category" && typeof value === "string") {
-          setSelectedCategory(value);
-        }
-      }}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={additionalValues}
+        definition={definition}
+        mode="edit"
+        {...(record ? { record } : {})}
+        loading={isLoading}
+        onSave={handleSave}
+        onFieldChange={(key, value) => {
+          if (key === "category" && typeof value === "string") {
+            setSelectedCategory(value);
+          }
+        }}
+      />
+      <QuickAddCategoryModal
+        open={quickAddCategoryOpen}
+        onClose={() => setQuickAddCategoryOpen(false)}
+        onSuccess={(newCat) => {
+          setCategoryOptions((prev) => [...new Set([newCat, ...prev])]);
+          setSelectedCategory(newCat);
+          loadCategories();
+        }}
+      />
+      <QuickAddSubCategoryModal
+        open={quickAddSubCategoryOpen}
+        defaultCategory={selectedCategory}
+        onClose={() => setQuickAddSubCategoryOpen(false)}
+        onSuccess={(newSubCat) => {
+          setSubCategoryOptions((prev) => [...new Set([newSubCat, ...prev])]);
+          setSelectedSubCategory(newSubCat);
+          loadSubCategories();
+        }}
+      />
+    </>
   );
 }
 
