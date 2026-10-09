@@ -8,6 +8,20 @@ export const groupingProcessDate = {
   label: "Grouping Date",
 } as const;
 
+export const groupingCreateSourceColumns = [
+  { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No", minWidth: 160 },
+  { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
+  { key: "subCategory", keys: ["subCategory", "itemSubCategory"], label: "Sub Category", minWidth: 160 },
+  { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
+  { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
+  { key: "thickness", keys: ["thickness", "height"], label: "Thickness", minWidth: 120 },
+  { key: "noOfLeaves", keys: ["noOfLeaves", "issuedLeafCount"], label: "No of Leaves", minWidth: 140 },
+  { key: "sqm", keys: ["sqm", "totalSqm"], label: "SQM", minWidth: 120 },
+  { key: "sqf", keys: ["sqf", "totalSqf"], label: "SQF", minWidth: 120 },
+  { key: "grade", keys: ["grade"], label: "Grade", minWidth: 120 },
+  { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
+];
+
 export const groupingHiddenSourceKeys = new Set([
   "orderNo",
   "orderItemNo",

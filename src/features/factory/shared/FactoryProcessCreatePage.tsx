@@ -51,6 +51,7 @@ import { dryingCreateLineItemFields, dryingCreateSourceColumns } from "../drying
 import { orderEmbossingCreateFields } from "../embossing/embossingCreateRules";
 import {
   applyGroupingCreateSnapshot,
+  groupingCreateSourceColumns,
   groupingHiddenSourceKeys,
   orderGroupingCreateFields,
   prependGroupingGroupNoField,
@@ -1191,6 +1192,10 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
     return dryingCreateSourceColumns;
   }
 
+  if (slug === "grouping") {
+    return groupingCreateSourceColumns;
+  }
+
   return sourceColumnDefinitions.filter((column) => {
     if (slug === "drying" && column.key === "remark") {
       return false;
@@ -1331,6 +1336,18 @@ function buildLineItemFields(
       const processExcludedKeys = new Set([
         "itemName",
         "itemSubCategory",
+        "ratePerSqf",
+        "amount",
+      ]);
+      return ordered.filter((field) => !processExcludedKeys.has(field.key));
+    }
+
+    if (slug === "grouping") {
+      const processExcludedKeys = new Set([
+        "bundleNumber",
+        "noOfBundle",
+        "palletNo",
+        "palletNumber",
         "ratePerSqf",
         "amount",
       ]);
