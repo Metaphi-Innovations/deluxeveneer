@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_NAME?: string;
   /** Optional. When "true", shows inward add autofill for testing. */
   readonly VITE_INWARD_AUTOFILL?: string;
+  /** Optional. When set, login prefills and signs in on open. */
+  readonly VITE_DEV_LOGIN_PASSWORD?: string;
 }
 
 interface ImportMeta {

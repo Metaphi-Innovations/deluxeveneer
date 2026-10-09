@@ -827,8 +827,6 @@ const slicingProcessDetailFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["noOfLeaves", "No of Leaves"],
-  ["cbm", "CBM"],
-  ["cbf", "CBF"],
   ["sqm", "SQM"],
   ["sqf", "SQF"],
   ["remark", "Remark"],
@@ -848,7 +846,7 @@ const sawingProcessDetailFields = [
 ] as const;
 
 
-const slicingDerivedAreaKeys = new Set(["cbm", "cbf", "sqm", "sqf"]);
+const slicingDerivedAreaKeys = new Set(["sqm", "sqf"]);
 
 function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
   return [

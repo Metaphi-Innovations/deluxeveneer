@@ -24,6 +24,11 @@ const envSchema = z.object({
   VITE_APP_NAME: z.string().default('Deluxe Veneers'),
   /** When true, shows "Autofill test data" on inward add forms. Default false if unset. */
   VITE_INWARD_AUTOFILL: z.boolean().default(false),
+  /**
+   * Optional local login password. When set, the login page fills the
+   * superadmin email with this password and signs in on open.
+   */
+  VITE_DEV_LOGIN_PASSWORD: z.string().default(""),
 });
 
 // Extract values from Vite import.meta.env
@@ -32,6 +37,7 @@ const envValues = {
   VITE_APP_ENV: import.meta.env.VITE_APP_ENV,
   VITE_APP_NAME: import.meta.env.VITE_APP_NAME,
   VITE_INWARD_AUTOFILL: parseOptionalEnvFlag(import.meta.env.VITE_INWARD_AUTOFILL),
+  VITE_DEV_LOGIN_PASSWORD: String(import.meta.env.VITE_DEV_LOGIN_PASSWORD ?? "").trim(),
 };
 
 const parsedEnv = envSchema.safeParse(envValues);

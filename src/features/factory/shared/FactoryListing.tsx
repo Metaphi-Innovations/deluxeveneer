@@ -73,6 +73,18 @@ import {
   getOriginalGroupedSheets,
   useGroupedStockSampleIssues,
 } from "./groupedStockIssueStore";
+import { DryingCreateDialog } from "../drying/DryingCreateDialog";
+import { DryingRejectDialog } from "../drying/DryingRejectDialog";
+import {
+  addDryingDoneItems,
+  adjustDryingDoneLeaves,
+  applyDryingListingRows,
+  dryingLeafArea,
+  dryingLeafCount,
+  revertDryingDoneToIssued,
+  updateDryingIssuedLeaves,
+  useDryingFlowState,
+} from "../drying/dryingFrontendStore";
 import { applySlicingListingRows, useSlicingFlowState } from "../slicing/slicingFrontendStore";
 import {
   factoryIssuedWorkToRow,
@@ -128,8 +140,12 @@ export function FactoryListing<Row extends FactoryRecord>({
 
   const [searchValue, setSearchValue] = useState("");
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
-  const [confirmRevertRow, setConfirmRevertRow] = useState<{ row: Row; type: "issued" | "rejected" } | null>(null);
+  const [confirmRevertRow, setConfirmRevertRow] = useState<{
+    row: Row;
+    type: "issued" | "rejected" | "drying-done";
+  } | null>(null);
   const [confirmIssueDryingOpen, setConfirmIssueDryingOpen] = useState(false);
+  const [issueDryingRows, setIssueDryingRows] = useState<Row[]>([]);
   const [confirmIssueInspectionOpen, setConfirmIssueInspectionOpen] = useState(false);
   const [rejectedDoneRows, setRejectedDoneRows] = useState<Row[]>([]);
   const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>([]);
@@ -171,6 +187,11 @@ export function FactoryListing<Row extends FactoryRecord>({
     useState<GroupingOrderIssueState<Row> | null>(null);
   const [dryingInspectionIssueRow, setDryingInspectionIssueRow] =
     useState<Row | null>(null);
+  const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
+  const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
+  const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
+  const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
+  const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] = useState<Row[]>([]);
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
     Record<string, { issuedLeaves: number; availableLeaves: number; status: "Pending" | "Partially Done" | "Done" }>
   >({});
@@ -181,6 +202,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const slicingFlowState = useSlicingFlowState();
+  const dryingFlowState = useDryingFlowState();
   const isGroupingModule = definition.slug === "grouping";
   const isInspectionModule =
     definition.slug === "inspection" ||
@@ -228,6 +250,8 @@ export function FactoryListing<Row extends FactoryRecord>({
     const rowsForTab =
       activeTab === "rejected"
         ? [...baseRowsForTab, ...rejectedDoneRows]
+        : definition.slug === "drying" && activeTab === "history"
+          ? [...dryingInspectionHistoryRows, ...baseRowsForTab]
         : isInspectionModule && activeTab === "issued"
           ? baseRowsForTab.filter((row) => {
             const tracking = inspectionTrackingMap[String(row.id)];
@@ -254,7 +278,8 @@ export function FactoryListing<Row extends FactoryRecord>({
       .filter(
         (row) =>
           !revertedRowIds.includes(row.id) &&
-          !(activeTab === "done" && rejectedDoneRowIds.has(row.id)),
+          !(activeTab === "done" && rejectedDoneRowIds.has(row.id)) &&
+          !(activeTab === "done" && dryingDoneRemovedIds.includes(row.id)),
       )
       .map((row) => {
         const sourceNormalizedRow = {
@@ -340,7 +365,13 @@ export function FactoryListing<Row extends FactoryRecord>({
           const origLeaves = Number(sourceNormalizedRow.noOfLeaves ?? sourceNormalizedRow.noOfSheets ?? 0) || 0;
           const tracking = dryingIssueStateMap[rowId];
           const issuedLeaves = tracking ? tracking.issuedLeaves : 0;
-          const availableLeaves = tracking ? tracking.availableLeaves : origLeaves;
+          const patchedLeaves = dryingDoneLeafPatches[rowId];
+          const availableLeaves =
+            patchedLeaves !== undefined
+              ? patchedLeaves
+              : tracking
+                ? tracking.availableLeaves
+                : origLeaves;
           const status = tracking ? tracking.status : "Pending";
 
           return {
@@ -354,15 +385,23 @@ export function FactoryListing<Row extends FactoryRecord>({
         return sourceNormalizedRow;
       });
 
-    if (definition.slug !== "slicing") {
-      return mappedRows;
+    if (definition.slug === "slicing") {
+      return applySlicingListingRows(mappedRows, activeTab, slicingFlowState);
     }
 
-    return applySlicingListingRows(mappedRows, activeTab, slicingFlowState);
+    if (definition.slug === "drying") {
+      return applyDryingListingRows(mappedRows, activeTab, dryingFlowState);
+    }
+
+    return mappedRows;
   }, [
     activeTab,
     definition.rows,
     definition.slug,
+    dryingDoneLeafPatches,
+    dryingDoneRemovedIds,
+    dryingFlowState,
+    dryingInspectionHistoryRows,
     dryingIssueStateMap,
     factoryIssuedWorkItems,
     slicingFlowState,
@@ -475,8 +514,6 @@ export function FactoryListing<Row extends FactoryRecord>({
       if (insertIdx >= 0) {
         columns = [
           ...mapped.slice(0, insertIdx),
-          { key: "cbm", label: "CBM" },
-          { key: "cbf", label: "CBF" },
           { key: "sqm", label: "SQM" },
           { key: "sqf", label: "SQF" },
           ...mapped.slice(insertIdx + 1),
@@ -502,6 +539,17 @@ export function FactoryListing<Row extends FactoryRecord>({
       );
     }
 
+    if (definition.slug === "drying" && activeTab === "issued") {
+      columns = columns.flatMap((col) =>
+        col.key === "noOfLeaves"
+          ? [
+              { ...col, label: "Received No of Leaves" },
+              { key: "availableLeaves", label: "Available No of Leaves" },
+            ]
+          : [col],
+      );
+    }
+
     if (definition.slug === "drying" && activeTab === "done") {
       columns = columns.map((col) =>
         col.key === "issueDate" ? { ...col, label: "Drying Date" } : col,
@@ -510,7 +558,6 @@ export function FactoryListing<Row extends FactoryRecord>({
       const extraCols = [
         { key: "issueForInspection", label: "Issue for Inspection" },
         { key: "availableLeaves", label: "Available Leaves" },
-        { key: "status", label: "Status" },
       ];
       if (insertIndex >= 0) {
         columns = [
@@ -630,7 +677,12 @@ export function FactoryListing<Row extends FactoryRecord>({
           label: `Create ${definition.title}`,
           icon: Plus,
           tone: "primary",
-          onSelect: (row) =>
+          onSelect: (row) => {
+            if (definition.slug === "drying") {
+              setDryingCreateRow(row);
+              return;
+            }
+
             navigate(paths.add, {
               state: {
                 sourceRow: row,
@@ -643,7 +695,8 @@ export function FactoryListing<Row extends FactoryRecord>({
                 sampleNo: getSampleNoFromRow(row) ?? undefined,
                 issuedFromSample: isSampleFactoryRow(row) || undefined,
               },
-            }),
+            });
+          },
         });
         baseActions.push({
           id: "revert-item",
@@ -670,7 +723,7 @@ export function FactoryListing<Row extends FactoryRecord>({
 
       return baseActions;
     },
-    [activeTab, canCreate, canEdit, canView, definition.title, navigate, paths],
+    [activeTab, canCreate, canEdit, canView, definition.slug, definition.title, navigate, paths],
   );
 
   const getRowActions = useMemo<
@@ -696,9 +749,41 @@ export function FactoryListing<Row extends FactoryRecord>({
     const doneActions = canEdit || canCreate ? [...rowActions, rejectDoneAction] : rowActions;
 
     if (isDryingDoneTab) {
+      const canRevertDryingDone = (selectedRow: Row) => {
+        const rowId = String(selectedRow.id);
+        const issuedLeaves = dryingIssueStateMap[rowId]?.issuedLeaves ?? 0;
+        if (issuedLeaves > 0) return false;
+
+        const listedIssued = Number(String(selectedRow.issueForInspection ?? "").replace(/[^\d.]/g, ""));
+        if (Number.isFinite(listedIssued) && listedIssued > 0) return false;
+
+        const originalLeaves =
+          Number(String(selectedRow.noOfLeaves ?? selectedRow.totalLeaves ?? selectedRow.noOfSheets ?? "").replace(/[^\d.]/g, "")) || 0;
+        const patchedLeaves = dryingDoneLeafPatches[rowId];
+        const availableLeaves =
+          patchedLeaves !== undefined
+            ? patchedLeaves
+            : Number(String(selectedRow.availableLeaves ?? originalLeaves).replace(/[^\d.]/g, "")) || 0;
+
+        return !(originalLeaves > 0 && availableLeaves < originalLeaves);
+      };
+
       return (row) => {
         return [
-          ...doneActions,
+          ...rowActions,
+          ...(canEdit || canCreate
+            ? [
+              {
+                id: "reject-drying",
+                label: `Reject ${definition.title}`,
+                icon: XCircle,
+                tone: "danger" as const,
+                onSelect: (selectedRow: Row) => {
+                  setDryingRejectRow(selectedRow);
+                },
+              },
+            ]
+            : []),
           ...(canCreate
             ? [
               {
@@ -708,6 +793,19 @@ export function FactoryListing<Row extends FactoryRecord>({
                 tone: "primary" as const,
                 onSelect: (selectedRow: Row) => {
                   setDryingInspectionIssueRow(selectedRow);
+                },
+              },
+            ]
+            : []),
+          ...((canEdit || canCreate) && canRevertDryingDone(row)
+            ? [
+              {
+                id: "revert-drying-done",
+                label: "Revert",
+                icon: RotateCcw,
+                tone: "danger" as const,
+                onSelect: (selectedRow: Row) => {
+                  setConfirmRevertRow({ row: selectedRow, type: "drying-done" });
                 },
               },
             ]
@@ -1033,6 +1131,16 @@ export function FactoryListing<Row extends FactoryRecord>({
             row: selectedRow,
             submitted: false,
           }),
+      ).map((action) =>
+        definition.slug === "slicing" && action.id === "issue-for-drying"
+          ? {
+              ...action,
+              onSelect: (selectedRow: Row) => {
+                setIssueDryingRows([selectedRow]);
+                setConfirmIssueDryingOpen(true);
+              },
+            }
+          : action,
       );
 
       if (nextProcessActions.length === 0) {
@@ -1048,6 +1156,8 @@ export function FactoryListing<Row extends FactoryRecord>({
     canView,
     definition.slug,
     definition.title,
+    dryingDoneLeafPatches,
+    dryingIssueStateMap,
     inspectionCompletedRows,
     isInspectionModule,
     isDryingDoneTab,
@@ -1351,7 +1461,10 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setConfirmIssueDryingOpen(true)}
+                    onClick={() => {
+                      setIssueDryingRows(selectedListingRows);
+                      setConfirmIssueDryingOpen(true);
+                    }}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1668,31 +1781,147 @@ export function FactoryListing<Row extends FactoryRecord>({
         }}
       />
 
+      <DryingCreateDialog
+        open={Boolean(dryingCreateRow)}
+        row={dryingCreateRow}
+        onClose={() => setDryingCreateRow(null)}
+        onSave={({ driedLeaves, dryingDate, remark }) => {
+          if (!dryingCreateRow) return;
+
+          const availableLeaves = dryingLeafCount(dryingCreateRow);
+          const remainingLeaves = Math.max(0, availableLeaves - driedLeaves);
+          const driedArea = dryingLeafArea(
+            dryingCreateRow.length,
+            dryingCreateRow.width,
+            driedLeaves,
+          );
+          const issueKeys = [
+            dryingCreateRow.id,
+            dryingCreateRow.workItemId,
+            dryingCreateRow.storageSrNo,
+            dryingCreateRow.sourceStorageId,
+          ]
+            .filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
+            .map(String);
+
+          updateDryingIssuedLeaves(issueKeys, {
+            availableLeaves: String(remainingLeaves),
+          });
+          addDryingDoneItems([
+            {
+              ...dryingCreateRow,
+              id: `drying-done-${Date.now()}`,
+              sourceIssuedId: dryingCreateRow.id,
+              listingState: "done",
+              issueDate: dryingDate,
+              dryingDate,
+              noOfLeaves: String(driedLeaves),
+              availableLeaves: String(driedLeaves),
+              issueForInspection: "-",
+              status: "Pending",
+              sqm: driedArea.sqm,
+              sqf: driedArea.sqf,
+              totalSqMeter: driedArea.sqm,
+              remark,
+              thickness: dryingCreateRow.thickness || dryingCreateRow.height || "",
+            },
+          ]);
+          setDryingCreateRow(null);
+        }}
+      />
+
+      <DryingRejectDialog
+        open={Boolean(dryingRejectRow)}
+        row={dryingRejectRow}
+        onClose={() => setDryingRejectRow(null)}
+        onSave={(rejectedLeaves) => {
+          if (!dryingRejectRow) return;
+
+          const availableLeaves = dryingLeafCount(dryingRejectRow);
+          const remainingLeaves = Math.max(0, availableLeaves - rejectedLeaves);
+          const rejectedArea = dryingLeafArea(
+            dryingRejectRow.length,
+            dryingRejectRow.width,
+            rejectedLeaves,
+          );
+          const remainingArea = dryingLeafArea(
+            dryingRejectRow.length,
+            dryingRejectRow.width,
+            remainingLeaves,
+          );
+          const rowId = String(dryingRejectRow.id);
+          const updatedInStore = adjustDryingDoneLeaves(rowId, remainingLeaves, remainingArea);
+
+          if (!updatedInStore) {
+            if (remainingLeaves <= 0) {
+              setDryingDoneRemovedIds((current) =>
+                current.includes(rowId) ? current : [...current, rowId],
+              );
+            } else {
+              setDryingDoneLeafPatches((current) => ({
+                ...current,
+                [rowId]: remainingLeaves,
+              }));
+            }
+          }
+
+          setDryingIssueStateMap((current) => {
+            const tracking = current[rowId];
+            if (!tracking) return current;
+            return {
+              ...current,
+              [rowId]: {
+                ...tracking,
+                availableLeaves: remainingLeaves,
+                status: remainingLeaves <= 0 ? "Done" : tracking.status,
+              },
+            };
+          });
+
+          setRejectedDoneRows((current) => [
+            {
+              ...dryingRejectRow,
+              id: `drying-rejected-${Date.now()}`,
+              listingState: "rejected",
+              issueDate: new Date().toISOString().slice(0, 10),
+              noOfLeaves: String(rejectedLeaves),
+              availableLeaves: String(rejectedLeaves),
+              sqm: rejectedArea.sqm,
+              sqf: rejectedArea.sqf,
+              totalSqMeter: rejectedArea.sqm,
+            } as Row,
+            ...current,
+          ]);
+          setDryingRejectRow(null);
+          setActiveTab("rejected");
+        }}
+      />
+
       <DryingInspectionIssueDialog
         open={Boolean(dryingInspectionIssueRow)}
         row={dryingInspectionIssueRow}
         onClose={() => setDryingInspectionIssueRow(null)}
-        onSubmit={(issueLeaves, totalLeaves, inspectionDateVal) => {
+        onSubmit={(issueLeaves, _totalLeaves, inspectionDateVal) => {
           if (!dryingInspectionIssueRow) return;
 
           const rowId = String(dryingInspectionIssueRow.id);
-          const currentTotal = Number(totalLeaves) || Number(dryingInspectionIssueRow.noOfLeaves ?? dryingInspectionIssueRow.noOfSheets ?? 0) || 0;
-          const prevIssued = dryingIssueStateMap[rowId]?.issuedLeaves ?? 0;
+          const availableNow = dryingLeafCount(dryingInspectionIssueRow);
           const newlyIssued = Number(issueLeaves) || 0;
+          const remaining = Math.max(0, availableNow - newlyIssued);
+          const prevIssued = dryingIssueStateMap[rowId]?.issuedLeaves ?? 0;
           const totalIssued = prevIssued + newlyIssued;
-          const remaining = Math.max(0, currentTotal - totalIssued);
-          const isFullyDone = remaining <= 0;
-          const newStatus = isFullyDone ? "Done" : "Partially Done";
+          const newStatus = remaining <= 0 ? "Done" : "Partially Done";
+          const issuedArea = dryingLeafArea(
+            dryingInspectionIssueRow.length,
+            dryingInspectionIssueRow.width,
+            newlyIssued,
+          );
+          const remainingArea = dryingLeafArea(
+            dryingInspectionIssueRow.length,
+            dryingInspectionIssueRow.width,
+            remaining,
+          );
 
-          // Calculate proportionate Sqm for the issued leaves if length & width exist
-          const lengthVal = Number(dryingInspectionIssueRow.length) || 0;
-          const widthVal = Number(dryingInspectionIssueRow.width) || 0;
-          const calculatedIssuedSqm =
-            lengthVal > 0 && widthVal > 0 && newlyIssued > 0
-              ? Number(((lengthVal * widthVal * newlyIssued) / 10000).toFixed(2))
-              : dryingInspectionIssueRow.totalSqMeter ?? dryingInspectionIssueRow.sqm;
-
-          // Issue to inspection ONLY the issued quantity
           issueFactoryWork({
             destinationProcess: "Inspection",
             sourceSlug: definition.slug,
@@ -1705,11 +1934,28 @@ export function FactoryListing<Row extends FactoryRecord>({
               totalLeaves: String(newlyIssued),
               availableLeaves: String(newlyIssued),
               noOfSheets: String(newlyIssued),
-              totalSqMeter: calculatedIssuedSqm,
-              sqm: calculatedIssuedSqm,
+              totalSqMeter: issuedArea.sqm,
+              sqm: issuedArea.sqm,
+              sqf: issuedArea.sqf,
               ...(inspectionDateVal ? { issuedDate: inspectionDateVal, issueDate: inspectionDateVal } : {}),
             },
           });
+
+          const updatedInStore = adjustDryingDoneLeaves(rowId, remaining, remainingArea, {
+            issueForInspection: String(totalIssued),
+            status: newStatus,
+          });
+          if (!updatedInStore) {
+            setDryingDoneLeafPatches((current) => ({
+              ...current,
+              [rowId]: remaining,
+            }));
+            if (remaining <= 0) {
+              setDryingDoneRemovedIds((current) =>
+                current.includes(rowId) ? current : [...current, rowId],
+              );
+            }
+          }
 
           setDryingIssueStateMap((prev) => ({
             ...prev,
@@ -1720,13 +1966,22 @@ export function FactoryListing<Row extends FactoryRecord>({
             },
           }));
 
-          if (isFullyDone) {
-            setRevertedRowIds((current) =>
-              current.includes(dryingInspectionIssueRow.id)
-                ? current
-                : [...current, dryingInspectionIssueRow.id],
-            );
-          }
+          setDryingInspectionHistoryRows((current) => [
+            {
+              ...dryingInspectionIssueRow,
+              id: `drying-history-${Date.now()}`,
+              listingState: "history",
+              issueDate: inspectionDateVal || new Date().toISOString().slice(0, 10),
+              noOfLeaves: String(newlyIssued),
+              availableLeaves: String(newlyIssued),
+              issueForInspection: String(newlyIssued),
+              sqm: issuedArea.sqm,
+              sqf: issuedArea.sqf,
+              totalSqMeter: issuedArea.sqm,
+              status: "Issued",
+            } as Row,
+            ...current,
+          ]);
 
           setDryingInspectionIssueRow(null);
         }}
@@ -1769,14 +2024,24 @@ export function FactoryListing<Row extends FactoryRecord>({
             onClick={() => {
               if (confirmRevertRow) {
                 const { row, type } = confirmRevertRow;
-                if (type === "rejected") {
-                  setRejectedDoneRows((current) =>
-                    current.filter((item) => item.id !== row.id),
+                if (type === "drying-done") {
+                  const restored = revertDryingDoneToIssued(row);
+                  if (!restored) {
+                    const rowId = String(row.id);
+                    setDryingDoneRemovedIds((current) =>
+                      current.includes(rowId) ? current : [...current, rowId],
+                    );
+                  }
+                } else {
+                  if (type === "rejected") {
+                    setRejectedDoneRows((current) =>
+                      current.filter((item) => item.id !== row.id),
+                    );
+                  }
+                  setRevertedRowIds((current) =>
+                    current.includes(row.id) ? current : [...current, row.id],
                   );
                 }
-                setRevertedRowIds((current) =>
-                  current.includes(row.id) ? current : [...current, row.id],
-                );
               }
               setConfirmRevertRow(null);
             }}
@@ -1787,42 +2052,126 @@ export function FactoryListing<Row extends FactoryRecord>({
         </DialogActions>
       </Dialog>
 
-      {/* Confirmation Dialog: Issue for Drying */}
       <Dialog
+        fullWidth
+        maxWidth="md"
+        onClose={() => {
+          setIssueDryingRows([]);
+          setConfirmIssueDryingOpen(false);
+        }}
         open={confirmIssueDryingOpen}
-        onClose={() => setConfirmIssueDryingOpen(false)}
         slotProps={{
           paper: {
-            sx: {
-              borderRadius: "8px",
-              minWidth: 360,
-              maxWidth: 420,
-              p: 1,
-            },
+            sx: inspectionDialogPaperSx,
           },
         }}
       >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-          Confirm Issue for Drying
+        <DialogTitle
+          sx={(theme) => ({
+            borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+            fontSize: theme.typography.h3.fontSize,
+            fontWeight: 700,
+            px: theme.spacing(2),
+            py: theme.spacing(1.5),
+          })}
+        >
+          Issue for Drying
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1">
-            Do you really want to issue for drying?
-          </Typography>
+        <DialogContent
+          sx={(theme) => ({
+            px: theme.spacing(2),
+            py: `${theme.spacing(2)} !important`,
+          })}
+        >
+          <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+            <Typography
+              sx={(theme) => ({
+                color: theme.customTokens.text.secondary,
+                fontSize: theme.typography.body2.fontSize,
+              })}
+            >
+              Confirm issuing {issueDryingRows.length} item
+              {issueDryingRows.length === 1 ? "" : "s"} for drying.
+            </Typography>
+            {issueDryingRows.map((selectedRow, index) => {
+              const detailFields = [
+                { label: "Storage Sr No.", value: String(selectedRow.storageSrNo ?? selectedRow.id ?? "-") },
+                { label: "Slicing Date", value: formatInspectionDialogDate(selectedRow.issueDate ?? selectedRow.processDate) },
+                { label: "Item Name", value: String(selectedRow.itemName ?? "-") },
+                { label: "Sub Category", value: String(selectedRow.subCategory ?? selectedRow.itemSubCategory ?? "-") },
+                { label: "Log Code", value: String(selectedRow.logCode ?? selectedRow.logNo ?? "-") },
+                { label: "Bundle Number", value: String(selectedRow.bundleNumber ?? "-") },
+                { label: "Pallet No", value: String(selectedRow.palletNo ?? "-") },
+                { label: "Length", value: formatDialogMeasure(selectedRow.length) },
+                { label: "Width", value: formatDialogMeasure(selectedRow.width) },
+                { label: "Thickness", value: formatDialogMeasure(selectedRow.thickness ?? selectedRow.height) },
+                { label: "No of Leaves", value: String(selectedRow.noOfLeaves ?? selectedRow.noOfSheets ?? "-") },
+                { label: "SQM", value: formatDialogMeasure(selectedRow.sqm ?? selectedRow.totalSqMeter) },
+                { label: "SQF", value: formatDialogMeasure(selectedRow.sqf) },
+              ];
+              return (
+                <Box key={selectedRow.id} sx={(theme) => formSectionCardSx(theme)}>
+                  <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                    <FormSectionHeader
+                      title={
+                        issueDryingRows.length > 1
+                          ? `Item Details ${index + 1}`
+                          : "Item Details"
+                      }
+                    />
+                    <Box
+                      sx={(theme) => ({
+                        display: "grid",
+                        gap: theme.spacing(2),
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(3, minmax(0, 1fr))",
+                        },
+                      })}
+                    >
+                      {detailFields.map((field) => (
+                        <ReadOnlyDialogField
+                          key={field.label}
+                          label={field.label}
+                          value={field.value}
+                        />
+                      ))}
+                      <Box sx={{ gridColumn: "1 / -1" }}>
+                        <ReadOnlyDialogField
+                          label="Remark"
+                          value={String(selectedRow.remark ?? "-")}
+                        />
+                      </Box>
+                    </Box>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions
+          sx={(theme) => ({
+            borderTop: `1px solid ${theme.customTokens.borders.default}`,
+            gap: theme.spacing(1),
+            px: theme.spacing(2),
+            py: theme.spacing(1.5),
+          })}
+        >
           <Button
-            variant="outlined"
-            onClick={() => setConfirmIssueDryingOpen(false)}
-            sx={{ textTransform: "none", minWidth: 70 }}
-          >
-            No
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
             onClick={() => {
-              selectedListingRows.forEach((selectedRow) => {
+              setIssueDryingRows([]);
+              setConfirmIssueDryingOpen(false);
+            }}
+            sx={recordFormActionButtonSx}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            onClick={() => {
+              issueDryingRows.forEach((selectedRow) => {
                 issueFactoryWork({
                   destinationProcess: "Drying",
                   sourceSlug: definition.slug,
@@ -1831,16 +2180,21 @@ export function FactoryListing<Row extends FactoryRecord>({
                   sourceRow: selectedRow,
                 });
               });
+              const issuedIds = new Set(issueDryingRows.map((row) => row.id));
               setRevertedRowIds((current) => [
                 ...current,
-                ...selectedListingRows.map((r) => r.id),
+                ...issueDryingRows.map((row) => row.id),
               ]);
-              setSelectedListingRows([]);
+              setSelectedListingRows((current) =>
+                current.filter((row) => !issuedIds.has(row.id)),
+              );
+              setIssueDryingRows([]);
               setConfirmIssueDryingOpen(false);
             }}
-            sx={{ textTransform: "none", minWidth: 70 }}
+            sx={recordFormActionButtonSx}
+            variant="contained"
           >
-            Yes
+            Issue for Drying
           </Button>
         </DialogActions>
       </Dialog>

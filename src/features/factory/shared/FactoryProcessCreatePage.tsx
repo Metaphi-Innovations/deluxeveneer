@@ -966,7 +966,6 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 : undefined
             }
             volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
-            includeArea={definition.slug === "slicing"}
             useHeight={definition.slug === "sawing"}
             editableDerived={definition.slug === "sawing"}
             hideAmount={definition.slug === "sawing" || definition.slug === "slicing"}
