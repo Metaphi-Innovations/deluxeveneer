@@ -11,7 +11,7 @@ export const itemCategoryMasterOptions = getItemCategoryMasterOptions();
 export const itemCategoryMasterDefinition: MasterDefinition = {
   slug: "item-category-master",
   title: "Item Category Master",
-  gridColumns: 3,
+  gridColumns: 4,
   columns: [
     { key: "srNo", label: "Sr No" },
     { key: "categoryName", label: "Category Name" },

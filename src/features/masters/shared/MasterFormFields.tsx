@@ -203,10 +203,10 @@ export function MasterFormFields({
       : getCompactFieldSx(theme, state, fieldSxOptions);
   const mastersErpProps = isMastersVariant
     ? {
-        controlHeight: mastersErpControlHeight,
-        controlRadius: 6,
-        focusRing: "subtle" as const,
-      }
+      controlHeight: mastersErpControlHeight,
+      controlRadius: 6,
+      focusRing: "subtle" as const,
+    }
     : {};
   const selectedCountry = getLocationValue(definition.fields, values, "country");
   const selectedState = getLocationValue(definition.fields, values, "state");
@@ -338,19 +338,19 @@ export function MasterFormFields({
           gridTemplateColumns: useSingleColumn
             ? "minmax(0, 1fr)"
             : {
-                xs: "repeat(1, minmax(0, 1fr))",
-                sm: compact
-                  ? "repeat(2, minmax(140px, 1fr))"
-                  : "repeat(1, minmax(0, 1fr))",
-                md: compact
-                  ? "repeat(3, minmax(150px, 1fr))"
-                  : "repeat(2, minmax(160px, 1fr))",
-                lg:
-                  desktopColumns >= 5
-                    ? "repeat(5, minmax(140px, 1fr))"
-                    : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-                xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-              },
+              xs: "repeat(1, minmax(0, 1fr))",
+              sm: compact
+                ? "repeat(2, minmax(140px, 1fr))"
+                : "repeat(1, minmax(0, 1fr))",
+              md: compact
+                ? "repeat(3, minmax(150px, 1fr))"
+                : "repeat(2, minmax(160px, 1fr))",
+              lg:
+                desktopColumns >= 5
+                  ? "repeat(5, minmax(140px, 1fr))"
+                  : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+              xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+            },
         })}
       >
         {fields.map((field) => {
@@ -399,9 +399,17 @@ export function MasterFormFields({
                       : 0.75,
                 ),
                 width: "100%",
+                maxWidth: field.maxWidth ?? undefined,
                 minWidth: 0,
-                gridColumn: isFullWidth
+                gridColumn: field.columnSpan
                   ? {
+                    xs: "span 1",
+                    sm: `span ${Math.min(field.columnSpan, 2)}`,
+                    md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                    lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                  }
+                  : isFullWidth
+                    ? {
                       xs: "span 1",
                       lg: useSingleColumn
                         ? "span 1"
@@ -410,16 +418,18 @@ export function MasterFormFields({
                         ? "span 1"
                         : `span ${Math.min(desktopColumns, 2)}`,
                     }
-                  : undefined,
+                    : undefined,
               })}
             >
               <Stack
                 direction="row"
                 alignItems="center"
                 justifyContent="space-between"
-                sx={(theme) => ({
-                  gap: theme.spacing(0.75),
-                  minHeight: isMastersVariant ? "auto" : theme.spacing(2.5),
+                sx={() => ({
+                  gap: 1,
+                  height: "20px",
+                  minHeight: "20px",
+                  maxHeight: "20px",
                 })}
               >
                 <FieldLabel
@@ -480,8 +490,8 @@ export function MasterFormFields({
                 <Box
                   sx={(currentTheme) => ({
                     display: "grid",
-                    gap: currentTheme.spacing(1),
-                    gridTemplateColumns: "92px minmax(0, 1fr)",
+                    gap: currentTheme.spacing(0.75),
+                    gridTemplateColumns: "65px minmax(0, 1fr)",
                   })}
                 >
                   <TextField
@@ -502,13 +512,14 @@ export function MasterFormFields({
                           justifyContent: "flex-start",
                           lineHeight: 1,
                           minHeight: "0 !important",
-                          paddingLeft: `${theme.spacing(1.5)} !important`,
-                          paddingRight: `${theme.spacing(3.5)} !important`,
+                          paddingLeft: `${theme.spacing(1)} !important`,
+                          paddingRight: `${theme.spacing(2.5)} !important`,
                           paddingTop: "0 !important",
                           paddingBottom: "0 !important",
+                          fontSize: "0.8125rem !important",
                         },
                         "& .MuiSelect-icon": {
-                          right: theme.spacing(1),
+                          right: theme.spacing(0.5),
                           top: "50%",
                           transform: "translateY(-50%)",
                         },
@@ -626,8 +637,8 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation && renderedFieldType === "text" &&
-              !isPhoneField(field) &&
-              !isLocationField(field) ? (
+                !isPhoneField(field) &&
+                !isLocationField(field) ? (
                 <TextField
                   fullWidth
                   error={Boolean(fieldHasRequiredError || fieldValidationError)}
@@ -641,13 +652,17 @@ export function MasterFormFields({
 
                     handleFieldChange(field, nextValue);
                   }}
-                  sx={{
-                    ...resolveFieldSx(fieldState),
-                    "& .MuiOutlinedInput-root": {
-                      height: theme.spacing(4.5),
-                      minHeight: theme.spacing(4.5),
-                    },
-                  }}
+                  sx={
+                    isMastersVariant
+                      ? resolveFieldSx(fieldState)
+                      : {
+                        ...resolveFieldSx(fieldState),
+                        "& .MuiOutlinedInput-root": {
+                          height: theme.spacing(4.5),
+                          minHeight: theme.spacing(4.5),
+                        },
+                      }
+                  }
                   slotProps={getTextFieldSlotProps(field, fieldIsReadOnly)}
                 />
               ) : null}
@@ -671,7 +686,7 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation &&
-              (renderedFieldType === "select" || isLocationField(field)) ? (
+                (renderedFieldType === "select" || isLocationField(field)) ? (
                 <ErpSelectField
                   helperText={fieldHelperText}
                   maxVisibleOptions={
@@ -1173,11 +1188,11 @@ function FieldLabel({
         masters
           ? mastersFormLabelSx()
           : {
-              fontSize: compact ? "12px" : "13px",
-              fontWeight: 600,
-              lineHeight: 1.3,
-              whiteSpace: compact ? "nowrap" : undefined,
-            }
+            fontSize: compact ? "12px" : "13px",
+            fontWeight: 600,
+            lineHeight: 1.3,
+            whiteSpace: compact ? "nowrap" : undefined,
+          }
       }
     >
       {getDisplayFieldLabel(label)}
@@ -1258,14 +1273,14 @@ function DetailFilePreview({
           flexShrink: 0,
           ...(fileUrl
             ? {
-                "&:hover": {
-                  borderColor: theme.customTokens.navigation.activeText,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
-                  "& .preview-overlay": {
-                    opacity: 1,
-                  },
+              "&:hover": {
+                borderColor: theme.customTokens.navigation.activeText,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
+                "& .preview-overlay": {
+                  opacity: 1,
                 },
-              }
+              },
+            }
             : {}),
         }}
       >
@@ -1515,7 +1530,7 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select") {
-    return value.replace(/\D/g, "");
+    return value.replace(/\D/g, "").slice(0, 2);
   }
 
   if (isPincodeField(field)) {
@@ -1836,7 +1851,15 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
     };
   }
 
-  if (isGstOrHsnNumericField(field) || isPincodeField(field) || isAgeField(field)) {
+  if (isGstOrHsnNumericField(field)) {
+    return {
+      inputMode: "numeric" as const,
+      maxLength: 2,
+      pattern: "[0-9]*",
+    };
+  }
+
+  if (isPincodeField(field) || isAgeField(field)) {
     return {
       inputMode: "numeric" as const,
       pattern: "[0-9]*",

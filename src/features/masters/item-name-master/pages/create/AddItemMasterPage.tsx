@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
+import { Button } from "@mui/material";
 
 import { invalidateMaster } from "../../../../../query/queryClient";
 import { QuickAddCategoryModal } from "../../../item-category-master/QuickAddCategoryModal";
 import { QuickAddSubCategoryModal } from "../../../item-sub-category-master/QuickAddSubCategoryModal";
+import { QuickAddColorModal } from "../../../color-master/QuickAddColorModal";
+import { QuickAddUnitModal } from "../../../unit-master/QuickAddUnitModal";
 import { MasterFormPage } from "../../../shared";
 import { createLocalMasterRecord } from "../../../shared/localMasterStore";
 import type { MasterDefinition, MasterRecord } from "../../../shared/types";
@@ -18,8 +21,12 @@ import { buildItemDefinition, useItemFormOptions } from "../ItemMasterPagesForm"
 export function AddItemMasterPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>("");
+  const [selectedUnit, setSelectedUnit] = useState<string>("");
   const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
   const [quickAddSubCategoryOpen, setQuickAddSubCategoryOpen] = useState(false);
+  const [quickAddColorOpen, setQuickAddColorOpen] = useState(false);
+  const [quickAddUnitOpen, setQuickAddUnitOpen] = useState(false);
   const {
     categoryOptions,
     categoryRows,
@@ -30,8 +37,12 @@ export function AddItemMasterPage() {
     unitOptions,
     loadCategories,
     loadSubCategories,
+    loadColors,
+    loadUnits,
     setCategoryOptions,
     setSubCategoryOptions,
+    setColorOptions,
+    setUnitOptions,
   } = useItemFormOptions(selectedCategory);
   const definition = useMemo(
     () =>
@@ -150,8 +161,10 @@ export function AddItemMasterPage() {
     const values: Record<string, string> = {};
     if (selectedCategory) values.category = selectedCategory;
     if (selectedSubCategory) values.subCategory = selectedSubCategory;
+    if (selectedColor) values.color = selectedColor;
+    if (selectedUnit) values.unitName = selectedUnit;
     return Object.keys(values).length > 0 ? values : undefined;
-  }, [selectedCategory, selectedSubCategory]);
+  }, [selectedCategory, selectedSubCategory, selectedColor, selectedUnit]);
 
   return (
     <>
@@ -160,9 +173,101 @@ export function AddItemMasterPage() {
         definition={definition}
         mode="add"
         onSave={handleSave}
+        fieldActions={{
+          category: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddCategoryOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add Category
+            </Button>
+          ),
+          subCategory: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddSubCategoryOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add Sub Category
+            </Button>
+          ),
+          color: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddColorOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add Color
+            </Button>
+          ),
+          unitName: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddUnitOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add Unit
+            </Button>
+          ),
+        }}
         onFieldChange={(key, value) => {
           if (key === "category" && typeof value === "string") {
             setSelectedCategory(value);
+          }
+          if (key === "color" && typeof value === "string") {
+            setSelectedColor(value);
+          }
+          if (key === "unitName" && typeof value === "string") {
+            setSelectedUnit(value);
           }
         }}
       />
@@ -183,6 +288,24 @@ export function AddItemMasterPage() {
           setSubCategoryOptions((current) => [...new Set([newSubCategory, ...current])]);
           setSelectedSubCategory(newSubCategory);
           loadSubCategories();
+        }}
+      />
+      <QuickAddColorModal
+        open={quickAddColorOpen}
+        onClose={() => setQuickAddColorOpen(false)}
+        onSuccess={(newColor) => {
+          setColorOptions((current) => [...new Set([newColor, ...current])]);
+          setSelectedColor(newColor);
+          loadColors();
+        }}
+      />
+      <QuickAddUnitModal
+        open={quickAddUnitOpen}
+        onClose={() => setQuickAddUnitOpen(false)}
+        onSuccess={(newUnit) => {
+          setUnitOptions((current) => [...new Set([newUnit, ...current])]);
+          setSelectedUnit(newUnit);
+          loadUnits();
         }}
       />
     </>

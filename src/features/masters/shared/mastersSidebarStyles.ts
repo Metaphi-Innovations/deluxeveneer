@@ -88,7 +88,7 @@ export function mastersSidebarChildSx(
     minHeight: 33,
     height: 33,
     mx: 1,
-    pl: "34px",
+    pl: "20px",
     pr: 1.25,
     py: 0,
     justifyContent: "flex-start",

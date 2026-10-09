@@ -186,6 +186,34 @@ export function useItemFormOptions(selectedCategory?: string) {
     setSubCategoryOptions([...new Set(names)]);
   }, [selectedCategory, allSubCategoryRows]);
 
+  const loadColors = useCallback(() => {
+    fetchColorsApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const names = active
+          .map((r) => String(r.colorName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setColorOptions([...new Set(names)]);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadUnits = useCallback(() => {
+    fetchUnitsApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const names = active
+          .map((r) => String(r.unitName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setUnitOptions([...new Set(names)]);
+      })
+      .catch(() => {});
+  }, []);
+
   return {
     categoryOptions,
     categoryRows,
@@ -196,8 +224,12 @@ export function useItemFormOptions(selectedCategory?: string) {
     unitOptions,
     loadCategories,
     loadSubCategories,
+    loadColors,
+    loadUnits,
     setCategoryOptions,
     setSubCategoryOptions,
+    setColorOptions,
+    setUnitOptions,
   };
 }
 
@@ -222,68 +254,12 @@ export function buildItemDefinition(
         return {
           ...field,
           options: categoryOptions,
-          ...(callbacks?.onQuickAddCategory
-            ? {
-                renderDropdownAction: ({ close }) => (
-                  <Button
-                    fullWidth
-                    size="small"
-                    startIcon={<Plus size={14} />}
-                    onClick={() => {
-                      close();
-                      callbacks.onQuickAddCategory?.();
-                    }}
-                    sx={(theme) => ({
-                      justifyContent: "flex-start",
-                      fontSize: "0.8125rem",
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                      py: 0.5,
-                      px: 1,
-                      "&:hover": {
-                        backgroundColor: theme.customTokens.navigation.hoverBackground,
-                      },
-                    })}
-                  >
-                    + Quick Add Category
-                  </Button>
-                ),
-              }
-            : {}),
         };
       }
       if (field.key === "subCategory") {
         return {
           ...field,
           options: subCategoryOptions,
-          ...(callbacks?.onQuickAddSubCategory
-            ? {
-                renderDropdownAction: ({ close }) => (
-                  <Button
-                    fullWidth
-                    size="small"
-                    startIcon={<Plus size={14} />}
-                    onClick={() => {
-                      close();
-                      callbacks.onQuickAddSubCategory?.();
-                    }}
-                    sx={(theme) => ({
-                      justifyContent: "flex-start",
-                      fontSize: "0.8125rem",
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                      py: 0.5,
-                      px: 1,
-                      "&:hover": {
-                        backgroundColor: theme.customTokens.navigation.hoverBackground,
-                      },
-                    })}
-                  >
-                    + Quick Add Sub-Category
-                  </Button>
-                ),
-              }
-            : {}),
         };
       }
       if (field.key === "color" && colorOptions.length) {

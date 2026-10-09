@@ -5,6 +5,7 @@ import {
   Avatar,
   Box,
   Button,
+  Divider,
   Stack,
   Typography,
   useTheme,
@@ -505,7 +506,7 @@ export function UserManagementFormPage({
         xs: "1fr !important",
         sm: "repeat(2, 1fr) !important",
         md: "repeat(3, 1fr) !important",
-        lg: "repeat(6, minmax(0, 1fr)) !important",
+        lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 1fr) !important",
       },
       columnGap: "16px !important",
       rowGap: "16px !important",
@@ -517,16 +518,16 @@ export function UserManagementFormPage({
       maxWidth: "100% !important",
     },
     "& > div > .MuiStack-root:nth-of-type(5) > .MuiBox-root": {
-      gridTemplateColumns: "70px minmax(0, 1fr) !important",
+      gridTemplateColumns: "65px minmax(0, 1fr) !important",
       gap: "6px !important",
     },
     "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-select": {
       paddingLeft: "8px !important",
-      paddingRight: "22px !important",
+      paddingRight: "20px !important",
       fontSize: "0.775rem !important",
     },
     "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-icon": {
-      right: "4px !important",
+      right: "3px !important",
     },
   };
 
@@ -592,15 +593,15 @@ export function UserManagementFormPage({
   const identityDocumentGridSx = {
     ...compactFieldChromeSx,
     width: "100%",
-    overflowX: "hidden",
+    overflowX: "auto",
     "& > div": {
       display: "grid !important",
       width: "100%",
-      minWidth: 0,
+      minWidth: { xs: 0, lg: 960 },
       gridTemplateColumns: {
         xs: "1fr !important",
-        sm: "minmax(0, 1.15fr) minmax(0, 1fr) !important",
-        md: "minmax(0, 1.15fr) minmax(0, 1fr) !important",
+        sm: "repeat(2, minmax(0, 1fr)) !important",
+        lg: "repeat(4, minmax(0, 1fr)) !important",
       },
       columnGap: "16px !important",
       rowGap: "16px !important",
@@ -614,7 +615,6 @@ export function UserManagementFormPage({
     "& > div > .MuiStack-root .MuiFormControl-root": {
       width: "100% !important",
     },
-    // Stretch only the field value container, not nested upload thumbnails.
     "& > div > .MuiStack-root > .MuiBox-root": {
       width: "100%",
       minWidth: 0,
@@ -735,82 +735,81 @@ export function UserManagementFormPage({
                     borderRadius: "8px",
                   })}
                 >
-                  <Stack spacing={1.25}>
                     <InlineFormSection title="Account Information" variant="cardTop">
-                      <Box sx={accountFieldGridSx}>
-                        <MasterFormFields
-                          definition={{
-                            fields: accountFields,
-                            gridColumns: 3,
-                          }}
-                          onChange={handleFieldChange}
-                          readOnly={mode === "view"}
-                          showRequiredErrors={mode !== "view" && hasSubmitted}
-                          values={values}
-                        />
-                      </Box>
-                    </InlineFormSection>
+                      <Stack spacing={2}>
+                        <Box sx={accountFieldGridSx}>
+                          <MasterFormFields
+                            definition={{
+                              fields: accountFields,
+                              gridColumns: 3,
+                            }}
+                            onChange={handleFieldChange}
+                            readOnly={mode === "view"}
+                            showRequiredErrors={mode !== "view" && hasSubmitted}
+                            values={values}
+                          />
+                        </Box>
 
-                    <InlineFormSection title="Personal Information">
-                      <Box sx={personalFieldGridSx}>
-                        <MasterFormFields
-                          definition={{
-                            fields: personalFields,
-                            gridColumns: 3,
-                          }}
-                          onChange={handleFieldChange}
-                          readOnly={mode === "view"}
-                          showRequiredErrors={mode !== "view" && hasSubmitted}
-                          values={values}
-                        />
-                      </Box>
-                    </InlineFormSection>
+                        <Box sx={personalFieldGridSx}>
+                          <MasterFormFields
+                            definition={{
+                              fields: personalFields,
+                              gridColumns: 3,
+                            }}
+                            onChange={handleFieldChange}
+                            readOnly={mode === "view"}
+                            showRequiredErrors={mode !== "view" && hasSubmitted}
+                            values={values}
+                          />
+                        </Box>
 
-                    <InlineFormSection title="Address">
-                      <Box sx={addressFieldGridSx}>
-                        <MasterFormFields
-                          definition={{
-                            fields: addressFields,
-                            gridColumns: 5,
+                        <Divider
+                          sx={{
+                            borderColor: theme.customTokens.borders.divider,
+                            my: 0.5,
                           }}
-                          onChange={handleFieldChange}
-                          readOnly={mode === "view"}
-                          showRequiredErrors={mode !== "view" && hasSubmitted}
-                          values={values}
                         />
-                      </Box>
-                    </InlineFormSection>
 
-                    <InlineFormSection title="Identity Documents">
-                      <Box sx={identityDocumentGridSx}>
-                        <MasterFormFields
-                          definition={{
-                            fields: identityDocumentFields,
-                            gridColumns: 3,
-                          }}
-                          onChange={handleFieldChange}
-                          readOnly={mode === "view"}
-                          showRequiredErrors={mode !== "view" && hasSubmitted}
-                          values={values}
-                        />
-                      </Box>
-                    </InlineFormSection>
+                        <Box sx={addressFieldGridSx}>
+                          <MasterFormFields
+                            definition={{
+                              fields: addressFields,
+                              gridColumns: 5,
+                            }}
+                            onChange={handleFieldChange}
+                            readOnly={mode === "view"}
+                            showRequiredErrors={mode !== "view" && hasSubmitted}
+                            values={values}
+                          />
+                        </Box>
 
-                    <InlineFormSection title="Additional Information" last>
-                      <Box sx={additionalFieldGridSx}>
-                        <MasterFormFields
-                          definition={{
-                            fields: additionalFields,
-                            gridColumns: 3,
-                          }}
-                          onChange={handleFieldChange}
-                          readOnly={mode === "view"}
-                          showRequiredErrors={mode !== "view" && hasSubmitted}
-                          values={values}
-                        />
-                      </Box>
+                        <Box sx={identityDocumentGridSx}>
+                          <MasterFormFields
+                            definition={{
+                              fields: identityDocumentFields,
+                              gridColumns: 4,
+                            }}
+                            onChange={handleFieldChange}
+                            readOnly={mode === "view"}
+                            showRequiredErrors={mode !== "view" && hasSubmitted}
+                            values={values}
+                          />
+                        </Box>
+
+                        <Box sx={additionalFieldGridSx}>
+                          <MasterFormFields
+                            definition={{
+                              fields: additionalFields,
+                              gridColumns: 3,
+                            }}
+                            onChange={handleFieldChange}
+                            readOnly={mode === "view"}
+                            showRequiredErrors={mode !== "view" && hasSubmitted}
+                            values={values}
+                          />
+                        </Box>
+                      </Stack>
                     </InlineFormSection>
-                  </Stack>
                 </Box>
               </Stack>
             )}
@@ -833,11 +832,20 @@ export function UserManagementFormPage({
                   {activeStep === "permissions" ? (
                     <Typography
                       sx={{
-                        fontSize: "0.8125rem",
-                        color: theme.customTokens.text.secondary,
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: theme.customTokens.brand.primary,
+                        backgroundColor: theme.customTokens.brand.primaryScale[50],
+                        border: `1px solid ${theme.customTokens.brand.primaryScale[200]}`,
+                        borderRadius: "999px",
+                        px: 1.5,
+                        py: 0.35,
+                        lineHeight: 1.2,
+                        textAlign: "center",
+                        display: "inline-block",
                       }}
                     >
-                      {selectedPermissionCount} permissions selected
+                      {selectedPermissionCount} enabled
                     </Typography>
                   ) : null}
                 </Box>
