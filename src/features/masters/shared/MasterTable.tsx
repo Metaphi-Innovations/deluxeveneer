@@ -649,7 +649,7 @@ export function MasterTable({
                     sx={{ py: loading ? 3 : 6, textAlign: "center" }}
                   >
                     {loading ? (
-                      <ContentLoader label="Loading records..." minHeight={160} />
+                      <ContentLoader label="Loading..." minHeight={160} />
                     ) : (
                       <Typography variant="body2" color="text.secondary">
                         No records found.
