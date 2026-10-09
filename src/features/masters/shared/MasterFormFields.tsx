@@ -399,27 +399,37 @@ export function MasterFormFields({
                       : 0.75,
                 ),
                 width: "100%",
+                maxWidth: field.maxWidth ?? undefined,
                 minWidth: 0,
-                gridColumn: isFullWidth
+                gridColumn: field.columnSpan
                   ? {
                       xs: "span 1",
-                      lg: useSingleColumn
-                        ? "span 1"
-                        : `span ${Math.min(desktopColumns, 2)}`,
-                      xl: useSingleColumn
-                        ? "span 1"
-                        : `span ${Math.min(desktopColumns, 2)}`,
+                      sm: `span ${Math.min(field.columnSpan, 2)}`,
+                      md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                      lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
                     }
-                  : undefined,
+                  : isFullWidth
+                    ? {
+                        xs: "span 1",
+                        lg: useSingleColumn
+                          ? "span 1"
+                          : `span ${Math.min(desktopColumns, 2)}`,
+                        xl: useSingleColumn
+                          ? "span 1"
+                          : `span ${Math.min(desktopColumns, 2)}`,
+                      }
+                    : undefined,
               })}
             >
               <Stack
                 direction="row"
                 alignItems="center"
                 justifyContent="space-between"
-                sx={(theme) => ({
-                  gap: theme.spacing(0.75),
-                  minHeight: isMastersVariant ? "auto" : theme.spacing(2.5),
+                sx={() => ({
+                  gap: 1,
+                  height: "20px",
+                  minHeight: "20px",
+                  maxHeight: "20px",
                 })}
               >
                 <FieldLabel
@@ -480,8 +490,8 @@ export function MasterFormFields({
                 <Box
                   sx={(currentTheme) => ({
                     display: "grid",
-                    gap: currentTheme.spacing(1),
-                    gridTemplateColumns: "92px minmax(0, 1fr)",
+                    gap: currentTheme.spacing(0.75),
+                    gridTemplateColumns: "65px minmax(0, 1fr)",
                   })}
                 >
                   <TextField
@@ -502,13 +512,14 @@ export function MasterFormFields({
                           justifyContent: "flex-start",
                           lineHeight: 1,
                           minHeight: "0 !important",
-                          paddingLeft: `${theme.spacing(1.5)} !important`,
-                          paddingRight: `${theme.spacing(3.5)} !important`,
+                          paddingLeft: `${theme.spacing(1)} !important`,
+                          paddingRight: `${theme.spacing(2.5)} !important`,
                           paddingTop: "0 !important",
                           paddingBottom: "0 !important",
+                          fontSize: "0.8125rem !important",
                         },
                         "& .MuiSelect-icon": {
-                          right: theme.spacing(1),
+                          right: theme.spacing(0.5),
                           top: "50%",
                           transform: "translateY(-50%)",
                         },
@@ -641,13 +652,17 @@ export function MasterFormFields({
 
                     handleFieldChange(field, nextValue);
                   }}
-                  sx={{
-                    ...resolveFieldSx(fieldState),
-                    "& .MuiOutlinedInput-root": {
-                      height: theme.spacing(4.5),
-                      minHeight: theme.spacing(4.5),
-                    },
-                  }}
+                  sx={
+                    isMastersVariant
+                      ? resolveFieldSx(fieldState)
+                      : {
+                          ...resolveFieldSx(fieldState),
+                          "& .MuiOutlinedInput-root": {
+                            height: theme.spacing(4.5),
+                            minHeight: theme.spacing(4.5),
+                          },
+                        }
+                  }
                   slotProps={getTextFieldSlotProps(field, fieldIsReadOnly)}
                 />
               ) : null}
@@ -1515,7 +1530,7 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select") {
-    return value.replace(/\D/g, "");
+    return value.replace(/\D/g, "").slice(0, 2);
   }
 
   if (isPincodeField(field)) {
@@ -1836,7 +1851,15 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
     };
   }
 
-  if (isGstOrHsnNumericField(field) || isPincodeField(field) || isAgeField(field)) {
+  if (isGstOrHsnNumericField(field)) {
+    return {
+      inputMode: "numeric" as const,
+      maxLength: 2,
+      pattern: "[0-9]*",
+    };
+  }
+
+  if (isPincodeField(field) || isAgeField(field)) {
     return {
       inputMode: "numeric" as const,
       pattern: "[0-9]*",

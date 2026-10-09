@@ -51,6 +51,8 @@ export interface MasterFieldDefinition {
   required?: boolean;
   rows?: number;
   span?: "single" | "full";
+  columnSpan?: number;
+  maxWidth?: number | string | Record<string, number | string>;
 }
 
 export interface MasterRecord {

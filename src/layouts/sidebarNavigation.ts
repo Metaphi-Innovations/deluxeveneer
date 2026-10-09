@@ -261,7 +261,7 @@ const staticSidebarNavigation: SidebarNavigationEntry[] = [
       },
       {
         id: "warehouse-location-master",
-        label: "Warehouse Master",
+        label: "Warehouse",
         icon: MapPin,
         to: "/masters/warehouse-location-master",
         match: (location) =>

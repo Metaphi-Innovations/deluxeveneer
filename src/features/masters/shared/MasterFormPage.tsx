@@ -44,6 +44,14 @@ interface MasterFormPageProps {
   fieldActions?: Partial<Record<string, ReactNode>> | undefined;
   loading?: boolean;
   mode: "add" | "edit" | "view";
+  renderFields?: (context: {
+    definition: MasterDefinition;
+    values: Record<string, MasterFieldValue>;
+    onChange: (key: string, value: MasterFieldValue) => void;
+    readOnly: boolean;
+    showRequiredErrors: boolean;
+    hasSubmitted: boolean;
+  }) => ReactNode;
   /** When provided, used instead of looking up the row from local mock store. */
   record?: MasterRecord;
   onFieldChange?: (key: string, value: MasterFieldValue) => void;
@@ -98,6 +106,7 @@ export function MasterFormPage({
   onFieldChange,
   onSave,
   record,
+  renderFields,
 }: MasterFormPageProps) {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -403,17 +412,28 @@ export function MasterFormPage({
             <Alert severity="error">{errorMessage || saveError}</Alert>
           ) : null}
 
-          <MasterFormFields
-            compact
-            definition={formDefinition}
-            fieldActions={fieldActions}
-            onChange={handleFieldChange}
-            presentation={mode === "view" ? "details" : "form"}
-            readOnly={mode === "view"}
-            showRequiredErrors={mode !== "view" && hasSubmitted}
-            values={values}
-            variant="masters"
-          />
+          {renderFields ? (
+            renderFields({
+              definition: formDefinition,
+              values,
+              onChange: handleFieldChange,
+              readOnly: mode === "view",
+              showRequiredErrors: mode !== "view" && hasSubmitted,
+              hasSubmitted,
+            })
+          ) : (
+            <MasterFormFields
+              compact
+              definition={formDefinition}
+              fieldActions={fieldActions}
+              onChange={handleFieldChange}
+              presentation={mode === "view" ? "details" : "form"}
+              readOnly={mode === "view"}
+              showRequiredErrors={mode !== "view" && hasSubmitted}
+              values={values}
+              variant="masters"
+            />
+          )}
 
           {afterFields}
 

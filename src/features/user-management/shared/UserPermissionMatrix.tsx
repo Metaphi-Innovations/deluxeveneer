@@ -244,29 +244,11 @@ export function UserPermissionMatrix({
           sx={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
-            width: 228,
+            justifyContent: "flex-end",
             flexShrink: 0,
             gap: 1,
           }}
         >
-          <Typography
-            sx={{
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: theme.customTokens.brand.primary,
-              backgroundColor: theme.customTokens.brand.primaryScale[50],
-              border: `1px solid ${theme.customTokens.brand.primaryScale[200]}`,
-              borderRadius: "999px",
-              px: 1.5,
-              py: 0.35,
-              lineHeight: 1.2,
-              textAlign: "center",
-            }}
-          >
-            {totals.total} enabled
-          </Typography>
-
           {readOnly ? (
             <Stack direction="row" spacing={0.75}>
               <FilterChip

@@ -11,7 +11,7 @@ export const gstMasterOptions = getGstMasterOptions();
 export const gstMasterDefinition: MasterDefinition = {
   slug: "gst-master",
   title: "GST Master",
-  gridColumns: 3,
+  gridColumns: 4,
   columns: [
     { key: "srNo", label: "Sr No" },
     { key: "gstPercentage", label: "GST %" },
@@ -28,9 +28,9 @@ export const gstMasterDefinition: MasterDefinition = {
     { key: "createdBy", label: "Created By", options: getLiveMasterOptions([], "gst-master", "createdBy") },
   ],
   fields: [
-    { key: "gstPercentage", label: "GST %", type: "text" },
-    { key: "status", label: "Status", type: "select", options: statusOptions },
-    { key: "remark", label: "Remark", type: "text" },
+    { key: "gstPercentage", label: "GST %", type: "text", columnSpan: 1 },
+    { key: "remark", label: "Remark", type: "text", columnSpan: 2 },
+    { key: "status", label: "Status", type: "select", options: statusOptions, columnSpan: 1 },
   ],
   rows: [],
 };

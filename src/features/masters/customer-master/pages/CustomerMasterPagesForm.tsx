@@ -26,6 +26,7 @@ import {
 import { ErpSelectField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getMastersCompactFieldSx } from "../../shared/mastersFormStyles";
 import {
+  MasterFormFields,
   MasterFormPage,
   MasterListingPage,
   type MasterFieldValue,
@@ -228,6 +229,138 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
       loading={isLoading}
       mode={mode}
       {...(record ? { record } : {})}
+      renderFields={({ definition: formDefinition, values, onChange, readOnly, showRequiredErrors }) => {
+        const line1Keys = ["customerType", "customerName", "companyName", "email", "phoneNumber", "dob"];
+        const line2Keys = ["address", "pincode", "country", "state", "city"];
+        const line3Keys = ["gstNo", "gstUpload", "panNo", "panUpload", "remark"];
+
+        const line1Fields = line1Keys
+          .map((key) => formDefinition.fields.find((f) => f.key === key))
+          .filter(Boolean) as typeof formDefinition.fields;
+
+        const line2Fields = line2Keys
+          .map((key) => formDefinition.fields.find((f) => f.key === key))
+          .filter(Boolean) as typeof formDefinition.fields;
+
+        const line3Fields = line3Keys
+          .map((key) => formDefinition.fields.find((f) => f.key === key))
+          .filter(Boolean) as typeof formDefinition.fields;
+
+        return (
+          <Stack spacing={1.5} sx={{ width: "100%" }}>
+            {/* Line 1: Customer Type, Customer Name, Company Name, Email, Phone, DOB (6 items) */}
+            <Box
+              sx={{
+                width: "100%",
+                overflowX: "auto",
+                "& > div": {
+                  display: "grid !important",
+                  width: "100%",
+                  minWidth: { xs: 0, lg: 960 },
+                  gridTemplateColumns: {
+                    xs: "1fr !important",
+                    sm: "repeat(2, minmax(0, 1fr)) !important",
+                    md: "repeat(3, minmax(0, 1fr)) !important",
+                    lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 0.95fr) !important",
+                  },
+                  columnGap: "12px !important",
+                  rowGap: "12px !important",
+                  alignItems: "start !important",
+                },
+              }}
+            >
+              <MasterFormFields
+                compact
+                definition={{
+                  ...formDefinition,
+                  fields: line1Fields,
+                  gridColumns: 5,
+                }}
+                onChange={onChange}
+                presentation={mode === "view" ? "details" : "form"}
+                readOnly={readOnly}
+                showRequiredErrors={showRequiredErrors}
+                values={values}
+                variant="masters"
+              />
+            </Box>
+
+            {/* Line 2: Address, Pincode, Country, State, City (5 items) */}
+            <Box
+              sx={{
+                width: "100%",
+                overflowX: "auto",
+                "& > div": {
+                  display: "grid !important",
+                  width: "100%",
+                  minWidth: { xs: 0, lg: 960 },
+                  gridTemplateColumns: {
+                    xs: "1fr !important",
+                    sm: "repeat(2, minmax(0, 1fr)) !important",
+                    md: "repeat(3, minmax(0, 1fr)) !important",
+                    lg: "repeat(5, minmax(0, 1fr)) !important",
+                  },
+                  columnGap: "12px !important",
+                  rowGap: "12px !important",
+                  alignItems: "start !important",
+                },
+              }}
+            >
+              <MasterFormFields
+                compact
+                definition={{
+                  ...formDefinition,
+                  fields: line2Fields,
+                  gridColumns: 5,
+                }}
+                onChange={onChange}
+                presentation={mode === "view" ? "details" : "form"}
+                readOnly={readOnly}
+                showRequiredErrors={showRequiredErrors}
+                values={values}
+                variant="masters"
+              />
+            </Box>
+
+            {/* Line 3: GSTIN, GSTIN Upload, PAN, PAN Upload, Remark (5 items) */}
+            <Box
+              sx={{
+                width: "100%",
+                overflowX: "auto",
+                "& > div": {
+                  display: "grid !important",
+                  width: "100%",
+                  minWidth: { xs: 0, lg: 960 },
+                  gridTemplateColumns: {
+                    xs: "1fr !important",
+                    sm: "repeat(2, minmax(0, 1fr)) !important",
+                    md: "repeat(3, minmax(0, 1fr)) !important",
+                    lg: "repeat(5, minmax(0, 1fr)) !important",
+                  },
+                  columnGap: "12px !important",
+                  rowGap: "12px !important",
+                  alignItems: "start !important",
+                },
+              }}
+            >
+              <MasterFormFields
+                compact
+                definition={{
+                  ...formDefinition,
+                  fields: line3Fields,
+                  gridColumns: 5,
+                }}
+                onChange={onChange}
+                presentation={mode === "view" ? "details" : "form"}
+                readOnly={readOnly}
+                showRequiredErrors={showRequiredErrors}
+                values={values}
+                variant="masters"
+              />
+            </Box>
+          </Stack>
+        );
+      }}
       onSave={async ({ mode: saveMode, row, values }) => {
         if (saveMode === "edit" && row?.id) {
           await updateCustomerMasterRecord(row.id, values, addresses);
@@ -374,7 +507,7 @@ export function CustomerAddressesSection({
         alignItems="center"
         justifyContent="space-between"
         spacing={1}
-        sx={{ mb: 1.25 }}
+        sx={{ mb: addresses.length > 0 ? 1.25 : 0 }}
       >
         <Typography sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
           Additional Addresses
@@ -422,11 +555,7 @@ export function CustomerAddressesSection({
         </Alert>
       </Snackbar>
 
-      {addresses.length === 0 ? (
-        <Typography sx={{ color: "text.secondary", fontSize: "0.8125rem" }}>
-          No additional addresses added.
-        </Typography>
-      ) : (
+      {addresses.length === 0 ? null : (
         <Stack spacing={1.25}>
           {addresses.map((address, index) => (
             <Box
@@ -463,7 +592,9 @@ export function CustomerAddressesSection({
                   gap: 1.25,
                   gridTemplateColumns: {
                     xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
                     md: "repeat(3, minmax(0, 1fr))",
+                    lg: "repeat(5, minmax(0, 1fr))",
                   },
                 }}
               >

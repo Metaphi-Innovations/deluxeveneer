@@ -83,30 +83,6 @@ export function EditItemSubCategoryMasterPage() {
         return {
           ...field,
           options: categoryOptions,
-          renderDropdownAction: ({ close }) => (
-            <Button
-              fullWidth
-              size="small"
-              startIcon={<Plus size={14} />}
-              onClick={() => {
-                close();
-                setQuickAddCategoryOpen(true);
-              }}
-              sx={(theme) => ({
-                justifyContent: "flex-start",
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                color: theme.customTokens.brand.primary,
-                py: 0.5,
-                px: 1,
-                "&:hover": {
-                  backgroundColor: theme.customTokens.navigation.hoverBackground,
-                },
-              })}
-            >
-              + Quick Add Category
-            </Button>
-          ),
         };
       }),
     };
@@ -150,6 +126,29 @@ export function EditItemSubCategoryMasterPage() {
         mode="edit"
         {...(record ? { record } : {})}
         onSave={handleSave}
+        fieldActions={{
+          category: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddCategoryOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add Category
+            </Button>
+          ),
+        }}
       />
       <QuickAddCategoryModal
         open={quickAddCategoryOpen}
