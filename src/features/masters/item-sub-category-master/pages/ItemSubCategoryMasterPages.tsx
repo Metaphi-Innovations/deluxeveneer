@@ -109,7 +109,7 @@ export function ItemSubCategoryMasterListPage() {
   }, []);
 
   const handleSortChange = useCallback(
-    (nextSortBy: string, nextSortOrder: "asc" | "desc") => {
+    (nextSortBy: string | null, nextSortOrder: "asc" | "desc" | null) => {
       setSortBy(nextSortBy);
       setSortOrder(nextSortOrder);
       setPage(1);
@@ -155,10 +155,16 @@ export function ItemSubCategoryMasterListPage() {
   );
 }
 
+import { QuickAddCategoryModal } from "../../item-category-master/QuickAddCategoryModal";
+import { Plus } from "lucide-react";
+import { Button } from "@mui/material";
+
 export function AddItemSubCategoryMasterPage() {
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
 
-  useEffect(() => {
+  const loadCategories = useCallback(() => {
     fetchItemCategoriesApi({ status: true, limit: 1000 }).then((records) => {
       const names = records
         .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
@@ -168,13 +174,43 @@ export function AddItemSubCategoryMasterPage() {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
   const definitionWithDynamicOptions = useMemo<MasterDefinition>(() => {
-    if (!categoryOptions.length) return itemSubCategoryMasterDefinition;
     return {
       ...itemSubCategoryMasterDefinition,
       fields: itemSubCategoryMasterDefinition.fields.map((field) => {
         if (field.key === "category") {
-          return { ...field, options: categoryOptions };
+          return {
+            ...field,
+            options: categoryOptions,
+            renderDropdownAction: ({ close }) => (
+              <Button
+                fullWidth
+                size="small"
+                startIcon={<Plus size={14} />}
+                onClick={() => {
+                  close();
+                  setQuickAddCategoryOpen(true);
+                }}
+                sx={(theme) => ({
+                  justifyContent: "flex-start",
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: theme.customTokens.brand.primary,
+                  py: 0.5,
+                  px: 1,
+                  "&:hover": {
+                    backgroundColor: theme.customTokens.navigation.hoverBackground,
+                  },
+                })}
+              >
+                + Quick Add Category
+              </Button>
+            ),
+          };
         }
         return field;
       }),
@@ -207,11 +243,23 @@ export function AddItemSubCategoryMasterPage() {
   };
 
   return (
-    <MasterFormPage
-      definition={definitionWithDynamicOptions}
-      mode="add"
-      onSave={handleSave}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={selectedCategory ? { category: selectedCategory } : undefined}
+        definition={definitionWithDynamicOptions}
+        mode="add"
+        onSave={handleSave}
+      />
+      <QuickAddCategoryModal
+        open={quickAddCategoryOpen}
+        onClose={() => setQuickAddCategoryOpen(false)}
+        onSuccess={(newCat) => {
+          setCategoryOptions((prev) => [...new Set([newCat, ...prev])]);
+          setSelectedCategory(newCat);
+          loadCategories();
+        }}
+      />
+    </>
   );
 }
 
@@ -261,13 +309,42 @@ export function EditItemSubCategoryMasterPage() {
     };
   }, [params.id]);
 
+  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+
   const definitionWithDynamicOptions = useMemo<MasterDefinition>(() => {
-    if (!categoryOptions.length) return itemSubCategoryMasterDefinition;
     return {
       ...itemSubCategoryMasterDefinition,
       fields: itemSubCategoryMasterDefinition.fields.map((field) => {
         if (field.key === "category") {
-          return { ...field, options: categoryOptions };
+          return {
+            ...field,
+            options: categoryOptions,
+            renderDropdownAction: ({ close }) => (
+              <Button
+                fullWidth
+                size="small"
+                startIcon={<Plus size={14} />}
+                onClick={() => {
+                  close();
+                  setQuickAddCategoryOpen(true);
+                }}
+                sx={(theme) => ({
+                  justifyContent: "flex-start",
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  color: theme.customTokens.brand.primary,
+                  py: 0.5,
+                  px: 1,
+                  "&:hover": {
+                    backgroundColor: theme.customTokens.navigation.hoverBackground,
+                  },
+                })}
+              >
+                + Quick Add Category
+              </Button>
+            ),
+          };
         }
         return field;
       }),
@@ -299,14 +376,25 @@ export function EditItemSubCategoryMasterPage() {
   };
 
   return (
-    <MasterFormPage
-      definition={definitionWithDynamicOptions}
-      errorMessage={errorMessage}
-      loading={isLoading}
-      mode="edit"
-      {...(record ? { record } : {})}
-      onSave={handleSave}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={selectedCategory ? { category: selectedCategory } : undefined}
+        definition={definitionWithDynamicOptions}
+        errorMessage={errorMessage}
+        loading={isLoading}
+        mode="edit"
+        {...(record ? { record } : {})}
+        onSave={handleSave}
+      />
+      <QuickAddCategoryModal
+        open={quickAddCategoryOpen}
+        onClose={() => setQuickAddCategoryOpen(false)}
+        onSuccess={(newCat) => {
+          setCategoryOptions((prev) => [...new Set([newCat, ...prev])]);
+          setSelectedCategory(newCat);
+        }}
+      />
+    </>
   );
 }
 

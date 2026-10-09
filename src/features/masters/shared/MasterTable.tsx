@@ -109,7 +109,7 @@ interface MasterTableProps {
   sorting?: {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+    onSortChange: (sortBy: string | null, sortOrder: "asc" | "desc" | null) => void;
   };
   /** When set, column filters are controlled by the parent (server-side). */
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
@@ -265,10 +265,6 @@ export function MasterTable({
   }, [displayColumns, filterOptionsByColumn, rows]);
 
   const filteredRows = useMemo(() => {
-    if (isServerFiltering) {
-      return rows;
-    }
-
     return rows.filter((row) =>
       Object.entries(columnFilters).every(([key, filterValue]) => {
         if (!isActiveColumnFilter(filterValue)) {
@@ -284,7 +280,7 @@ export function MasterTable({
         return matchColumnFilter(rawValue, cellValue, filterValue);
       }),
     );
-  }, [columnFilters, displayColumns, isServerFiltering, rows]);
+  }, [columnFilters, displayColumns, rows]);
 
   const activeFilterChips = useMemo(
     () => buildActiveFilterChips(columnFilters, displayColumns),
@@ -293,8 +289,27 @@ export function MasterTable({
   const hasActiveFilters = activeFilterChips.length > 0;
 
   const sortedRows = useMemo(() => {
-    if (isServerSorting || !sortConfig) {
+    if (isServerSorting) {
       return filteredRows;
+    }
+
+    if (!sortConfig) {
+      return [...filteredRows].sort((left, right) => {
+        const leftDate = left.updatedDate ?? left.updatedAt ?? left.createdDate ?? left.createdAt;
+        const rightDate = right.updatedDate ?? right.updatedAt ?? right.createdDate ?? right.createdAt;
+
+        if (
+          (typeof leftDate === "string" || typeof leftDate === "number" || leftDate instanceof Date) &&
+          (typeof rightDate === "string" || typeof rightDate === "number" || rightDate instanceof Date)
+        ) {
+          const leftTime = new Date(leftDate).getTime();
+          const rightTime = new Date(rightDate).getTime();
+          if (!Number.isNaN(leftTime) && !Number.isNaN(rightTime)) {
+            return rightTime - leftTime;
+          }
+        }
+        return 0;
+      });
     }
 
     return [...filteredRows].sort((left, right) => {
@@ -313,13 +328,13 @@ export function MasterTable({
     });
   }, [filteredRows, isServerSorting, sortConfig]);
 
-  const totalRecords = isServerPagination
+  const totalRecords = isServerPagination && Object.keys(columnFilters).length === 0
     ? pagination?.totalCount ?? sortedRows.length
     : sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / rowsPerPage));
   const safePage = Math.min(page, totalPages);
   const pageStartIndex = (safePage - 1) * rowsPerPage;
-  const currentPageRows = isServerPagination
+  const currentPageRows = isServerPagination && Object.keys(columnFilters).length === 0
     ? sortedRows
     : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(totalPages);
@@ -340,19 +355,29 @@ export function MasterTable({
   }, [isServerPagination, page, safePage]);
 
   const handleSort = (columnKey: string) => {
-    const nextDirection: SortDirection =
-      sortConfig?.key === columnKey && sortConfig.direction === "asc"
-        ? "desc"
-        : "asc";
+    let nextDirection: "asc" | "desc" | null = null;
+    let nextKey: string | null = columnKey;
+
+    if (sortConfig?.key !== columnKey) {
+      nextDirection = "asc";
+    } else if (sortConfig.direction === "asc") {
+      nextDirection = "desc";
+    } else {
+      // 3rd click: reset to default / latest
+      nextDirection = null;
+      nextKey = null;
+    }
 
     goToPage(1);
 
     if (sorting) {
-      sorting.onSortChange(columnKey, nextDirection);
+      sorting.onSortChange(nextKey, nextDirection);
       return;
     }
 
-    setInternalSortConfig({ key: columnKey, direction: nextDirection });
+    setInternalSortConfig(
+      nextKey && nextDirection ? { key: nextKey, direction: nextDirection } : null,
+    );
   };
 
   const handleOpenFilter = (
@@ -436,14 +461,6 @@ export function MasterTable({
 
   return (
     <Stack spacing={1.25}>
-      {hasActiveFilters ? (
-        <ActiveColumnFiltersBar
-          filters={activeFilterChips}
-          onClearAll={handleClearAllFilters}
-          onRemove={handleClearColumnFilter}
-        />
-      ) : null}
-
       <Box sx={(currentTheme) => listingTableContainerSx(currentTheme)}>
         <TableContainer
           sx={(currentTheme) => ({

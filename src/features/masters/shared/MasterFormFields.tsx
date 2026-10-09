@@ -681,6 +681,7 @@ export function MasterFormFields({
                   }
                   onChange={(value) => handleFieldChange(field, value)}
                   options={getSelectOptions(field, locationOptions)}
+                  renderBottomAction={field.renderDropdownAction}
                   searchable
                   size={fieldControlSize}
                   state={interactiveFieldState}

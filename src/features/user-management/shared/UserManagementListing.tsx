@@ -421,11 +421,31 @@ export function UserManagementListing() {
       : []),
   ];
 
-  const safePage = Math.min(page, totalPages);
-  const currentPageRows = canView ? filteredRows : [];
-  const visiblePaginationPages = getVisiblePaginationPages(totalPages);
-  const rangeStart = totalCount === 0 ? 0 : (safePage - 1) * rowsPerPage + 1;
-  const rangeEnd = Math.min(safePage * rowsPerPage, totalCount);
+  const activeColumnFilterCount =
+    (userFilter.length > 0 ? 1 : 0) +
+    (departmentFilter.length > 0 ? 1 : 0) +
+    (emailFilter.length > 0 ? 1 : 0) +
+    (phoneFilter.length > 0 ? 1 : 0) +
+    (statusFilter.length > 0 ? 1 : 0) +
+    (createdByFilter.length > 0 ? 1 : 0) +
+    (updatedByFilter.length > 0 ? 1 : 0);
+
+  const effectiveTotalCount =
+    activeColumnFilterCount > 0 ? filteredRows.length : totalCount;
+  const effectiveTotalPages = Math.max(
+    1,
+    Math.ceil(effectiveTotalCount / rowsPerPage),
+  );
+  const safePage = Math.min(page, effectiveTotalPages);
+  const pageStartIndex = (safePage - 1) * rowsPerPage;
+  const currentPageRows = canView
+    ? activeColumnFilterCount > 0
+      ? filteredRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
+      : filteredRows
+    : [];
+  const visiblePaginationPages = getVisiblePaginationPages(effectiveTotalPages);
+  const rangeStart = effectiveTotalCount === 0 ? 0 : pageStartIndex + 1;
+  const rangeEnd = Math.min(pageStartIndex + currentPageRows.length, effectiveTotalCount);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -566,14 +586,6 @@ export function UserManagementListing() {
     setActiveActionRowId(null);
   };
 
-  const activeColumnFilterCount =
-    (userFilter.length > 0 ? 1 : 0) +
-    (departmentFilter.length > 0 ? 1 : 0) +
-    (emailFilter.length > 0 ? 1 : 0) +
-    (phoneFilter.length > 0 ? 1 : 0) +
-    (statusFilter.length > 0 ? 1 : 0) +
-    (createdByFilter.length > 0 ? 1 : 0) +
-    (updatedByFilter.length > 0 ? 1 : 0);
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveColumnFilterChip[] = [];
@@ -842,29 +854,6 @@ export function UserManagementListing() {
         <Alert severity="success">{passwordSuccessMessage}</Alert>
       ) : null}
 
-      {activeColumnFilterCount > 0 ? (
-        <ActiveColumnFiltersBar
-          filters={activeFilterChips}
-          onClearAll={handleClearAllFilters}
-          onRemove={(columnKey) => {
-            if (columnKey === "user") {
-              setUserFilter([]);
-            } else if (columnKey === "department") {
-              setDepartmentFilter([]);
-            } else if (columnKey === "email") {
-              setEmailFilter([]);
-            } else if (columnKey === "phone") {
-              setPhoneFilter([]);
-            } else if (columnKey === "status") {
-              setStatusFilter([]);
-            } else if (columnKey === "createdBy") {
-              setCreatedByFilter([]);
-            } else if (columnKey === "updatedBy") {
-              setUpdatedByFilter([]);
-            }
-          }}
-        />
-      ) : null}
 
       <Box
         sx={{

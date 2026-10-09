@@ -51,7 +51,7 @@ interface MasterListingPageProps {
   sorting?: {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+    onSortChange: (sortBy: string | null, sortOrder: "asc" | "desc" | null) => void;
   };
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
   onColumnFiltersChange?: (
