@@ -203,10 +203,10 @@ export function MasterFormFields({
       : getCompactFieldSx(theme, state, fieldSxOptions);
   const mastersErpProps = isMastersVariant
     ? {
-        controlHeight: mastersErpControlHeight,
-        controlRadius: 6,
-        focusRing: "subtle" as const,
-      }
+      controlHeight: mastersErpControlHeight,
+      controlRadius: 6,
+      focusRing: "subtle" as const,
+    }
     : {};
   const selectedCountry = getLocationValue(definition.fields, values, "country");
   const selectedState = getLocationValue(definition.fields, values, "state");
@@ -338,19 +338,19 @@ export function MasterFormFields({
           gridTemplateColumns: useSingleColumn
             ? "minmax(0, 1fr)"
             : {
-                xs: "repeat(1, minmax(0, 1fr))",
-                sm: compact
-                  ? "repeat(2, minmax(140px, 1fr))"
-                  : "repeat(1, minmax(0, 1fr))",
-                md: compact
-                  ? "repeat(3, minmax(150px, 1fr))"
-                  : "repeat(2, minmax(160px, 1fr))",
-                lg:
-                  desktopColumns >= 5
-                    ? "repeat(5, minmax(140px, 1fr))"
-                    : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-                xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-              },
+              xs: "repeat(1, minmax(0, 1fr))",
+              sm: compact
+                ? "repeat(2, minmax(140px, 1fr))"
+                : "repeat(1, minmax(0, 1fr))",
+              md: compact
+                ? "repeat(3, minmax(150px, 1fr))"
+                : "repeat(2, minmax(160px, 1fr))",
+              lg:
+                desktopColumns >= 5
+                  ? "repeat(5, minmax(140px, 1fr))"
+                  : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+              xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+            },
         })}
       >
         {fields.map((field) => {
@@ -403,21 +403,21 @@ export function MasterFormFields({
                 minWidth: 0,
                 gridColumn: field.columnSpan
                   ? {
-                      xs: "span 1",
-                      sm: `span ${Math.min(field.columnSpan, 2)}`,
-                      md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
-                      lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
-                    }
+                    xs: "span 1",
+                    sm: `span ${Math.min(field.columnSpan, 2)}`,
+                    md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                    lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                  }
                   : isFullWidth
                     ? {
-                        xs: "span 1",
-                        lg: useSingleColumn
-                          ? "span 1"
-                          : `span ${Math.min(desktopColumns, 2)}`,
-                        xl: useSingleColumn
-                          ? "span 1"
-                          : `span ${Math.min(desktopColumns, 2)}`,
-                      }
+                      xs: "span 1",
+                      lg: useSingleColumn
+                        ? "span 1"
+                        : `span ${Math.min(desktopColumns, 2)}`,
+                      xl: useSingleColumn
+                        ? "span 1"
+                        : `span ${Math.min(desktopColumns, 2)}`,
+                    }
                     : undefined,
               })}
             >
@@ -637,8 +637,8 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation && renderedFieldType === "text" &&
-              !isPhoneField(field) &&
-              !isLocationField(field) ? (
+                !isPhoneField(field) &&
+                !isLocationField(field) ? (
                 <TextField
                   fullWidth
                   error={Boolean(fieldHasRequiredError || fieldValidationError)}
@@ -656,12 +656,12 @@ export function MasterFormFields({
                     isMastersVariant
                       ? resolveFieldSx(fieldState)
                       : {
-                          ...resolveFieldSx(fieldState),
-                          "& .MuiOutlinedInput-root": {
-                            height: theme.spacing(4.5),
-                            minHeight: theme.spacing(4.5),
-                          },
-                        }
+                        ...resolveFieldSx(fieldState),
+                        "& .MuiOutlinedInput-root": {
+                          height: theme.spacing(4.5),
+                          minHeight: theme.spacing(4.5),
+                        },
+                      }
                   }
                   slotProps={getTextFieldSlotProps(field, fieldIsReadOnly)}
                 />
@@ -686,7 +686,7 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation &&
-              (renderedFieldType === "select" || isLocationField(field)) ? (
+                (renderedFieldType === "select" || isLocationField(field)) ? (
                 <ErpSelectField
                   helperText={fieldHelperText}
                   maxVisibleOptions={
@@ -1188,11 +1188,11 @@ function FieldLabel({
         masters
           ? mastersFormLabelSx()
           : {
-              fontSize: compact ? "12px" : "13px",
-              fontWeight: 600,
-              lineHeight: 1.3,
-              whiteSpace: compact ? "nowrap" : undefined,
-            }
+            fontSize: compact ? "12px" : "13px",
+            fontWeight: 600,
+            lineHeight: 1.3,
+            whiteSpace: compact ? "nowrap" : undefined,
+          }
       }
     >
       {getDisplayFieldLabel(label)}
@@ -1273,14 +1273,14 @@ function DetailFilePreview({
           flexShrink: 0,
           ...(fileUrl
             ? {
-                "&:hover": {
-                  borderColor: theme.customTokens.navigation.activeText,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
-                  "& .preview-overlay": {
-                    opacity: 1,
-                  },
+              "&:hover": {
+                borderColor: theme.customTokens.navigation.activeText,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
+                "& .preview-overlay": {
+                  opacity: 1,
                 },
-              }
+              },
+            }
             : {}),
         }}
       >
