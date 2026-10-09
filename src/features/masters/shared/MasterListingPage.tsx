@@ -220,6 +220,7 @@ export function MasterListingPage({
             getEditPath={paths.edit}
             getViewPath={paths.view}
             onStatusChange={handleStatusChange}
+            loading={loading}
             {...(pagination ? { pagination } : {})}
             {...(sorting ? { sorting } : {})}
             {...(columnFilters ? { columnFilters } : {})}

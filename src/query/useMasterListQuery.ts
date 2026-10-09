@@ -66,7 +66,8 @@ export function useMasterListQuery<T>({
   return {
     rows: listQuery.data?.items ?? [],
     totalCount: listQuery.data?.pagination.total ?? 0,
-    isLoading: listQuery.isLoading,
+    isLoading: listQuery.isLoading || listQuery.isFetching,
+    isFetching: listQuery.isFetching,
     error: listQuery.error,
   };
 }

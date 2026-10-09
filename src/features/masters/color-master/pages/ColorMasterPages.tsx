@@ -90,7 +90,7 @@ export function ColorMasterListPage() {
   });
   const rows = listQuery.data?.items ?? [];
   const totalCount = listQuery.data?.pagination.total ?? 0;
-  const isLoading = listQuery.isLoading;
+  const isLoading = listQuery.isLoading || listQuery.isFetching;
   const errorMessage =
     actionError ||
     (listQuery.error instanceof Error ? listQuery.error.message : "");

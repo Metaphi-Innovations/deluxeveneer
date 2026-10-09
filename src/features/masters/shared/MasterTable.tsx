@@ -16,6 +16,7 @@ import {
   Box,
   Button,
   IconButton,
+  LinearProgress,
   MenuItem,
   Select,
   Stack,
@@ -30,6 +31,8 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { useNavigate } from "react-router";
+
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 
 import { ErpToggleSwitch } from "../../../components/inputs/ErpToggleSwitch";
 import { actionMenuTriggerSx } from "../../shared/actionMenuStyles";
@@ -120,6 +123,8 @@ interface MasterTableProps {
   >;
   /** Called when a column filter menu is opened (lazy-load options). */
   onColumnFilterOpen?: (columnKey: string) => void;
+  /** Whether the table is currently loading records. */
+  loading?: boolean;
 }
 
 const actionColumnWidth = 64;
@@ -138,6 +143,7 @@ export function MasterTable({
   onColumnFiltersChange,
   filterOptionsByColumn,
   onColumnFilterOpen,
+  loading = false,
   rows,
 }: MasterTableProps) {
   const theme = useTheme();
@@ -441,6 +447,7 @@ export function MasterTable({
       <Box sx={(currentTheme) => listingTableContainerSx(currentTheme)}>
         <TableContainer
           sx={(currentTheme) => ({
+            position: "relative",
             maxHeight: rowsPerPage === 10 ? "none" : 520,
             overflowX: "auto",
             overflowY: rowsPerPage === 10 ? "hidden" : "auto",
@@ -464,6 +471,22 @@ export function MasterTable({
             },
           })}
         >
+          {loading ? (
+            <LinearProgress
+              sx={(currentTheme) => ({
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 10,
+                height: 3,
+                backgroundColor: currentTheme.customTokens.surfaces.alt,
+                "& .MuiLinearProgress-bar": {
+                  backgroundColor: currentTheme.customTokens.brand.primary,
+                },
+              })}
+            />
+          ) : null}
           <Table
             stickyHeader
             sx={{
@@ -526,18 +549,20 @@ export function MasterTable({
                           {column.label}
                         </Typography>
 
-                        <IconButton
-                          size="small"
-                          onClick={() => handleSort(column.key)}
-                          sx={(currentTheme) =>
-                            listingTableHeaderIconButtonSx(currentTheme)
-                          }
-                        >
-                          <SortIndicator
-                            active={isSorted}
-                            direction={sortConfig?.direction}
-                          />
-                        </IconButton>
+                        {isRemarkColumn(column) ? null : (
+                          <IconButton
+                            size="small"
+                            onClick={() => handleSort(column.key)}
+                            sx={(currentTheme) =>
+                              listingTableHeaderIconButtonSx(currentTheme)
+                            }
+                          >
+                            <SortIndicator
+                              active={isSorted}
+                              direction={sortConfig?.direction}
+                            />
+                          </IconButton>
+                        )}
 
                         {showFilter ? (
                           <IconButton
@@ -617,79 +642,96 @@ export function MasterTable({
             </TableHead>
 
             <TableBody>
-              {currentPageRows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  hover
-                  sx={(currentTheme) => ({
-                    "& td": {
-                      backgroundColor:
-                        currentTheme.customTokens.surfaces.surface,
-                    },
-                    "&:hover td": {
-                      backgroundColor:
-                        currentTheme.customTokens.navigation.hoverBackground,
-                    },
-                  })}
-                >
-                  {displayColumns.map((column) => (
-                    <TableCell
-                      key={column.key}
-                      sx={(currentTheme) =>
-                        listingTableBodyCellSx(currentTheme)
-                      }
-                    >
-                      {renderMasterTableCell(
-                        row,
-                        column,
-                        statusOverrides,
-                        setStatusOverrides,
-                        onStatusChange,
-                        theme,
-                        canChangeStatus,
-                      )}
-                    </TableCell>
-                  ))}
-
+              {currentPageRows.length === 0 ? (
+                <TableRow>
                   <TableCell
-                    sx={[
-                      (currentTheme) => listingTableBodyCellSx(currentTheme),
-                      {
-                        position: "sticky",
-                        right: 0,
-                        zIndex: 1,
-                        minWidth: actionColumnWidth,
-                        boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
-                      },
-                    ]}
+                    colSpan={displayColumns.length + 1}
+                    sx={{ py: loading ? 3 : 6, textAlign: "center" }}
                   >
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {hasRowActions ? (
-                        <IconButton
-                          size="small"
-                          aria-label="Open row actions"
-                          onClick={(event) =>
-                            handleOpenActionMenu(row.id, event)
-                          }
-                          sx={(currentTheme) =>
-                            actionMenuTriggerSx(currentTheme)
-                          }
-                        >
-                          <MoreHorizontal
-                            size={portalIconSize.md}
-                            strokeWidth={portalIconStroke.default}
-                          />
-                        </IconButton>
-                      ) : null}
-                    </Box>
+                    {loading ? (
+                      <ContentLoader label="Loading records..." minHeight={160} />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No records found.
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                currentPageRows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    hover
+                    sx={(currentTheme) => ({
+                      "& td": {
+                        backgroundColor:
+                          currentTheme.customTokens.surfaces.surface,
+                      },
+                      "&:hover td": {
+                        backgroundColor:
+                          currentTheme.customTokens.navigation.hoverBackground,
+                      },
+                    })}
+                  >
+                    {displayColumns.map((column) => (
+                      <TableCell
+                        key={column.key}
+                        sx={(currentTheme) =>
+                          listingTableBodyCellSx(currentTheme)
+                        }
+                      >
+                        {renderMasterTableCell(
+                          row,
+                          column,
+                          statusOverrides,
+                          setStatusOverrides,
+                          onStatusChange,
+                          theme,
+                          canChangeStatus,
+                        )}
+                      </TableCell>
+                    ))}
+
+                    <TableCell
+                      sx={[
+                        (currentTheme) => listingTableBodyCellSx(currentTheme),
+                        {
+                          position: "sticky",
+                          right: 0,
+                          zIndex: 1,
+                          minWidth: actionColumnWidth,
+                          boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                        },
+                      ]}
+                    >
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {hasRowActions ? (
+                          <IconButton
+                            size="small"
+                            aria-label="Open row actions"
+                            onClick={(event) =>
+                              handleOpenActionMenu(row.id, event)
+                            }
+                            sx={(currentTheme) =>
+                              actionMenuTriggerSx(currentTheme)
+                            }
+                          >
+                            <MoreHorizontal
+                              size={portalIconSize.md}
+                              strokeWidth={portalIconStroke.default}
+                            />
+                          </IconButton>
+                        ) : null}
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </TableContainer>

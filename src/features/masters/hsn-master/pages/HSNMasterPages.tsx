@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { MasterFormPage, MasterListingPage } from "../../shared";
 import type { MasterDefinition, MasterRecord } from "../../shared/types";
@@ -14,6 +14,10 @@ import {
   updateHsnApi,
   updateHsnStatusApi,
 } from "../hsnMasterApi";
+import {
+  fetchGstsApi,
+  syncGstMasterToStorage,
+} from "../../gst-master/gstMasterApi";
 import { invalidateMaster } from "../../../../query/queryClient";
 import { queryKeys } from "../../../../query/queryKeys";
 import { useColumnDropdownQuery } from "../../../../query/useColumnDropdownQuery";
@@ -159,15 +163,15 @@ export function AddHSNMasterPage() {
     fetchGstsApi().then((gstRecords) => {
       if (gstRecords && gstRecords.length > 0) {
         syncGstMasterToStorage(gstRecords);
-        const options = Array.from(
+        const options: string[] = Array.from(
           new Set(
             gstRecords
-              .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
-              .map((r) => {
+              .filter((r: MasterRecord) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+              .map((r: MasterRecord) => {
                 const val = r.gstPercentage || r.percentage;
                 return String(val).endsWith("%") ? String(val) : `${val}%`;
               })
-              .filter(Boolean),
+              .filter((val): val is string => Boolean(val)),
           ),
         );
 
@@ -224,18 +228,18 @@ export function EditHSNMasterPage() {
   const [definition, setDefinition] = useState<MasterDefinition>(hsnMasterDefinition);
 
   useEffect(() => {
-    fetchGstsApi().then((gstRecords) => {
+    fetchGstsApi().then((gstRecords: MasterRecord[]) => {
       if (gstRecords && gstRecords.length > 0) {
         syncGstMasterToStorage(gstRecords);
-        const options = Array.from(
+        const options: string[] = Array.from(
           new Set(
             gstRecords
-              .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
-              .map((r) => {
+              .filter((r: MasterRecord) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+              .map((r: MasterRecord) => {
                 const val = r.gstPercentage || r.percentage;
                 return String(val).endsWith("%") ? String(val) : `${val}%`;
               })
-              .filter(Boolean),
+              .filter((val): val is string => Boolean(val)),
           ),
         );
 
