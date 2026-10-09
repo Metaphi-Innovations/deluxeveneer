@@ -542,7 +542,7 @@ export const itemMasterDefinition: MasterDefinition = {
     },
     {
       key: "gst",
-      label: "GST No",
+      label: "GST%",
       type: "select",
       options: [],
       readOnly: true,
@@ -561,7 +561,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "srNo", label: "Sr No" },
     { key: "categoryName", label: "Category Name" },
     { key: "hsn", label: "HSN Code" },
-    { key: "gst", label: "GST No" },
+    { key: "gst", label: "GST%" },
     { key: "remark", label: "Remark" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
@@ -572,7 +572,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
   filters: [
     { key: "categoryName", label: "Category Name", options: uniqueOptions(itemCategoryRows, "categoryName") },
     { key: "hsn", label: "HSN Code", options: activeOptions(hsnRows, "hsnCode") },
-    { key: "gst", label: "GST No", options: activeOptions(hsnRows, "gstPercentage") },
+    { key: "gst", label: "GST%", options: activeOptions(hsnRows, "gstPercentage") },
     { key: "status", label: "Status", options: statusOptions },
   ],
   fields: [
@@ -580,7 +580,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "hsn", label: "HSN Code", type: "select", options: activeOptions(hsnRows, "hsnCode") },
     {
       key: "gst",
-      label: "GST No",
+      label: "GST%",
       type: "select",
       options: activeOptions(hsnRows, "gstPercentage"),
       readOnly: true,

@@ -35,7 +35,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
 import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { createSawingProcessApi } from "../api/sawingApi";
+import { addSawingDoneItems } from "../sawingFrontendStore";
 
 interface ProcessItemRow {
   id: string;
@@ -311,38 +311,38 @@ export function SawingCreatePage() {
     setErrorMessage("");
 
     try {
-      await createSawingProcessApi({
-        issueItemId,
-        issueId,
-        storageWarehouseId,
-        processedItems: processedItems.map((p) => ({
-          batchNo: p.batchNo,
-          length: p.length,
-          width: p.width,
-          thickness: p.thickness,
-          cbm: p.cbm,
-          cbf: p.cbf,
-          receivedCbm: p.receivedCbm,
-          availableCbm: p.availableCbm,
-          ratePerCbm: p.ratePerCbm,
-          ratePerCbf: p.ratePerCbm,
-          amount: p.amount,
-          ...(p.remark ? { remark: p.remark } : {}),
+      const sawingDate = new Date().toISOString().slice(0, 10);
+      const issuedDate = sourceItem?.issueDate || sourceItem?.issuedDate || sawingDate;
+      const subCategory = sourceItem?.subCategory || sourceItem?.itemSubCategoryName || sourceItem?.itemSubCategory || "-";
+      addSawingDoneItems(
+        processedItems.map((item, index) => ({
+          id: `done-${Date.now()}-${index}`,
+          storageSrNo: sourceItem?.storageSrNo || "-",
+          issueDate: issuedDate,
+          issuedDate,
+          processDate: sawingDate,
+          sawingDate,
+          itemName: sourceItem?.itemName || "Veneer Block",
+          subCategory,
+          itemSubCategory: subCategory,
+          batchNo: sourceItem?.batchNo || "-",
+          batchNoCode: item.batchNo || sourceItem?.batchNo || "-",
+          length: item.length,
+          width: item.width,
+          thickness: item.thickness,
+          height: item.thickness,
+          cbm: item.cbm,
+          cbf: item.cbf,
+          remark: item.remark || sourceItem?.remark || "-",
+          createdBy: "Admin",
+          updatedBy: "Admin",
+          listingState: "done",
+          issueItemId,
+          issueId,
+          storageWarehouseId,
         })),
-        rejectAvailableItems: rejectAvailableItems.map((ra) => ({
-          type: ra.type,
-          length: ra.length,
-          width: ra.width,
-          height: ra.height,
-          thickness: ra.height,
-          cbm: ra.cbm,
-          cbf: ra.cbf,
-          amount: ra.amount,
-          remark: ra.remark,
-        })),
-      });
+      );
 
-      // Redirect to Sawing Done tab
       navigate("/factory/sawing?tab=done");
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to save sawing process.");

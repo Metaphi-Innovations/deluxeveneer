@@ -53,7 +53,14 @@ import {
   useFactoryProcessRunTotals,
 } from "./factoryProcessRunStore";
 import { completeFactoryIssuedWork } from "./factoryIssuedWorkStore";
-import { createSawingProcessApi } from "../sawing/api/sawingApi";
+import { addSawingDoneItems, getSawingAvailableCbm, updateSawingIssuedAvailability } from "../sawing/sawingFrontendStore";
+import { addSlicingDoneItems, updateSlicingIssuedAvailability } from "../slicing/slicingFrontendStore";
+import {
+  calculateSlicingRemainder,
+  formatSlicingDecimal,
+  measureSlicingSlice,
+  slicingStockCbm,
+} from "./slicingAreaCalculation";
 import {
   buildFactorySourceAllocationKey,
   computeProcessEntryBalance,
@@ -70,6 +77,7 @@ import {
 } from "./sampleSheetIdentityStore";
 import {
   createEmptyRejectAvailableValues,
+  type RejectAvailableValues,
   getNextRejectAvailableValues,
   getRejectAvailableValidationErrors,
   getVisibleRejectAvailableValidationIssues,
@@ -396,13 +404,54 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const [editingSubmitAttempted, setEditingSubmitAttempted] = useState(false);
   const [rejectAvailableValues, setRejectAvailableValues] = useState(() => {
     const initial = createEmptyRejectAvailableValues();
-    if (definition.slug === "sawing") {
+    if (definition.slug === "sawing" || definition.slug === "slicing") {
       initial.type = "Available";
     }
     return initial;
   });
   const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
     useState(false);
+
+  useEffect(() => {
+    if (definition.slug !== "sawing" && definition.slug !== "slicing") return;
+    const source = sourceRow as Record<string, unknown> | undefined;
+    setRejectAvailableValues((current) => ({
+      ...(definition.slug === "slicing"
+        ? buildSlicingAvailableValues(source, lineItems)
+        : buildSawingAvailableValues(source, lineItems)),
+      remark: current.remark,
+    }));
+  }, [definition.slug, lineItems, sourceRow]);
+
+  useEffect(() => {
+    if (definition.slug !== "sawing") return;
+    setDraftValues((current) => {
+      const next = calculateSawingVolumeValues(current);
+      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      return next;
+    });
+    setEditingValues((current) => {
+      const next = calculateSawingVolumeValues(current);
+      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      return next;
+    });
+  }, [definition.slug, draftValues, editingValues]);
+
+  useEffect(() => {
+    if (definition.slug !== "sawing") return;
+    setLineItems((current) => {
+      let changed = false;
+      const next = current.map((item) => {
+        const values = calculateSawingVolumeValues(item.values);
+        if (values.cbm === item.values.cbm && values.cbf === item.values.cbf) {
+          return item;
+        }
+        changed = true;
+        return { ...item, values };
+      });
+      return changed ? next : current;
+    });
+  }, [definition.slug, lineItems]);
 
   const quantityConfig = useMemo(
     () => getFactoryQuantityAllocationConfig(definition.slug),
@@ -496,6 +545,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     );
 
     if (hasValidationErrors(validationErrors)) {
+      setDraftSubmitAttempted(true);
+      return;
+    }
+
+    if (definition.slug === "slicing" && !slicingSliceFitsStock(draftValues, sourceRow, lineItems)) {
       setDraftSubmitAttempted(true);
       return;
     }
@@ -599,6 +653,18 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     });
 
     if (overflow) {
+      setEditingSubmitAttempted(true);
+      return;
+    }
+
+    if (
+      definition.slug === "slicing" &&
+      !slicingSliceFitsStock(
+        editingValues,
+        sourceRow,
+        lineItems.filter((row) => row.id !== rowId),
+      )
+    ) {
       setEditingSubmitAttempted(true);
       return;
     }
@@ -719,6 +785,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   current,
                                   column.key,
                                   value,
+                                  definition.slug,
                                 ),
                               ),
                             ),
@@ -834,6 +901,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                           current,
                                           column.key,
                                           value,
+                                          definition.slug,
                                         ),
                                       ),
                                     ),
@@ -898,6 +966,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 : undefined
             }
             volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
+            includeArea={definition.slug === "slicing"}
+            useHeight={definition.slug === "sawing"}
+            editableDerived={definition.slug === "sawing"}
             hideAmount={definition.slug === "sawing" || definition.slug === "slicing"}
             fieldIssues={getVisibleRejectAvailableValidationIssues(
               rejectAvailableValidationErrors,
@@ -910,6 +981,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   key,
                   value,
                   definition.slug === "sawing" || definition.slug === "slicing",
+                  definition.slug === "sawing",
                 ),
               )
             }
@@ -1049,9 +1121,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   }
                 }
 
-                if (definition.slug !== "sawing") {
-                  completeFactoryIssuedWork(workItemId, resultSnapshot);
-                }
+              if (definition.slug !== "sawing" && definition.slug !== "slicing") {
+                completeFactoryIssuedWork(workItemId, resultSnapshot);
+              }
               }
 
               const sampleNo =
@@ -1103,33 +1175,40 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   0,
                 );
 
-                // Determine previous available CBM
-                let storedCbmMap: Record<string, number> = {};
-                try {
-                  const raw = localStorage.getItem("sawing_available_cbm_map");
-                  if (raw) storedCbmMap = JSON.parse(raw);
-                } catch {
-                  // ignore
-                }
-
                 const itemKey = String(issueItemId || sawingSource?.storageSrNo || "");
                 const fallbackBaseCbm = Number(sawingSource?.availableCbm ?? sawingSource?.receivedCbm ?? sawingSource?.cbm ?? 0);
-                const previousAvailableCbm =
-                  itemKey in storedCbmMap
-                    ? (storedCbmMap[itemKey] ?? fallbackBaseCbm)
-                    : fallbackBaseCbm;
+                const previousAvailableCbm = itemKey
+                  ? getSawingAvailableCbm(itemKey, fallbackBaseCbm)
+                  : fallbackBaseCbm;
 
-                const remainingCbm = Math.max(0, Number(((previousAvailableCbm ?? 0) - totalSawedCbm).toFixed(4)));
-
-                // Update stored available CBM
-                if (itemKey) {
-                  storedCbmMap[itemKey] = remainingCbm;
-                  try {
-                    localStorage.setItem("sawing_available_cbm_map", JSON.stringify(storedCbmMap));
-                  } catch {
-                    // ignore
-                  }
-                }
+                const enteredAvailableCbm = numericField(rejectAvailableValues.cbm);
+                const remainingCbm = Math.max(
+                  0,
+                  Number(
+                    (
+                      (enteredAvailableCbm > 0
+                        ? enteredAvailableCbm
+                        : (previousAvailableCbm ?? 0) - totalSawedCbm)
+                    ).toFixed(4),
+                  ),
+                );
+                const availableLength = numericField(rejectAvailableValues.length);
+                const availableWidth = numericField(rejectAvailableValues.width);
+                const availableHeight = heightFromAvailableVolume(
+                  availableLength,
+                  availableWidth,
+                  remainingCbm,
+                );
+                updateSawingIssuedAvailability(
+                  [itemKey, sawingSource?.id, sawingSource?.storageSrNo],
+                  {
+                    length: formatSawingNumber(availableLength, 3),
+                    width: formatSawingNumber(availableWidth, 3),
+                    height: formatSawingNumber(availableHeight, 3),
+                    availableCbm: remainingCbm,
+                    availableCbf: formatSawingNumber(remainingCbm * 35.3147, 4),
+                  },
+                );
 
                 // If workItemId exists, only complete it when remainingCbm reaches 0
                 if (workItemId) {
@@ -1138,51 +1217,135 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   }
                 }
 
-                // Create done items in local store so they appear in Sawing Done
-                try {
-                  const rawCreated = localStorage.getItem("sawing_done_created_items");
-                  const createdList = rawCreated ? JSON.parse(rawCreated) : [];
-                  const newDoneItems = processedItemsPayload.map((p, idx) => ({
-                    id: `done-${Date.now()}-${idx}`,
-                    doneId: `done-${Date.now()}-${idx}`,
-                    storageSrNo: sawingSource?.storageSrNo || "-",
-                    processDate: processDateVal ? processDateVal.slice(0, 10) : new Date().toISOString().slice(0, 10),
-                    itemName: sawingSource?.itemName || "Veneer Block",
-                    subCategory: sawingSource?.subCategory || sawingSource?.itemSubCategory || "-",
-                    batchNo: sawingSource?.batchNo || "-",
-                    batchNoCode: p.batchNo || sawingSource?.batchNo || "-",
-                    length: p.length,
-                    width: p.width,
-                    thickness: p.thickness,
-                    height: p.thickness,
-                    cbm: p.cbm,
-                    cbf: p.cbf,
-                    remark: p.remark || sawingSource?.remark || "-",
-                    createdBy: sawingSource?.createdBy || "Admin",
-                    updatedBy: sawingSource?.updatedBy || "Admin",
-                    listingState: "done",
-                  }));
-                  localStorage.setItem(
-                    "sawing_done_created_items",
-                    JSON.stringify([...newDoneItems, ...createdList]),
-                  );
-                } catch {
-                  // ignore
-                }
-
-                try {
-                  await createSawingProcessApi({
-                    ...(issueItemId ? { issueItemId } : {}),
-                    ...(issueId ? { issueId } : {}),
-                    ...(storageWarehouseId ? { storageWarehouseId } : {}),
-                    ...(processDateVal ? { processDate: processDateVal } : {}),
-                    processedItems: processedItemsPayload,
-                  });
-                } catch (err) {
-                  console.error("Failed to save sawing process to backend:", err);
-                }
+                const sawingDate = processDateVal
+                  ? processDateVal.slice(0, 10)
+                  : new Date().toISOString().slice(0, 10);
+                const issuedDate = sawingSource?.issueDate || sawingSource?.issuedDate || sawingDate;
+                const subCategory =
+                  sawingSource?.subCategory || sawingSource?.itemSubCategory || "-";
+                const newDoneItems = processedItemsPayload.map((p, idx) => ({
+                  id: `done-${Date.now()}-${idx}`,
+                  doneId: `done-${Date.now()}-${idx}`,
+                  sourceIssueId: issueItemId,
+                  storageSrNo: sawingSource?.storageSrNo || "-",
+                  issueDate: issuedDate,
+                  issuedDate,
+                  processDate: sawingDate,
+                  sawingDate,
+                  itemName: sawingSource?.itemName || "Veneer Block",
+                  subCategory,
+                  itemSubCategory: subCategory,
+                  batchNo: sawingSource?.batchNo || "-",
+                  batchNoCode: p.batchNo || sawingSource?.batchNo || "-",
+                  length: p.length,
+                  width: p.width,
+                  thickness: p.thickness,
+                  height: p.thickness,
+                  cbm: p.cbm,
+                  cbf: p.cbf,
+                  remark: p.remark || sawingSource?.remark || "-",
+                  createdBy: sawingSource?.createdBy || "Admin",
+                  updatedBy: sawingSource?.updatedBy || "Admin",
+                  listingState: "done",
+                  storageWarehouseId,
+                  issueId,
+                }));
+                addSawingDoneItems(
+                  newDoneItems,
+                  itemKey ? { [itemKey]: remainingCbm } : undefined,
+                );
 
                 navigate("/factory/sawing?tab=done");
+                return;
+              }
+
+              if (definition.slug === "slicing") {
+                const slicingSource = (sourceRow ?? {}) as Record<string, unknown>;
+                const remainingCbm = Math.max(0, numericField(rejectAvailableValues.cbm));
+                const remainingHeight =
+                  numericField(rejectAvailableValues.height) ||
+                  numericField(rejectAvailableValues.thickness);
+                const issueKeys = [
+                  slicingSource.id,
+                  slicingSource.workItemId,
+                  slicingSource.storageSrNo,
+                  slicingSource.sourceStorageId,
+                  workItemId,
+                ]
+                  .filter(
+                    (value) =>
+                      value !== undefined &&
+                      value !== null &&
+                      String(value).trim() !== "",
+                  )
+                  .map(String);
+
+                updateSlicingIssuedAvailability(issueKeys, {
+                  availableCbm: Number(formatSawingNumber(remainingCbm, 6)) || 0,
+                  height: formatSawingNumber(remainingHeight, 3),
+                  length: String(slicingSource.length ?? ""),
+                  width: String(slicingSource.width ?? ""),
+                });
+
+                if (remainingCbm <= 0.000001 && workItemId) {
+                  completeFactoryIssuedWork(workItemId, {
+                    ...slicingSource,
+                    ...formValues,
+                    availableCbm: 0,
+                    height: "0",
+                  });
+                }
+
+                const slicingDateValue =
+                  formValues.slicingDate ?? formValues.processDate ?? formValues.issueDate;
+                const slicingDate =
+                  slicingDateValue instanceof Date &&
+                  !Number.isNaN(slicingDateValue.getTime())
+                    ? `${slicingDateValue.getFullYear()}-${String(slicingDateValue.getMonth() + 1).padStart(2, "0")}-${String(slicingDateValue.getDate()).padStart(2, "0")}`
+                    : typeof slicingDateValue === "string" && slicingDateValue.trim()
+                      ? slicingDateValue
+                      : new Date().toISOString().slice(0, 10);
+
+                addSlicingDoneItems(
+                  lineItems.map((item, index) => {
+                    const vals = item.values;
+                    const sqm = vals.sqm || vals.totalSqMeter || "";
+                    return {
+                      id: `slicing-done-${Date.now()}-${index}`,
+                      listingState: "done",
+                      storageSrNo: slicingSource.storageSrNo ?? "",
+                      issueDate: slicingDate,
+                      slicingDate,
+                      itemName: slicingSource.itemName ?? "",
+                      subCategory:
+                        slicingSource.subCategory ?? slicingSource.itemSubCategory ?? "",
+                      itemSubCategory:
+                        slicingSource.itemSubCategory ?? slicingSource.subCategory ?? "",
+                      logCode:
+                        slicingSource.logCode ??
+                        slicingSource.batchNo ??
+                        slicingSource.logNo ??
+                        "",
+                      batchNo: slicingSource.batchNo ?? slicingSource.logCode ?? "",
+                      bundleNumber: vals.bundleNumber || slicingSource.bundleNumber || "",
+                      palletNo: vals.palletNo || slicingSource.palletNo || "",
+                      length: vals.length || "",
+                      width: vals.width || "",
+                      thickness: vals.thickness || vals.height || "",
+                      noOfLeaves: vals.noOfLeaves || vals.noOfSheets || "",
+                      cbm: vals.cbm || "",
+                      cbf: vals.cbf || "",
+                      sqm,
+                      sqf: vals.sqf || "",
+                      totalSqMeter: sqm,
+                      remark: vals.remark || slicingSource.remark || "",
+                      createdBy: slicingSource.createdBy || "Admin",
+                      updatedBy: slicingSource.updatedBy || "Admin",
+                    };
+                  }),
+                );
+
+                navigate("/factory/slicing?tab=done");
                 return;
               }
 
@@ -1271,6 +1434,7 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
       { key: "height", keys: ["height", "thickness"], label: "Height", minWidth: 120 },
       { key: "receivedCbm", keys: ["receivedCbm", "cbm"], label: "Received CBM", minWidth: 140 },
       { key: "availableCbm", keys: ["availableCbm", "receivedCbm", "cbm"], label: "Available CBM", minWidth: 140 },
+      { key: "availableSqm", keys: ["availableSqm"], label: "Available SQM", minWidth: 140 },
       { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
       { key: "createdBy", keys: ["createdBy"], label: "Created", minWidth: 140 },
       { key: "updatedBy", keys: ["updatedBy"], label: "Updated", minWidth: 140 },
@@ -1334,7 +1498,13 @@ function buildSourceOverviewItems(
   const items: Array<{ label: string; value: string }> = [];
 
   columns.forEach((column) => {
-    const rawValue = getSourceValue(sourceRow, column.keys);
+    const rawValue =
+      column.key === "availableSqm"
+        ? formatSlicingDecimal(
+            calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
+            3,
+          )
+        : getSourceValue(sourceRow, column.keys);
     let value = formatSourceValue(rawValue);
 
     if (!value || value.trim() === "") {
@@ -1668,25 +1838,177 @@ function applySawingVolumeCalculation(
   return slug === "sawing" ? calculateSawingVolumeValues(values) : values;
 }
 
+function numericField(value: unknown) {
+  const parsed = Number(String(value ?? "").replace(/[^\d.]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatSawingNumber(value: number, digits: number) {
+  if (!Number.isFinite(value) || value < 0) return "";
+  if (value === 0) return "0";
+  return value.toFixed(digits).replace(/\.?0+$/u, "");
+}
+
+function sawingVolumeDivisor(length: number, width: number, third: number) {
+  // Large values are millimetres. Sawing blocks in this flow are metres (0.80 m, 2.40 m).
+  if (length > 50 || width > 50 || third > 50) return 1_000_000_000;
+  return 1;
+}
+
+function volumeFromDimensions(length: number, width: number, height: number) {
+  if (length <= 0 || width <= 0 || height <= 0) return 0;
+  return (length * width * height) / sawingVolumeDivisor(length, width, height);
+}
+
+function buildSawingAvailableValues(
+  sourceRow: Record<string, unknown> | undefined,
+  lineItems: readonly LineItemRecord[],
+): RejectAvailableValues {
+  const empty = createEmptyRejectAvailableValues();
+  if (lineItems.length === 0) {
+    return {
+      ...empty,
+      type: "Available",
+    };
+  }
+
+  const sourceLength = numericField(sourceRow?.length);
+  const sourceWidth = numericField(sourceRow?.width);
+  const sourceHeight = numericField(sourceRow?.height || sourceRow?.thickness);
+  const originalCbm =
+    numericField(sourceRow?.receivedCbm) ||
+    numericField(sourceRow?.cbm) ||
+    volumeFromDimensions(sourceLength, sourceWidth, sourceHeight);
+  const stockCbm = numericField(sourceRow?.availableCbm) || originalCbm;
+  let usedThickness = 0;
+  const processedCbm = lineItems.reduce((sum, item) => {
+    const length = numericField(item.values.length) || sourceLength;
+    const width = numericField(item.values.width) || sourceWidth;
+    const thickness = numericField(item.values.thickness || item.values.height);
+    usedThickness += thickness;
+    return sum + volumeFromDimensions(length, width, thickness);
+  }, 0);
+  const remainingCbm = Math.max(0, stockCbm - processedCbm);
+  const thicknessUsedUp = sourceHeight > 0 && usedThickness >= sourceHeight - 0.000001;
+  const nothingLeft = lineItems.length > 0 && (remainingCbm <= 0.000001 || thicknessUsedUp);
+
+  if (nothingLeft) {
+    return {
+      ...empty,
+      type: "Available",
+      length: "0",
+      width: "0",
+      height: "0",
+      thickness: "",
+      cbm: "0",
+      cbf: "0",
+    };
+  }
+
+  const height =
+    heightFromAvailableVolume(sourceLength, sourceWidth, remainingCbm) || sourceHeight;
+
+  return {
+    ...empty,
+    type: "Available",
+    length: formatSawingNumber(sourceLength, 3),
+    width: formatSawingNumber(sourceWidth, 3),
+    height: formatSawingNumber(height, 3),
+    thickness: "",
+    cbm: formatSawingNumber(remainingCbm, 6),
+    cbf: formatSawingNumber(remainingCbm * 35.3147, 4),
+  };
+}
+
+function slicingSliceFitsStock(
+  values: Record<string, string>,
+  sourceRow: Record<string, unknown> | undefined,
+  otherItems: readonly LineItemRecord[],
+) {
+  const measured = measureSlicingSlice(values);
+  if (!measured.complete) {
+    alert(
+      "Enter length, width, thickness, and number of leaves.",
+    );
+    return false;
+  }
+
+  const usedCbm = otherItems.reduce(
+    (sum, item) => sum + measureSlicingSlice(item.values).cbm,
+    0,
+  );
+  const remainingCbm = Math.max(0, slicingStockCbm(sourceRow) - usedCbm);
+  if (measured.cbm > remainingCbm + 0.000001) {
+    alert(
+      `This slice is ${measured.cbm.toFixed(4)} CBM. Available stock is ${remainingCbm.toFixed(4)} CBM.`,
+    );
+    return false;
+  }
+
+  return true;
+}
+
+function buildSlicingAvailableValues(
+  sourceRow: Record<string, unknown> | undefined,
+  lineItems: readonly LineItemRecord[],
+): RejectAvailableValues {
+  const empty = createEmptyRejectAvailableValues();
+  if (lineItems.length === 0) {
+    return {
+      ...empty,
+      type: "Available",
+    };
+  }
+
+  const remainder = calculateSlicingRemainder(
+    sourceRow,
+    lineItems.map((item) => item.values),
+  );
+  const cleared = remainder.depleted;
+
+  return {
+    ...empty,
+    type: "Available",
+    length: formatSlicingDecimal(cleared ? 0 : remainder.length, 3),
+    width: formatSlicingDecimal(cleared ? 0 : remainder.width, 3),
+    height: formatSlicingDecimal(cleared ? 0 : remainder.height, 3),
+    thickness: formatSlicingDecimal(cleared ? 0 : remainder.height, 3),
+    cbm: formatSlicingDecimal(cleared ? 0 : remainder.cbm, 6),
+    cbf: formatSlicingDecimal(cleared ? 0 : remainder.cbf, 4),
+    sqm: formatSlicingDecimal(cleared ? 0 : remainder.sqm, 3),
+    sqf: formatSlicingDecimal(cleared ? 0 : remainder.sqf, 3),
+  };
+}
+
+function heightFromAvailableVolume(length: number, width: number, cbm: number) {
+  if (length <= 0 || width <= 0 || cbm <= 0) return 0;
+  return (cbm * sawingVolumeDivisor(length, width, 0)) / (length * width);
+}
+
+function positiveDimension(value: unknown) {
+  const parsed = numericField(value);
+  return parsed > 0 ? parsed : 0;
+}
+
 function calculateSawingVolumeValues(values: Record<string, string>) {
   if (!("cbm" in values) && !("cbf" in values)) {
     return values;
   }
 
-  const length = Number.parseFloat(values.length ?? "");
-  const width = Number.parseFloat(values.width ?? "");
-  const heightVal = Number.parseFloat(values.height ?? values.thickness ?? "");
+  const length = positiveDimension(values.length);
+  const width = positiveDimension(values.width);
+  // Create Sawing enters thickness. A prefilled source height must not override it,
+  // and a blank height string must not block the thickness the operator typed.
+  const third =
+    "thickness" in values
+      ? positiveDimension(values.thickness)
+      : positiveDimension(values.thickness) || positiveDimension(values.height);
 
-  if (![length, width, heightVal].every(Number.isFinite) || length <= 0 || width <= 0 || heightVal <= 0) {
+  if (length <= 0 || width <= 0 || third <= 0) {
     return { ...values, cbm: "", cbf: "", availableCbm: values.receivedCbm || "" };
   }
 
-  // Option A: cm (/ 1,000,000) vs Option B: mm (/ 1,000,000,000)
-  // Factory lumber/timber dimensions > 50 are in millimeters (mm), otherwise centimeters (cm).
-  const isMm = length > 50 || width > 50;
-  const cbm = isMm
-    ? (length * width * heightVal) / 1_000_000_000
-    : (length * width * heightVal) / 1_000_000;
+  const cbm = (length * width * third) / sawingVolumeDivisor(length, width, third);
   const cbf = cbm * 35.3147;
 
   const recCbmVal = Number.parseFloat(values.receivedCbm ?? "") || 0;

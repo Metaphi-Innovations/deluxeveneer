@@ -44,6 +44,7 @@ import {
   issueOrderToProduction,
   type ProductionInventoryItem,
 } from "../production/api/productionWarehouseApi";
+import { invalidateWarehouseProduction } from "../../../query/queryClient";
 import {
   EMPTY_PRODUCTION_LIST_QUERY,
   type ProductionListQueryState,
@@ -139,6 +140,7 @@ export function ProductionWarehousePage({
           warehouseId,
           inventoryType: activeInventory,
         });
+        void invalidateWarehouseProduction();
       } catch {
         // Issue-order API failed; dialog still closes after attempt.
       }

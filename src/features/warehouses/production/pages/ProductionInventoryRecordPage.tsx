@@ -35,6 +35,7 @@ import {
   updateProductionInventoryApi,
   type ProductionInventoryItem,
 } from "../api/productionWarehouseApi";
+import { invalidateWarehouseProduction } from "../../../../query/queryClient";
 
 function formatDateDisplay(value: string | Date | null | undefined): string {
   if (!value) return "—";
@@ -225,6 +226,7 @@ export function ProductionInventoryRecordPage({
         remark: remark.trim() || null,
       });
       setDetail(updated);
+      void invalidateWarehouseProduction();
       navigate(listPath, { replace: true });
     } catch (error) {
       setErrorMessage(

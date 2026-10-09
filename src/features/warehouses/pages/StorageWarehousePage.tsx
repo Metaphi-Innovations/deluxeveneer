@@ -54,7 +54,11 @@ import {
   revertStorageItemApi,
   type StorageProductionWarehouseOption,
 } from "../storage/api/storageApi";
-import { issueSawingFromStorageApi } from "../../factory/sawing/api/sawingApi";
+import {
+  invalidateWarehouseProduction,
+  invalidateWarehouseStorage,
+} from "../../../query/queryClient";
+import { issueSawingFromStorageRows } from "../../factory/sawing/sawingFrontendStore";
 import { fetchGradesApi } from "../../masters/grade-master/gradeMasterApi";
 import type { MasterRecord } from "../../masters/shared/types";
 import { StorageMdfInventory } from "../storage/StorageMdfInventory";
@@ -121,6 +125,11 @@ export function StorageWarehousePage({
   const [selectedRows, setSelectedRows] = useState<WarehouseInventoryRow[]>([]);
   const [selectionResetKey, setSelectionResetKey] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const refreshStorageLists = () => {
+    setRefreshTrigger((current) => current + 1);
+    void invalidateWarehouseStorage();
+    void invalidateWarehouseProduction();
+  };
 
   // Dialog state for Revert and Move to Production
   const [revertDialogOpen, setRevertDialogOpen] = useState(false);
@@ -398,7 +407,7 @@ export function StorageWarehousePage({
       setMoveDialogOpen(false);
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
-      setRefreshTrigger((c) => c + 1);
+      refreshStorageLists();
 
       const isAllStockMoved = moveTargetRows.every((row) => {
         const available = getMoveRowAvailable(row);
@@ -441,7 +450,7 @@ export function StorageWarehousePage({
       setRevertTargetRow(null);
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);
-      setRefreshTrigger((c) => c + 1);
+      refreshStorageLists();
       setToastNotification({
         message: "Item successfully reverted back to Inward Warehouse.",
         severity: "success",
@@ -459,14 +468,14 @@ export function StorageWarehousePage({
     async (targetRows: WarehouseInventoryRow[]) => {
       if (!targetRows.length) return;
       try {
-        await issueSawingFromStorageApi(targetRows.map((r) => r.id));
+        issueSawingFromStorageRows(targetRows as unknown as Record<string, unknown>[]);
         setToastNotification({
           message: `${targetRows.length} item(s) issued for Sawing successfully!`,
           severity: "success",
         });
         setSelectedRows([]);
         setSelectionResetKey((c) => c + 1);
-        setRefreshTrigger((c) => c + 1);
+        refreshStorageLists();
       } catch (err: any) {
         setToastNotification({
           message: err.message || "Failed to issue for Sawing.",
@@ -488,7 +497,7 @@ export function StorageWarehousePage({
         });
         setSelectedRows([]);
         setSelectionResetKey((c) => c + 1);
-        setRefreshTrigger((c) => c + 1);
+        refreshStorageLists();
       } catch (err: any) {
         setToastNotification({
           message: err.message || "Failed to issue for Slicing.",

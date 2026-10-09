@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Avatar,
@@ -24,6 +25,7 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
@@ -47,6 +49,8 @@ import {
   fetchUserManagementMeta,
   updateUserManagementRecord,
 } from "./userManagementApi";
+import { invalidateUsers } from "../../../query/queryClient";
+import { queryKeys } from "../../../query/queryKeys";
 
 interface UserManagementFormPageProps {
   mode: "add" | "edit" | "view";
@@ -181,66 +185,70 @@ export function UserManagementFormPage({
     Record<string, UserPermissionFlags>
   >(() => buildDefaultUserPermissions());
 
+  const detailQuery = useQuery({
+    queryKey: queryKeys.users.detail(params.id ?? ""),
+    queryFn: () => fetchUserManagementDetail(params.id!),
+    enabled: mode !== "add" && Boolean(params.id),
+  });
+
   useEffect(() => {
-    let ignore = false;
+    setErrorMessage("");
+    setNotFound(false);
 
-    async function loadDetail() {
-      setErrorMessage("");
-      setNotFound(false);
-
-      if (mode === "add") {
-        setRow(undefined);
-        setValues(buildUserManagementInitialValues(baseFields));
-        setPermissions(buildDefaultUserPermissions());
-        setActiveStep("basic");
-        setBasicDetailsReady(false);
-        setIsLoading(false);
-        return;
-      }
-
-      if (!params.id) {
-        setNotFound(true);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        const nextRow = await fetchUserManagementDetail(params.id);
-        if (!ignore) {
-          setRow(nextRow);
-          const initialValues = buildUserManagementInitialValues(baseFields, nextRow);
-          if (nextRow.age !== undefined && nextRow.age !== null && String(nextRow.age).trim() !== "") {
-            initialValues.age = String(nextRow.age);
-          } else if (nextRow.dateOfBirth) {
-            initialValues.age = calculateAge(nextRow.dateOfBirth);
-          }
-          setValues(initialValues);
-          setPermissions(nextRow.permissions ?? buildDefaultUserPermissions());
-          setActiveStep("basic");
-          setBasicDetailsReady(true);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setNotFound(true);
-          setErrorMessage(
-            error instanceof Error ? error.message : "Unable to load user.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
+    if (mode === "add") {
+      setRow(undefined);
+      setValues(buildUserManagementInitialValues(baseFields));
+      setPermissions(buildDefaultUserPermissions());
+      setActiveStep("basic");
+      setBasicDetailsReady(false);
+      setIsLoading(false);
+      return;
     }
 
-    loadDetail();
+    if (!params.id) {
+      setNotFound(true);
+      setIsLoading(false);
+      return;
+    }
 
-    return () => {
-      ignore = true;
-    };
-  }, [baseFields, mode, params.id]);
+    if (detailQuery.isLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    if (detailQuery.isError || !detailQuery.data) {
+      setNotFound(true);
+      setIsLoading(false);
+      setErrorMessage(
+        detailQuery.error instanceof Error
+          ? detailQuery.error.message
+          : "Unable to load user.",
+      );
+      return;
+    }
+
+    const nextRow = detailQuery.data;
+    setRow(nextRow);
+    const initialValues = buildUserManagementInitialValues(baseFields, nextRow);
+    if (nextRow.age !== undefined && nextRow.age !== null && String(nextRow.age).trim() !== "") {
+      initialValues.age = String(nextRow.age);
+    } else if (nextRow.dateOfBirth) {
+      initialValues.age = calculateAge(nextRow.dateOfBirth);
+    }
+    setValues(initialValues);
+    setPermissions(nextRow.permissions ?? buildDefaultUserPermissions());
+    setActiveStep("basic");
+    setBasicDetailsReady(true);
+    setIsLoading(false);
+  }, [
+    baseFields,
+    detailQuery.data,
+    detailQuery.error,
+    detailQuery.isError,
+    detailQuery.isLoading,
+    mode,
+    params.id,
+  ]);
 
   if ((mode === "edit" || mode === "view") && notFound) {
     return (
@@ -421,6 +429,7 @@ export function UserManagementFormPage({
         }
       }
 
+      void invalidateUsers();
       navigate(paths.list);
     } catch (error) {
       setErrorMessage(
@@ -663,14 +672,7 @@ export function UserManagementFormPage({
         ) : null}
 
         {canUseMode && isLoading ? (
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Loading user details...
-          </Typography>
+          <ContentLoader label="Loading..." minHeight={240} />
         ) : canUseMode ? (
           <Stack spacing={2}>
             {mode === "add" ? (

@@ -118,11 +118,12 @@ export function SearchableMultiSelectColumnFilter({
 
   return (
     <Popover
-      open={open}
+      open={open && Boolean(anchorEl)}
       anchorEl={anchorEl}
       onClose={onClose}
       anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
       transformOrigin={{ vertical: "top", horizontal: "left" }}
+      disableRestoreFocus
       slotProps={{
         paper: {
           sx: {

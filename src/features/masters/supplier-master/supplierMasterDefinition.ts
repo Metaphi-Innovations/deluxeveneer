@@ -1,5 +1,13 @@
 import type { MasterDefinition } from "../shared/types";
 
+export const MSME_TYPE_OPTIONS = [
+  "Micro Enterprise",
+  "Small Enterprise",
+  "Medium Enterprise",
+  "Large",
+  "No MSME",
+] as const;
+
 export const supplierMasterDefinition: MasterDefinition = {
   slug: "supplier-master",
   title: "Supplier Master",
@@ -9,7 +17,7 @@ export const supplierMasterDefinition: MasterDefinition = {
     { key: "contactPersonName", label: "Contact Person Name" },
     { key: "emailAddress", label: "Email" },
     { key: "mobileNumber", label: "Phone Number" },
-    { key: "gstNo", label: "GST No" },
+    { key: "gstNo", label: "GSTIN" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },
@@ -18,7 +26,7 @@ export const supplierMasterDefinition: MasterDefinition = {
   ],
   filters: [
     { key: "country", label: "Country", options: [] },
-    { key: "msmeType", label: "MSME Type", options: [] },
+    { key: "msmeType", label: "MSME Type", options: [...MSME_TYPE_OPTIONS] },
   ],
   fields: [
     { key: "supplierName", label: "Supplier Name", type: "text" },
@@ -27,11 +35,11 @@ export const supplierMasterDefinition: MasterDefinition = {
     { key: "country", label: "Country", type: "select", options: [] },
     { key: "state", label: "State", type: "select", options: [] },
     { key: "city", label: "City", type: "select", options: [] },
-    { key: "msmeType", label: "MSME Type", type: "text" },
+    { key: "msmeType", label: "MSME Type", type: "select", options: [...MSME_TYPE_OPTIONS] },
     { key: "msmeNo", label: "MSME No", type: "text" },
-    { key: "gstNo", label: "GST No", type: "text" },
+    { key: "gstNo", label: "GSTIN", type: "text" },
     { key: "fscCode", label: "FSC Code", type: "text" },
-    { key: "gstUpload", label: "GST Upload", type: "file" },
+    { key: "gstUpload", label: "GSTIN Upload", type: "file" },
     { key: "panNo", label: "PAN No", type: "text" },
     { key: "panUpload", label: "PAN Upload", type: "file" },
     { key: "remark", label: "Remark", type: "text" },

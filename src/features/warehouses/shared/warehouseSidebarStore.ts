@@ -1,6 +1,8 @@
 import {
   fetchWarehouseMasterPaginated,
 } from "../../masters/warehouse-location-master/api/warehouseMasterApi";
+import { queryClient } from "../../../query/queryClient";
+import { queryKeys } from "../../../query/queryKeys";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 
 export const MASTER_WAREHOUSES_UPDATED_EVENT =
@@ -47,6 +49,10 @@ export function notifyMasterWarehousesUpdated() {
   }
 
   window.dispatchEvent(new CustomEvent(MASTER_WAREHOUSES_UPDATED_EVENT));
+  void queryClient.invalidateQueries({ queryKey: queryKeys.warehouse.sidebar });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.masters.all("warehouse"),
+  });
 }
 
 export async function fetchSidebarWarehouses(): Promise<SidebarWarehouseItem[]> {

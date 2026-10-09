@@ -24,21 +24,13 @@ import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 import {
-  fetchSawingAvailable,
-  fetchSawingDone,
-  fetchSawingHistory,
-  fetchSawingIssued,
-  fetchSawingRejected,
-  issueSawingForInspectionApi,
-  rejectSawingDoneApi,
-  revertSawingDoneApi,
-  revertSawingIssueApi,
-  type SawingAvailableItem,
-  type SawingDoneItem,
-  type SawingHistoryItem,
-  type SawingIssueItem,
-  type SawingRejectedItem,
-} from "../api/sawingApi";
+  listSawingFlowRows,
+  recordSawingHistory,
+  recordSawingRejection,
+  revertSawingFlowRow,
+  searchSawingFlowRows,
+  type SawingFlowTab,
+} from "../sawingFrontendStore";
 import {
   SAWING_AVAILABLE_COLUMNS,
   SAWING_DONE_COLUMNS,
@@ -71,7 +63,7 @@ export function SawingListPage() {
   // Rows state
   const [rows, setRows] = useState<any[]>([]);
   // Multiple selection for Done tab
-  const [selectedDoneRows, setSelectedDoneRows] = useState<SawingDoneItem[]>([]);
+  const [selectedDoneRows, setSelectedDoneRows] = useState<any[]>([]);
   const [selectionResetKey, setSelectionResetKey] = useState(0);
 
   // Dialog states for Revert / Reject
@@ -112,84 +104,21 @@ export function SawingListPage() {
     setErrorMessage("");
 
     try {
-      const query = {
-        page,
-        limit: rowsPerPage,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
-      };
-
-      const getFallbackRows = () => {
-        return sawingDefinition.rows.filter(
-          (r: any) => r.listingState === activeTab,
-        );
-      };
-
-      if (activeTab === "issued") {
-        const res = await fetchSawingIssued(query);
-        const rawItems = res.items.length > 0 ? res.items : getFallbackRows();
-
-        // Read stored sawing available CBM adjustments if any
-        let storedCbmMap: Record<string, number> = {};
-        try {
-          const raw = localStorage.getItem("sawing_available_cbm_map");
-          if (raw) storedCbmMap = JSON.parse(raw);
-        } catch {
-          // ignore
-        }
-
-        const items = rawItems
-          .map((item: any) => {
-            const key = String(item.id || item.storageSrNo || "");
-            const baseCbm = Number(item.receivedCbm ?? item.cbm ?? 0);
-            const currentAvailable =
-              key in storedCbmMap
-                ? (storedCbmMap[key] ?? baseCbm)
-                : item.availableCbm !== undefined && item.availableCbm !== null
-                ? Number(item.availableCbm)
-                : baseCbm;
-            return {
-              ...item,
-              availableCbm: Number((currentAvailable ?? baseCbm).toFixed(4)),
-            };
-          })
-          // Only items with availableCbm > 0 remain in Issue for Sawing listing
-          .filter((item: any) => item.availableCbm > 0);
-
-        setRows(items);
-        setTotalCount(items.length);
-      } else if (activeTab === "done") {
-        const res = await fetchSawingDone(query);
-        let items = res.items.length > 0 ? res.items : getFallbackRows();
-        try {
-          const rawCreated = localStorage.getItem("sawing_done_created_items");
-          if (rawCreated) {
-            const createdItems = JSON.parse(rawCreated);
-            if (Array.isArray(createdItems) && createdItems.length > 0) {
-              items = [...createdItems, ...items];
-            }
-          }
-        } catch {
-          // ignore
-        }
-        setRows(items);
-        setTotalCount(items.length);
-      } else if (activeTab === "history") {
-        const res = await fetchSawingHistory(query);
-        const items = res.items.length > 0 ? res.items : getFallbackRows();
-        setRows(items);
-        setTotalCount(res.items.length > 0 ? res.pagination.total : items.length);
-      } else if (activeTab === "rejected") {
-        const res = await fetchSawingRejected(query);
-        const items = res.items.length > 0 ? res.items : getFallbackRows();
-        setRows(items);
-        setTotalCount(res.items.length > 0 ? res.pagination.total : items.length);
-      }
-    } catch (_err: any) {
-      const fallback = sawingDefinition.rows.filter(
-        (r: any) => r.listingState === activeTab,
+      const flowTab: SawingFlowTab =
+        activeTab === "done" || activeTab === "history" || activeTab === "rejected"
+          ? activeTab
+          : "issued";
+      const matched = searchSawingFlowRows(
+        listSawingFlowRows(flowTab, sawingDefinition.rows as any[]),
+        searchValue,
       );
-      setRows(fallback);
-      setTotalCount(fallback.length);
+      const start = (page - 1) * rowsPerPage;
+      setRows(matched.slice(start, start + rowsPerPage));
+      setTotalCount(matched.length);
+    } catch (_err: any) {
+      setRows([]);
+      setTotalCount(0);
+      setErrorMessage("Unable to load sawing records.");
     } finally {
       setIsLoading(false);
     }
@@ -214,21 +143,9 @@ export function SawingListPage() {
     if (!revertTargetRow) return;
     setIsReverting(true);
     try {
-      if (activeTab === "issued") {
-        await revertSawingIssueApi(revertTargetRow.id, revertRemark);
-      } else if (activeTab === "done") {
-        await revertSawingDoneApi(revertTargetRow.id, revertRemark);
-      } else if (activeTab === "rejected") {
-        try {
-          await revertSawingDoneApi(revertTargetRow.id, revertRemark);
-        } catch {
-          // fallback
-        }
-        // Remove from rejected and restore to done locally
-        sawingDefinition.rows = sawingDefinition.rows.map((r: any) =>
-          r.id === revertTargetRow.id ? { ...r, listingState: "done" } : r
-        );
-      }
+      const flowTab: SawingFlowTab =
+        activeTab === "done" || activeTab === "rejected" ? activeTab : "issued";
+      revertSawingFlowRow(flowTab, revertTargetRow);
       setRevertDialogOpen(false);
       setRevertTargetRow(null);
       setRefreshTrigger((c) => c + 1);
@@ -249,23 +166,7 @@ export function SawingListPage() {
     if (!rejectTargetRow) return;
     setIsRejecting(true);
     try {
-      try {
-        await rejectSawingDoneApi(rejectTargetRow.id, rejectRemark);
-      } catch (apiErr) {
-        console.warn("Backend reject API failed, updating state locally:", apiErr);
-      }
-
-      // Add to rejected sawing in factory store
-      const rejectedItem = {
-        ...rejectTargetRow,
-        id: `rej-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        status: "Rejected",
-        processDate: new Date().toISOString().split("T")[0],
-        remark: rejectRemark || "Rejected from sawing done",
-        listingState: "rejected",
-      };
-      (sawingDefinition.rows as any).unshift(rejectedItem);
-
+      recordSawingRejection(rejectTargetRow, rejectRemark);
       setRows((current) => current.filter((r) => r.id !== rejectTargetRow.id));
       setTotalCount((c) => Math.max(0, c - 1));
       setRejectDialogOpen(false);
@@ -292,31 +193,27 @@ export function SawingListPage() {
     if (inspectionTargetRows.length === 0) return;
     setIsIssuingInspection(true);
     try {
-      try {
-        await issueSawingForInspectionApi(inspectionTargetRows.map((r) => r.id));
-      } catch {
-        // local store fallback
-      }
-
       inspectionTargetRows.forEach((row) => {
+        const issuedDate = row.issueDate || row.issuedDate;
+        const sawingDate = row.sawingDate || row.processDate;
+        const subCategory = row.subCategory || row.itemSubCategory || "-";
         issueFactoryWork({
           destinationProcess: "Sawing Inspection",
           sourceRow: {
             ...row,
+            issueDate: issuedDate,
+            issuedDate,
+            sawingDate,
+            processDate: sawingDate,
+            subCategory,
+            itemSubCategory: subCategory,
           } as any,
           sourceSlug: "sawing",
           sourceProcess: "Sawing",
           sourceWarehouseName: (row as any).storageWarehouseName || "Warehouse B",
         });
-
-        const historyItem = {
-          ...row,
-          id: `hist-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          processDate: new Date().toISOString().split("T")[0],
-          listingState: "history",
-        };
-        (sawingDefinition.rows as any).unshift(historyItem);
       });
+      recordSawingHistory(inspectionTargetRows);
 
       const processedIds = new Set(inspectionTargetRows.map((r) => r.id));
       setRows((current) => current.filter((r) => !processedIds.has(r.id)));
@@ -462,7 +359,7 @@ export function SawingListPage() {
   return (
     <FactoryPageShell
       breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
-      subtitle="Veneer Block Sawing operations and disposition tracking."
+      subtitle=""
       title="Sawing"
       processTabs={
         <ModuleProcessTabs
@@ -526,7 +423,7 @@ export function SawingListPage() {
           }}
           selectable={activeTab === "done"}
           selectionResetKey={selectionResetKey}
-          onSelectionChange={(selected: any) => setSelectedDoneRows(selected as SawingDoneItem[])}
+          onSelectionChange={(selected: any) => setSelectedDoneRows(selected)}
           getRowActions={getRowActions}
           emptyStateLabel={`No records found in ${SAWING_PROCESS_TABS.find((t: { value: string }) => t.value === activeTab)?.label}.`}
         />

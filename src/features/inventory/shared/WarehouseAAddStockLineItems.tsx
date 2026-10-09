@@ -113,7 +113,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
-    { key: "logCode", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text" },
+    { key: "logCode", label: "Log No", minWidth: 110, placeholder: "Enter log no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
     { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
     { key: "thickness", label: "Height (m)", minWidth: 100, placeholder: "Enter height", type: "text", required: true },
@@ -1076,7 +1076,7 @@ function buildLineItemAutofillTextValues(
         length: "2.5",
         width: "1.2",
         thickness: "0.8",
-        logCode: `BATCH-${stamp}`,
+        logCode: `LOG-${stamp}`,
       };
     case "raw-veneer":
       return {

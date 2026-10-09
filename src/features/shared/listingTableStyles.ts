@@ -235,34 +235,27 @@ export function listingPaginationIconButtonSx(theme: Theme) {
 
 export function listingPageNumberButtonSx(theme: Theme, isActive: boolean) {
   return {
-    minWidth: 30,
-    width: 30,
-    height: 30,
+    minWidth: 32,
+    width: 32,
+    height: 32,
     p: 0,
-    borderRadius: `${theme.customTokens.radius.sm}px`,
-    border: `1px solid ${
-      isActive
-        ? theme.customTokens.brand.primary
-        : theme.customTokens.borders.default
-    }`,
+    borderRadius: "50%",
+    border: "none",
     backgroundColor: isActive
-      ? theme.customTokens.brand.primary
+      ? (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.15)" : "#E5E7EB")
       : "transparent",
     color: isActive
-      ? theme.customTokens.text.inverse
+      ? theme.palette.text.primary
       : theme.customTokens.text.secondary,
     fontSize: portalTypography.helper.fontSize,
-    fontWeight: 600,
+    fontWeight: isActive ? 700 : 500,
     textTransform: "none" as const,
     boxShadow: "none",
     "&:hover": {
       boxShadow: "none",
       backgroundColor: isActive
-        ? theme.customTokens.brand.primaryScale[800]
-        : theme.customTokens.surfaces.alt,
-      borderColor: isActive
-        ? theme.customTokens.brand.primaryScale[800]
-        : theme.customTokens.borders.hover,
+        ? (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.22)" : "#D1D5DB")
+        : (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "#F3F4F6"),
     },
   };
 }

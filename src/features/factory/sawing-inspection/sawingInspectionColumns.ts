@@ -2,7 +2,7 @@ import type { EnterpriseTableColumn } from "../../../components/data-display/Ent
 
 export const SAWING_INSPECTION_PENDING_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "issuedDate", label: "Issued Inspection Date" },
+  { key: "issuedDate", label: "Issued Date" },
   { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -21,7 +21,7 @@ export const SAWING_INSPECTION_PENDING_COLUMNS: readonly EnterpriseTableColumn<a
 
 export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "issuedDate", label: "Issued Inspection Date" },
+  { key: "issuedDate", label: "Issued Date" },
   { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -32,7 +32,6 @@ export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
   { key: "cbf", label: "CBF" },
-  { key: "qcStatus", label: "Status" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
   { key: "updatedBy", label: "Updated" },
@@ -40,7 +39,7 @@ export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>
 
 export const SAWING_INSPECTION_FAIL_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "issuedDate", label: "Issued Inspection Date" },
+  { key: "issuedDate", label: "Issued Date" },
   { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -51,7 +50,6 @@ export const SAWING_INSPECTION_FAIL_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
   { key: "cbf", label: "CBF" },
-  { key: "qcStatus", label: "Status" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
   { key: "updatedBy", label: "Updated" },

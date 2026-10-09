@@ -308,6 +308,16 @@ export function factoryIssuedWorkToRow(
   const warehouseName = getIssuedWorkWarehouseName(item);
   const issuedFrom = getIssuedWorkSourceProcess(item);
 
+  const isSawingInspection = item.destinationSlug === "sawing-inspection";
+  const flowIssueDate = snapshotDate(snapshot.issueDate ?? snapshot.issuedDate);
+  const flowSawingDate = snapshotDate(snapshot.sawingDate ?? snapshot.processDate);
+  const flowSubCategory =
+    typeof snapshot.subCategory === "string" && snapshot.subCategory.trim() && snapshot.subCategory !== "-"
+      ? snapshot.subCategory
+      : typeof snapshot.itemSubCategory === "string"
+        ? snapshot.itemSubCategory
+        : "";
+
   return {
     ...snapshot,
     id: item.id,
@@ -316,7 +326,11 @@ export function factoryIssuedWorkToRow(
     warehouseName,
     issuedFrom,
     issuedFor: processLabel,
-    issuedDate: new Date(item.createdAt),
+    issuedDate: isSawingInspection && flowIssueDate ? flowIssueDate : new Date(item.createdAt),
+    ...(isSawingInspection && flowSawingDate ? { sawingDate: flowSawingDate } : {}),
+    ...(isSawingInspection && flowSubCategory
+      ? { subCategory: flowSubCategory, itemSubCategory: flowSubCategory }
+      : {}),
     purpose: isSample ? "SAMPLE" : "ORDER",
     for: isSample ? "Sample" : "Order",
     forLabel: isSample ? "Sample" : "Order",
@@ -339,6 +353,12 @@ export function factoryIssuedWorkToRow(
             ? `Order ${snapshot.orderNo}`
             : "",
   } as FactoryRecord;
+}
+
+function snapshotDate(value: unknown): string | Date | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "string" && value.trim()) return value;
+  return undefined;
 }
 
 function getIssuedWorkWarehouseName(item: FactoryIssuedWorkRecord) {

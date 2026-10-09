@@ -9,7 +9,6 @@ export const transporterMasterDefinition: MasterDefinition = {
     { key: "branchName", label: "Branch Name" },
     { key: "transporterId", label: "Transporter Id" },
     { key: "type", label: "Type" },
-    { key: "areaOfOperation", label: "Area Of Operation" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },
@@ -18,7 +17,6 @@ export const transporterMasterDefinition: MasterDefinition = {
   ],
   filters: [
     { key: "type", label: "Type", options: ["Road", "Air", "Rail"] },
-    { key: "areaOfOperation", label: "Area Of Operation", options: [] },
     { key: "status", label: "Status", options: ["Active", "Inactive"] },
   ],
   fields: [
@@ -30,11 +28,6 @@ export const transporterMasterDefinition: MasterDefinition = {
       label: "Type",
       type: "select",
       options: ["Road", "Air", "Rail"],
-    },
-    {
-      key: "areaOfOperation",
-      label: "Area Of Operation",
-      type: "text",
     },
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },

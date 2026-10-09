@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Avatar,
@@ -19,6 +20,7 @@ import { ChevronLeft, Eye, FileText, Pencil, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
@@ -31,6 +33,7 @@ import {
   type UserManagementDetail,
 } from "./userManagementConfig";
 import { fetchUserManagementDetail } from "./userManagementApi";
+import { queryKeys } from "../../../query/queryKeys";
 
 type ViewTab = "overview" | "permissions";
 
@@ -42,10 +45,20 @@ export function UserManagementViewPage() {
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
 
-  const [row, setRow] = useState<UserManagementDetail | undefined>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [notFound, setNotFound] = useState(false);
+  const detailQuery = useQuery({
+    queryKey: queryKeys.users.detail(params.id ?? ""),
+    queryFn: () => fetchUserManagementDetail(params.id!),
+    enabled: Boolean(params.id),
+  });
+  const row = detailQuery.data;
+  const isLoading = Boolean(params.id) && detailQuery.isLoading;
+  const notFound = !params.id || detailQuery.isError;
+  const errorMessage =
+    !params.id
+      ? ""
+      : detailQuery.error instanceof Error
+        ? detailQuery.error.message
+        : "";
   const [activeTab, setActiveTab] = useState<ViewTab>("overview");
   const [previewDoc, setPreviewDoc] = useState<{
     name: string;
@@ -64,47 +77,6 @@ export function UserManagementViewPage() {
       isPdf,
     });
   };
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadDetail() {
-      setErrorMessage("");
-      setNotFound(false);
-
-      if (!params.id) {
-        setNotFound(true);
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        const nextRow = await fetchUserManagementDetail(params.id);
-        if (!ignore) {
-          setRow(nextRow);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setNotFound(true);
-          setErrorMessage(
-            error instanceof Error ? error.message : "Unable to load user.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadDetail();
-
-    return () => {
-      ignore = true;
-    };
-  }, [params.id]);
 
   const displayName = useMemo(() => {
     if (!row) {
@@ -219,14 +191,7 @@ export function UserManagementViewPage() {
         ) : null}
 
         {isLoading || !row ? (
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Loading user details...
-          </Typography>
+          <ContentLoader label="Loading..." minHeight={200} />
         ) : (
           <Stack spacing={1.5}>
             <Box
@@ -327,7 +292,28 @@ export function UserManagementViewPage() {
                 <SummaryMetaLabel>Department</SummaryMetaLabel>
                 <SummaryMetaValue>{row.department || "—"}</SummaryMetaValue>
                 <SummaryMetaLabel>Phone</SummaryMetaLabel>
-                <SummaryMetaValue>{row.phoneNo || "—"}</SummaryMetaValue>
+                <SummaryMetaValue>
+                  {row.phoneNo ? (
+                    <Typography
+                      component="a"
+                      href={`tel:${row.phoneNo.replace(/[^\d+]/g, "")}`}
+                      sx={(theme) => ({
+                        color: theme.customTokens.brand.primary,
+                        textDecoration: "none",
+                        fontSize: "inherit",
+                        fontWeight: "inherit",
+                        cursor: "pointer",
+                        "&:hover": {
+                          textDecoration: "underline",
+                        },
+                      })}
+                    >
+                      {row.phoneNo}
+                    </Typography>
+                  ) : (
+                    "—"
+                  )}
+                </SummaryMetaValue>
               </Box>
 
               {canEdit ? (
@@ -616,6 +602,7 @@ function DetailField({
 }) {
   const theme = useTheme();
   const hasValue = Boolean(value?.trim());
+  const isPhoneField = /phone|mobile/i.test(label);
 
   return (
     <Stack spacing={0.5}>
@@ -702,6 +689,38 @@ function DetailField({
               </Box>
             );
           })() : (
+            <Typography
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                color: theme.customTokens.text.primary,
+                lineHeight: 1.45,
+              }}
+            >
+              —
+            </Typography>
+          )
+        ) : isPhoneField ? (
+          hasValue ? (
+            <Typography
+              component="a"
+              href={`tel:${value.replace(/[^\d+]/g, "")}`}
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                color: theme.customTokens.brand.primary,
+                lineHeight: 1.45,
+                textDecoration: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              {value}
+            </Typography>
+          ) : (
             <Typography
               sx={{
                 fontSize: "0.875rem",

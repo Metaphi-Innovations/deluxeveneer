@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateMaster } from "../../../../query/queryClient";
+import { queryKeys } from "../../../../query/queryKeys";
+import { useColumnDropdownQuery } from "../../../../query/useColumnDropdownQuery";
+import { useMasterListQuery } from "../../../../query/useMasterListQuery";
 import { useParams } from "react-router";
 
 import {
@@ -87,6 +92,7 @@ function parseContacts(value: unknown): SupplierContactPersonInput[] {
       designation: String((entry as { designation?: string }).designation ?? ""),
       email: String((entry as { email?: string }).email ?? ""),
       phoneNumber: String((entry as { phoneNumber?: string }).phoneNumber ?? ""),
+      countryCode: String((entry as { countryCode?: string }).countryCode ?? "+91"),
     }));
   } catch {
     return [];
@@ -94,24 +100,20 @@ function parseContacts(value: unknown): SupplierContactPersonInput[] {
 }
 
 export function SupplierMasterListPage() {
-  const [rows, setRows] = useState<MasterRecord[]>([]);
+  const queryClient = useQueryClient();
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>(null);
   const [columnFilters, setColumnFilters] = useState<
     Partial<Record<string, ColumnFilterValue>>
   >({});
-  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
-    Record<string, Array<{ value: string; label: string }>>
-  >({});
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [reloadKey, setReloadKey] = useState(0);
-  const hasLoadedRowsRef = useRef(false);
-  const columnDropdownRequestIdRef = useRef(0);
+  const [actionError, setActionError] = useState("");
+  const { filterOptionsByColumn, loadColumnDropdown } = useColumnDropdownQuery(
+    queryKeys.masters.columnDropdowns("supplier"),
+    fetchSupplierMasterColumnDropdown,
+  );
 
   const definition = useMemo(
     () => ({
@@ -128,9 +130,9 @@ export function SupplierMasterListPage() {
         if (filter.key === "msmeType") {
           return {
             ...filter,
-            options: (filterOptionsByColumn.msmeType ?? []).map(
-              (entry) => entry.label,
-            ),
+            options: (filterOptionsByColumn.msmeType && filterOptionsByColumn.msmeType.length > 0)
+              ? filterOptionsByColumn.msmeType.map((entry) => entry.label)
+              : filter.options,
           };
         }
         return filter;
@@ -139,103 +141,45 @@ export function SupplierMasterListPage() {
     [filterOptionsByColumn],
   );
 
-  const loadColumnDropdown = useCallback(async (columnKey: string) => {
-    const requestId = ++columnDropdownRequestIdRef.current;
-    setFilterOptionsByColumn({});
-
-    try {
-      const result = await fetchSupplierMasterColumnDropdown(columnKey);
-      if (requestId !== columnDropdownRequestIdRef.current) {
-        return;
-      }
-
-      setFilterOptionsByColumn({
-        [result.column]: result.options,
-      });
-    } catch {
-      // Keep page usable; filter menus can fall back to page-local options.
-    }
-  }, []);
-
-  useEffect(() => {
-    let ignore = false;
-
-    const timer = window.setTimeout(async () => {
-      if (!hasLoadedRowsRef.current) {
-        setIsLoading(true);
-      }
-      setErrorMessage("");
-
-      try {
-        const apiSortBy = mapSupplierSortField(sortBy);
-        const apiFilters = toApiColumnFilters(columnFilters);
-        const result = await fetchSupplierMasterPaginated({
-          page,
-          limit: rowsPerPage,
-          search: searchValue,
-          ...(apiSortBy ? { sortBy: apiSortBy } : {}),
-          ...(sortOrder ? { sortOrder } : {}),
-          ...(Object.keys(apiFilters).length > 0
-            ? { filters: apiFilters }
-            : {}),
-        });
-
-        if (!ignore) {
-          setRows(result.items);
-          setTotalCount(result.pagination.total);
-          hasLoadedRowsRef.current = true;
-          void refreshSupplierMasterCache(result.items);
-        }
-      } catch (error) {
-        if (!ignore) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Unable to load suppliers.",
-          );
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
-      }
-    }, 300);
-
-    return () => {
-      ignore = true;
-      window.clearTimeout(timer);
-    };
-  }, [
-    reloadKey,
-    searchValue,
+  const apiSortBy = mapSupplierSortField(sortBy);
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listQuery = useMasterListQuery({
+    master: "supplier",
     page,
     rowsPerPage,
-    sortBy,
+    search: searchValue,
+    ...(apiSortBy ? { sortBy: apiSortBy } : {}),
     sortOrder,
-    columnFilters,
-  ]);
+    filters: apiFilters,
+    fetchPage: fetchSupplierMasterPaginated,
+    onLoaded: (items) => {
+      void refreshSupplierMasterCache(items);
+    },
+  });
+  const rows = listQuery.rows;
+  const totalCount = listQuery.totalCount;
+  const isLoading = listQuery.isLoading;
+  const errorMessage =
+    actionError ||
+    (listQuery.error instanceof Error ? listQuery.error.message : "");
 
   const handleStatusChange = useCallback(
     async (row: MasterRecord, checked: boolean) => {
       try {
         await updateSupplierMasterStatus(row.id, checked);
-        setRows((current) =>
-          current.map((entry) =>
-            entry.id === row.id
-              ? { ...entry, status: checked ? "Active" : "Inactive" }
-              : entry,
-          ),
-        );
+        setActionError("");
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.masters.all("supplier"),
+        });
       } catch (error) {
-        setErrorMessage(
+        setActionError(
           error instanceof Error
             ? error.message
             : "Unable to update supplier status.",
         );
-        setReloadKey((value) => value + 1);
       }
     },
-    [],
+    [queryClient],
   );
 
   const handleSearchChange = useCallback((value: string) => {
@@ -330,6 +274,7 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
       designation: firstContact.designation,
       emailAddress: firstContact.email,
       mobileNumber: firstContact.phoneNumber,
+      mobileNumberCountryCode: firstContact.countryCode || "+91",
     };
   }, [contacts]);
 
@@ -337,8 +282,12 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
     () => ({
       ...supplierMasterDefinition,
       fields: supplierMasterDefinition.fields.map((field) =>
-        field.key === "msmeType" && msmeTypeOptions.length > 0
-          ? { ...field, type: "select" as const, options: msmeTypeOptions }
+        field.key === "msmeType"
+          ? {
+            ...field,
+            type: "select" as const,
+            options: msmeTypeOptions.length > 0 ? msmeTypeOptions : (field.options ?? []),
+          }
           : field,
       ),
       rows: [],
@@ -348,7 +297,9 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
 
   useEffect(() => {
     void fetchSupplierMasterMeta().then((meta) => {
-      setMsmeTypeOptions(meta.msmeTypes.map((entry) => entry.label));
+      if (meta.msmeTypes && meta.msmeTypes.length > 0) {
+        setMsmeTypeOptions(meta.msmeTypes.map((entry) => entry.label));
+      }
     });
   }, []);
 
@@ -426,10 +377,10 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
       onSave={async ({ mode: saveMode, row, values }) => {
         if (saveMode === "edit" && row?.id) {
           await updateSupplierMasterRecord(row.id, values, contacts);
-          return;
+        } else {
+          await createSupplierMasterRecord(values, contacts);
         }
-
-        await createSupplierMasterRecord(values, contacts);
+        void invalidateMaster("supplier");
       }}
     />
   );

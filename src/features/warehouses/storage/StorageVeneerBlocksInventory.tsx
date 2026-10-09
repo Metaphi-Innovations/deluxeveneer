@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Alert, Stack } from "@mui/material";
 import {
   EnterpriseDataTable,
@@ -19,6 +20,8 @@ import {
   STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
+import { queryKeys } from "../../../query/queryKeys";
+import { useDebouncedValue } from "../../../query/useDebouncedValue";
 
 function toApiColumnFilters(
   columnFilters: Partial<Record<string, ColumnFilterValue>>
@@ -48,7 +51,6 @@ export function StorageVeneerBlocksInventory({
 }: StorageVeneerBlocksInventoryProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<string | null>("inwardDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
   const [columnFilters, setColumnFilters] = useState<
@@ -57,61 +59,47 @@ export function StorageVeneerBlocksInventory({
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
-  const [rows, setRows] = useState<WarehouseInventoryRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const debouncedSearch = useDebouncedValue(searchValue, 250);
 
   useEffect(() => {
     setPage(1);
   }, [searchValue, warehouseId, section]);
 
-  const loadData = useCallback(async () => {
-    if (!warehouseId) {
-      setRows([]);
-      setTotalCount(0);
-      setIsLoading(false);
-      return;
-    }
-    setIsLoading(true);
-    setErrorMessage("");
-
-    try {
-      const apiFilters = toApiColumnFilters(columnFilters);
-      const result = await fetchStorageInventoryPaginated("veneer-blocks", {
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listParams = {
+    warehouseId,
+    section,
+    page,
+    limit: rowsPerPage,
+    search: debouncedSearch.trim(),
+    sortBy,
+    sortOrder,
+    filters: apiFilters,
+    refresh: onRefreshTrigger,
+  };
+  const listQuery = useQuery({
+    queryKey: queryKeys.warehouse.storage.list("veneer-blocks", listParams),
+    enabled: Boolean(warehouseId),
+    placeholderData: keepPreviousData,
+    queryFn: () =>
+      fetchStorageInventoryPaginated("veneer-blocks", {
         warehouseId,
         section,
         page,
         limit: rowsPerPage,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
         ...(sortBy ? { sortBy } : {}),
         ...(sortOrder ? { sortOrder } : {}),
         ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
-      });
-
-      setRows(
-        result.items.map((item) =>
-          mapStorageItemToRow(item, "veneer-blocks")
-        )
-      );
-      setTotalCount(result.pagination.total);
-    } catch (error) {
-      setRows([]);
-      setTotalCount(0);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load veneer blocks."
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [warehouseId, section, page, rowsPerPage, searchValue, sortBy, sortOrder, columnFilters, onRefreshTrigger]);
-
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = window.setTimeout(() => {
-      void loadData();
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [loadData]);
+      }),
+  });
+  const rows = (listQuery.data?.items ?? []).map((item) =>
+    mapStorageItemToRow(item, "veneer-blocks"),
+  );
+  const totalCount = listQuery.data?.pagination.total ?? 0;
+  const isLoading = Boolean(warehouseId) && listQuery.isLoading;
+  const errorMessage =
+    listQuery.error instanceof Error ? listQuery.error.message : "";
 
   const loadDropdownOptions = useCallback(
     async (columnKey: string) => {

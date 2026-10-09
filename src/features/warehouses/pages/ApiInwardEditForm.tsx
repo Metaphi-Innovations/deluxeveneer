@@ -29,6 +29,7 @@ import {
   type InwardDetail,
   type InwardItemDetail,
 } from "../api/inwardApi";
+import { invalidateWarehouseInward } from "../../../query/queryClient";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
 import { resolveInwardAttachmentUrl } from "../api/resolveInwardAttachment";
 import {
@@ -345,6 +346,7 @@ export function ApiInwardEditForm({
           : {}),
       });
 
+      void invalidateWarehouseInward();
       closeForm();
     } catch (error) {
       setErrorMessage(
