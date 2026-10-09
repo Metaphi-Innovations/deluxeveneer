@@ -26,6 +26,9 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import {
+  ArrowDownWideNarrow,
+  ArrowUpDown,
+  ArrowUpWideNarrow,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -39,6 +42,7 @@ import {
 import { Link as RouterLink, useNavigate } from "react-router";
 
 import { ErpToggleSwitch } from "../../../components/inputs/ErpToggleSwitch";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { getCurrentUser } from "../../auth";
 import { formatMasterValue, MasterPageShell } from "../../masters/shared";
@@ -56,6 +60,7 @@ import {
   listingPaginationIconButtonSx,
   listingTableBodyCellSx,
   listingTableHeaderCellSx,
+  listingTableHeaderIconButtonSx,
 } from "../../shared/listingTableStyles";
 import {
   portalIconSize,
@@ -77,7 +82,21 @@ import type { UserManagementRecord } from "./userManagementConfig";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100, 200] as const;
 
-type ColumnFilterKey = "department" | "status";
+type ColumnFilterKey =
+  | "department"
+  | "status"
+  | "createdBy"
+  | "updatedBy";
+
+type SortColumnKey =
+  | "user"
+  | "department"
+  | "email"
+  | "phone"
+  | "remarks"
+  | "status"
+  | "createdBy"
+  | "updatedBy";
 
 type RowAction = {
   id: string;
@@ -96,6 +115,12 @@ export function UserManagementListing() {
   const [searchValue, setSearchValue] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [createdByFilter, setCreatedByFilter] = useState<string[]>([]);
+  const [updatedByFilter, setUpdatedByFilter] = useState<string[]>([]);
+  const [sortConfig, setSortConfig] = useState<{
+    key: SortColumnKey;
+    direction: "asc" | "desc";
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [rows, setRows] = useState<UserManagementRecord[]>([]);
@@ -169,46 +194,154 @@ export function UserManagementListing() {
     [rows],
   );
 
+  const createdByOptions = useMemo(
+    () => getUniqueSortedValues(rows.map((row) => row.createdBy)),
+    [rows],
+  );
+
+  const updatedByOptions = useMemo(
+    () => getUniqueSortedValues(rows.map((row) => row.updatedBy)),
+    [rows],
+  );
+
+  const handleSort = (columnKey: SortColumnKey) => {
+    setSortConfig((current) => {
+      if (current?.key !== columnKey) {
+        return { key: columnKey, direction: "asc" };
+      }
+      if (current.direction === "asc") {
+        return { key: columnKey, direction: "desc" };
+      }
+      return null;
+    });
+  };
+
   const filteredRows = useMemo(() => {
-    return [...rows]
-      .filter((row) => {
-        if (
-          departmentFilter.length > 0 &&
-          !departmentFilter.includes(row.department)
-        ) {
+    const list = rows.filter((row) => {
+      if (
+        departmentFilter.length > 0 &&
+        !departmentFilter.includes(row.department)
+      ) {
+        return false;
+      }
+
+      if (statusFilter.length > 0) {
+        const matchesActive =
+          statusFilter.includes("ACTIVE") && row.isActive;
+        const matchesInactive =
+          statusFilter.includes("INACTIVE") && !row.isActive;
+
+        if (!matchesActive && !matchesInactive) {
           return false;
         }
+      }
 
-        if (statusFilter.length > 0) {
-          const matchesActive =
-            statusFilter.includes("ACTIVE") && row.isActive;
-          const matchesInactive =
-            statusFilter.includes("INACTIVE") && !row.isActive;
+      if (
+        createdByFilter.length > 0 &&
+        !createdByFilter.includes(row.createdBy)
+      ) {
+        return false;
+      }
 
-          if (!matchesActive && !matchesInactive) {
-            return false;
+      if (
+        updatedByFilter.length > 0 &&
+        !updatedByFilter.includes(row.updatedBy)
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (sortConfig) {
+      return [...list].sort((left, right) => {
+        let leftVal: string | number | boolean = "";
+        let rightVal: string | number | boolean = "";
+
+        switch (sortConfig.key) {
+          case "user": {
+            leftVal = getUserDisplayName(left).toLowerCase();
+            rightVal = getUserDisplayName(right).toLowerCase();
+            break;
+          }
+          case "department": {
+            leftVal = (left.department || "").toLowerCase();
+            rightVal = (right.department || "").toLowerCase();
+            break;
+          }
+          case "email": {
+            leftVal = (left.email || "").toLowerCase();
+            rightVal = (right.email || "").toLowerCase();
+            break;
+          }
+          case "phone": {
+            leftVal = (left.phoneNo || "").toLowerCase();
+            rightVal = (right.phoneNo || "").toLowerCase();
+            break;
+          }
+          case "remarks": {
+            leftVal = (left.remarks || "").toLowerCase();
+            rightVal = (right.remarks || "").toLowerCase();
+            break;
+          }
+          case "status": {
+            leftVal = left.isActive ? 1 : 0;
+            rightVal = right.isActive ? 1 : 0;
+            break;
+          }
+          case "createdBy": {
+            leftVal = (left.createdBy || "").toLowerCase();
+            rightVal = (right.createdBy || "").toLowerCase();
+            break;
+          }
+          case "updatedBy": {
+            leftVal = (left.updatedBy || "").toLowerCase();
+            rightVal = (right.updatedBy || "").toLowerCase();
+            break;
           }
         }
 
-        return true;
-      })
-      .sort((left, right) => {
-        const leftTime =
-          left.updatedDate instanceof Date
-            ? left.updatedDate.getTime()
-            : new Date(left.updatedDate).getTime();
-        const rightTime =
-          right.updatedDate instanceof Date
-            ? right.updatedDate.getTime()
-            : new Date(right.updatedDate).getTime();
-
-        return rightTime - leftTime;
+        if (leftVal < rightVal) {
+          return sortConfig.direction === "asc" ? -1 : 1;
+        }
+        if (leftVal > rightVal) {
+          return sortConfig.direction === "asc" ? 1 : -1;
+        }
+        return 0;
       });
-  }, [departmentFilter, rows, statusFilter]);
+    }
+
+    return [...list].sort((left, right) => {
+      const leftTime =
+        left.updatedDate instanceof Date
+          ? left.updatedDate.getTime()
+          : new Date(left.updatedDate).getTime();
+      const rightTime =
+        right.updatedDate instanceof Date
+          ? right.updatedDate.getTime()
+          : new Date(right.updatedDate).getTime();
+
+      return rightTime - leftTime;
+    });
+  }, [
+    createdByFilter,
+    departmentFilter,
+    rows,
+    sortConfig,
+    statusFilter,
+    updatedByFilter,
+  ]);
 
   useEffect(() => {
     setPage(1);
-  }, [searchValue, departmentFilter, statusFilter, rowsPerPage]);
+  }, [
+    searchValue,
+    departmentFilter,
+    statusFilter,
+    createdByFilter,
+    updatedByFilter,
+    rowsPerPage,
+  ]);
 
   const tableActions: readonly RowAction[] = [
     ...(canView
@@ -385,7 +518,9 @@ export function UserManagementListing() {
 
   const activeColumnFilterCount =
     (departmentFilter.length > 0 ? 1 : 0) +
-    (statusFilter.length > 0 ? 1 : 0);
+    (statusFilter.length > 0 ? 1 : 0) +
+    (createdByFilter.length > 0 ? 1 : 0) +
+    (updatedByFilter.length > 0 ? 1 : 0);
 
   const activeFilterChips = useMemo(() => {
     const chips: ActiveColumnFilterChip[] = [];
@@ -411,8 +546,24 @@ export function UserManagementListing() {
       });
     }
 
+    if (createdByFilter.length > 0) {
+      chips.push({
+        columnKey: "createdBy",
+        columnLabel: "Created By",
+        filter: { type: "multiSelect", values: createdByFilter },
+      });
+    }
+
+    if (updatedByFilter.length > 0) {
+      chips.push({
+        columnKey: "updatedBy",
+        columnLabel: "Updated By",
+        filter: { type: "multiSelect", values: updatedByFilter },
+      });
+    }
+
     return chips;
-  }, [departmentFilter, statusFilter]);
+  }, [createdByFilter, departmentFilter, statusFilter, updatedByFilter]);
 
   const handleOpenColumnFilter = (
     columnKey: ColumnFilterKey,
@@ -431,6 +582,8 @@ export function UserManagementListing() {
   const handleClearAllFilters = () => {
     setDepartmentFilter([]);
     setStatusFilter([]);
+    setCreatedByFilter([]);
+    setUpdatedByFilter([]);
     handleCloseColumnFilter();
   };
 
@@ -438,6 +591,18 @@ export function UserManagementListing() {
     () =>
       departmentOptions.map((option) => ({ value: option, label: option })),
     [departmentOptions],
+  );
+
+  const createdByFilterOptions = useMemo(
+    () =>
+      createdByOptions.map((option) => ({ value: option, label: option })),
+    [createdByOptions],
+  );
+
+  const updatedByFilterOptions = useMemo(
+    () =>
+      updatedByOptions.map((option) => ({ value: option, label: option })),
+    [updatedByOptions],
   );
 
   const statusFilterOptions = useMemo(
@@ -450,26 +615,46 @@ export function UserManagementListing() {
 
   const activeFilterConfig =
     activeColumnFilter === "department"
+      ? {
+          label: "Department",
+          options: departmentFilterOptions,
+          selectedValues: departmentFilter,
+          searchable: true,
+          searchPlaceholder: "Search values...",
+          onApply: setDepartmentFilter,
+          onClear: () => setDepartmentFilter([]),
+        }
+      : activeColumnFilter === "status"
         ? {
-            label: "Department",
-            options: departmentFilterOptions,
-            selectedValues: departmentFilter,
+            label: "Status",
+            options: statusFilterOptions,
+            selectedValues: statusFilter,
             searchable: true,
             searchPlaceholder: "Search values...",
-            onApply: setDepartmentFilter,
-            onClear: () => setDepartmentFilter([]),
+            onApply: setStatusFilter,
+            onClear: () => setStatusFilter([]),
           }
-        : activeColumnFilter === "status"
+        : activeColumnFilter === "createdBy"
           ? {
-              label: "Status",
-              options: statusFilterOptions,
-              selectedValues: statusFilter,
+              label: "Created By",
+              options: createdByFilterOptions,
+              selectedValues: createdByFilter,
               searchable: true,
               searchPlaceholder: "Search values...",
-              onApply: setStatusFilter,
-              onClear: () => setStatusFilter([]),
+              onApply: setCreatedByFilter,
+              onClear: () => setCreatedByFilter([]),
             }
-          : null;
+          : activeColumnFilter === "updatedBy"
+            ? {
+                label: "Updated By",
+                options: updatedByFilterOptions,
+                selectedValues: updatedByFilter,
+                searchable: true,
+                searchPlaceholder: "Search values...",
+                onApply: setUpdatedByFilter,
+                onClear: () => setUpdatedByFilter([]),
+              }
+            : null;
 
   return (
     <MasterPageShell
@@ -493,7 +678,7 @@ export function UserManagementListing() {
           <ClearableSearchField
             value={searchValue}
             onChange={setSearchValue}
-            placeholder="Search users..."
+            placeholder="Search..."
             sx={{
               width: { xs: "100%", sm: 300 },
               maxWidth: "100%",
@@ -533,6 +718,10 @@ export function UserManagementListing() {
               setDepartmentFilter([]);
             } else if (columnKey === "status") {
               setStatusFilter([]);
+            } else if (columnKey === "createdBy") {
+              setCreatedByFilter([]);
+            } else if (columnKey === "updatedBy") {
+              setUpdatedByFilter([]);
             }
           }}
         />
@@ -570,7 +759,12 @@ export function UserManagementListing() {
                     width: "18%",
                   }}
                 >
-                  User
+                  <FilterableColumnHeader
+                    label="User"
+                    sortActive={sortConfig?.key === "user"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("user")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -585,6 +779,9 @@ export function UserManagementListing() {
                     onOpen={(event) =>
                       handleOpenColumnFilter("department", event)
                     }
+                    sortActive={sortConfig?.key === "department"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("department")}
                   />
                 </TableCell>
 
@@ -594,7 +791,12 @@ export function UserManagementListing() {
                     width: "16%",
                   }}
                 >
-                  Email
+                  <FilterableColumnHeader
+                    label="Email"
+                    sortActive={sortConfig?.key === "email"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("email")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -603,7 +805,12 @@ export function UserManagementListing() {
                     width: "11%",
                   }}
                 >
-                  Phone
+                  <FilterableColumnHeader
+                    label="Phone"
+                    sortActive={sortConfig?.key === "phone"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("phone")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -612,7 +819,12 @@ export function UserManagementListing() {
                     width: "14%",
                   }}
                 >
-                  Remarks
+                  <FilterableColumnHeader
+                    label="Remarks"
+                    sortActive={sortConfig?.key === "remarks"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("remarks")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -627,6 +839,9 @@ export function UserManagementListing() {
                     selectedCount={statusFilter.length}
                     align="center"
                     onOpen={(event) => handleOpenColumnFilter("status", event)}
+                    sortActive={sortConfig?.key === "status"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("status")}
                   />
                 </TableCell>
 
@@ -636,7 +851,16 @@ export function UserManagementListing() {
                     width: "14%",
                   }}
                 >
-                  Created By
+                  <FilterableColumnHeader
+                    label="Created By"
+                    selectedCount={createdByFilter.length}
+                    onOpen={(event) =>
+                      handleOpenColumnFilter("createdBy", event)
+                    }
+                    sortActive={sortConfig?.key === "createdBy"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("createdBy")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -645,7 +869,16 @@ export function UserManagementListing() {
                     width: "14%",
                   }}
                 >
-                  Updated By
+                  <FilterableColumnHeader
+                    label="Updated By"
+                    selectedCount={updatedByFilter.length}
+                    onOpen={(event) =>
+                      handleOpenColumnFilter("updatedBy", event)
+                    }
+                    sortActive={sortConfig?.key === "updatedBy"}
+                    sortDirection={sortConfig?.direction}
+                    onSort={() => handleSort("updatedBy")}
+                  />
                 </TableCell>
 
                 <TableCell
@@ -663,10 +896,14 @@ export function UserManagementListing() {
             <TableBody>
               {currentPageRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} sx={{ py: 6, textAlign: "center" }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {isLoading ? "Loading users..." : "No users found."}
-                    </Typography>
+                  <TableCell colSpan={9} sx={{ py: isLoading ? 3 : 6, textAlign: "center" }}>
+                    {isLoading ? (
+                      <ContentLoader label="Loading..." minHeight={160} />
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No users found.
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -771,17 +1008,39 @@ export function UserManagementListing() {
                       </TableCell>
 
                       <TableCell sx={tableBodyCellSx(theme)}>
-                        <Typography
-                          sx={{
-                            fontSize: "0.875rem",
-                            color: theme.customTokens.text.secondary,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {row.phoneNo || "—"}
-                        </Typography>
+                        {row.phoneNo ? (
+                          <Typography
+                            component="a"
+                            href={`tel:${row.phoneNo.replace(/[^\d+]/g, "")}`}
+                            onClick={(event) => event.stopPropagation()}
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: theme.customTokens.brand.primary,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              textDecoration: "none",
+                              cursor: "pointer",
+                              "&:hover": {
+                                textDecoration: "underline",
+                              },
+                            }}
+                          >
+                            {row.phoneNo}
+                          </Typography>
+                        ) : (
+                          <Typography
+                            sx={{
+                              fontSize: "0.875rem",
+                              color: theme.customTokens.text.secondary,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            —
+                          </Typography>
+                        )}
                       </TableCell>
 
                       <TableCell sx={tableBodyCellSx(theme)}>
@@ -1309,19 +1568,63 @@ function formatAuditDate(value: Date | string) {
   }).format(date);
 }
 
+function SortIndicator({
+  active,
+  direction,
+}: {
+  active: boolean;
+  direction?: "asc" | "desc" | undefined;
+}) {
+  const theme = useTheme();
+
+  if (!active || !direction) {
+    return (
+      <ArrowUpDown
+        color={theme.customTokens.neutrals[700]}
+        size={portalIconSize.tableHeader}
+        strokeWidth={portalIconStroke.default}
+      />
+    );
+  }
+
+  if (direction === "asc") {
+    return (
+      <ArrowUpWideNarrow
+        color={theme.customTokens.brand.primary}
+        size={portalIconSize.tableHeader}
+        strokeWidth={portalIconStroke.emphasis}
+      />
+    );
+  }
+
+  return (
+    <ArrowDownWideNarrow
+      color={theme.customTokens.brand.primary}
+      size={portalIconSize.tableHeader}
+      strokeWidth={portalIconStroke.emphasis}
+    />
+  );
+}
+
 function FilterableColumnHeader({
   label,
   selectedCount,
   onOpen,
+  sortActive = false,
+  sortDirection,
+  onSort,
   align = "left",
 }: {
   label: string;
-  selectedCount: number;
-  onOpen: (event: MouseEvent<HTMLButtonElement>) => void;
-  align?: "left" | "center";
+  selectedCount?: number | undefined;
+  onOpen?: ((event: MouseEvent<HTMLButtonElement>) => void) | undefined;
+  sortActive?: boolean | undefined;
+  sortDirection?: "asc" | "desc" | undefined;
+  onSort?: (() => void) | undefined;
+  align?: "left" | "center" | undefined;
 }) {
   const theme = useTheme();
-  const active = selectedCount > 0;
+  const active = typeof selectedCount === "number" && selectedCount > 0;
 
   return (
     <Stack
@@ -1345,50 +1648,57 @@ function FilterableColumnHeader({
         {label}
       </Typography>
 
-      <IconButton
-        size="small"
-        aria-label={`Filter by ${label}`}
-        onClick={onOpen}
-        sx={{
-          position: "relative",
-          width: 22,
-          height: 22,
-          p: 0,
-          color: active
-            ? theme.customTokens.brand.primary
-            : theme.customTokens.text.secondary,
-          "&:hover": {
-            backgroundColor: theme.customTokens.surfaces.alt,
-            color: theme.customTokens.brand.primary,
-          },
-        }}
-      >
-        <ListFilter
-          size={portalIconSize.tableHeader}
-          strokeWidth={portalIconStroke.default}
-        />
-        {active ? (
-          <Box
-            sx={{
-              position: "absolute",
-              top: -3,
-              right: -4,
-              minWidth: 14,
-              height: 14,
-              px: 0.35,
-              borderRadius: "999px",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-              fontSize: "0.625rem",
-              fontWeight: 700,
-              lineHeight: "14px",
-              textAlign: "center",
-            }}
-          >
-            {selectedCount > 9 ? "9+" : selectedCount}
-          </Box>
-        ) : null}
-      </IconButton>
+      {onSort ? (
+        <IconButton
+          size="small"
+          aria-label={`Sort by ${label}`}
+          onClick={onSort}
+          sx={(currentTheme) => listingTableHeaderIconButtonSx(currentTheme)}
+        >
+          <SortIndicator active={sortActive} direction={sortDirection} />
+        </IconButton>
+      ) : null}
+
+      {onOpen ? (
+        <IconButton
+          size="small"
+          aria-label={`Filter by ${label}`}
+          onClick={onOpen}
+          sx={(currentTheme) => ({
+            ...listingTableHeaderIconButtonSx(currentTheme),
+            position: "relative",
+            color: active
+              ? currentTheme.customTokens.brand.primary
+              : currentTheme.customTokens.text.secondary,
+          })}
+        >
+          <ListFilter
+            size={portalIconSize.tableHeader}
+            strokeWidth={portalIconStroke.default}
+          />
+          {active && selectedCount ? (
+            <Box
+              sx={{
+                position: "absolute",
+                top: -3,
+                right: -4,
+                minWidth: 14,
+                height: 14,
+                px: 0.35,
+                borderRadius: "999px",
+                backgroundColor: theme.customTokens.brand.primary,
+                color: "#FFFFFF",
+                fontSize: "0.625rem",
+                fontWeight: 700,
+                lineHeight: "14px",
+                textAlign: "center",
+              }}
+            >
+              {selectedCount > 9 ? "9+" : selectedCount}
+            </Box>
+          ) : null}
+        </IconButton>
+      ) : null}
     </Stack>
   );
 }

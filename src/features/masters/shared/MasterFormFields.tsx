@@ -136,7 +136,7 @@ function getMasterFileUrl(value: MasterFieldValue) {
 
 const countryNameFormatter = new Intl.DisplayNames(["en"], { type: "region" });
 
-const countryCodeOptions = Array.from(
+export const countryCodeOptions = Array.from(
   getCountries()
     .reduce((countryGroups, country) => {
       const code = `+${getCountryCallingCode(country)}`;
@@ -439,6 +439,27 @@ export function MasterFormFields({
                     value={fieldValue}
                     onPreview={(preview) => setPreviewState(preview)}
                   />
+                ) : isPhoneField(field) && formatDetailFieldValue(field, fieldValue, values) !== "—" ? (
+                  <Typography
+                    component="a"
+                    href={`tel:${formatDetailFieldValue(field, fieldValue, values).replace(/[^\d+]/g, "")}`}
+                    onClick={(event) => event.stopPropagation()}
+                    sx={(currentTheme) => ({
+                      color: currentTheme.customTokens.brand.primary,
+                      fontSize: "14px",
+                      fontWeight: 400,
+                      lineHeight: 1.4,
+                      minHeight: currentTheme.spacing(2.5),
+                      wordBreak: "break-word",
+                      textDecoration: "none",
+                      cursor: "pointer",
+                      "&:hover": {
+                        textDecoration: "underline",
+                      },
+                    })}
+                  >
+                    {formatDetailFieldValue(field, fieldValue, values)}
+                  </Typography>
                 ) : (
                   <Typography
                     sx={(currentTheme) => ({
@@ -1338,6 +1359,14 @@ function getFieldValidationError(
     }
   }
 
+  if (isGstNoField(field) && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(textValue)) {
+    return "GSTIN should be 15 characters in the format 22AAAAA0000A1Z5.";
+  }
+
+  if (isHsnCodeField(field) && !/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
+    return "HSN Code must be 4, 6, or 8 digits only.";
+  }
+
   if (isGstOrHsnNumericField(field) && field.type !== "select" && !/^\d+$/.test(textValue)) {
     return `${getDisplayFieldLabel(field.label)} should contain numbers only.`;
   }
@@ -1360,12 +1389,16 @@ function getFieldValidationError(
     return "Aadhaar No should be exactly 12 digits.";
   }
 
-  if (isPanField(field) && !/^[A-Z]{5}\d{4}[A-Z]$/.test(textValue)) {
+  if (isPanField(field) && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(textValue)) {
     return "PAN No should be 10 characters in the format AAAAA9999A.";
   }
 
   if (isFscCodeField(field) && !/^FSC-[CNP]\d{6}$/.test(textValue)) {
     return "FSC Code should match FSC-C123456, FSC-N123456, or FSC-P123456.";
+  }
+
+  if (isLettersOnlyField(field) && /[^A-Za-z\s]/.test(textValue)) {
+    return `${getDisplayFieldLabel(field.label)} should contain letters only.`;
   }
 
   return "";
@@ -1402,6 +1435,67 @@ function isRequiredField(_field: MasterFieldDefinition) {
   return false;
 }
 
+function isLettersOnlyField(field: MasterFieldDefinition) {
+  if (field.type === "select" || field.readOnly) {
+    return false;
+  }
+  const key = getNormalizedFieldKey(field);
+  const label = getNormalizedFieldLabel(field);
+
+  // Name fields, color, currency, cut, grade, unit, city, state, country, department, msmeType, symbolicName, designation, category, item, sub category
+  const isTargetField =
+    key.includes("firstname") ||
+    key.includes("lastname") ||
+    key.includes("colorname") ||
+    key.includes("cutname") ||
+    key.includes("gradename") ||
+    key.includes("unitname") ||
+    key.includes("departmentname") ||
+    key.includes("symbolicname") ||
+    key.includes("categoryname") ||
+    key.includes("itemname") ||
+    key.includes("itemsubcategory") ||
+    key.includes("subcategory") ||
+    key.includes("currencyname") ||
+    key.includes("contactpersonname") ||
+    key.includes("suppliername") ||
+    key.includes("customername") ||
+    key === "color" ||
+    key === "currency" ||
+    key === "cut" ||
+    key === "grade" ||
+    key === "department" ||
+    key === "category" ||
+    key === "item" ||
+    key === "city" ||
+    key === "state" ||
+    key === "country" ||
+    key === "designation" ||
+    key === "msmetype" ||
+    label.includes("first name") ||
+    label.includes("last name") ||
+    label.includes("color name") ||
+    label.includes("currency name") ||
+    label.includes("cut name") ||
+    label.includes("grade name") ||
+    label.includes("unit name") ||
+    label.includes("department name") ||
+    label.includes("symbolic name") ||
+    label.includes("category name") ||
+    label.includes("item name") ||
+    label.includes("sub category") ||
+    label.includes("contact person name") ||
+    label.includes("supplier name") ||
+    label.includes("customer name") ||
+    label === "designation" ||
+    label === "city" ||
+    label === "state" ||
+    label === "country" ||
+    label === "msme type";
+
+  return isTargetField;
+}
+
 function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
   if (isEmailField(field)) {
     return value.replace(/[^A-Za-z0-9@._-]/g, "");
@@ -1409,6 +1503,14 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
 
   if (isPhoneField(field)) {
     return value.replace(/\D/g, "").slice(0, 10);
+  }
+
+  if (isGstNoField(field)) {
+    return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 15);
+  }
+
+  if (isHsnCodeField(field)) {
+    return value.replace(/\D/g, "").slice(0, 8);
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select") {
@@ -1439,6 +1541,11 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
 
   if (isFscCodeField(field)) {
     return value.replace(/[^A-Za-z0-9-]/g, "").toUpperCase().slice(0, 11);
+  }
+
+  if (isLettersOnlyField(field)) {
+    // Only allow letters (A-Z, a-z) and single spaces
+    return value.replace(/[^A-Za-z\s]/g, "");
   }
 
   return value;
@@ -1484,7 +1591,43 @@ function isAadhaarField(field: MasterFieldDefinition) {
 }
 
 function isPanField(field: MasterFieldDefinition) {
-  return getNormalizedFieldKey(field) === "panno";
+  const key = getNormalizedFieldKey(field);
+  const label = getNormalizedFieldLabel(field).replace(/\s+/g, "");
+  return key === "panno" || label === "panno" || label === "pancard";
+}
+
+function isGstNoField(field: MasterFieldDefinition) {
+  if (field.type === "select") {
+    return false;
+  }
+  const key = getNormalizedFieldKey(field);
+  const label = getNormalizedFieldLabel(field).replace(/\s+/g, "");
+
+  if (key.includes("percent") || label.includes("%") || label.includes("percent")) {
+    return false;
+  }
+
+  return (
+    key === "gstno" ||
+    key === "gstin" ||
+    label === "gstno" ||
+    label === "gstin" ||
+    label.includes("gstin")
+  );
+}
+
+function isHsnCodeField(field: MasterFieldDefinition) {
+  if (field.type === "select") {
+    return false;
+  }
+  const key = getNormalizedFieldKey(field);
+  const label = getNormalizedFieldLabel(field).replace(/\s+/g, "");
+  return (
+    key === "hsncode" ||
+    key === "hsn" ||
+    label === "hsncode" ||
+    label === "hsn"
+  );
 }
 
 function isFscCodeField(field: MasterFieldDefinition) {
@@ -1497,9 +1640,7 @@ function isGstOrHsnNumericField(field: MasterFieldDefinition) {
 
   return (
     key === "gstpercentage" ||
-    key === "hsncode" ||
-    label === "gst%" ||
-    label === "hsncode"
+    label === "gst%"
   );
 }
 
@@ -1672,6 +1813,21 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
     };
   }
 
+  if (isGstNoField(field)) {
+    return {
+      maxLength: 15,
+      pattern: "[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}",
+    };
+  }
+
+  if (isHsnCodeField(field)) {
+    return {
+      inputMode: "numeric" as const,
+      maxLength: 8,
+      pattern: "[0-9]*",
+    };
+  }
+
   if (isFscCodeField(field)) {
     return {
       maxLength: 11,
@@ -1683,6 +1839,12 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
     return {
       inputMode: "numeric" as const,
       pattern: "[0-9]*",
+    };
+  }
+
+  if (isLettersOnlyField(field)) {
+    return {
+      pattern: "[A-Za-z\\s]*",
     };
   }
 

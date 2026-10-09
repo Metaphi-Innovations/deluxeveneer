@@ -19,6 +19,7 @@ import { ChevronLeft, Eye, FileText, Pencil, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
@@ -219,14 +220,7 @@ export function UserManagementViewPage() {
         ) : null}
 
         {isLoading || !row ? (
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Loading user details...
-          </Typography>
+          <ContentLoader label="Loading..." minHeight={200} />
         ) : (
           <Stack spacing={1.5}>
             <Box
@@ -327,7 +321,28 @@ export function UserManagementViewPage() {
                 <SummaryMetaLabel>Department</SummaryMetaLabel>
                 <SummaryMetaValue>{row.department || "—"}</SummaryMetaValue>
                 <SummaryMetaLabel>Phone</SummaryMetaLabel>
-                <SummaryMetaValue>{row.phoneNo || "—"}</SummaryMetaValue>
+                <SummaryMetaValue>
+                  {row.phoneNo ? (
+                    <Typography
+                      component="a"
+                      href={`tel:${row.phoneNo.replace(/[^\d+]/g, "")}`}
+                      sx={(theme) => ({
+                        color: theme.customTokens.brand.primary,
+                        textDecoration: "none",
+                        fontSize: "inherit",
+                        fontWeight: "inherit",
+                        cursor: "pointer",
+                        "&:hover": {
+                          textDecoration: "underline",
+                        },
+                      })}
+                    >
+                      {row.phoneNo}
+                    </Typography>
+                  ) : (
+                    "—"
+                  )}
+                </SummaryMetaValue>
               </Box>
 
               {canEdit ? (
@@ -616,6 +631,7 @@ function DetailField({
 }) {
   const theme = useTheme();
   const hasValue = Boolean(value?.trim());
+  const isPhoneField = /phone|mobile/i.test(label);
 
   return (
     <Stack spacing={0.5}>
@@ -702,6 +718,38 @@ function DetailField({
               </Box>
             );
           })() : (
+            <Typography
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                color: theme.customTokens.text.primary,
+                lineHeight: 1.45,
+              }}
+            >
+              —
+            </Typography>
+          )
+        ) : isPhoneField ? (
+          hasValue ? (
+            <Typography
+              component="a"
+              href={`tel:${value.replace(/[^\d+]/g, "")}`}
+              sx={{
+                fontSize: "0.875rem",
+                fontWeight: 400,
+                color: theme.customTokens.brand.primary,
+                lineHeight: 1.45,
+                textDecoration: "none",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  textDecoration: "underline",
+                },
+              }}
+            >
+              {value}
+            </Typography>
+          ) : (
             <Typography
               sx={{
                 fontSize: "0.875rem",

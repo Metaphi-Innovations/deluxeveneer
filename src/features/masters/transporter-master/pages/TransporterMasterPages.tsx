@@ -94,23 +94,14 @@ export function TransporterMasterListPage() {
         if (filter.key === "type") {
           return { ...filter, options: STATIC_TRANSPORTER_TYPE_OPTIONS };
         }
-        if (filter.key === "areaOfOperation") {
-          return {
-            ...filter,
-            options: (filterOptionsByColumn.areaOfOperation ?? []).map(
-              (entry) => entry.label,
-            ),
-          };
-        }
         return filter;
       }),
     }),
-    [filterOptionsByColumn],
+    [],
   );
 
   const loadColumnDropdown = useCallback(async (columnKey: string) => {
     const requestId = ++columnDropdownRequestIdRef.current;
-    setFilterOptionsByColumn({});
 
     try {
       const result = await fetchTransporterMasterColumnDropdown(columnKey);
@@ -118,9 +109,10 @@ export function TransporterMasterListPage() {
         return;
       }
 
-      setFilterOptionsByColumn({
+      setFilterOptionsByColumn((prev) => ({
+        ...prev,
         [result.column]: result.options,
-      });
+      }));
     } catch {
       // Keep page usable; filter menus can fall back to page-local options.
     }
@@ -290,7 +282,6 @@ function TransporterMasterFormPage({
   const [typeOptions, setTypeOptions] = useState<string[]>(
     STATIC_TRANSPORTER_TYPE_OPTIONS,
   );
-  const [areaOptions, setAreaOptions] = useState<string[]>([]);
 
   const definition = useMemo(
     () => ({
@@ -299,18 +290,11 @@ function TransporterMasterFormPage({
         if (field.key === "type") {
           return { ...field, options: typeOptions };
         }
-        if (field.key === "areaOfOperation" && areaOptions.length > 0) {
-          return {
-            ...field,
-            type: "select" as const,
-            options: areaOptions,
-          };
-        }
         return field;
       }),
       rows: [],
     }),
-    [areaOptions, typeOptions],
+    [typeOptions],
   );
 
   useEffect(() => {
@@ -318,7 +302,6 @@ function TransporterMasterFormPage({
       if (meta.types.length > 0) {
         setTypeOptions(meta.types.map((entry) => entry.label));
       }
-      setAreaOptions(meta.areaOfOperations.map((entry) => entry.label));
     });
   }, []);
 

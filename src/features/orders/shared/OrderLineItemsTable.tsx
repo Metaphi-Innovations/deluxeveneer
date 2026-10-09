@@ -452,7 +452,7 @@ const itemDetailColumns = [
   { key: "subCategory", label: "Sub Category", minWidth: 160 },
   { key: "color", label: "Color", minWidth: 130 },
   { key: "hsn", label: "HSN Code", minWidth: 130 },
-  { key: "gst", label: "GST No", minWidth: 120 },
+  { key: "gst", label: "GSTIN", minWidth: 120 },
   { key: "remark", label: "Remark", minWidth: 220 },
 ] as const;
 

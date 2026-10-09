@@ -914,6 +914,17 @@ function getStatusToggleState(
   return normalizeMasterStatusValue(value) === "Active";
 }
 
+function isPhoneColumn(column: MasterDisplayColumn) {
+  const key = column.key.toLowerCase();
+  const label = column.label.toLowerCase();
+  return (
+    key.includes("phone") ||
+    key.includes("mobile") ||
+    label.includes("phone") ||
+    label.includes("mobile")
+  );
+}
+
 function renderMasterTableCell(
   row: MasterRecord,
   column: MasterDisplayColumn,
@@ -934,6 +945,35 @@ function renderMasterTableCell(
   const toggleState = getStatusToggleState(column, row[column.key]);
 
   if (toggleState === null) {
+    if (isPhoneColumn(column)) {
+      const rawValue = row[column.key];
+      const displayValue = formatMasterValue(rawValue, column.key, column.label);
+      const phoneDigits = typeof rawValue === "string" ? rawValue.replace(/[^\d+]/g, "") : "";
+
+      if (displayValue && phoneDigits) {
+        return (
+          <Typography
+            component="a"
+            href={`tel:${phoneDigits}`}
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              color: theme.customTokens.brand.primary,
+              textDecoration: "none",
+              fontSize: "inherit",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            {displayValue}
+          </Typography>
+        );
+      }
+      return displayValue || "—";
+    }
+
     return formatMasterValue(row[column.key], column.key, column.label);
   }
 

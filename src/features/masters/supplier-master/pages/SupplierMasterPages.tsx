@@ -87,6 +87,7 @@ function parseContacts(value: unknown): SupplierContactPersonInput[] {
       designation: String((entry as { designation?: string }).designation ?? ""),
       email: String((entry as { email?: string }).email ?? ""),
       phoneNumber: String((entry as { phoneNumber?: string }).phoneNumber ?? ""),
+      countryCode: String((entry as { countryCode?: string }).countryCode ?? "+91"),
     }));
   } catch {
     return [];
@@ -128,9 +129,9 @@ export function SupplierMasterListPage() {
         if (filter.key === "msmeType") {
           return {
             ...filter,
-            options: (filterOptionsByColumn.msmeType ?? []).map(
-              (entry) => entry.label,
-            ),
+            options: (filterOptionsByColumn.msmeType && filterOptionsByColumn.msmeType.length > 0)
+              ? filterOptionsByColumn.msmeType.map((entry) => entry.label)
+              : filter.options,
           };
         }
         return filter;
@@ -141,7 +142,6 @@ export function SupplierMasterListPage() {
 
   const loadColumnDropdown = useCallback(async (columnKey: string) => {
     const requestId = ++columnDropdownRequestIdRef.current;
-    setFilterOptionsByColumn({});
 
     try {
       const result = await fetchSupplierMasterColumnDropdown(columnKey);
@@ -149,9 +149,10 @@ export function SupplierMasterListPage() {
         return;
       }
 
-      setFilterOptionsByColumn({
+      setFilterOptionsByColumn((prev) => ({
+        ...prev,
         [result.column]: result.options,
-      });
+      }));
     } catch {
       // Keep page usable; filter menus can fall back to page-local options.
     }
@@ -330,6 +331,7 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
       designation: firstContact.designation,
       emailAddress: firstContact.email,
       mobileNumber: firstContact.phoneNumber,
+      mobileNumberCountryCode: firstContact.countryCode || "+91",
     };
   }, [contacts]);
 
@@ -337,8 +339,12 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
     () => ({
       ...supplierMasterDefinition,
       fields: supplierMasterDefinition.fields.map((field) =>
-        field.key === "msmeType" && msmeTypeOptions.length > 0
-          ? { ...field, type: "select" as const, options: msmeTypeOptions }
+        field.key === "msmeType"
+          ? {
+            ...field,
+            type: "select" as const,
+            options: msmeTypeOptions.length > 0 ? msmeTypeOptions : (field.options ?? []),
+          }
           : field,
       ),
       rows: [],
@@ -348,7 +354,9 @@ function SupplierMasterFormPage({ mode }: { mode: "add" | "edit" | "view" }) {
 
   useEffect(() => {
     void fetchSupplierMasterMeta().then((meta) => {
-      setMsmeTypeOptions(meta.msmeTypes.map((entry) => entry.label));
+      if (meta.msmeTypes && meta.msmeTypes.length > 0) {
+        setMsmeTypeOptions(meta.msmeTypes.map((entry) => entry.label));
+      }
     });
   }, []);
 

@@ -104,6 +104,7 @@ export interface SupplierContactPersonInput {
   designation: string;
   email: string;
   phoneNumber: string;
+  countryCode?: string;
 }
 
 export interface SupplierMasterDetail extends MasterRecord {
