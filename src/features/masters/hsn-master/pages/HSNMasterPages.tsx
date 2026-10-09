@@ -153,6 +153,38 @@ export function HSNMasterListPage() {
 }
 
 export function AddHSNMasterPage() {
+  const [definition, setDefinition] = useState<MasterDefinition>(hsnMasterDefinition);
+
+  useEffect(() => {
+    fetchGstsApi().then((gstRecords) => {
+      if (gstRecords && gstRecords.length > 0) {
+        syncGstMasterToStorage(gstRecords);
+        const options = Array.from(
+          new Set(
+            gstRecords
+              .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+              .map((r) => {
+                const val = r.gstPercentage || r.percentage;
+                return String(val).endsWith("%") ? String(val) : `${val}%`;
+              })
+              .filter(Boolean),
+          ),
+        );
+
+        if (options.length > 0) {
+          setDefinition((prev) => ({
+            ...prev,
+            fields: prev.fields.map((field) =>
+              field.key === "gstPercentage" || field.key === "gst"
+                ? { ...field, options }
+                : field,
+            ),
+          }));
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -181,7 +213,7 @@ export function AddHSNMasterPage() {
 
   return (
     <MasterFormPage
-      definition={hsnMasterDefinition}
+      definition={definition}
       mode="add"
       onSave={handleSave}
     />
@@ -189,6 +221,38 @@ export function AddHSNMasterPage() {
 }
 
 export function EditHSNMasterPage() {
+  const [definition, setDefinition] = useState<MasterDefinition>(hsnMasterDefinition);
+
+  useEffect(() => {
+    fetchGstsApi().then((gstRecords) => {
+      if (gstRecords && gstRecords.length > 0) {
+        syncGstMasterToStorage(gstRecords);
+        const options = Array.from(
+          new Set(
+            gstRecords
+              .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+              .map((r) => {
+                const val = r.gstPercentage || r.percentage;
+                return String(val).endsWith("%") ? String(val) : `${val}%`;
+              })
+              .filter(Boolean),
+          ),
+        );
+
+        if (options.length > 0) {
+          setDefinition((prev) => ({
+            ...prev,
+            fields: prev.fields.map((field) =>
+              field.key === "gstPercentage" || field.key === "gst"
+                ? { ...field, options }
+                : field,
+            ),
+          }));
+        }
+      }
+    }).catch(() => {});
+  }, []);
+
   const handleSave = async (context: {
     definition: MasterDefinition;
     mode: "add" | "edit";
@@ -219,7 +283,7 @@ export function EditHSNMasterPage() {
 
   return (
     <MasterFormPage
-      definition={hsnMasterDefinition}
+      definition={definition}
       mode="edit"
       onSave={handleSave}
     />

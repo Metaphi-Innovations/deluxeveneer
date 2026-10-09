@@ -25,6 +25,7 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
@@ -671,14 +672,7 @@ export function UserManagementFormPage({
         ) : null}
 
         {canUseMode && isLoading ? (
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Loading user details...
-          </Typography>
+          <ContentLoader label="Loading..." minHeight={240} />
         ) : canUseMode ? (
           <Stack spacing={2}>
             {mode === "add" ? (

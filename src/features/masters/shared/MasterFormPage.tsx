@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
 import { ChevronLeft, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
@@ -126,6 +126,7 @@ export function MasterFormPage({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
   const formDefinition = getMasterFormDefinitionForMode(localDefinition, mode);
   const handleCancel = () => {
     navigate(cancelPath, { replace: true });
@@ -136,9 +137,10 @@ export function MasterFormPage({
       const nextValues = buildMasterInitialValues(localDefinition, row);
 
       if (row) {
-        const phoneCountryCode = row.phoneNumberCountryCode;
+        const phoneCountryCode = row.phoneNumberCountryCode || row.mobileNumberCountryCode;
         if (typeof phoneCountryCode === "string" && phoneCountryCode.trim()) {
           nextValues.phoneNumberCountryCode = phoneCountryCode;
+          nextValues.mobileNumberCountryCode = phoneCountryCode;
         }
       }
 
@@ -166,7 +168,7 @@ export function MasterFormPage({
         ]}
         title={getMasterPageTitle(localDefinition, mode)}
       >
-        <ContentLoader label="Loading record..." minHeight={240} />
+        <ContentLoader label="Loading..." minHeight={240} />
       </MasterPageShell>
     );
   }
@@ -225,6 +227,51 @@ export function MasterFormPage({
       return;
     }
 
+    // Check for duplicate identifier or name only for the primary key of the CURRENT master
+    const MASTER_PRIMARY_KEYS: Record<string, string[]> = {
+      "item-name-master": ["itemName", "itemCode"],
+      "item-category-master": ["categoryName"],
+      "item-sub-category-master": ["itemSubCategory"],
+      "color-master": ["colorName"],
+      "currency-master": ["currencyName"],
+      "cut-master": ["cutName"],
+      "department-master": ["departmentName"],
+      "grade-master": ["gradeName"],
+      "unit-master": ["unitName", "symbolicName"],
+      "gst-master": ["gstPercentage"],
+      "hsn-master": ["hsnCode", "code"],
+      "supplier-master": ["supplierName", "gstNo"],
+      "customer-master": ["customerName", "gstNo"],
+    };
+
+    const targetKeysToCheck = MASTER_PRIMARY_KEYS[localDefinition.slug] ?? [];
+
+    for (const key of targetKeysToCheck) {
+      const val = values[key];
+      if (typeof val === "string" && val.trim().length > 0) {
+        const normalizedVal = val.trim().toLowerCase();
+        const duplicate = localDefinition.rows.find((existingRow) => {
+          if (row && existingRow.id === row.id) {
+            return false;
+          }
+          const existingVal = existingRow[key] || (key === "hsnCode" ? existingRow.code : undefined);
+          return (
+            typeof existingVal === "string" &&
+            existingVal.trim().toLowerCase() === normalizedVal
+          );
+        });
+
+        if (duplicate) {
+          const fieldDef = formDefinition.fields.find((f) => f.key === key);
+          const fieldLabel = fieldDef ? fieldDef.label.replace(/\s*\*+$/, "") : key;
+          const msg = `${fieldLabel} "${val.trim()}" already exists.`;
+          setSaveError(msg);
+          setToastMessage(msg);
+          return;
+        }
+      }
+    }
+
     const valuesToSave = {
       ...values,
       ...(additionalValues ?? {}),
@@ -257,9 +304,9 @@ export function MasterFormPage({
 
       navigate(paths.list);
     } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Unable to save record.",
-      );
+      const msg = error instanceof Error ? error.message : "Unable to save record.";
+      setSaveError(msg);
+      setToastMessage(msg);
     } finally {
       setIsSaving(false);
     }
@@ -432,6 +479,22 @@ export function MasterFormPage({
           </Box>
         </Stack>
       </Box>
+
+      <Snackbar
+        open={Boolean(toastMessage)}
+        autoHideDuration={4000}
+        onClose={() => setToastMessage("")}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setToastMessage("")}
+          severity="error"
+          variant="filled"
+          sx={{ width: "100%", boxShadow: 3 }}
+        >
+          {toastMessage}
+        </Alert>
+      </Snackbar>
     </MasterPageShell>
   );
 }

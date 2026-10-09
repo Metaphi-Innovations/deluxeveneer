@@ -20,6 +20,10 @@ import {
   updateItemCategoryApi,
   updateItemCategoryStatusApi,
 } from "../itemCategoryMasterApi";
+import {
+  createLocalMasterRecord,
+  updateLocalMasterRecord,
+} from "../../shared/localMasterStore";
 import { fetchHsnsApi } from "../../hsn-master/hsnMasterApi";
 
 const ITEM_CATEGORY_SORT_FIELD_MAP: Record<string, string> = {
@@ -233,11 +237,18 @@ export function AddItemCategoryMasterPage() {
       });
       if (created) {
         const allRecords = await fetchItemCategoriesApi();
-        if (allRecords.length > 0) syncItemCategoryMasterToStorage(allRecords);
+        if (allRecords.length > 0) {
+          syncItemCategoryMasterToStorage(allRecords);
+        } else {
+          createLocalMasterRecord(context.definition, context.values);
+        }
+      } else {
+        createLocalMasterRecord(context.definition, context.values);
       }
       void invalidateMaster("itemCategory");
     } catch (error) {
-      console.warn("Failed to create item category via API, fallback will persist locally:", error);
+      console.warn("Failed to create item category via API, persisting locally:", error);
+      createLocalMasterRecord(context.definition, context.values);
     }
   };
 
@@ -299,16 +310,27 @@ export function EditItemCategoryMasterPage() {
   }) => {
     const id = context.row?.id || params.id;
     if (id) {
-      const updated = await updateItemCategoryApi(id, {
-        categoryName: String(context.values.categoryName || context.values.name || ""),
-        hsn: context.values.hsn || context.values.hsnCode,
-        gst: context.values.gst || context.values.gstNo,
-        remark: context.values.remark || context.values.remarks || null,
-        status: context.values.status,
-      });
-      if (updated) {
-        const allRecords = await fetchItemCategoriesApi();
-        if (allRecords.length > 0) syncItemCategoryMasterToStorage(allRecords);
+      try {
+        const updated = await updateItemCategoryApi(id, {
+          categoryName: String(context.values.categoryName || context.values.name || ""),
+          hsn: context.values.hsn || context.values.hsnCode,
+          gst: context.values.gst || context.values.gstNo,
+          remark: context.values.remark || context.values.remarks || null,
+          status: context.values.status,
+        });
+        if (updated) {
+          const allRecords = await fetchItemCategoriesApi();
+          if (allRecords.length > 0) {
+            syncItemCategoryMasterToStorage(allRecords);
+          }
+        } else if (context.row) {
+          updateLocalMasterRecord(context.definition, context.row, context.values);
+        }
+      } catch (error) {
+        console.warn("Failed to update item category via API, persisting locally:", error);
+        if (context.row) {
+          updateLocalMasterRecord(context.definition, context.row, context.values);
+        }
       }
       void invalidateMaster("itemCategory");
     }

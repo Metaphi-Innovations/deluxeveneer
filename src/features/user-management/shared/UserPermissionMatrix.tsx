@@ -132,32 +132,23 @@ export function UserPermissionMatrix({
       action,
       permissions,
     );
+    const partlySelected = isActionPartlySelected(
+      selectedSection.items,
+      action,
+      permissions,
+    );
+
+    // If indeterminate ("-") or fully selected, clicking clears all permissions for this action.
+    // If none are selected, clicking selects all.
+    const shouldSelect = !fullySelected && !partlySelected;
 
     applyUpdates(
       selectedSection.items.map((item) => ({
         itemKey: item.key,
         action,
-        checked: !fullySelected,
+        checked: shouldSelect,
       })),
     );
-  };
-
-  const clearCategory = () => {
-    if (!selectedSection || readOnly) {
-      return;
-    }
-
-    const updates: PermissionBulkUpdate[] = [];
-
-    selectedSection.items.forEach((item) => {
-      updates.push(
-        { itemKey: item.key, action: "view", checked: false },
-        { itemKey: item.key, action: "edit", checked: false },
-        { itemKey: item.key, action: "create", checked: false },
-      );
-    });
-
-    applyUpdates(updates);
   };
 
   return (
@@ -315,7 +306,7 @@ export function UserPermissionMatrix({
         </Stack>
 
         {readOnly ? (
-          <Stack direction="row" spacing={0.5}>
+          <Stack direction="row" spacing={0.75}>
             <FilterChip
               label="Granted Only"
               selected={viewFilter === "granted"}
@@ -327,27 +318,7 @@ export function UserPermissionMatrix({
               onClick={() => setViewFilter("all")}
             />
           </Stack>
-        ) : (
-          <Button
-            type="button"
-            variant="text"
-            onClick={clearCategory}
-            sx={{
-              minHeight: 30,
-              px: 1,
-              fontSize: "0.75rem",
-              fontWeight: 500,
-              color: theme.customTokens.text.secondary,
-              textTransform: "none",
-              "&:hover": {
-                backgroundColor: "transparent",
-                color: theme.customTokens.brand.primary,
-              },
-            }}
-          >
-            Clear category
-          </Button>
-        )}
+        ) : null}
       </Box>
 
       <Box

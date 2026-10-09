@@ -1302,6 +1302,43 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
   const toggleState = getEnterpriseStatusToggleState(column, row[column.key]);
 
   if (toggleState === null) {
+    const keyLower = String(column.key).toLowerCase();
+    const labelLower = String(column.label ?? "").toLowerCase();
+    const isPhoneCol =
+      keyLower.includes("phone") ||
+      keyLower.includes("mobile") ||
+      labelLower.includes("phone") ||
+      labelLower.includes("mobile");
+
+    if (isPhoneCol) {
+      const rawVal = row[column.key];
+      const displayVal = formatEnterpriseValue(rawVal, column.key, column.label);
+      const digits = typeof rawVal === "string" ? rawVal.replace(/[^\d+]/g, "") : "";
+
+      if (displayVal && digits) {
+        return (
+          <Typography
+            component="a"
+            href={`tel:${digits}`}
+            onClick={(event) => event.stopPropagation()}
+            sx={{
+              color: theme.customTokens.brand.primary,
+              textDecoration: "none",
+              fontSize: "inherit",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            {displayVal}
+          </Typography>
+        );
+      }
+      return displayVal || "—";
+    }
+
     return formatEnterpriseValue(row[column.key], column.key, column.label);
   }
 

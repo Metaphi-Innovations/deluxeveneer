@@ -142,7 +142,7 @@ export function MasterListingPage({
 
   const entityLabel = localDefinition.title.replace(/ Master$/, "");
   const addButtonLabel = `Add ${entityLabel}`;
-  const searchPlaceholder = `Search ${entityLabel.toLowerCase()}s...`;
+  const searchPlaceholder = "Search...";
 
   const handleStatusChange = async (row: MasterRecord, checked: boolean) => {
     if (onStatusChange) {
@@ -208,7 +208,7 @@ export function MasterListingPage({
       >
         {loading && sourceRows.length === 0 ? (
           <ContentLoader
-            label={`Loading ${entityLabel.toLowerCase()}s...`}
+            label="Loading..."
             minHeight={220}
           />
         ) : (

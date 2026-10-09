@@ -556,9 +556,23 @@ function CustomerAddressesSection({
           <Button
             onClick={handleAddAddress}
             size="small"
-            startIcon={<Plus size={14} />}
-            variant="outlined"
-            sx={{ textTransform: "none" }}
+            startIcon={<Plus size={15} strokeWidth={2.5} />}
+            variant="contained"
+            sx={(theme) => ({
+              textTransform: "none",
+              fontWeight: 600,
+              fontSize: "0.8125rem",
+              borderRadius: "6px",
+              px: 1.75,
+              py: 0.6,
+              backgroundColor: theme.customTokens.brand.primary,
+              color: "#FFFFFF",
+              boxShadow: "0 1px 3px rgba(116, 22, 22, 0.2)",
+              "&:hover": {
+                backgroundColor: theme.customTokens.brand.primaryScale[800],
+                boxShadow: "0 2px 6px rgba(116, 22, 22, 0.3)",
+              },
+            })}
           >
             Add Address
           </Button>

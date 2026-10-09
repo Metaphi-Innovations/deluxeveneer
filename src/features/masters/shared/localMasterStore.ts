@@ -88,8 +88,30 @@ function parseMasterRecord(record: SerializedMasterRecord): MasterRecord {
   ) as MasterRecord;
 }
 
-function getStoredMasterRows(slug: string) {
+export function getStoredMasterRows(slug: string): MasterRecord[] {
   return (readStoredMasterRecords()[slug] ?? []).map(parseMasterRecord);
+}
+
+export function getLiveMasterOptions(
+  definitionRows: ReadonlyArray<MasterRecord>,
+  slug: string,
+  key: string,
+): string[] {
+  const stored = getStoredMasterRows(slug);
+  const allRows = [...definitionRows, ...stored];
+  const unique = new Set<string>();
+
+  for (const row of allRows) {
+    if (String(row.status ?? "Active").toLowerCase() === "inactive") {
+      continue;
+    }
+    const val = row[key];
+    if (typeof val === "string" && val.trim().length > 0) {
+      unique.add(val.trim());
+    }
+  }
+
+  return Array.from(unique);
 }
 
 function toTextValue(value: MasterFieldValue) {
@@ -216,8 +238,50 @@ export function buildLocalMasterDefinition(
       srNo: String(index + 1),
     }));
 
+  // Dynamically resolve options for fields that depend on other masters
+  const updatedFields = normalizedDefinition.fields.map((field) => {
+    // 1. Dynamic GST options in HSN Master
+    if (normalizedDefinition.slug === "hsn-master" && (field.key === "gstPercentage" || field.key === "gst")) {
+      const storedGst = getStoredMasterRows("gst-master");
+      const gstPercentages = new Set<string>();
+      // Standard base options
+      ["5%", "12%", "18%", "28%"].forEach((p) => gstPercentages.add(p));
+      for (const r of storedGst) {
+        if (String(r.status ?? "Active").toLowerCase() !== "inactive") {
+          const p = r.gstPercentage || r.percentage;
+          if (p) gstPercentages.add(String(p).endsWith("%") ? String(p) : `${p}%`);
+        }
+      }
+      return {
+        ...field,
+        options: Array.from(gstPercentages),
+      };
+    }
+
+    // 2. Dynamic HSN options in other masters (Item Master, Item Category Master, etc.)
+    if (field.key === "hsn" || field.key === "hsnCode") {
+      const storedHsn = getStoredMasterRows("hsn-master");
+      const hsnCodes = new Set<string>(field.options ?? []);
+      for (const r of storedHsn) {
+        if (String(r.status ?? "Active").toLowerCase() !== "inactive") {
+          const code = r.hsnCode || r.code || r.hsn;
+          if (typeof code === "string" && code.trim()) {
+            hsnCodes.add(code.trim());
+          }
+        }
+      }
+      return {
+        ...field,
+        options: Array.from(hsnCodes),
+      };
+    }
+
+    return field;
+  });
+
   return {
     ...normalizedDefinition,
+    fields: updatedFields,
     rows: mergedRows,
     filters: buildFilterDefinitions(normalizedDefinition.filters, mergedRows),
   };
