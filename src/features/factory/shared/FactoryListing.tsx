@@ -50,7 +50,7 @@ import {
 } from "../../orders/shared/ordersStore";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import {
-  getListingToolbarOutlinedButtonSx,
+  getListingToolbarButtonSx,
   recordFormActionButtonSx,
 } from "../../shared/buttonStyles";
 import {
@@ -291,7 +291,8 @@ export function FactoryListing<Row extends FactoryRecord>({
     definition.slug === "drying-inspection";
   const supportsSamplePurposeColumn =
     definition.slug === "marquetry" ||
-    definition.slug === "splicing" ||
+    // TODO(have to discuss): Splicing listing - temporarily hide the dynamic "For" column.
+    // definition.slug === "splicing" ||
     definition.slug === "pressing" ||
     definition.slug === "cnc-fluting" ||
     definition.slug === "embossing" ||
@@ -1294,18 +1295,16 @@ export function FactoryListing<Row extends FactoryRecord>({
               </Stack>
             ) : (
               <Stack direction="row" spacing={1.25} alignItems="center">
-                {definition.slug === "marquetry" && activeTab === "issued" && canCreate ? (
+                {(definition.slug === "marquetry" || definition.slug === "splicing") &&
+                activeTab === "issued" &&
+                canCreate ? (
                   <Button
                     variant="contained"
                     startIcon={<Plus size={15} />}
                     onClick={() => navigate(paths.add)}
-                    sx={(theme) => ({
-                      ...getListingToolbarOutlinedButtonSx(theme),
-                      backgroundColor: theme.palette.primary.main,
-                      color: theme.palette.primary.contrastText,
-                    })}
+                    sx={(theme) => getListingToolbarButtonSx(theme)}
                   >
-                    Add
+                    {definition.slug === "splicing" ? "Create Splicing" : "Add"}
                   </Button>
                 ) : null}
                 <FactoryToolbar />

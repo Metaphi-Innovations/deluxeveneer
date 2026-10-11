@@ -332,6 +332,7 @@ export function factoryIssuedWorkToRow(
   const isSample = item.purpose === "SAMPLE";
   const warehouseName = getIssuedWorkWarehouseName(item);
   const issuedFrom = getIssuedWorkSourceProcess(item);
+  const snapshotIssuedFor = getStringValue(snapshot, "issuedFor");
 
   const isSawingInspection = item.destinationSlug === "sawing-inspection";
   const flowIssueDate = snapshotDate(snapshot.issueDate ?? snapshot.issuedDate);
@@ -350,8 +351,14 @@ export function factoryIssuedWorkToRow(
     listingState: item.listingState,
     warehouseName,
     issuedFrom,
-    issuedFor: processLabel,
-    issuedDate: isSawingInspection && flowIssueDate ? flowIssueDate : new Date(item.createdAt),
+    issuedFor:
+      item.destinationSlug === "splicing" && snapshotIssuedFor
+        ? snapshotIssuedFor
+        : processLabel,
+    issuedDate:
+      (isSawingInspection || item.destinationSlug === "splicing") && flowIssueDate
+        ? flowIssueDate
+        : new Date(item.createdAt),
     ...(isSawingInspection && flowSawingDate ? { sawingDate: flowSawingDate } : {}),
     ...(isSawingInspection && flowSubCategory
       ? { subCategory: flowSubCategory, itemSubCategory: flowSubCategory }

@@ -242,6 +242,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const locationState = location.state as FactoryCreateLocationState | null;
   const orderRecords = useOrderRecords();
   const sampleSheetRecords = useSampleSheetRecords();
+  const usesOrderSelection =
+    definition.slug === "marquetry" || definition.slug === "splicing";
   const sourceRow =
     (locationState?.sourceRow as Row | undefined) ??
     (locationState?.sourceRows?.[0] as Row | undefined) ??
@@ -337,11 +339,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           ? "Sample Sheets"
           : sourceOrderNo
             ? "Order"
-            : definition.slug === "marquetry"
+            : usesOrderSelection
               ? "Order"
               : "";
       const dummyOrder =
-        definition.slug === "marquetry" && purpose === "Order" && !sourceOrderNo
+        usesOrderSelection && purpose === "Order" && !sourceOrderNo
           ? orderRecords[0]
           : undefined;
 
@@ -354,15 +356,15 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     });
   const sourceOverviewItems = useMemo(
     () =>
-      definition.slug === "marquetry"
+      usesOrderSelection
         ? buildMarquetryOrderOverviewItems(orderRecords, marquetryOrderDetails)
         : buildSourceOverviewItems(sourceRow, sourceColumns),
     [
-      definition.slug,
       marquetryOrderDetails,
       orderRecords,
       sourceColumns,
       sourceRow,
+      usesOrderSelection,
     ],
   );
   const [editingValues, setEditingValues] = useState<Record<string, string>>(() =>
@@ -665,7 +667,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           gap: currentTheme.spacing(2),
         })}
       >
-        {definition.slug === "marquetry" ? (
+        {usesOrderSelection ? (
           <MarquetryOrderDetails
             hasSubmitted={hasSubmitted}
             onChange={setMarquetryOrderDetails}
@@ -1005,8 +1007,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               const rejectAvailableInvalid = hasRejectAvailableValidationErrors(
                 rejectAvailableValidationErrors,
               );
-              const marquetryOrderDetailsInvalid =
-                definition.slug === "marquetry" &&
+              const orderDetailsInvalid =
+                usesOrderSelection &&
                 isMarquetryOrderDetailsInvalid(marquetryOrderDetails);
 
               if (lineItemsInvalid) {
@@ -1023,7 +1025,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 lineItemsInvalid ||
                 quantityInvalid ||
                 rejectAvailableInvalid ||
-                marquetryOrderDetailsInvalid
+                orderDetailsInvalid
               ) {
                 return;
               }
@@ -1050,9 +1052,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 const resultSnapshot: Record<string, unknown> = {
                   ...(sourceRow ?? {}),
                   ...formValues,
-                  ...(definition.slug === "marquetry"
-                    ? marquetryOrderDetails
-                    : {}),
+                  ...(usesOrderSelection ? marquetryOrderDetails : {}),
                   ...(primaryLineItem
                     ? Object.fromEntries(
                       Object.entries(primaryLineItem).filter(
