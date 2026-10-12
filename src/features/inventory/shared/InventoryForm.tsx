@@ -29,6 +29,7 @@ import {
   recordViewActionButtonSx,
 } from "../../shared/buttonStyles";
 import { FormSectionHeader } from "../../shared/formSectionStyles";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { InventoryPageShell } from "./InventoryPageShell";
 import {
   isWarehouseAAddStockSlug,
@@ -240,8 +241,49 @@ function InventoryFormContent<Row extends InventoryRecord>({
     isWarehouseAAddStockSlug(definition.slug)
       ? definition.slug
       : null;
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
   const closeInventoryForm = () => {
-    navigate(listPath, { replace: true, flushSync: true });
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(listPath, { replace: true, flushSync: true });
+      },
+    });
+  };
+
+  const handleBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: `Are you sure you want to go back to the ${definition.title} list?`,
+        action: () => {
+          navigate(listPath, { replace: true, flushSync: true });
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          navigate(listPath, { replace: true, flushSync: true });
+        },
+      });
+    }
   };
 
   const baseFields =
@@ -512,6 +554,11 @@ function InventoryFormContent<Row extends InventoryRecord>({
 
   return (
     <InventoryPageShell
+      backNav={{
+        label: `Back to ${definition.title}`,
+        to: listPath,
+        onBack: handleBack,
+      }}
       breadcrumbs={warehouseInventoryBreadcrumbs}
       subtitle={pageSubtitle}
       title={pageTitle}
@@ -698,7 +745,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                 <Button
                   variant="outlined"
                   startIcon={<ChevronLeft size={16} />}
-                  onClick={closeInventoryForm}
+                  onClick={handleBack}
                   sx={recordViewActionButtonSx}
                 >
                   Back
@@ -910,6 +957,21 @@ function InventoryFormContent<Row extends InventoryRecord>({
           </Box>
         </Box>
       </MasterSectionCard>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </InventoryPageShell>
   );
 }

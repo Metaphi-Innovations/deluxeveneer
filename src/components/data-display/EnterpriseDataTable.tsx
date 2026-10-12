@@ -521,9 +521,16 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const handleSort = (columnKey: keyof Row & string) => {
     const sameColumn = sortConfig?.key === columnKey;
 
-    if (sorting?.onSortClear && sameColumn && sortConfig?.direction === "desc") {
-      sorting.onSortClear();
-      return;
+    if (sameColumn && sortConfig?.direction === "desc") {
+      if (sorting?.onSortClear) {
+        sorting.onSortClear();
+        return;
+      }
+      if (!sorting) {
+        setInternalPage(1);
+        setInternalSortConfig(null);
+        return;
+      }
     }
 
     const nextDirection: EnterpriseTableSortDirection =

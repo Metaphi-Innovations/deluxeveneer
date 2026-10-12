@@ -26,10 +26,12 @@ const transportModeOptions = ["Road", "Air", "Rail", "Ship"] as const;
 
 export function DispatchMarkDoneDialog({
   onClose,
+  onDone,
   open,
   record,
 }: {
   onClose: () => void;
+  onDone?: (record: PackingRecord) => void;
   open: boolean;
   record: PackingRecord | null;
 }) {
@@ -64,6 +66,7 @@ export function DispatchMarkDoneDialog({
       dispatchTransportMode: transportMode,
       remark,
     });
+    onDone?.(record);
     onClose();
   };
 

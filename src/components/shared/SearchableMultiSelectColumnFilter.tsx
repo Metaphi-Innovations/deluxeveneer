@@ -90,7 +90,8 @@ export function SearchableMultiSelectColumnFilter({
   };
 
   const handleSelectAllVisible = () => {
-    if (allVisibleSelected) {
+    // If all or some (indeterminate) options are selected, uncheck/clear them.
+    if (allVisibleSelected || someVisibleSelected) {
       const visibleSet = new Set(filteredOptions.map((option) => option.value));
       setDraftValues((current) =>
         current.filter((value) => !visibleSet.has(value)),
@@ -98,6 +99,7 @@ export function SearchableMultiSelectColumnFilter({
       return;
     }
 
+    // If none are selected, select all visible options.
     setDraftValues((current) => {
       const next = new Set(current);
       filteredOptions.forEach((option) => next.add(option.value));

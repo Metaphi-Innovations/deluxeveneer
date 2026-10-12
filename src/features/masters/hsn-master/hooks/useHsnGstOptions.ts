@@ -7,7 +7,7 @@ import { hsnMasterDefinition } from "../hsnMasterDefinition";
 export function useHsnGstOptions() {
   const [definition, setDefinition] = useState<MasterDefinition>(hsnMasterDefinition);
 
-  useEffect(() => {
+  const fetchOptions = () => {
     fetchGstsApi()
       .then((gstRecords) => {
         if (!gstRecords || gstRecords.length === 0) {
@@ -44,7 +44,11 @@ export function useHsnGstOptions() {
         }));
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchOptions();
   }, []);
 
-  return definition;
+  return { definition, refetch: fetchOptions };
 }

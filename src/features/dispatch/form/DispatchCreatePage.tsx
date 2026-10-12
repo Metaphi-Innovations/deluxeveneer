@@ -25,6 +25,7 @@ import {
   MasterPageShell,
   MasterSectionCard,
 } from "../../masters/shared";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { getTransporterMasterOptions } from "../../masters/shared/masterDefinitions";
 import {
   createDispatchEntry,
@@ -116,58 +117,58 @@ const itemTableColumns: readonly {
   label: string;
   minWidth: number;
 }[] = [
-  { key: "srNo", label: "Sr. No", minWidth: 80 },
-  { key: "orderNo", label: "Order No", minWidth: 140 },
-  { key: "salesItemName", label: "Sales Item Name", minWidth: 200 },
-  { key: "orderItemNo", label: "Order Item No", minWidth: 130 },
-  { key: "productCategory", label: "Product Category", minWidth: 160 },
-  { key: "groupNo", label: "Group No", minWidth: 120 },
-  { key: "itemName", label: "Item Name", minWidth: 180 },
-  { key: "itemSubCategory", label: "Item Sub Category", minWidth: 170 },
-  { key: "length", label: "Length", minWidth: 110 },
-  { key: "width", label: "Width", minWidth: 110 },
-  { key: "thickness", label: "Thickness", minWidth: 120 },
-  { key: "sqm", label: "SQM", minWidth: 110 },
-  { key: "rate", label: "Rate", minWidth: 120 },
-  { key: "itemAmount", label: "Item Amount", minWidth: 140 },
-  { key: "discountPercent", label: "Discount %", minWidth: 120 },
-  {
-    key: "itemAmountWithDiscount",
-    label: "Item Amount With Discount",
-    minWidth: 210,
-  },
-  { key: "gstPercent", label: "GST %", minWidth: 100 },
-  { key: "gstAmount", label: "GST Amount", minWidth: 140 },
-  { key: "igstAmount", label: "IGST Amount", minWidth: 140 },
-  { key: "finalAmount", label: "Final Amount", minWidth: 140 },
-  { key: "remark", label: "Remark", minWidth: 160 },
-];
+    { key: "srNo", label: "Sr. No", minWidth: 80 },
+    { key: "orderNo", label: "Order No", minWidth: 140 },
+    { key: "salesItemName", label: "Sales Item Name", minWidth: 200 },
+    { key: "orderItemNo", label: "Order Item No", minWidth: 130 },
+    { key: "productCategory", label: "Product Category", minWidth: 160 },
+    { key: "groupNo", label: "Group No", minWidth: 120 },
+    { key: "itemName", label: "Item Name", minWidth: 180 },
+    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 170 },
+    { key: "length", label: "Length", minWidth: 110 },
+    { key: "width", label: "Width", minWidth: 110 },
+    { key: "thickness", label: "Thickness", minWidth: 120 },
+    { key: "sqm", label: "SQM", minWidth: 110 },
+    { key: "rate", label: "Rate", minWidth: 120 },
+    { key: "itemAmount", label: "Item Amount", minWidth: 140 },
+    { key: "discountPercent", label: "Discount %", minWidth: 120 },
+    {
+      key: "itemAmountWithDiscount",
+      label: "Item Amount With Discount",
+      minWidth: 210,
+    },
+    { key: "gstPercent", label: "GST %", minWidth: 100 },
+    { key: "gstAmount", label: "GST Amount", minWidth: 140 },
+    { key: "igstAmount", label: "IGST Amount", minWidth: 140 },
+    { key: "finalAmount", label: "Final Amount", minWidth: 140 },
+    { key: "remark", label: "Remark", minWidth: 160 },
+  ];
 
 const summaryTableColumns: readonly {
   key: keyof DispatchSummaryRow;
   label: string;
   minWidth: number;
 }[] = [
-  { key: "totalQuantity", label: "Total Quantity", minWidth: 140 },
-  { key: "totalSqm", label: "Total SQM", minWidth: 130 },
-  {
-    key: "baseAmountWithoutGst",
-    label: "Base Amount Without GST",
-    minWidth: 190,
-  },
-  { key: "otherAmount", label: "Other Amount", minWidth: 140 },
-  {
-    key: "expenseAmountWithGst",
-    label: "Expense Amount With GST(18%)",
-    minWidth: 220,
-  },
-  {
-    key: "baseAmountWithGst",
-    label: "Base Amount With GST",
-    minWidth: 180,
-  },
-  { key: "grandTotal", label: "Grand Total", minWidth: 150 },
-];
+    { key: "totalQuantity", label: "Total Quantity", minWidth: 140 },
+    { key: "totalSqm", label: "Total SQM", minWidth: 130 },
+    {
+      key: "baseAmountWithoutGst",
+      label: "Base Amount Without GST",
+      minWidth: 190,
+    },
+    { key: "otherAmount", label: "Other Amount", minWidth: 140 },
+    {
+      key: "expenseAmountWithGst",
+      label: "Expense Amount With GST(18%)",
+      minWidth: 220,
+    },
+    {
+      key: "baseAmountWithGst",
+      label: "Base Amount With GST",
+      minWidth: 180,
+    },
+    { key: "grandTotal", label: "Grand Total", minWidth: 150 },
+  ];
 
 const transportModeOptions = ["Road", "Air", "Rail", "Ship"];
 const transactionTypeOptions = [
@@ -209,6 +210,17 @@ export function DispatchCreatePage({
   const [loadedRecords, setLoadedRecords] = useState<readonly PackingRecord[]>(
     () => (sourceRecord ? [sourceRecord] : []),
   );
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
   const customerOptions = useMemo(
     () => uniqueOptions(dispatchSourceRecords, "customerName"),
     [dispatchSourceRecords],
@@ -241,11 +253,11 @@ export function DispatchCreatePage({
     () =>
       canSelectPackingList
         ? dispatchSourceRecords.filter(
-            (record) =>
-              record.customerName === values.customerName &&
-              values.orderCategories.includes(record.orderType) &&
-              values.productCategories.includes(record.productCategory),
-          )
+          (record) =>
+            record.customerName === values.customerName &&
+            values.orderCategories.includes(record.orderType) &&
+            values.productCategories.includes(record.productCategory),
+        )
         : [],
     [
       canSelectPackingList,
@@ -316,8 +328,43 @@ export function DispatchCreatePage({
     );
   }
 
+  const handleRequestBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: "Are you sure you want to go back to the dispatch list?",
+        action: () => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate("/dispatch");
+          }
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate("/dispatch");
+          }
+        },
+      });
+    }
+  };
+
   return (
     <MasterPageShell
+      backNav={{
+        label: "Back to Dispatch",
+        to: "/dispatch",
+        onBack: handleRequestBack,
+      }}
       breadcrumbs={[
         { label: "Dispatch", to: "/dispatch" },
         { label: pageLabel },
@@ -422,21 +469,21 @@ export function DispatchCreatePage({
                 label="Packing List"
                 labelAction={
                   !readOnly ? (
-                  <Button
-                    disabled={values.packingList.length === 0}
-                    onClick={() => {
-                      const selectedRecords = packingListRecords.filter((record) =>
-                        values.packingList.includes(
-                          `${record.packingId} - ${record.orderNo}`,
-                        ),
-                      );
-                      setLoadedRecords(selectedRecords);
-                    }}
-                    sx={loadButtonSx}
-                    variant="contained"
-                  >
-                    Load
-                  </Button>
+                    <Button
+                      disabled={values.packingList.length === 0}
+                      onClick={() => {
+                        const selectedRecords = packingListRecords.filter((record) =>
+                          values.packingList.includes(
+                            `${record.packingId} - ${record.orderNo}`,
+                          ),
+                        );
+                        setLoadedRecords(selectedRecords);
+                      }}
+                      sx={loadButtonSx}
+                      variant="contained"
+                    >
+                      Load
+                    </Button>
                   ) : null
                 }
                 options={packingListOptions}
@@ -539,7 +586,20 @@ export function DispatchCreatePage({
             {mode === "view" ? (
               <>
                 <Button
-                  onClick={() => navigate("/dispatch")}
+                  onClick={() =>
+                    setLeaveConfirmation({
+                      open: true,
+                      title: "Leave Page",
+                      description: "Are you sure you want to go back to the dispatch list?",
+                      action: () => {
+                        if (window.history.length > 1) {
+                          navigate(-1);
+                        } else {
+                          navigate("/dispatch");
+                        }
+                      },
+                    })
+                  }
                   startIcon={<ChevronLeft size={16} />}
                   sx={recordViewActionButtonSx}
                   variant="outlined"
@@ -562,7 +622,20 @@ export function DispatchCreatePage({
               <>
                 <Button
                   type="button"
-                  onClick={() => navigate("/dispatch")}
+                  onClick={() =>
+                    setLeaveConfirmation({
+                      open: true,
+                      title: "Cancel Changes",
+                      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+                      action: () => {
+                        if (window.history.length > 1) {
+                          navigate(-1);
+                        } else {
+                          navigate("/dispatch");
+                        }
+                      },
+                    })
+                  }
                   sx={recordFormActionButtonSx}
                   variant="outlined"
                 >
@@ -592,7 +665,17 @@ export function DispatchCreatePage({
                         remark: values.remark,
                       });
                     });
-                    navigate("/dispatch");
+
+                    const successMsg =
+                      mode === "add"
+                        ? "Dispatch created successfully."
+                        : "Dispatch updated successfully.";
+
+                    navigate("/dispatch", {
+                      state: {
+                        dispatchFlashMessage: successMsg,
+                      },
+                    });
                   }}
                   startIcon={<Save size={16} />}
                   sx={recordFormActionButtonSx}
@@ -605,6 +688,21 @@ export function DispatchCreatePage({
           </Box>
         </Stack>
       </MasterSectionCard>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
   );
 }

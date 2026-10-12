@@ -27,12 +27,14 @@ export function QuickAddColorModal({
   onSuccess,
 }: QuickAddColorModalProps) {
   const [colorName, setColorName] = useState("");
+  const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (open) {
       setColorName("");
+      setRemark("");
       setError("");
     }
   }, [open]);
@@ -50,6 +52,7 @@ export function QuickAddColorModal({
       const created = await createColorApi({
         colorName: colorName.trim(),
         name: colorName.trim(),
+        remark: remark.trim() || null,
         status: true,
       });
 
@@ -113,32 +116,61 @@ export function QuickAddColorModal({
             </Alert>
           )}
 
-          <Stack spacing={0.75}>
-            <Typography
-              component="label"
-              sx={(theme) => ({
-                fontSize: "12.5px",
-                fontWeight: 600,
-                color: theme.customTokens.text.primary,
-              })}
-            >
-              Color Name *
-            </Typography>
-            <TextField
-              autoFocus
-              fullWidth
-              placeholder="Enter color name"
-              value={colorName}
-              onChange={(e) => setColorName(e.target.value)}
-              sx={(theme) => ({
-                "& .MuiOutlinedInput-root": {
-                  height: 36,
-                  minHeight: 36,
-                  borderRadius: "6px",
-                  fontSize: "13px",
-                },
-              })}
-            />
+          <Stack spacing={2}>
+            <Stack spacing={0.75}>
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
+              >
+                Color Name *
+              </Typography>
+              <TextField
+                autoFocus
+                fullWidth
+                placeholder="Enter color name"
+                value={colorName}
+                onChange={(e) => setColorName(e.target.value)}
+                sx={(theme) => ({
+                  "& .MuiOutlinedInput-root": {
+                    height: 36,
+                    minHeight: 36,
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                  },
+                })}
+              />
+            </Stack>
+
+            <Stack spacing={0.75}>
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
+              >
+                Remark
+              </Typography>
+              <TextField
+                fullWidth
+                placeholder="Enter remark"
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                sx={(theme) => ({
+                  "& .MuiOutlinedInput-root": {
+                    height: 36,
+                    minHeight: 36,
+                    borderRadius: "6px",
+                    fontSize: "13px",
+                  },
+                })}
+              />
+            </Stack>
           </Stack>
         </DialogContent>
 

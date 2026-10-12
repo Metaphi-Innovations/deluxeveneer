@@ -10,7 +10,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { Save } from "lucide-react";
+import { Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -26,6 +26,7 @@ import {
   type MasterFieldDefinition,
   type MasterFieldValue,
 } from "../../masters/shared";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
@@ -114,6 +115,17 @@ export function UserManagementFormPage({
   const [activeStep, setActiveStep] = useState<WorkflowStep>("basic");
   const [basicDetailsReady, setBasicDetailsReady] = useState(mode !== "add");
   const [departmentNames, setDepartmentNames] = useState<string[]>([]);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
 
   useEffect(() => {
     fetchUserManagementMeta().then((meta) => {
@@ -428,7 +440,21 @@ export function UserManagementFormPage({
       }
 
       void invalidateUsers();
-      navigate(paths.list);
+      const userDisplayName =
+        [values.firstName, values.lastName].filter(Boolean).join(" ") ||
+        (values.userName as string) ||
+        "User";
+      const actionText =
+        mode === "add"
+          ? "created"
+          : activeStep === "permissions"
+            ? "permissions updated"
+            : "updated";
+      navigate(paths.list, {
+        state: {
+          userManagementFlashMessage: `${userDisplayName} ${actionText} successfully.`,
+        },
+      });
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Unable to save user.",
@@ -640,8 +666,58 @@ export function UserManagementFormPage({
     },
   };
 
+  const handleCancel = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(paths.list);
+      },
+    });
+  };
+
+  const handleBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: "Are you sure you want to go back to the user list?",
+        action: () => {
+          navigate(paths.list);
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          navigate(paths.list);
+        },
+      });
+    }
+  };
+
   return (
     <MasterPageShell
+      backNav={{
+        label: "Back to User Management",
+        to: paths.list,
+        onBack: handleBack,
+      }}
+      actions={
+        mode === "view" && row && canEdit ? (
+          <Button
+            onClick={() => navigate(paths.edit(row.id))}
+            startIcon={<Pencil size={14} />}
+            sx={[recordFormActionButtonSx, actionButtonSx]}
+            variant="contained"
+          >
+            Edit
+          </Button>
+        ) : undefined
+      }
       breadcrumbs={[
         { label: "User Management", to: paths.list },
         { label: pageLabel },
@@ -855,7 +931,7 @@ export function UserManagementFormPage({
                     <>
                       <Button
                         type="button"
-                        onClick={() => navigate(paths.list)}
+                        onClick={handleCancel}
                         sx={[recordFormActionButtonSx, actionButtonSx]}
                         variant="outlined"
                       >
@@ -884,7 +960,7 @@ export function UserManagementFormPage({
                     <>
                       <Button
                         type="button"
-                        onClick={() => navigate(paths.list)}
+                        onClick={handleCancel}
                         sx={[recordFormActionButtonSx, actionButtonSx]}
                         variant="outlined"
                       >
@@ -909,6 +985,21 @@ export function UserManagementFormPage({
           </Stack>
         ) : null}
       </Box>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
   );
 }

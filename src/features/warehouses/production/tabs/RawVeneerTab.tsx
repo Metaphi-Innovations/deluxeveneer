@@ -229,8 +229,8 @@ export function RawVeneerTab({
       const localRows =
         isWarehouseC && !warehouseId
           ? warehouseCMovedRows
-              .filter((row) => row.inventorySlug === "raw-veneer")
-              .map(mapWarehouseCRawVeneerRow)
+            .filter((row) => row.inventorySlug === "raw-veneer")
+            .map(mapWarehouseCRawVeneerRow)
           : [];
       return [...localRows, ...rows]
         .filter(
@@ -379,99 +379,99 @@ export function RawVeneerTab({
 
   return (
     <>
-    <IssueForGroupingDialog
-      availableLeaves={groupingIssueAvailableLeaves}
-      onClose={() => setGroupingIssueRow(null)}
-      onConfirm={(leaves) => {
-        if (!groupingIssueRow) return;
-        const availableLeaves = parseLeafCount(groupingIssueRow.availableNoOfLeaves);
-        if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) return;
-        const issuedAreas = groupingIssuedSliceAreas(groupingIssueRow, leaves);
-        issueFactoryWork({
-          destinationProcess: "Grouping",
-          sourceSlug: warehouseName,
-          sourceProcess: "Inventory",
-          sourceWarehouseName: warehouseName,
-          sourceRow: {
-            ...groupingIssueRow,
-            itemName: groupingIssueRow.itemName,
-            productName: groupingIssueRow.itemName,
-            factoryCode: groupingIssueRow.factoryCode,
-            subCategory: groupingIssueRow.subCategory,
-            itemSubCategory: groupingIssueRow.subCategory,
-            length: groupingIssueRow.length,
-            width: groupingIssueRow.width,
-            thickness: groupingIssueRow.thickness,
-            height: groupingIssueRow.thickness,
-            grade: groupingIssueRow.grade,
-            currency: groupingIssueRow.currency,
-            remark: groupingIssueRow.remark,
-            updatedBy: groupingIssueRow.updatedBy,
-            storageSrNo: groupingIssueRow.storageSrNo,
-            noOfLeaves: String(leaves),
-            sqm: issuedAreas.sqm,
-            sqf: issuedAreas.sqf,
-            totalSqMeter: issuedAreas.sqm,
-            totalSqm: issuedAreas.sqm,
-            totalSqf: issuedAreas.sqf,
-            issuedLeafCount: String(leaves),
-            groupingIssuedLeaves: String(leaves),
-            issuedFrom: "Inventory",
-            issuedFor: "Grouping",
-            issuedDate: new Date(),
-            issueDate: new Date(),
-            warehouseName,
-          } as FactoryRecord,
-        });
-        setGroupingIssueRow(null);
-      }}
-      open={Boolean(groupingIssueRow)}
-      row={groupingIssueRow}
-    />
-    <EnterpriseDataTable
-      key="production-raw-veneer"
-      actions={actions}
-      columns={rawVeneerColumns}
-      columnFilters={columnFilters}
-      emptyStateLabel="No raw veneer inventory records are available."
-      filterOptionsByColumn={filterOptionsByColumn}
-      loading={isLoading}
-      loadingLabel="Loading raw veneer inventory..."
-      getRowActions={(row) =>
-        parseLeafCount(row.availableNoOfLeaves) >= 1
-          ? actions
-          : actions.filter((action) => action.id !== "issue-for-grouping")
-      }
-      onColumnFilterOpen={(columnKey) => {
-        if (clientQuantityColumnKeys.has(columnKey)) return;
-        void loadDropdownOptions(columnKey);
-      }}
-      onColumnFiltersChange={(next) => {
-        setColumnFilters(next);
-        setPage(1);
-      }}
-      pagination={{
-        page,
-        rowsPerPage,
-        totalCount,
-        onPageChange: setPage,
-        onRowsPerPageChange: (newPerPage: number) => {
-          setRowsPerPage(newPerPage);
+      <IssueForGroupingDialog
+        availableLeaves={groupingIssueAvailableLeaves}
+        onClose={() => setGroupingIssueRow(null)}
+        onConfirm={(leaves) => {
+          if (!groupingIssueRow) return;
+          const availableLeaves = parseLeafCount(groupingIssueRow.availableNoOfLeaves);
+          if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) return;
+          const issuedAreas = groupingIssuedSliceAreas(groupingIssueRow, leaves);
+          issueFactoryWork({
+            destinationProcess: "Grouping",
+            sourceSlug: warehouseName,
+            sourceProcess: "Inventory",
+            sourceWarehouseName: warehouseName,
+            sourceRow: {
+              ...groupingIssueRow,
+              itemName: groupingIssueRow.itemName,
+              productName: groupingIssueRow.itemName,
+              factoryCode: groupingIssueRow.factoryCode,
+              subCategory: groupingIssueRow.subCategory,
+              itemSubCategory: groupingIssueRow.subCategory,
+              length: groupingIssueRow.length,
+              width: groupingIssueRow.width,
+              thickness: groupingIssueRow.thickness,
+              height: groupingIssueRow.thickness,
+              grade: groupingIssueRow.grade,
+              currency: groupingIssueRow.currency,
+              remark: groupingIssueRow.remark,
+              updatedBy: groupingIssueRow.updatedBy,
+              storageSrNo: groupingIssueRow.storageSrNo,
+              noOfLeaves: String(leaves),
+              sqm: issuedAreas.sqm,
+              sqf: issuedAreas.sqf,
+              totalSqMeter: issuedAreas.sqm,
+              totalSqm: issuedAreas.sqm,
+              totalSqf: issuedAreas.sqf,
+              issuedLeafCount: String(leaves),
+              groupingIssuedLeaves: String(leaves),
+              issuedFrom: "Inventory",
+              issuedFor: "Grouping",
+              issuedDate: new Date(),
+              issueDate: new Date(),
+              warehouseName,
+            } as FactoryRecord,
+          });
+          setGroupingIssueRow(null);
+        }}
+        open={Boolean(groupingIssueRow)}
+        row={groupingIssueRow}
+      />
+      <EnterpriseDataTable
+        key="production-raw-veneer"
+        actions={actions}
+        columns={rawVeneerColumns}
+        columnFilters={columnFilters}
+        emptyStateLabel="No raw veneer inventory records are available."
+        filterOptionsByColumn={filterOptionsByColumn}
+        loading={isLoading}
+        loadingLabel="Loading raw veneer inventory..."
+        getRowActions={(row) =>
+          parseLeafCount(row.availableNoOfLeaves) >= 1
+            ? actions
+            : actions.filter((action) => action.id !== "issue-for-grouping")
+        }
+        onColumnFilterOpen={(columnKey) => {
+          if (clientQuantityColumnKeys.has(columnKey)) return;
+          void loadDropdownOptions(columnKey);
+        }}
+        onColumnFiltersChange={(next) => {
+          setColumnFilters(next);
           setPage(1);
-        },
-      }}
-      rows={canView ? visibleRows : []}
-      sorting={{
-        sortBy,
-        sortOrder,
-        onSortChange: (key: string, order: "asc" | "desc") => {
-          if (clientQuantityColumnKeys.has(key)) return;
-          setSortBy(key);
-          setSortOrder(order);
-          setPage(1);
-        },
-      }}
-    />
+        }}
+        pagination={{
+          page,
+          rowsPerPage,
+          totalCount,
+          onPageChange: setPage,
+          onRowsPerPageChange: (newPerPage: number) => {
+            setRowsPerPage(newPerPage);
+            setPage(1);
+          },
+        }}
+        rows={canView ? visibleRows : []}
+        sorting={{
+          sortBy,
+          sortOrder,
+          onSortChange: (key: string, order: "asc" | "desc") => {
+            if (clientQuantityColumnKeys.has(key)) return;
+            setSortBy(key);
+            setSortOrder(order);
+            setPage(1);
+          },
+        }}
+      />
     </>
   );
 }

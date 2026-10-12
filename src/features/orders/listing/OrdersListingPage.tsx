@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Box, Button, Dialog, DialogContent, Stack, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Box, Button, Dialog, DialogContent, Snackbar, Stack, Typography } from "@mui/material";
 import { CircleAlert, Eye, Pencil, Plus, XCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
@@ -8,7 +8,6 @@ import {
   type EnterpriseTableAction,
   type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
-import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
@@ -45,10 +44,6 @@ export function OrdersListingPage({
   const { id: viewOrderId } = useParams<{ id: string }>();
   const paths = getOrdersPaths(moduleConfig.basePath);
   const requestedTab = getLocationOrderTab(location.state);
-  const orderTabs = useMemo(
-    () => [{ label: "Orders", value: "order" as OrderListingTab }],
-    [],
-  );
   const {
     activeTab,
     filteredRows,
@@ -63,6 +58,27 @@ export function OrdersListingPage({
   });
   const [cancelDialogOrder, setCancelDialogOrder] =
     useState<OrderListingRow | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  useEffect(() => {
+    const flashMessage = (location.state as { orderFlashMessage?: string } | null)
+      ?.orderFlashMessage;
+
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
   const canCreate = canAccessPermission(moduleConfig.permissionKey, "create");
   const canEdit = canAccessPermission(moduleConfig.permissionKey, "edit");
   const canView = canAccessPermission(moduleConfig.permissionKey, "view");
@@ -71,30 +87,30 @@ export function OrdersListingPage({
     () => [
       ...(canView
         ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (row: OrderListingRow) =>
-                navigate(paths.view(row.orderId), {
-                  state: {
-                    orderListingTab:
-                      getOrderVariantFromType(row.orderType) ?? activeTab,
-                  },
-                }),
-            },
-          ]
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (row: OrderListingRow) =>
+              navigate(paths.view(row.orderId), {
+                state: {
+                  orderListingTab:
+                    getOrderVariantFromType(row.orderType) ?? activeTab,
+                },
+              }),
+          },
+        ]
         : []),
       ...(canEdit
         ? [
-            {
-              id: "edit",
-              label: "Edit",
-              icon: Pencil,
-              onSelect: (row: OrderListingRow) =>
-                navigate(paths.edit(row.orderId)),
-            },
-          ]
+          {
+            id: "edit",
+            label: "Edit",
+            icon: Pencil,
+            onSelect: (row: OrderListingRow) =>
+              navigate(paths.edit(row.orderId)),
+          },
+        ]
         : []),
     ],
     [activeTab, canEdit, canView, navigate, paths],
@@ -106,15 +122,15 @@ export function OrdersListingPage({
     row.status === "Cancelled" || !canEdit
       ? rowActions
       : [
-          ...rowActions,
-          {
-            id: "cancel-order",
-            label: "Cancel Order",
-            icon: XCircle,
-            tone: "danger",
-            onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
-          },
-        ];
+        ...rowActions,
+        {
+          id: "cancel-order",
+          label: "Cancel Order",
+          icon: XCircle,
+          tone: "danger",
+          onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
+        },
+      ];
 
   const handleCloseCancelDialog = () => {
     setCancelDialogOrder(null);
@@ -125,8 +141,13 @@ export function OrdersListingPage({
       return;
     }
 
+    const orderNo = cancelDialogOrder.orderNo;
     cancelOrderRecord(cancelDialogOrder.orderId);
     setCancelDialogOrder(null);
+    setToastNotification({
+      message: `Order ${orderNo} cancelled successfully.`,
+      severity: "success",
+    });
   };
 
   const listingColumns =
@@ -136,28 +157,18 @@ export function OrdersListingPage({
     <MasterPageShell
       breadcrumbs={[{ label: moduleConfig.title }]}
       title={moduleConfig.title}
-      subtitle="Manage customer orders and fulfilment."
       contentGap={2}
     >
-      <ModuleProcessTabs
-        onChange={setActiveTab}
-        tabs={orderTabs}
-        value={activeTab}
-      />
-
       <Stack
         direction={{ xs: "column", sm: "row" }}
         alignItems={{ xs: "stretch", sm: "center" }}
         justifyContent="space-between"
         spacing={1.5}
-        sx={(currentTheme) => ({
-          mt: currentTheme.spacing(2),
-        })}
       >
         <ClearableSearchField
           value={searchValue}
           onChange={setSearchValue}
-          placeholder="Search orders..."
+          placeholder="Search..."
           sx={{
             width: { xs: "100%", sm: 300 },
             maxWidth: "100%",
@@ -185,7 +196,7 @@ export function OrdersListingPage({
           "No orders are available."
         }
         getRowActions={getRowActions}
-        initialSort={{ key: "updatedDate", direction: "desc" }}
+        initialSort={{ key: "orderDate", direction: "desc" }}
         rows={canView ? filteredRows : []}
       />
 
@@ -201,12 +212,12 @@ export function OrdersListingPage({
         onEdit={
           canEdit && viewRecord
             ? () =>
-                navigate(paths.edit(viewRecord.id), {
-                  state: {
-                    orderListingTab:
-                      getOrderVariantFromType(viewRecord.orderType) ?? activeTab,
-                  },
-                })
+              navigate(paths.edit(viewRecord.id), {
+                state: {
+                  orderListingTab:
+                    getOrderVariantFromType(viewRecord.orderType) ?? activeTab,
+                },
+              })
             : undefined
         }
         open={Boolean(viewOrderId)}
@@ -219,6 +230,24 @@ export function OrdersListingPage({
         open={Boolean(cancelDialogOrder)}
         orderNo={cancelDialogOrder?.orderNo}
       />
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </MasterPageShell>
   );
 }

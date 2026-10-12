@@ -40,6 +40,7 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "./FactoryPageShell";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
@@ -878,6 +879,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
   return (
     <FactoryPageShell
+      backNav={{
+        label: `Back to ${definition.title}`,
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
         { label: definition.title, to: paths.list },
@@ -1270,7 +1276,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           <Button
             type="button"
             variant="outlined"
-            onClick={() => navigate(paths.list)}
+            onClick={handleCancel}
             sx={recordFormActionButtonSx}
           >
             Cancel
@@ -1606,6 +1612,35 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           </Button>
         </Box>
       </Stack>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Save"
+        description={`Are you sure you want to save this ${definition.title.toLowerCase()} process?`}
+        onClose={() => setSaveConfirmationOpen(false)}
+        onConfirm={() => {
+          setSaveConfirmationOpen(false);
+          executeSaveProcess();
+        }}
+        open={saveConfirmationOpen}
+        title="Confirm Save Process"
+        tone="default"
+      />
     </FactoryPageShell>
   );
 }
@@ -1761,9 +1796,9 @@ function buildSourceOverviewItems(
     const rawValue =
       column.key === "availableSqm"
         ? formatSlicingDecimal(
-            calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
-            3,
-          )
+          calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
+          3,
+        )
         : getSourceValue(sourceRow, column.keys);
     let value = formatSourceValue(rawValue);
 

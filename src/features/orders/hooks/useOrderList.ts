@@ -39,7 +39,14 @@ export function useOrderList({
   }, [moduleConfig, requestedTab]);
 
   const listingRows = useMemo(
-    () => rows.flatMap((row) => buildOrderListingRows(row)),
+    () =>
+      rows
+        .flatMap((row) => buildOrderListingRows(row))
+        .sort((a, b) => {
+          const dateA = new Date(a.orderDate || a.updatedDate || a.createdDate || 0).getTime();
+          const dateB = new Date(b.orderDate || b.updatedDate || b.createdDate || 0).getTime();
+          return dateB - dateA;
+        }),
     [rows],
   );
 

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
+  Alert,
   Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -25,7 +27,9 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
+
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 
 import {
   ErpDatePickerField,
@@ -226,11 +230,35 @@ export function FactoryListing<Row extends FactoryRecord>({
     }
   }, [isDryingInspectionModule, urlTab]);
 
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const flashMessage = (
+      location.state as { factoryFlashMessage?: string } | null
+    )?.factoryFlashMessage;
+
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
   const [searchValue, setSearchValue] = useState("");
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
   const [confirmRevertRow, setConfirmRevertRow] = useState<{
     row: Row;
-    type: "issued" | "rejected" | "drying-done";
+    type: "issued" | "rejected" | "drying-done" | "inspection-done" | "inspection-failed" | "finishing-done";
   } | null>(null);
   const [confirmIssueDryingOpen, setConfirmIssueDryingOpen] = useState(false);
   const [issueDryingRows, setIssueDryingRows] = useState<Row[]>([]);
@@ -864,19 +892,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           setSawingWarehouseMoveRows([selectedRow]);
         },
         onRevert: (selectedRow) => {
-          const workItemId = getFactoryString(selectedRow.workItemId);
-          if (workItemId) {
-            revertFactoryIssuedWork(workItemId);
-          }
-          setInspectionCompletedRows((current) =>
-            current.filter((entry) => entry.id !== selectedRow.id),
-          );
-          (definition.rows as any) = (definition.rows as any).map((row: any) =>
-            row.id === selectedRow.id
-              ? { ...row, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
-              : row,
-          );
-          setActiveTab("issued");
+          setConfirmRevertRow({ row: selectedRow, type: "inspection-done" });
         },
         onView: openInspectionRecord,
       });
@@ -890,18 +906,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         canView,
         isSawingInspection,
         onRevert: (selectedRow) => {
-          setInspectionFailedRows((current) =>
-            current.filter((entry) => entry.id !== selectedRow.id),
-          );
-          setInspectionCompletedRows((current) =>
-            current.filter((entry) => entry.id !== selectedRow.id),
-          );
-          (definition.rows as any) = (definition.rows as any).map((row: any) =>
-            row.id === selectedRow.id
-              ? { ...row, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
-              : row,
-          );
-          setActiveTab("issued");
+          setConfirmRevertRow({ row: selectedRow, type: "inspection-failed" });
         },
         onView: openInspectionRecord,
       });
@@ -923,9 +928,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             submitted: false,
           }),
         onRevert: (selectedRow) =>
-          setRevertedRowIds((current) =>
-            current.includes(selectedRow.id) ? current : [...current, selectedRow.id],
-          ),
+          setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
         onView: (selectedRow) => navigate(paths.view(selectedRow.id)),
         rejectDoneAction,
         rowActions,
@@ -2115,69 +2118,82 @@ export function FactoryListing<Row extends FactoryRecord>({
       </Dialog>
 
       {/* Confirmation Dialog: Revert */}
-      <Dialog
-        open={Boolean(confirmRevertRow)}
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Revert"
+        description="Are you sure you want to revert this item? This action will move it back to the previous state."
         onClose={() => setConfirmRevertRow(null)}
-        slotProps={{
-          paper: {
-            sx: {
-              borderRadius: "8px",
-              minWidth: 360,
-              maxWidth: 420,
-              p: 1,
-            },
-          },
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
-          Confirm Revert
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body1">
-            Do you really want to revert?
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            variant="outlined"
-            onClick={() => setConfirmRevertRow(null)}
-            sx={{ textTransform: "none", minWidth: 70 }}
-          >
-            No
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => {
-              if (confirmRevertRow) {
-                const { row, type } = confirmRevertRow;
-                if (type === "drying-done") {
-                  const restored = revertDryingDoneToIssued(row);
-                  if (!restored) {
-                    const rowId = String(row.id);
-                    setDryingDoneRemovedIds((current) =>
-                      current.includes(rowId) ? current : [...current, rowId],
-                    );
-                  }
-                } else {
-                  if (type === "rejected") {
-                    setRejectedDoneRows((current) =>
-                      current.filter((item) => item.id !== row.id),
-                    );
-                  }
-                  setRevertedRowIds((current) =>
-                    current.includes(row.id) ? current : [...current, row.id],
-                  );
-                }
+        onConfirm={() => {
+          if (confirmRevertRow) {
+            const { row, type } = confirmRevertRow;
+            if (type === "drying-done") {
+              const restored = revertDryingDoneToIssued(row);
+              if (!restored) {
+                const rowId = String(row.id);
+                setDryingDoneRemovedIds((current) =>
+                  current.includes(rowId) ? current : [...current, rowId],
+                );
               }
-              setConfirmRevertRow(null);
-            }}
-            sx={{ textTransform: "none", minWidth: 70 }}
-          >
-            Yes
-          </Button>
-        </DialogActions>
-      </Dialog>
+              setToastNotification({
+                message: "Item reverted to Drying Issued successfully.",
+                severity: "success",
+              });
+            } else if (type === "inspection-done") {
+              const workItemId = getFactoryString(row.workItemId);
+              if (workItemId) {
+                revertFactoryIssuedWork(workItemId);
+              }
+              setInspectionCompletedRows((current) =>
+                current.filter((entry) => entry.id !== row.id),
+              );
+              (definition.rows as any) = (definition.rows as any).map((r: any) =>
+                r.id === row.id
+                  ? { ...r, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
+                  : r,
+              );
+              setActiveTab("issued");
+              setToastNotification({
+                message: "Item reverted to Inspection Issued successfully.",
+                severity: "success",
+              });
+            } else if (type === "inspection-failed") {
+              setInspectionFailedRows((current) =>
+                current.filter((entry) => entry.id !== row.id),
+              );
+              setInspectionCompletedRows((current) =>
+                current.filter((entry) => entry.id !== row.id),
+              );
+              (definition.rows as any) = (definition.rows as any).map((r: any) =>
+                r.id === row.id
+                  ? { ...r, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
+                  : r,
+              );
+              setActiveTab("issued");
+              setToastNotification({
+                message: "Failed item reverted to Inspection Issued successfully.",
+                severity: "success",
+              });
+            } else {
+              if (type === "rejected") {
+                setRejectedDoneRows((current) =>
+                  current.filter((item) => item.id !== row.id),
+                );
+              }
+              setRevertedRowIds((current) =>
+                current.includes(row.id) ? current : [...current, row.id],
+              );
+              setToastNotification({
+                message: `Item reverted successfully.`,
+                severity: "success",
+              });
+            }
+          }
+          setConfirmRevertRow(null);
+        }}
+        open={Boolean(confirmRevertRow)}
+        title="Confirm Revert"
+        tone="danger"
+      />
 
       <IssueForDryingDialog
         onClose={() => {
@@ -2204,14 +2220,22 @@ export function FactoryListing<Row extends FactoryRecord>({
           );
           setIssueDryingRows([]);
           setConfirmIssueDryingOpen(false);
+          setToastNotification({
+            message: `Issued ${issuedIds.size} item(s) to Drying successfully.`,
+            severity: "success",
+          });
         }}
         open={confirmIssueDryingOpen}
         rows={issueDryingRows}
       />
 
-      <ConfirmIssueForInspectionDialog
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description="Are you sure you want to issue the selected item(s) for inspection?"
         onClose={() => setConfirmIssueInspectionOpen(false)}
         onConfirm={() => {
+          const count = selectedListingRows.length;
           selectedListingRows.forEach((selectedRow) => {
             issueFactoryWork({
               destinationProcess: "Inspection",
@@ -2227,9 +2251,33 @@ export function FactoryListing<Row extends FactoryRecord>({
           ]);
           setSelectedListingRows([]);
           setConfirmIssueInspectionOpen(false);
+          setToastNotification({
+            message: `Issued ${count} item(s) for inspection successfully.`,
+            severity: "success",
+          });
         }}
         open={confirmIssueInspectionOpen}
+        title="Confirm Issue for Inspection"
+        tone="default"
       />
+
+      <Snackbar
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        open={Boolean(toastNotification)}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            sx={{ width: "100%", boxShadow: 3 }}
+            variant="filled"
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </>
   );
 }

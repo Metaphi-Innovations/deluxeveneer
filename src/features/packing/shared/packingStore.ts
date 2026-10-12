@@ -65,12 +65,14 @@ export const packingIssuedListingColumns: readonly EnterpriseTableColumn<Packing
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
     { key: "issuedFrom", label: "Ready From", filterable: true },
     { key: "remark", label: "Source Reference" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 export const packingDoneListingColumns: readonly EnterpriseTableColumn<PackingRecord>[] =
@@ -81,9 +83,11 @@ export const packingDoneListingColumns: readonly EnterpriseTableColumn<PackingRe
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Packed Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "packingDate", label: "Packing Date" },
     { key: "issuedFrom", label: "Ready From" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 /** @deprecated Prefer packingDoneListingColumns; kept for compatibility. */
@@ -97,11 +101,13 @@ export const dispatchIssuedListingColumns: readonly EnterpriseTableColumn<Packin
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Packed Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
     { key: "packingDate", label: "Packing Date" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingRecord>[] =
@@ -112,9 +118,11 @@ export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingR
     { key: "customerName", label: "Customer" },
     { key: "dispatchTransporter", label: "Transporter" },
     { key: "dispatchTransportMode", label: "Transport Mode" },
-    { key: "noOfSheets", label: "Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "dispatchDate", label: "Dispatch Date" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 const packingListeners = new Set<() => void>();

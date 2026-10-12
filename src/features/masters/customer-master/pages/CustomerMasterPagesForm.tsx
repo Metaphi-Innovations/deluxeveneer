@@ -261,11 +261,23 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                     xs: "1fr !important",
                     sm: "repeat(2, minmax(0, 1fr)) !important",
                     md: "repeat(3, minmax(0, 1fr)) !important",
-                    lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 0.95fr) !important",
+                    lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(182px, 185px) minmax(0, 0.95fr) !important",
                   },
                   columnGap: "12px !important",
                   rowGap: "12px !important",
                   alignItems: "start !important",
+                },
+                "& > div > .MuiStack-root:nth-of-type(5) > .MuiBox-root": {
+                  gridTemplateColumns: "65px minmax(0, 1fr) !important",
+                  gap: "6px !important",
+                },
+                "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-select": {
+                  paddingLeft: "8px !important",
+                  paddingRight: "20px !important",
+                  fontSize: "0.775rem !important",
+                },
+                "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-icon": {
+                  right: "3px !important",
                 },
               }}
             >
