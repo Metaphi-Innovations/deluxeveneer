@@ -31,10 +31,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 
-import {
-  ErpDatePickerField,
-  ErpSelectField,
-} from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { ErpDatePickerField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import {
@@ -97,10 +94,11 @@ import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColum
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
 import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
+import { issueFinishingToPacking } from "../../packing/shared/packingStore";
 import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
 import { applyPressingIssuedForLabels } from "../pressing/pressingIssuedForLabel";
 import { applyPressingListingColumns } from "../pressing/pressingListingColumns";
-import { appendPressingSampleIssueActions } from "../pressing/pressingSampleActions";
+import { getPressingNextProcessActions } from "../pressing/pressingNextProcessActions";
 import { mapSplicingIssuedListingRow } from "../splicing/mapSplicingIssuedListingRow";
 import { applySplicingListingColumns } from "../splicing/splicingListingColumns";
 import { appendSplicingSampleIssueActions } from "../splicing/splicingSampleActions";
@@ -150,7 +148,6 @@ import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
   buildGroupingOrderIssueSourceRow,
   createRejectFactoryAction,
-  DialogFieldLabel,
   DryingInspectionIssueDialog,
   formatDialogMeasure,
   formatFactorySearchValue,
@@ -173,7 +170,6 @@ import {
   type GroupingSampleIssueState,
   type SplicingOrderIssueState,
 } from "./listing/factoryListingParts";
-import { useSidebarWarehousesQuery } from "../../../query/useSidebarWarehousesQuery";
 import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTransferStore";
 import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
 
@@ -268,33 +264,6 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [inspectionFailedRows, setInspectionFailedRows] = useState<Row[]>([]);
   const [inspectionDecisionTargetRow, setInspectionDecisionTargetRow] = useState<Row | null>(null);
   const [sawingWarehouseMoveRows, setSawingWarehouseMoveRows] = useState<Row[]>([]);
-  const [sawingWarehouseMoveTarget, setSawingWarehouseMoveTarget] = useState("Production Warehouse");
-  const sidebarWarehousesQuery = useSidebarWarehousesQuery(
-    sawingWarehouseMoveRows.length > 0,
-  );
-  const sawingProductionWarehouses = useMemo(() => {
-    if (sawingWarehouseMoveRows.length === 0) {
-      return [];
-    }
-
-    const productionNames = (sidebarWarehousesQuery.data ?? [])
-      .filter((warehouse) => warehouse.warehouseType === "Production")
-      .map((warehouse) => warehouse.label);
-
-    if (
-      sidebarWarehousesQuery.isError ||
-      (sidebarWarehousesQuery.isFetched && productionNames.length === 0)
-    ) {
-      return ["Production Warehouse"];
-    }
-
-    return productionNames;
-  }, [
-    sawingWarehouseMoveRows.length,
-    sidebarWarehousesQuery.data,
-    sidebarWarehousesQuery.isError,
-    sidebarWarehousesQuery.isFetched,
-  ]);
   const [splicingOrderIssue, setSplicingOrderIssue] =
     useState<SplicingOrderIssueState<Row> | null>(null);
   const [groupingSampleIssue, setGroupingSampleIssue] =
@@ -681,10 +650,15 @@ export function FactoryListing<Row extends FactoryRecord>({
           activeTab !== "issued" &&
           activeTab !== "rejected" &&
           !(
+            activeTab === "history" &&
             (definition.slug === "slicing" ||
               definition.slug === "grouping" ||
-              definition.slug === "splicing") &&
-            activeTab === "history"
+              definition.slug === "splicing" ||
+              definition.slug === "marquetry" ||
+              definition.slug === "pressing" ||
+              definition.slug === "cnc-fluting" ||
+              definition.slug === "embossing" ||
+              definition.slug === "finishing")
           )
           ? [
             {
@@ -744,11 +718,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         });
       }
 
-      if (
-        activeTab === "rejected" &&
-        (canEdit || canCreate) &&
-        (definition.slug === "slicing" || definition.slug === "drying")
-      ) {
+      if (activeTab === "rejected" && (canEdit || canCreate)) {
         baseActions.push({
           id: "revert-rejected",
           label: "Revert",
@@ -888,7 +858,6 @@ export function FactoryListing<Row extends FactoryRecord>({
         ...(isSawingInspection ? {} : { onEdit: setDryingInspectionQtyEditRow }),
         onMoveToWarehouseB: setWarehouseBMoveRow,
         onMoveToWarehouseC: (selectedRow) => {
-          setSawingWarehouseMoveTarget("Production Warehouse");
           setSawingWarehouseMoveRows([selectedRow]);
         },
         onRevert: (selectedRow) => {
@@ -917,16 +886,9 @@ export function FactoryListing<Row extends FactoryRecord>({
         canCreate,
         canEdit,
         canView,
-        onOrderIssue: (selectedRow) =>
-          setSplicingOrderIssue({
-            issueDate: new Date(),
-            issueSheets: "",
-            orderItemNo: "",
-            orderNo: "",
-            orderType: "",
-            row: selectedRow,
-            submitted: false,
-          }),
+        onIssueToPacking: (selectedRow) => {
+          issueFinishingToPacking(selectedRow);
+        },
         onRevert: (selectedRow) =>
           setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
         onView: (selectedRow) => navigate(paths.view(selectedRow.id)),
@@ -1011,7 +973,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (canCreate && definition.slug === "pressing") {
-          return appendPressingSampleIssueActions(sampleActions);
+          return [...sampleActions, ...getPressingNextProcessActions(row, definition.slug)];
         }
 
         return sampleActions.length > 0 ? sampleActions : doneActions;
@@ -1242,17 +1204,6 @@ export function FactoryListing<Row extends FactoryRecord>({
     setSplicingOrderIssue(null);
   };
 
-  useEffect(() => {
-    if (sawingProductionWarehouses.length === 0) return;
-    const preferred =
-      sawingProductionWarehouses.find(
-        (name) => name.trim().toLowerCase() === "production warehouse",
-      ) ??
-      sawingProductionWarehouses[0] ??
-      "Production Warehouse";
-    setSawingWarehouseMoveTarget(preferred);
-  }, [sawingProductionWarehouses]);
-
   const closeSawingWarehouseMove = () => {
     setSawingWarehouseMoveRows([]);
   };
@@ -1262,8 +1213,9 @@ export function FactoryListing<Row extends FactoryRecord>({
     sawingWarehouseMoveRows.forEach((selectedRow) => {
       moveFactoryRowToWarehouseC({
         ...(selectedRow as unknown as Record<string, unknown>),
-        destinationWarehouse: sawingWarehouseMoveTarget,
-        warehouseName: sawingWarehouseMoveTarget,
+        destinationWarehouse: "Warehouse C",
+        inventorySlug: "sawing",
+        warehouseName: "Warehouse C",
       });
     });
     setRevertedRowIds((current) => [
@@ -1355,7 +1307,6 @@ export function FactoryListing<Row extends FactoryRecord>({
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
                     onClick={() => {
-                      setSawingWarehouseMoveTarget("Production Warehouse");
                       setSawingWarehouseMoveRows(selectedListingRows);
                     }}
                     sx={{
@@ -1462,19 +1413,9 @@ export function FactoryListing<Row extends FactoryRecord>({
                 fontSize: theme.typography.body2.fontSize,
               })}
             >
-              Confirm moving {sawingWarehouseMoveRows.length} item
-              {sawingWarehouseMoveRows.length === 1 ? "" : "s"} to the selected warehouse.
+              Save {sawingWarehouseMoveRows.length} passed item
+              {sawingWarehouseMoveRows.length === 1 ? "" : "s"} in Warehouse C under Sawing.
             </Typography>
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Warehouse</DialogFieldLabel>
-              <ErpSelectField
-                onChange={setSawingWarehouseMoveTarget}
-                options={sawingProductionWarehouses}
-                size="dense"
-                state={sawingProductionWarehouses.length === 0 ? "disabled" : "default"}
-                value={sawingWarehouseMoveTarget}
-              />
-            </Stack>
           </Stack>
         </DialogContent>
         <DialogActions
@@ -1490,7 +1431,6 @@ export function FactoryListing<Row extends FactoryRecord>({
           </Button>
           <Box sx={{ flex: 1 }} />
           <Button
-            disabled={!sawingWarehouseMoveTarget || sawingProductionWarehouses.length === 0}
             onClick={confirmSawingWarehouseMove}
             sx={recordFormActionButtonSx}
             variant="contained"
@@ -1855,6 +1795,8 @@ export function FactoryListing<Row extends FactoryRecord>({
           const sampleNo = getSampleNoFromRow(finishingCreateRow);
           if (sampleNo) {
             markSampleProcessDone(sampleNo, "finishing");
+          } else {
+            issueFinishingToPacking(snapshot);
           }
 
           setFinishingCreateRow(null);

@@ -3,7 +3,6 @@ import type { FactoryRecord } from "../shared/types";
 
 const sharedIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "issueSrNo", label: "Issue Sr No" },
-  { key: "issuedFrom", label: "Issued From" },
   { key: "groupNo", label: "Group No" },
 ];
 

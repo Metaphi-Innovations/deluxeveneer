@@ -12,7 +12,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { ChevronLeft, Save } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -352,31 +352,14 @@ export function FactoryForm<Row extends FactoryRecord>({
             })}
           >
             {mode === "view" ? (
-              <>
-                <Button
-                  variant="outlined"
-                  startIcon={<ChevronLeft size={16} />}
-                  onClick={() => navigate(paths.list)}
-                  sx={recordViewActionButtonSx}
-                >
-                  Back
-                </Button>
-
-                {canEdit && definition.slug !== "sawing" ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Pencil size={16} />}
-                    sx={recordViewActionButtonSx}
-                    onClick={() => {
-                      if (row) {
-                        navigate(paths.edit(row.id));
-                      }
-                    }}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
-              </>
+              <Button
+                variant="outlined"
+                startIcon={<ChevronLeft size={16} />}
+                onClick={() => navigate(paths.list)}
+                sx={recordViewActionButtonSx}
+              >
+                Back
+              </Button>
             ) : (
               <>
                 <Button

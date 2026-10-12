@@ -41,6 +41,7 @@ export interface PackingRecord extends EnterpriseTableRow {
   remark: string;
   sourceOrderId?: string;
   sourceOrderItemId?: string;
+  sourceRef?: string;
   dispatchBuyerAddress?: string;
   dispatchSellerAddress?: string;
   dispatchTransactionType?: string;
@@ -434,6 +435,80 @@ export function createPackingEntry(
   syncOrderFulfillmentStatus(
     normalizeString(payload.orderNo, existing.orderNo),
   );
+}
+
+function readPackingSourceText(source: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return "";
+}
+
+function resolveFinishedProductCategory(source: Record<string, unknown>) {
+  const raw = readPackingSourceText(source, ["productType", "orderType", "issuedFor"]).toLowerCase();
+  if (raw.includes("marquetry")) return "Marquetry";
+  if (raw.includes("emboss")) return "Embossed";
+  if (raw.includes("flut")) return "Fluted";
+  if (raw.includes("decor")) return "Decorative";
+  return "Finished";
+}
+
+export function issueFinishingToPacking(source: Record<string, unknown>) {
+  const sourceRef = readPackingSourceText(source, ["id", "workItemId"]);
+  if (sourceRef) {
+    const existing = packingRecords.find(
+      (record) => record.sourceRef === sourceRef && record.packingState !== "reverted",
+    );
+    if (existing) {
+      return existing;
+    }
+  }
+
+  const timestamp = new Date();
+  const orderNo = readPackingSourceText(source, ["orderNo"]) || `ORD-FIN-${Date.now()}`;
+  const productCategory = resolveFinishedProductCategory(source);
+  const record: PackingRecord = {
+    id: `packing-finishing-${sourceRef || Date.now()}`,
+    packingId: "",
+    issuedFrom: "Finishing",
+    orderNo,
+    orderItemNo: readPackingSourceText(source, ["orderItemNo"]) || "OI-001",
+    customerName: readPackingSourceText(source, ["customerName"]) || "New Customer",
+    orderType: "Finished",
+    productCategory,
+    preparedBy: "Finishing Supervisor",
+    checkedBy: "Quality Coordinator",
+    itemName: readPackingSourceText(source, ["itemName", "outputItemName"]) || "Finished Sheet",
+    length: readPackingSourceText(source, ["length"]) || "-",
+    width: readPackingSourceText(source, ["width"]) || "-",
+    thickness: readPackingSourceText(source, ["thickness"]) || "-",
+    noOfSheets: readPackingSourceText(source, ["noOfSheets", "finishedSheets", "outputNoOfSheets"]) || "0",
+    sqm: readPackingSourceText(source, ["sqm"]) || "0.000",
+    sqf: readPackingSourceText(source, ["sqf"]) || "0.000",
+    series: readPackingSourceText(source, ["series"]) || "DV-Prime",
+    grade: readPackingSourceText(source, ["grade"]) || "A",
+    amount: readPackingSourceText(source, ["amount"]) || "0.00",
+    remark: readPackingSourceText(source, ["remark"]) || `Transferred from finishing ${sourceRef}`.trim(),
+    ...(sourceRef ? { sourceRef } : {}),
+    packingDate: null,
+    dispatchDate: null,
+    createdBy: "Finishing Supervisor",
+    updatedBy: "Finishing Supervisor",
+    createdDate: timestamp,
+    updatedDate: timestamp,
+    packingState: "issued",
+  };
+
+  updatePackingRecords((records) => [record, ...records]);
+  syncOrderFulfillmentStatus(orderNo);
+  return record;
 }
 
 export function createDispatchEntry(

@@ -19,7 +19,10 @@ import {
 import { pressingDefinition } from "../shared/factoryDefinitions";
 import { getFactoryPaths, getFactoryRowsForTab } from "../shared/factoryUtils";
 import { normalizeFactorySourceColumns } from "../shared/listing/factoryListingParts";
-import { useSampleSheetRecords } from "../shared/sampleSheetIdentityStore";
+import {
+  storePressingSampleInProduction,
+  useSampleSheetRecords,
+} from "../shared/sampleSheetIdentityStore";
 import type { FactoryRecord } from "../shared/types";
 import { PressingIssuedSelection } from "./PressingIssuedSelection";
 import {
@@ -346,6 +349,23 @@ export function CreatePressingPage() {
       });
       completeFactoryIssuedWork(issued.id, resultSnapshot);
     });
+
+    if (purpose === "Sample Sheet" && sampleNo) {
+      const pressedRow = selectedVeneerRows[0];
+      storePressingSampleInProduction({
+        ...(pressedRow ?? {}),
+        id: pressedRow?.id ?? sampleNo,
+        sampleNo,
+        outputItemName: processValues.outputItemName,
+        itemSubCategory: processValues.itemSubCategory,
+        cutColor: processValues.cutColor,
+        length: processValues.length,
+        width: processValues.width,
+        thickness: processValues.thickness,
+        noOfSheets: processValues.noOfSheets,
+        remark: processValues.remark,
+      });
+    }
 
     navigate(paths.list);
   };

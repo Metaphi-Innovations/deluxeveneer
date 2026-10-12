@@ -950,6 +950,12 @@ export function getFactoryNextProcessActions<Row extends FactoryRecord>(
       : [];
   }
 
+  if (slug === "marquetry") {
+    return [createFactoryIssueAction<Row>("Pressing", slug)].filter(
+      (action) => canAccessPermission(action.permissionKey, "create"),
+    );
+  }
+
   const issuedFor = typeof row.issuedFor === "string" ? row.issuedFor.trim() : "";
 
   if (
@@ -1084,10 +1090,18 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
       ? row.orderItemNo
       : undefined;
 
+  const productType =
+    typeof row.productType === "string" && row.productType.trim()
+      ? row.productType
+      : sourceSlug === "marquetry"
+        ? "Marquetry"
+        : "";
+  const sourceRow = productType ? { ...row, productType } : row;
+
   issueFactoryWork({
     destinationProcess,
     purpose: sampleNo ? "SAMPLE" : "ORDER",
-    sourceRow: row,
+    sourceRow,
     sourceSlug,
     sourceProcess: resolveFactoryProcessLabel(sourceSlug),
     sourceWarehouseName: getFactoryRowWarehouseName(row),

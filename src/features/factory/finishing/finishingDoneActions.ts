@@ -1,7 +1,6 @@
-import { Eye, RotateCcw } from "lucide-react";
+import { Eye, Package, RotateCcw } from "lucide-react";
 
 import type { EnterpriseTableAction } from "../../../components/data-display/EnterpriseDataTable";
-import { createSplicingOrderIssueAction } from "../shared/listing/factoryListingParts";
 import { isSampleFactoryRow } from "../shared/sampleSheetIdentityStore";
 import type { FactoryRecord } from "../shared/types";
 
@@ -9,7 +8,7 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
   canCreate,
   canEdit,
   canView,
-  onOrderIssue,
+  onIssueToPacking,
   onRevert,
   onView,
   rejectDoneAction,
@@ -18,7 +17,7 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
   canCreate: boolean;
   canEdit: boolean;
   canView: boolean;
-  onOrderIssue: (row: Row) => void;
+  onIssueToPacking: (row: Row) => void;
   onRevert: (row: Row) => void;
   onView: (row: Row) => void;
   rejectDoneAction: EnterpriseTableAction<Row>;
@@ -49,7 +48,13 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
               tone: "danger" as const,
               onSelect: onRevert,
             },
-            createSplicingOrderIssueAction<Row>(onOrderIssue),
+            {
+              id: "issue-for-packing",
+              label: "Issue for Packing",
+              icon: Package,
+              tone: "primary" as const,
+              onSelect: onIssueToPacking,
+            },
           ]
         : []),
       ...(canEdit || canCreate ? [rejectDoneAction] : []),

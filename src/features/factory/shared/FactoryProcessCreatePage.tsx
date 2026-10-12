@@ -40,7 +40,6 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
-import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "./FactoryPageShell";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
@@ -868,6 +867,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setEditingSubmitAttempted(false);
   };
 
+  const handleBack = () => navigate(paths.list);
+  const handleCancel = () => navigate(paths.list);
+
   const pressingOrderItemOptions = useMemo(() => {
     const order = orderRecords.find((entry) => entry.orderNo === pressingOrderNo);
     if (!order) {
@@ -1612,35 +1614,6 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           </Button>
         </Box>
       </Stack>
-
-      <ConfirmationDialog
-        cancelLabel="Stay on Page"
-        confirmLabel="Leave"
-        description={leaveConfirmation.description}
-        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
-        onConfirm={() => {
-          const act = leaveConfirmation.action;
-          setLeaveConfirmation((c) => ({ ...c, open: false }));
-          act();
-        }}
-        open={leaveConfirmation.open}
-        title={leaveConfirmation.title}
-        tone="default"
-      />
-
-      <ConfirmationDialog
-        cancelLabel="Cancel"
-        confirmLabel="Save"
-        description={`Are you sure you want to save this ${definition.title.toLowerCase()} process?`}
-        onClose={() => setSaveConfirmationOpen(false)}
-        onConfirm={() => {
-          setSaveConfirmationOpen(false);
-          executeSaveProcess();
-        }}
-        open={saveConfirmationOpen}
-        title="Confirm Save Process"
-        tone="default"
-      />
     </FactoryPageShell>
   );
 }

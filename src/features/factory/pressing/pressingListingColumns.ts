@@ -4,8 +4,10 @@ import type { FactoryRecord } from "../shared/types";
 const pressingHiddenKeys = new Set([
   "amount",
   "consumedAmount",
+  "issuedFrom",
   "rate",
   "ratePerSqf",
+  "warehouseName",
 ]);
 
 export function applyPressingListingColumns<Row extends FactoryRecord>(
