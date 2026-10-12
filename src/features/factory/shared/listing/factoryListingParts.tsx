@@ -41,10 +41,8 @@ import {
   resolveFactoryProcessLabel,
 } from "../factoryIssuedWorkStore";
 import {
-  createSampleSheetFromGrouping,
   getSampleNoFromRow,
   issueSampleToProcess,
-  type SampleNextProcess,
 } from "../sampleSheetIdentityStore";
 import type { FactoryRecord } from "../types";
 
@@ -615,7 +613,6 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
 export interface GroupingSampleIssueState<Row extends FactoryRecord> {
   issueDate: Date | null;
   issueSheets: string;
-  nextProcess: "" | SampleNextProcess;
   remark: string;
   row: Row;
   submitted: boolean;
@@ -1176,7 +1173,6 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
         !Number.isInteger(issueSheetsNumber) ||
         issueSheetsNumber <= 0)),
   );
-  const hasNextProcessError = Boolean(state?.submitted && !state.nextProcess);
 
   return (
     <Dialog
@@ -1285,27 +1281,6 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
                     hasIssueSheetsError ? "error" : "default",
                   )
                 }
-              />
-            </Stack>
-
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Next Process *</DialogFieldLabel>
-              <ErpSelectField
-                helperText={hasNextProcessError ? "Select next process." : " "}
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        nextProcess: value as "" | SampleNextProcess,
-                      }
-                      : current,
-                  )
-                }
-                options={["Splicing"]}
-                size="dense"
-                state={hasNextProcessError ? "error" : "default"}
-                value={state?.nextProcess ?? ""}
               />
             </Stack>
 

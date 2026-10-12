@@ -8,7 +8,7 @@ export const cncFlutingProcessDate = {
 } as const;
 
 export function orderCncFlutingCreateFields(fields: readonly MasterFieldDefinition[]) {
-  return insertFactoryCreateField(fields, "fluteCode", (withoutSpecialField) =>
+  return insertFactoryCreateField(fields, "designCode", (withoutSpecialField) =>
     withoutSpecialField.findIndex((field) => field.key === "itemSubCategory") + 1,
   );
 }

@@ -71,14 +71,27 @@ function groupingIssuedColumns<Row extends FactoryRecord>(
   return columns;
 }
 
+const groupingDoneLeafColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
+  { key: "receivedNoOfLeaves", label: "Received No of Leaves" },
+  { key: "availableNoOfLeaves", label: "Available No of Leaves" },
+];
+
+const groupingDoneHiddenKeys = new Set([
+  "amount",
+  "availableNoOfLeaves",
+  "availableSheets",
+  "issueTo",
+  "logNo",
+  "noOfLeaves",
+  "noOfSheets",
+  "receivedNoOfLeaves",
+]);
+
 function groupingDoneColumns<Row extends FactoryRecord>(
   sourceColumns: readonly EnterpriseTableColumn<Row>[],
 ): readonly EnterpriseTableColumn<Row>[] {
   let columns = sourceColumns.filter(
-    (column) =>
-      column.key !== "issueTo" &&
-      column.key !== "logNo" &&
-      column.key !== "amount",
+    (column) => !groupingDoneHiddenKeys.has(column.key),
   );
   const identityColumns: readonly EnterpriseTableColumn<Row>[] = [
     { key: "itemName", label: "Item Name" },
@@ -96,18 +109,18 @@ function groupingDoneColumns<Row extends FactoryRecord>(
           ...identityColumns,
           ...withoutIdentity.slice(identityAt + 1),
         ];
-  const availableSheetsColumn: EnterpriseTableColumn<Row> = {
-    key: "availableSheets",
-    label: "Available Sheets",
-  };
-  const insertAt = columns.findIndex((entry) => entry.key === "remark");
-  if (insertAt === -1) {
-    return [...columns, availableSheetsColumn];
+
+  const leafColumns = groupingDoneLeafColumns as readonly EnterpriseTableColumn<Row>[];
+  const leafAt = columns.findIndex((column) => column.key === "sqm");
+
+  if (leafAt === -1) {
+    return [...columns, ...leafColumns];
   }
+
   return [
-    ...columns.slice(0, insertAt),
-    availableSheetsColumn,
-    ...columns.slice(insertAt),
+    ...columns.slice(0, leafAt),
+    ...leafColumns,
+    ...columns.slice(leafAt),
   ];
 }
 

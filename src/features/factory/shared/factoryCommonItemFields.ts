@@ -72,7 +72,7 @@ const factoryListingColumnOrder = [
   "groupNo",
   "itemName",
   "itemSubCategory",
-  "fluteCode",
+  "designCode",
   "structureCode",
   "logNo",
   "bundleNumber",

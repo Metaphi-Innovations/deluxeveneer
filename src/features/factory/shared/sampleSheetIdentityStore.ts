@@ -5,7 +5,7 @@ import type { FactoryRecord } from "./types";
 
 const STORAGE_KEY = "deluxe-veneers-sample-sheet-identities";
 
-export type SampleNextProcess = "Marquetry" | "Splicing";
+export type SampleNextProcess = "Marquetry" | "Pressing" | "Splicing";
 
 export type SampleFactoryStage =
   | "Grouping"

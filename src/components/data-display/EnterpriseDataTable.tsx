@@ -103,6 +103,7 @@ export interface EnterpriseTableColumn<
   filterable?: boolean;
   /** When set, overrides automatic filter-type inference. */
   filterType?: ColumnFilterType;
+  renderCell?: (row: Row) => ReactNode;
 }
 
 type AuditColumnType = "created" | "updated";
@@ -149,6 +150,15 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   rowsPerPageOptions?: readonly number[];
   selectionResetKey?: string | number;
   selectable?: boolean;
+  /** When set, checkbox selection is controlled by the parent. */
+  selectedRowIds?: readonly string[];
+  selectionColumnLabel?: string;
+  /** Keep the provided column order, including remark and user columns. */
+  preserveColumnOrder?: boolean;
+  /** Tighter cells and narrower columns so more of a wide table stays on screen. */
+  dense?: boolean;
+  /** Quieter horizontal scrollbar for dense create-page tables. */
+  subtleScrollbar?: boolean;
   /** When set, pagination is controlled by the parent (server-side). */
   pagination?: {
     page: number;
@@ -198,6 +208,11 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   rowsPerPageOptions = [10, 25, 50, 75, 100, 200],
   selectionResetKey,
   selectable = false,
+  selectedRowIds: controlledSelectedRowIds,
+  selectionColumnLabel,
+  preserveColumnOrder = false,
+  dense = false,
+  subtleScrollbar = false,
   pagination,
   sorting,
   columnFilters: controlledColumnFilters,
@@ -206,6 +221,22 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   onColumnFilterOpen,
 }: EnterpriseDataTableProps<Row>) {
   const theme = useTheme();
+  const denseCellSx = dense
+    ? {
+        fontSize: "12px",
+        lineHeight: 1.2,
+        px: 0.75,
+        py: 0.3,
+      }
+    : {};
+  const resolveColumnMinWidth = (columnKey: string, columnLabel: string) => {
+    const width = getListingColumnMinWidth(columnKey, columnLabel);
+    if (!width || !dense) {
+      return width;
+    }
+
+    return Math.max(64, Math.round(width * 0.72));
+  };
   const [internalSortConfig, setInternalSortConfig] =
     useState<EnterpriseTableSortConfig<Row>>(initialSort);
   const [internalFilters, setInternalFilters] = useState<
@@ -214,7 +245,16 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const [internalPage, setInternalPage] = useState(1);
   const [internalRowsPerPage, setInternalRowsPerPage] =
     useState(defaultRowsPerPage);
-  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [internalSelectedRowIds, setInternalSelectedRowIds] = useState<string[]>([]);
+  const selectedRowIds = controlledSelectedRowIds ?? internalSelectedRowIds;
+  const commitSelectedRowIds = (nextIds: readonly string[]) => {
+    if (controlledSelectedRowIds === undefined) {
+      setInternalSelectedRowIds([...nextIds]);
+      return;
+    }
+
+    onSelectionChange?.(rows.filter((row) => nextIds.includes(row.id)));
+  };
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<HTMLElement | null>(
     null,
   );
@@ -234,8 +274,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const usesActionMenu = actions.length > 0 || Boolean(getRowActions);
   const hasActions = usesActionMenu || Boolean(renderActionCell);
   const displayColumns = useMemo(
-    () => getEnterpriseDisplayColumns(columns),
-    [columns],
+    () => getEnterpriseDisplayColumns(columns, preserveColumnOrder),
+    [columns, preserveColumnOrder],
   );
 
   const isServerPagination = Boolean(pagination);
@@ -442,16 +482,20 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   }, [isServerPagination, page, safePage]);
 
   useEffect(() => {
-    onSelectionChange?.(selectedRows);
-  }, [onSelectionChange, selectedRows]);
-
-  useEffect(() => {
-    if (!selectable) {
+    if (controlledSelectedRowIds !== undefined) {
       return;
     }
 
-    setSelectedRowIds([]);
-  }, [selectable, selectionResetKey]);
+    onSelectionChange?.(selectedRows);
+  }, [controlledSelectedRowIds, onSelectionChange, selectedRows]);
+
+  useEffect(() => {
+    if (!selectable || controlledSelectedRowIds !== undefined) {
+      return;
+    }
+
+    setInternalSelectedRowIds([]);
+  }, [controlledSelectedRowIds, selectable, selectionResetKey]);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -573,10 +617,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   };
 
   const handleToggleRowSelection = (rowId: string) => {
-    setSelectedRowIds((current) =>
-      current.includes(rowId)
-        ? current.filter((selectedRowId) => selectedRowId !== rowId)
-        : [...current, rowId],
+    commitSelectedRowIds(
+      selectedRowIds.includes(rowId)
+        ? selectedRowIds.filter((selectedRowId) => selectedRowId !== rowId)
+        : [...selectedRowIds, rowId],
     );
   };
 
@@ -585,13 +629,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       return;
     }
 
-    setSelectedRowIds((current) => {
-      if (allCurrentPageSelected || someCurrentPageSelected) {
-        return current.filter((rowId) => !currentPageIds.includes(rowId));
-      }
+    if (allCurrentPageSelected || someCurrentPageSelected) {
+      commitSelectedRowIds(
+        selectedRowIds.filter((rowId) => !currentPageIds.includes(rowId)),
+      );
+      return;
+    }
 
-      return Array.from(new Set([...current, ...currentPageIds]));
-    });
+    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...currentPageIds])));
   };
 
   const handleOpenActionMenu = (
@@ -628,7 +673,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         />
       ) : null}
 
-      <Box sx={listingTableContainerSx(theme)}>
+      <Box
+        sx={{
+          ...listingTableContainerSx(theme),
+          maxWidth: "100%",
+          minWidth: 0,
+          width: "100%",
+        }}
+      >
         <TableContainer
           ref={tableScrollRef}
           sx={{
@@ -636,22 +688,32 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
             overflowX: "auto",
             overflowY: rowsPerPage === defaultRowsPerPage ? "hidden" : "auto",
             scrollbarWidth: "thin",
-            scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
+            scrollbarColor: subtleScrollbar
+              ? `${theme.customTokens.neutrals[400]} transparent`
+              : `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
             WebkitOverflowScrolling: "touch",
             "&::-webkit-scrollbar": {
-              width: 8,
-              height: 8,
+              width: subtleScrollbar ? 6 : 8,
+              height: subtleScrollbar ? 6 : 8,
             },
             "&::-webkit-scrollbar-track": {
-              backgroundColor: theme.customTokens.surfaces.alt,
+              backgroundColor: subtleScrollbar
+                ? "transparent"
+                : theme.customTokens.surfaces.alt,
             },
             "&::-webkit-scrollbar-thumb": {
-              backgroundColor: theme.customTokens.brand.primary,
+              backgroundColor: subtleScrollbar
+                ? theme.customTokens.neutrals[400]
+                : theme.customTokens.brand.primary,
               borderRadius: theme.customTokens.radius.pill,
-              border: `1px solid ${theme.customTokens.surfaces.alt}`,
+              border: subtleScrollbar
+                ? "none"
+                : `1px solid ${theme.customTokens.surfaces.alt}`,
             },
             "&::-webkit-scrollbar-thumb:hover": {
-              backgroundColor: theme.customTokens.brand.secondary,
+              backgroundColor: subtleScrollbar
+                ? theme.customTokens.neutrals[500]
+                : theme.customTokens.brand.secondary,
             },
           }}
         >
@@ -670,18 +732,32 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               <TableRow>
                 {selectable ? (
                   <TableCell
-                    sx={[
-                      listingTableHeaderCellSx(theme),
-                      compactCheckboxCellSx,
-                    ]}
+                    sx={
+                      selectionColumnLabel
+                        ? [listingTableHeaderCellSx(theme), denseCellSx]
+                        : [
+                            listingTableHeaderCellSx(theme),
+                            compactCheckboxCellSx,
+                            denseCellSx,
+                          ]
+                    }
                   >
-                    <Checkbox
-                      checked={Boolean(allCurrentPageSelected)}
-                      indeterminate={Boolean(someCurrentPageSelected)}
-                      onChange={handleTogglePageSelection}
-                      size="small"
-                      sx={headerCheckboxSx(theme)}
-                    />
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.75,
+                      }}
+                    >
+                      <Checkbox
+                        checked={Boolean(allCurrentPageSelected)}
+                        indeterminate={Boolean(someCurrentPageSelected)}
+                        onChange={handleTogglePageSelection}
+                        size="small"
+                        sx={headerCheckboxSx(theme)}
+                      />
+                      {selectionColumnLabel}
+                    </Box>
                   </TableCell>
                 ) : null}
 
@@ -702,16 +778,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     columnFilterType,
                   );
 
-                  const columnMinWidth = getListingColumnMinWidth(
-                    column.key,
-                    column.label,
-                  );
+                  const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
 
                   return (
                     <TableCell
                       key={column.key}
                       sx={{
                         ...listingTableHeaderCellSx(theme),
+                        ...denseCellSx,
                         ...(columnMinWidth
                           ? { minWidth: columnMinWidth }
                           : {}),
@@ -875,6 +949,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                           sx={[
                             listingTableBodyCellSx(theme),
                             compactCheckboxCellSx,
+                            denseCellSx,
                           ]}
                         >
                           <Checkbox
@@ -888,16 +963,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       ) : null}
 
                       {displayColumns.map((column) => {
-                        const columnMinWidth = getListingColumnMinWidth(
-                          column.key,
-                          column.label,
-                        );
+                        const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
 
                         return (
                           <TableCell
                             key={column.key}
                             sx={{
                               ...listingTableBodyCellSx(theme),
+                              ...denseCellSx,
                               ...(columnMinWidth
                                 ? { minWidth: columnMinWidth }
                                 : {}),
@@ -970,8 +1043,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               gap: theme.spacing(2),
               flexWrap: "wrap",
               borderTop: `1px solid ${theme.customTokens.borders.divider}`,
-              px: { xs: theme.spacing(1.25), md: theme.spacing(1.5) },
-              py: theme.spacing(1),
+              px: { xs: theme.spacing(dense ? 0.75 : 1.25), md: theme.spacing(dense ? 1 : 1.5) },
+              py: theme.spacing(dense ? 0.5 : 1),
               backgroundColor: theme.customTokens.surfaces.surface,
               minHeight: 34,
             }}
@@ -1278,6 +1351,10 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
   onStatusChange: EnterpriseDataTableProps<Row>["onStatusChange"],
   theme: Theme,
 ) {
+  if (column.renderCell) {
+    return column.renderCell(row);
+  }
+
   if (column.audit) {
     return renderAuditCell(
       row[column.audit.nameKey ?? column.key],
@@ -1377,6 +1454,7 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
 
 function getEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
   columns: readonly EnterpriseTableColumn<Row>[],
+  preserveColumnOrder = false,
 ) {
   const createdNameKey = findAuditColumnKey(columns, auditColumnKeys.createdName);
   const createdDateKey = findAuditColumnKey(columns, auditColumnKeys.createdDate);
@@ -1432,6 +1510,10 @@ function getEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
       });
     }
   });
+
+  if (preserveColumnOrder) {
+    return displayColumns;
+  }
 
   return orderEnterpriseDisplayColumns(displayColumns);
 }

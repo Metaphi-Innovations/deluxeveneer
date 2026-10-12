@@ -77,6 +77,7 @@ import {
 } from "./groupedStockIssueStore";
 import { ConfirmIssueForInspectionDialog } from "../drying/ConfirmIssueForInspectionDialog";
 import { applyDryingListingColumns } from "../drying/dryingListingColumns";
+import { applyCncFlutingListingColumns } from "../cnc-fluting/cncFlutingListingColumns";
 import { appendCncFlutingSampleIssueActions } from "../cnc-fluting/cncFlutingSampleActions";
 import { applyInspectionListingColumns } from "../inspection/inspectionListingColumns";
 import { EditDryingInspectionQtyDialog } from "../inspection/EditDryingInspectionQtyDialog";
@@ -86,13 +87,18 @@ import {
   buildInspectionFailedRowActions,
   buildInspectionIssuedRowActions,
 } from "../inspection/inspectionRowActions";
+import { applyEmbossingListingColumns } from "../embossing/embossingListingColumns";
 import { appendEmbossingSampleIssueActions } from "../embossing/embossingSampleActions";
 import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColumns";
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
 import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
+import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
 import { applyPressingIssuedForLabels } from "../pressing/pressingIssuedForLabel";
+import { applyPressingListingColumns } from "../pressing/pressingListingColumns";
 import { appendPressingSampleIssueActions } from "../pressing/pressingSampleActions";
+import { mapSplicingIssuedListingRow } from "../splicing/mapSplicingIssuedListingRow";
+import { applySplicingListingColumns } from "../splicing/splicingListingColumns";
 import { appendSplicingSampleIssueActions } from "../splicing/splicingSampleActions";
 import { submitSplicingOrderIssue } from "../splicing/submitSplicingOrderIssue";
 import { buildGroupingDoneRowActions } from "../grouping/groupingDoneActions";
@@ -100,6 +106,10 @@ import { applyGroupingListingColumns } from "../grouping/groupingListingColumns"
 import { mapGroupingListingRow } from "../grouping/mapGroupingListingRow";
 import { DryingCreateDialog } from "../drying/DryingCreateDialog";
 import { DryingRejectDialog } from "../drying/DryingRejectDialog";
+import {
+  buildFinishingDoneSnapshot,
+  FinishingCreateDialog,
+} from "../finishing/FinishingCreateDialog";
 import {
   addDryingDoneItems,
   adjustDryingDoneLeaves,
@@ -129,8 +139,8 @@ import {
   getSampleNoFromRow,
   isSampleFactoryRow,
   issueSampleToProcess,
+  markSampleProcessDone,
   useSampleSheetRecords,
-  type SampleNextProcess,
 } from "./sampleSheetIdentityStore";
 import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
@@ -151,6 +161,7 @@ import {
   GroupingSampleIssueDialog,
   inspectionDialogPaperSx,
   InspectionDecisionDialog,
+  issueToNextFactoryProcess,
   normalizeFactorySourceColumns,
   ReadOnlyDialogField,
   SplicingOrderIssueDialog,
@@ -265,6 +276,9 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingInspectionIssueRow, setDryingInspectionIssueRow] =
     useState<Row | null>(null);
   const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
+  const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
+  const [splicingPressingIssueRow, setSplicingPressingIssueRow] =
+    useState<Row | null>(null);
   const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
   const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
   const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
@@ -318,6 +332,9 @@ export function FactoryListing<Row extends FactoryRecord>({
     const movedSourceRowIds = new Set(
       factoryIssuedWorkItems
         .filter((item) => {
+          if (definition.slug === "grouping") {
+            return false;
+          }
           if (item.sourceSlug === "drying") {
             const tracking = dryingIssueStateMap[item.sourceRowId];
             return tracking ? tracking.status === "Done" : false;
@@ -445,6 +462,13 @@ export function FactoryListing<Row extends FactoryRecord>({
           } as Row;
         }
 
+        if (definition.slug === "splicing" && activeTab === "issued") {
+          return mapSplicingIssuedListingRow(
+            sourceNormalizedRow,
+            factoryIssuedWorkItems,
+          );
+        }
+
         if (definition.slug === "drying" && activeTab === "done") {
           const rowId = String(sourceNormalizedRow.id);
           const origLeaves = Number(sourceNormalizedRow.noOfLeaves ?? sourceNormalizedRow.noOfSheets ?? 0) || 0;
@@ -547,10 +571,27 @@ export function FactoryListing<Row extends FactoryRecord>({
       return applyGroupingListingColumns(columns, activeTab);
     }
 
-    if (
-      supportsSamplePurposeColumn &&
-      !(definition.slug === "marquetry" && activeTab === "issued")
-    ) {
+    if (definition.slug === "splicing") {
+      return applySplicingListingColumns(columns, activeTab);
+    }
+
+    if (definition.slug === "pressing") {
+      columns = applyPressingListingColumns(columns);
+    }
+
+    if (definition.slug === "cnc-fluting") {
+      columns = applyCncFlutingListingColumns(columns, activeTab);
+    }
+
+    if (definition.slug === "embossing") {
+      columns = applyEmbossingListingColumns(columns, activeTab);
+    }
+
+    if (definition.slug === "finishing") {
+      columns = applyFinishingListingColumns(columns, activeTab);
+    }
+
+    if (supportsSamplePurposeColumn && definition.slug !== "marquetry") {
       columns = withOptionalColumn(
         columns,
         {
@@ -632,7 +673,8 @@ export function FactoryListing<Row extends FactoryRecord>({
         activeTab === "issued" &&
         canCreate &&
         !isInspectionModule &&
-        definition.slug !== "marquetry"
+        definition.slug !== "marquetry" &&
+        definition.slug !== "pressing"
       ) {
         baseActions.unshift({
           id: "create-process",
@@ -642,6 +684,11 @@ export function FactoryListing<Row extends FactoryRecord>({
           onSelect: (row) => {
             if (definition.slug === "drying") {
               setDryingCreateRow(row);
+              return;
+            }
+
+            if (definition.slug === "finishing") {
+              setFinishingCreateRow(row);
               return;
             }
 
@@ -903,7 +950,6 @@ export function FactoryListing<Row extends FactoryRecord>({
           setGroupingSampleIssue({
             issueDate: new Date(),
             issueSheets: "",
-            nextProcess: "",
             remark: "",
             row: selectedRow,
             submitted: false,
@@ -917,6 +963,20 @@ export function FactoryListing<Row extends FactoryRecord>({
     }
 
     return (row) => {
+      const issueToPressingAction: EnterpriseTableAction<Row> = {
+        id: "issue-to-pressing",
+        label: "Issue to Pressing",
+        icon: Plus,
+        tone: "primary",
+        onSelect: (selectedRow) => setSplicingPressingIssueRow(selectedRow),
+      };
+      const withIssueToPressing = (
+        actions: readonly EnterpriseTableAction<Row>[],
+      ) =>
+        canCreate && definition.slug === "splicing"
+          ? [...actions, issueToPressingAction]
+          : actions;
+
       if (isSampleFactoryRow(row)) {
         const sampleActions: EnterpriseTableAction<Row>[] = [];
 
@@ -934,7 +994,9 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (canCreate && definition.slug === "splicing") {
-          return appendSplicingSampleIssueActions(sampleActions, definition.slug);
+          return withIssueToPressing(
+            appendSplicingSampleIssueActions(sampleActions, definition.slug),
+          );
         }
 
         if (canCreate && definition.slug === "cnc-fluting") {
@@ -978,10 +1040,10 @@ export function FactoryListing<Row extends FactoryRecord>({
       );
 
       if (nextProcessActions.length === 0) {
-        return doneActions;
+        return withIssueToPressing(doneActions);
       }
 
-      return [...doneActions, ...nextProcessActions];
+      return withIssueToPressing([...doneActions, ...nextProcessActions]);
     };
   }, [
     activeTab,
@@ -1012,51 +1074,61 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     const availableSheets = getAvailableGroupedSheets(groupingSampleIssue.row);
     const issueSheets = Number(groupingSampleIssue.issueSheets);
-    const nextProcess = groupingSampleIssue.nextProcess as SampleNextProcess;
     const hasValidIssueSheets =
       groupingSampleIssue.issueSheets.length > 0 &&
       Number.isInteger(issueSheets) &&
       issueSheets > 0 &&
       issueSheets <= availableSheets;
-    const hasValidNextProcess = nextProcess === "Splicing";
 
-    if (!hasValidIssueSheets || !hasValidNextProcess) {
+    if (!hasValidIssueSheets) {
       setGroupingSampleIssue((current) =>
         current ? { ...current, submitted: true } : current,
       );
       return;
     }
 
+    const groupingRow = groupingSampleIssue.row;
+    const groupingRowId = String(groupingRow.id);
+
     appendGroupedStockSampleIssue({
-      groupingRowId: String(groupingSampleIssue.row.id),
+      groupingRowId,
       issueDate: groupingSampleIssue.issueDate,
       issueSheets,
       purpose: "sample-sheet",
-      sourceRow: groupingSampleIssue.row,
+      sourceRow: groupingRow,
     });
 
     const sample = createSampleSheetFromGrouping({
-      groupingRow: groupingSampleIssue.row,
+      groupingRow,
       issueDate: groupingSampleIssue.issueDate,
       issueSheets,
-      nextProcess,
+      nextProcess: "Pressing",
       remark: groupingSampleIssue.remark,
     });
 
+    const {
+      workItemId: _groupingWorkItemId,
+      ...groupingSourceFields
+    } = groupingRow;
+
     issueFactoryWork({
-      destinationProcess: nextProcess,
+      destinationProcess: "Pressing",
       purpose: "SAMPLE",
       sampleNo: sample.sampleNo,
       sourceProcess: "Grouping",
-      sourceWarehouseName: getFactoryRowWarehouseName(groupingSampleIssue.row),
+      sourceWarehouseName: getFactoryRowWarehouseName(groupingRow),
       sourceRow: {
-        ...groupingSampleIssue.row,
-        warehouseName: getFactoryRowWarehouseName(groupingSampleIssue.row),
+        ...groupingSourceFields,
+        id: `grouping-sample-${groupingRowId}-${Date.now()}`,
+        warehouseName: getFactoryRowWarehouseName(groupingRow),
         issuedFrom: "Grouping",
         sampleNo: sample.sampleNo,
         purpose: "SAMPLE",
         for: "Sample",
         forLabel: "Sample",
+        noOfLeaves: String(issueSheets),
+        receivedNoOfLeaves: String(issueSheets),
+        availableNoOfLeaves: String(issueSheets),
         noOfSheets: String(issueSheets),
         remark: groupingSampleIssue.remark || `Sample ${sample.sampleNo}`,
       },
@@ -1295,7 +1367,7 @@ export function FactoryListing<Row extends FactoryRecord>({
               </Stack>
             ) : (
               <Stack direction="row" spacing={1.25} alignItems="center">
-                {(definition.slug === "marquetry" || definition.slug === "splicing") &&
+                {(definition.slug === "marquetry" || definition.slug === "pressing") &&
                 activeTab === "issued" &&
                 canCreate ? (
                   <Button
@@ -1304,7 +1376,7 @@ export function FactoryListing<Row extends FactoryRecord>({
                     onClick={() => navigate(paths.add)}
                     sx={(theme) => getListingToolbarButtonSx(theme)}
                   >
-                    {definition.slug === "splicing" ? "Create Splicing" : "Add"}
+                    {definition.slug === "pressing" ? "Create Pressing" : "Create Marquetry"}
                   </Button>
                 ) : null}
                 <FactoryToolbar />
@@ -1750,6 +1822,43 @@ export function FactoryListing<Row extends FactoryRecord>({
         }}
       />
 
+      <FinishingCreateDialog
+        open={Boolean(finishingCreateRow)}
+        row={finishingCreateRow}
+        onClose={() => setFinishingCreateRow(null)}
+        onSave={(entry) => {
+          if (!finishingCreateRow) return;
+
+          const snapshot = buildFinishingDoneSnapshot(finishingCreateRow, entry);
+          const workItemId =
+            typeof finishingCreateRow.workItemId === "string"
+              ? finishingCreateRow.workItemId
+              : finishingCreateRow.id.startsWith("factory-work-")
+                ? finishingCreateRow.id
+                : "";
+
+          if (workItemId) {
+            completeFactoryIssuedWork(workItemId, snapshot);
+          } else {
+            const issued = issueFactoryWork({
+              destinationProcess: "Finishing",
+              sourceProcess: "Finishing",
+              sourceRow: finishingCreateRow,
+              sourceSlug: "finishing",
+            });
+            completeFactoryIssuedWork(issued.id, snapshot);
+          }
+
+          const sampleNo = getSampleNoFromRow(finishingCreateRow);
+          if (sampleNo) {
+            markSampleProcessDone(sampleNo, "finishing");
+          }
+
+          setFinishingCreateRow(null);
+          setActiveTab("done");
+        }}
+      />
+
       <DryingCreateDialog
         open={Boolean(dryingCreateRow)}
         row={dryingCreateRow}
@@ -1955,6 +2064,55 @@ export function FactoryListing<Row extends FactoryRecord>({
           setDryingInspectionIssueRow(null);
         }}
       />
+
+      <Dialog
+        open={Boolean(splicingPressingIssueRow)}
+        onClose={() => setSplicingPressingIssueRow(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "8px",
+              minWidth: 360,
+              maxWidth: 420,
+              p: 1,
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+          Issue to Pressing
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            Send this splicing item to Pressing?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => setSplicingPressingIssueRow(null)}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (splicingPressingIssueRow) {
+                issueToNextFactoryProcess({
+                  destinationProcess: "Pressing",
+                  row: splicingPressingIssueRow,
+                  sourceSlug: "splicing",
+                });
+              }
+              setSplicingPressingIssueRow(null);
+            }}
+            sx={{ textTransform: "none", minWidth: 70 }}
+          >
+            Confirm
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Confirmation Dialog: Revert */}
       <Dialog

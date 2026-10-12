@@ -166,7 +166,33 @@ export function FactoryForm<Row extends FactoryRecord>({
   const itemTableFields = shouldShowItemTable
     ? definition.slug === "sawing"
       ? sawingItemTableFields
-      : factoryItemTableFields
+      : definition.slug === "pressing"
+        ? factoryItemTableFields.filter(
+            (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+          )
+        : definition.slug === "finishing"
+          ? factoryItemTableFields.filter(
+              (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+            )
+          : definition.slug === "cnc-fluting"
+          ? insertItemDetailField(
+              factoryItemTableFields.filter(
+                (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+              ),
+              {
+                key: "designCode",
+                label: "Design Code",
+                type: "text",
+              },
+              "itemSubCategory",
+            )
+          : definition.slug === "embossing"
+            ? insertItemDetailField(factoryItemTableFields, {
+                key: "structureCode",
+                label: "Structure Code",
+                type: "text",
+              }, "itemSubCategory")
+            : factoryItemTableFields
     : [];
   const visibleFormSections =
     shouldShowItemTable
@@ -367,6 +393,27 @@ const sawingItemTableFields: readonly MasterFieldDefinition[] = [
   { key: "cbf", label: "CBF", type: "text" },
   { key: "remark", label: "Remark", type: "text" },
 ];
+
+function insertItemDetailField(
+  fields: readonly MasterFieldDefinition[],
+  field: MasterFieldDefinition,
+  afterKey: string,
+) {
+  if (fields.some((entry) => entry.key === field.key)) {
+    return fields;
+  }
+
+  const insertAt = fields.findIndex((entry) => entry.key === afterKey);
+  if (insertAt === -1) {
+    return [...fields, field];
+  }
+
+  return [
+    ...fields.slice(0, insertAt + 1),
+    field,
+    ...fields.slice(insertAt + 1),
+  ];
+}
 
 function isFactoryItemSection(section: FactoryFormSection) {
   return section.title.toLowerCase().includes("item");

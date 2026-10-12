@@ -3,55 +3,41 @@ import { Box, Stack, Typography } from "@mui/material";
 
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import { SelectedOrderDetails } from "../shared/SelectedOrderDetails";
 import {
   getOrderLineItems,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
-import type { SampleSheetRecord } from "../shared/sampleSheetIdentityStore";
 
 export type MarquetryOrderDetailsValue = {
   orderItemNo: string;
   orderNo: string;
-  purpose: "" | "Order" | "Sample Sheets";
-  sampleNo: string;
+  purpose: "Order";
 };
 
 export function MarquetryOrderDetails({
   hasSubmitted,
   onChange,
   orderRecords,
-  sampleSheetRecords,
   value,
 }: {
   hasSubmitted: boolean;
   onChange: Dispatch<SetStateAction<MarquetryOrderDetailsValue>>;
   orderRecords: readonly OrderRecord[];
-  sampleSheetRecords: readonly SampleSheetRecord[];
   value: MarquetryOrderDetailsValue;
 }) {
   const selectedOrder = orderRecords.find((order) => order.orderNo === value.orderNo);
   const orderItemOptions = selectedOrder
     ? getOrderLineItems(selectedOrder.id).map((_, index) => String(index + 1))
     : [];
-  const purposeError = hasSubmitted && !value.purpose;
-  const orderNoError =
-    hasSubmitted && value.purpose === "Order" && !value.orderNo;
-  const orderItemError =
-    hasSubmitted && value.purpose === "Order" && !value.orderItemNo;
-  const sampleNoError =
-    hasSubmitted && value.purpose === "Sample Sheets" && !value.sampleNo;
+  const orderNoError = hasSubmitted && !value.orderNo;
+  const orderItemError = hasSubmitted && !value.orderItemNo;
 
-  const update = (key: keyof MarquetryOrderDetailsValue, nextValue: string) => {
+  const update = (key: "orderItemNo" | "orderNo", nextValue: string) => {
     onChange((current) => ({
       ...current,
+      purpose: "Order",
       [key]: nextValue,
-      ...(key === "purpose"
-        ? {
-          orderNo: nextValue === "Order" ? current.orderNo : "",
-          orderItemNo: nextValue === "Order" ? current.orderItemNo : "",
-          sampleNo: nextValue === "Sample Sheets" ? current.sampleNo : "",
-        }
-        : {}),
       ...(key === "orderNo" ? { orderItemNo: "" } : {}),
     }));
   };
@@ -75,16 +61,6 @@ export function MarquetryOrderDetails({
           },
         })}
       >
-        <MarquetrySelectField
-          error={purposeError}
-          label="For"
-          onChange={(nextValue) => update("purpose", nextValue)}
-          options={["Order", "Sample Sheets"]}
-          value={value.purpose}
-        />
-
-        {value.purpose === "Order" ? (
-          <>
             <MarquetrySelectField
               error={orderNoError}
               label="Order No"
@@ -99,18 +75,7 @@ export function MarquetryOrderDetails({
               options={orderItemOptions}
               value={value.orderItemNo}
             />
-          </>
-        ) : null}
-
-        {value.purpose === "Sample Sheets" ? (
-          <MarquetrySelectField
-            error={sampleNoError}
-            label="Sample Sheet No"
-            onChange={(nextValue) => update("sampleNo", nextValue)}
-            options={sampleSheetRecords.map((sample) => sample.sampleNo)}
-            value={value.sampleNo}
-          />
-        ) : null}
+            <SelectedOrderDetails order={selectedOrder} orderItemNo={value.orderItemNo} />
       </Box>
     </Stack>
   );
@@ -155,9 +120,5 @@ function MarquetrySelectField({
 }
 
 export function isMarquetryOrderDetailsInvalid(value: MarquetryOrderDetailsValue) {
-  return (
-    value.purpose === "" ||
-    (value.purpose === "Order" && (!value.orderNo || !value.orderItemNo)) ||
-    (value.purpose === "Sample Sheets" && !value.sampleNo)
-  );
+  return !value.orderNo || !value.orderItemNo;
 }

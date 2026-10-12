@@ -18,6 +18,7 @@ import {
 import { Eye, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
+import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import {
@@ -45,7 +46,13 @@ import {
   appendFactoryProcessRun,
   useFactoryProcessRunTotals,
 } from "./factoryProcessRunStore";
-import { completeFactoryIssuedWork } from "./factoryIssuedWorkStore";
+import {
+  completeFactoryIssuedWork,
+  factoryIssuedWorkToRow,
+  getFactoryIssuedWorkForListing,
+  issueFactoryWork,
+  useFactoryIssuedWorkItems,
+} from "./factoryIssuedWorkStore";
 import { orderCncFlutingCreateFields } from "../cnc-fluting/cncFlutingCreateRules";
 import { dryingCreateLineItemFields, dryingCreateSourceColumns } from "../drying/dryingCreateRules";
 import { orderEmbossingCreateFields } from "../embossing/embossingCreateRules";
@@ -74,6 +81,7 @@ import {
   slicingCreateSourceColumns,
   slicingSliceFitsStock,
 } from "../slicing/slicingCreateRules";
+import { splicingCreateSourceColumns } from "../splicing/splicingCreateRules";
 import {
   calculateSlicingRemainder,
   formatSlicingDecimal,
@@ -102,8 +110,39 @@ import {
   RejectAvailableDetailsTable,
   resolveRejectAvailableAreaLimits,
 } from "./RejectAvailableDetailsTable";
-import { getExistingGroupNo, peekNextGroupNo } from "./groupNoStore";
-import { buildFactoryInitialValues, flattenFactorySections, getFactoryPaths } from "./factoryUtils";
+import { marquetryDefinition, pressingDefinition } from "./factoryDefinitions";
+import { allocateNextGroupNo, getExistingGroupNo, peekNextGroupNo } from "./groupNoStore";
+import {
+  buildFactoryInitialValues,
+  flattenFactorySections,
+  getFactoryPaths,
+  getFactoryRowsForTab,
+} from "./factoryUtils";
+import {
+  mapMarquetryCreateIssuedRow,
+  marquetryCreateIssuedColumns,
+} from "../marquetry/marquetryCreateIssuedColumns";
+import { MarquetryIssuedSelection } from "../marquetry/MarquetryIssuedSelection";
+import {
+  calculateMarquetryUsedArea,
+  getMarquetryLeavesUsedError,
+  MarquetrySelectedItems,
+  type MarquetrySelectedDraft,
+} from "../marquetry/MarquetrySelectedItems";
+import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
+import { PressingIssuedSelection } from "../pressing/PressingIssuedSelection";
+import { pressingCreateIssuedColumns } from "../pressing/pressingCreateIssuedColumns";
+import {
+  PressingPurposeChoice,
+  type PressingPurpose,
+} from "../pressing/PressingPurposeChoice";
+import {
+  buildPressingOrderOverviewItems,
+  getPressingOrderLine,
+  pressingRowIssuedForOrder,
+  pressingRowMatchesOrder,
+} from "../pressing/pressingOrderMatch";
+import { normalizeFactorySourceColumns } from "./listing/factoryListingParts";
 import {
   applyFactoryLineItemValueChange,
   buildFactoryItemPrefillValues,
@@ -241,9 +280,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const nextRowId = useRef(1);
   const locationState = location.state as FactoryCreateLocationState | null;
   const orderRecords = useOrderRecords();
+  const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const sampleSheetRecords = useSampleSheetRecords();
-  const usesOrderSelection =
-    definition.slug === "marquetry" || definition.slug === "splicing";
+  const usesOrderSelection = definition.slug === "marquetry";
   const sourceRow =
     (locationState?.sourceRow as Row | undefined) ??
     (locationState?.sourceRows?.[0] as Row | undefined) ??
@@ -317,9 +356,156 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
   const [lineItems, setLineItems] = useState<LineItemRecord[]>([]);
+  const [selectedMarquetryIds, setSelectedMarquetryIds] = useState<string[]>([]);
+  const [marquetryDrafts, setMarquetryDrafts] = useState<
+    Record<string, MarquetrySelectedDraft>
+  >({});
+  const marquetryIssuedRows = useMemo(() => {
+    if (definition.slug !== "marquetry") {
+      return [] as Row[];
+    }
+
+    const issuedWorkRows = getFactoryIssuedWorkForListing("marquetry", "issued").map(
+      (item) => factoryIssuedWorkToRow(item) as Row,
+    );
+    const localIssuedRows = getFactoryRowsForTab(
+      marquetryDefinition.rows as readonly Row[],
+      "issued",
+    );
+    const seen = new Set<string>();
+
+    return [...issuedWorkRows, ...localIssuedRows]
+      .filter((row) => {
+        const id = String(row.id);
+        if (seen.has(id)) {
+          return false;
+        }
+        seen.add(id);
+        return true;
+      })
+      .map((row) =>
+        mapMarquetryCreateIssuedRow(
+          withMarquetryIssuedFrom(normalizeFactorySourceColumns(row, "marquetry")),
+        ),
+      );
+  }, [definition.slug, factoryIssuedWorkItems]);
+  const selectedMarquetryRows = useMemo(
+    () =>
+      selectedMarquetryIds.flatMap((id) => {
+        const row = marquetryIssuedRows.find((entry) => String(entry.id) === id);
+        return row ? [row] : [];
+      }),
+    [marquetryIssuedRows, selectedMarquetryIds],
+  );
+  const handleMarquetrySelectedIdsChange = (ids: string[]) => {
+    setSelectedMarquetryIds(ids);
+    setMarquetryDrafts((current) => {
+      const next: Record<string, MarquetrySelectedDraft> = {};
+
+      ids.forEach((id) => {
+        const existing = current[id];
+        if (existing) {
+          next[id] = existing;
+          return;
+        }
+
+        const row = marquetryIssuedRows.find((entry) => String(entry.id) === id);
+        next[id] = {
+          leavesUsed: "",
+          remark: typeof row?.remark === "string" ? row.remark : "",
+        };
+      });
+
+      return next;
+    });
+  };
+  const [selectedPressingIds, setSelectedPressingIds] = useState<string[]>([]);
+  const pressingIssuedRows = useMemo(() => {
+    if (definition.slug !== "pressing") {
+      return [] as Row[];
+    }
+
+    const issuedWorkRows = getFactoryIssuedWorkForListing("pressing", "issued").map(
+      (item) => normalizeFactorySourceColumns(factoryIssuedWorkToRow(item), "pressing") as Row,
+    );
+    const localIssuedRows = getFactoryRowsForTab(
+      pressingDefinition.rows as readonly Row[],
+      "issued",
+    ).map((row) => normalizeFactorySourceColumns(row, "pressing"));
+    const seen = new Set<string>();
+
+    return [...issuedWorkRows, ...localIssuedRows].filter((row) => {
+      const id = String(row.id);
+      if (seen.has(id)) {
+        return false;
+      }
+      seen.add(id);
+      return true;
+    });
+  }, [definition.slug, factoryIssuedWorkItems]);
+  const selectedPressingRows = useMemo(
+    () =>
+      selectedPressingIds.flatMap((id) => {
+        const row = pressingIssuedRows.find((entry) => String(entry.id) === id);
+        return row ? [row] : [];
+      }),
+    [pressingIssuedRows, selectedPressingIds],
+  );
+  const pressingSelectionColumns = useMemo(
+    () => pressingCreateIssuedColumns as readonly EnterpriseTableColumn<Row>[],
+    [],
+  );
+  const marquetrySelectionColumns = useMemo(
+    () => marquetryCreateIssuedColumns as readonly EnterpriseTableColumn<Row>[],
+    [],
+  );
   const [draftSubmitAttempted, setDraftSubmitAttempted] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [pressingPurpose, setPressingPurpose] = useState<PressingPurpose>("");
+  const [pressingOrderNo, setPressingOrderNo] = useState("");
+  const [pressingOrderItemNo, setPressingOrderItemNo] = useState("");
+  const [pressingSampleNo, setPressingSampleNo] = useState("");
+  const visiblePressingIssuedRows = useMemo(() => {
+    if (pressingPurpose === "Order") {
+      if (!pressingOrderNo || !pressingOrderItemNo) {
+        return [] as Row[];
+      }
+
+      return pressingIssuedRows.filter((row) =>
+        pressingRowIssuedForOrder(row, pressingOrderNo, pressingOrderItemNo),
+      );
+    }
+
+    if (pressingPurpose === "Sample Sheet") {
+      const sampleNo = pressingSampleNo.trim().toLowerCase();
+      if (!sampleNo) {
+        return [] as Row[];
+      }
+
+      return pressingIssuedRows.filter((row) => {
+        const rowSampleNo =
+          typeof row.sampleNo === "string" ? row.sampleNo.trim().toLowerCase() : "";
+        return rowSampleNo === sampleNo;
+      });
+    }
+
+    return [] as Row[];
+  }, [
+    pressingIssuedRows,
+    pressingOrderItemNo,
+    pressingOrderNo,
+    pressingPurpose,
+    pressingSampleNo,
+  ]);
+  useEffect(() => {
+    setSelectedPressingIds((current) => {
+      const next = current.filter((id) =>
+        visiblePressingIssuedRows.some((row) => String(row.id) === id),
+      );
+      return next.length === current.length ? current : next;
+    });
+  }, [visiblePressingIssuedRows]);
   const [marquetryOrderDetails, setMarquetryOrderDetails] =
     useState<MarquetryOrderDetailsValue>(() => {
       const sourceOrderNo =
@@ -330,38 +516,66 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         typeof locationState?.sourceRow?.orderItemNo === "string"
           ? locationState.sourceRow.orderItemNo
           : "";
-      const sourceSampleNo =
-        typeof locationState?.sourceRow?.sampleNo === "string"
-          ? locationState.sourceRow.sampleNo
-          : "";
-      const purpose: MarquetryOrderDetailsValue["purpose"] =
-        locationState?.sourceRow?.for === "Sample" || sourceSampleNo
-          ? "Sample Sheets"
-          : sourceOrderNo
-            ? "Order"
-            : usesOrderSelection
-              ? "Order"
-              : "";
-      const dummyOrder =
-        usesOrderSelection && purpose === "Order" && !sourceOrderNo
-          ? orderRecords[0]
-          : undefined;
+      const dummyOrder = usesOrderSelection && !sourceOrderNo ? orderRecords[0] : undefined;
 
       return {
         orderItemNo: sourceOrderItemNo || (dummyOrder ? "1" : ""),
         orderNo: sourceOrderNo || dummyOrder?.orderNo || "",
-        purpose,
-        sampleNo: sourceSampleNo,
+        purpose: "Order",
       };
     });
   const sourceOverviewItems = useMemo(
-    () =>
-      usesOrderSelection
+    () => {
+      if (definition.slug === "pressing" && pressingPurpose === "Order" && pressingOrderNo) {
+        const order = orderRecords.find((entry) => entry.orderNo === pressingOrderNo);
+        const line = order ? getPressingOrderLine(order, pressingOrderItemNo) : null;
+        if (order && line) {
+          const issuedRows = [
+            ...getFactoryIssuedWorkForListing("pressing", "issued").map((item) =>
+              factoryIssuedWorkToRow(item),
+            ),
+            ...getFactoryRowsForTab(pressingDefinition.rows, "issued"),
+          ];
+          const matchedNames = issuedRows
+            .filter((row) =>
+              pressingRowMatchesOrder(row, order, line, pressingOrderItemNo),
+            )
+            .map((row) => {
+              const name =
+                typeof row.itemName === "string" && row.itemName.trim()
+                  ? row.itemName.trim()
+                  : "";
+              return name;
+            })
+            .filter((name, index, names) => name && names.indexOf(name) === index);
+          const overview = buildPressingOrderOverviewItems(
+            order,
+            line,
+            pressingOrderItemNo,
+          );
+
+          return matchedNames.length > 0
+            ? [...overview, { label: "Identified Items", value: matchedNames.join(", ") }]
+            : overview;
+        }
+      }
+
+      return usesOrderSelection
         ? buildMarquetryOrderOverviewItems(orderRecords, marquetryOrderDetails)
-        : buildSourceOverviewItems(sourceRow, sourceColumns),
+        : buildSourceOverviewItems(
+            sourceRow,
+            sourceColumns,
+            definition.slug === "splicing",
+          );
+    },
     [
+      factoryIssuedWorkItems,
       marquetryOrderDetails,
       orderRecords,
+      definition.slug,
+      pressingOrderItemNo,
+      pressingOrderNo,
+      pressingPurpose,
       sourceColumns,
       sourceRow,
       usesOrderSelection,
@@ -653,6 +867,15 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setEditingSubmitAttempted(false);
   };
 
+  const pressingOrderItemOptions = useMemo(() => {
+    const order = orderRecords.find((entry) => entry.orderNo === pressingOrderNo);
+    if (!order) {
+      return [] as string[];
+    }
+
+    return getOrderLineItems(order.id).map((_, index) => String(index + 1));
+  }, [orderRecords, pressingOrderNo]);
+
   return (
     <FactoryPageShell
       breadcrumbs={[
@@ -672,12 +895,43 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             hasSubmitted={hasSubmitted}
             onChange={setMarquetryOrderDetails}
             orderRecords={orderRecords}
-            sampleSheetRecords={sampleSheetRecords}
             value={marquetryOrderDetails}
           />
         ) : null}
 
-        <FactorySourceOverviewPanel items={sourceOverviewItems} />
+        {definition.slug === "pressing" ? (
+          <PressingPurposeChoice
+            onChange={(nextPurpose) => {
+              setPressingPurpose(nextPurpose);
+              if (nextPurpose !== "Order") {
+                setPressingOrderNo("");
+                setPressingOrderItemNo("");
+              }
+              if (nextPurpose !== "Sample Sheet") {
+                setPressingSampleNo("");
+              }
+            }}
+            onOrderItemNoChange={setPressingOrderItemNo}
+            onOrderNoChange={(nextOrderNo) => {
+              setPressingOrderNo(nextOrderNo);
+              setPressingOrderItemNo("");
+            }}
+            onSampleNoChange={setPressingSampleNo}
+            orderItemNo={pressingOrderItemNo}
+            orderItemOptions={pressingOrderItemOptions}
+            orderNo={pressingOrderNo}
+            orderOptions={orderRecords.map((entry) => entry.orderNo)}
+            orderRecords={orderRecords}
+            sampleNo={pressingSampleNo}
+            sampleOptions={sampleSheetRecords.map((sample) => sample.sampleNo)}
+            showError={hasSubmitted}
+            value={pressingPurpose}
+          />
+        ) : null}
+
+        {definition.slug === "pressing" || definition.slug === "marquetry" ? null : (
+          <FactorySourceOverviewPanel items={sourceOverviewItems} />
+        )}
 
         <Box
           sx={(currentTheme) => ({
@@ -712,6 +966,24 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           })}
         >
           <FactoryCreateSectionTitle title="Process Details" />
+          {definition.slug === "marquetry" ? (
+            <MarquetryIssuedSelection
+              columns={marquetrySelectionColumns}
+              onSelectedIdsChange={handleMarquetrySelectedIdsChange}
+              rows={marquetryIssuedRows}
+              selectedIds={selectedMarquetryIds}
+              showError={hasSubmitted && selectedMarquetryRows.length === 0}
+            />
+          ) : definition.slug === "pressing" ? (
+            <PressingIssuedSelection
+              columns={pressingSelectionColumns}
+              onSelectedIdsChange={setSelectedPressingIds}
+              rows={visiblePressingIssuedRows}
+              selectedIds={selectedPressingIds}
+              showError={hasSubmitted && selectedPressingRows.length === 0}
+            />
+          ) : (
+          <>
           <Box
             sx={{
               border: `1px solid ${theme.customTokens.borders.default}`,
@@ -803,9 +1075,34 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               Add Item
             </Button>
           </Box>
+          </>
+          )}
         </Stack>
 
-        {lineItems.length > 0 ? (
+        {definition.slug === "marquetry" ? (
+          <MarquetrySelectedItems
+            drafts={marquetryDrafts}
+            onDraftChange={(rowId, patch) =>
+              setMarquetryDrafts((current) => ({
+                ...current,
+                [rowId]: {
+                  leavesUsed: current[rowId]?.leavesUsed ?? "",
+                  remark: current[rowId]?.remark ?? "",
+                  ...patch,
+                },
+              }))
+            }
+            onRemove={(rowId) =>
+              handleMarquetrySelectedIdsChange(
+                selectedMarquetryIds.filter((id) => id !== rowId),
+              )
+            }
+            rows={selectedMarquetryRows}
+            showErrors={hasSubmitted}
+          />
+        ) : null}
+
+        {definition.slug !== "marquetry" && lineItems.length > 0 ? (
           <Stack
             sx={(currentTheme) => ({
               ...formSectionCardSx(currentTheme),
@@ -937,7 +1234,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
             useHeight={definition.slug === "sawing"}
             editableDerived={definition.slug === "sawing"}
-            hideAmount={definition.slug === "sawing" || definition.slug === "slicing"}
+            hideAmount={
+              definition.slug === "sawing" ||
+              definition.slug === "slicing" ||
+              definition.slug === "pressing" ||
+              definition.slug === "finishing"
+            }
             fieldIssues={getVisibleRejectAvailableValidationIssues(
               rejectAvailableValidationErrors,
               rejectAvailableSubmitAttempted,
@@ -1000,9 +1302,22 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 editingValues,
               );
               const lineItemsInvalid =
-                lineItems.length === 0 ||
-                (draftHasValues && hasValidationErrors(draftErrors)) ||
-                Boolean(editingRowId && hasValidationErrors(editingErrors));
+                definition.slug === "marquetry"
+                  ? selectedMarquetryRows.length === 0 ||
+                    selectedMarquetryRows.some((row) =>
+                      Boolean(
+                        getMarquetryLeavesUsedError(
+                          marquetryDrafts[String(row.id)]?.leavesUsed ?? "",
+                          row.availableLeaves,
+                          true,
+                        ),
+                      ),
+                    )
+                  : definition.slug === "pressing"
+                    ? selectedPressingRows.length === 0
+                  : lineItems.length === 0 ||
+                    (draftHasValues && hasValidationErrors(draftErrors)) ||
+                    Boolean(editingRowId && hasValidationErrors(editingErrors));
               const quantityInvalid = Boolean(quantityOverflowError);
               const rejectAvailableInvalid = hasRejectAvailableValidationErrors(
                 rejectAvailableValidationErrors,
@@ -1010,6 +1325,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               const orderDetailsInvalid =
                 usesOrderSelection &&
                 isMarquetryOrderDetailsInvalid(marquetryOrderDetails);
+              const pressingPurposeInvalid =
+                definition.slug === "pressing" &&
+                (pressingPurpose === "" ||
+                  (pressingPurpose === "Order" &&
+                    (!pressingOrderNo || !pressingOrderItemNo)) ||
+                  (pressingPurpose === "Sample Sheet" && !pressingSampleNo));
 
               if (lineItemsInvalid) {
                 setDraftSubmitAttempted(lineItems.length === 0 || draftHasValues);
@@ -1025,7 +1346,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 lineItemsInvalid ||
                 quantityInvalid ||
                 rejectAvailableInvalid ||
-                orderDetailsInvalid
+                orderDetailsInvalid ||
+                pressingPurposeInvalid
               ) {
                 return;
               }
@@ -1039,6 +1361,135 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   pendingBalance: Math.max(0, balanceSummary.balanceQuantity),
                   remark: "",
                 });
+              }
+
+              if (definition.slug === "grouping") {
+                const groupingWorkItemId =
+                  locationState?.workItemId ||
+                  (typeof sourceRow?.workItemId === "string"
+                    ? sourceRow.workItemId
+                    : undefined);
+                const groupNo =
+                  getExistingGroupNo(sourceRow as Record<string, unknown> | undefined) ||
+                  allocateNextGroupNo();
+                const groupedSource = {
+                  ...(sourceRow as Record<string, unknown> | undefined),
+                  groupNo,
+                };
+
+                lineItems.forEach((lineItem, index) => {
+                  const resultSnapshot: Record<string, unknown> = {
+                    ...(sourceRow ?? {}),
+                    ...formValues,
+                    ...lineItem.values,
+                    groupNo,
+                    listingState: "done",
+                  };
+                  applyGroupingCreateSnapshot(resultSnapshot, groupedSource);
+
+                  if (index === 0 && groupingWorkItemId) {
+                    completeFactoryIssuedWork(groupingWorkItemId, resultSnapshot);
+                    return;
+                  }
+
+                  const { workItemId: _groupingWorkItemId, ...issuedSourceFields } =
+                    resultSnapshot;
+                  const issued = issueFactoryWork({
+                    destinationProcess: "Grouping",
+                    sourceProcess: "Grouping",
+                    sourceRow: {
+                      ...(issuedSourceFields as FactoryRecord),
+                      id: `grouping-line-${lineItem.id}`,
+                    },
+                    sourceSlug: "grouping",
+                  });
+                  completeFactoryIssuedWork(issued.id, resultSnapshot);
+                });
+                navigate(paths.list);
+                return;
+              }
+
+              if (definition.slug === "marquetry") {
+                selectedMarquetryRows.forEach((row) => {
+                  const selectedWorkItemId =
+                    typeof row.workItemId === "string" ? row.workItemId : "";
+                  if (!selectedWorkItemId) {
+                    return;
+                  }
+                  const draft = marquetryDrafts[String(row.id)] ?? {
+                    leavesUsed: "",
+                    remark: "",
+                  };
+                  const usedArea = calculateMarquetryUsedArea(
+                    row.length,
+                    row.width,
+                    draft.leavesUsed,
+                  );
+                  completeFactoryIssuedWork(selectedWorkItemId, {
+                    ...(row as Record<string, unknown>),
+                    ...formValues,
+                    ...(usesOrderSelection ? marquetryOrderDetails : {}),
+                    leavesUsed: draft.leavesUsed,
+                    remark: draft.remark,
+                    sqfUsed: usedArea.sqf,
+                    sqmUsed: usedArea.sqm,
+                    listingState: "done",
+                  });
+                });
+                navigate(paths.list);
+                return;
+              }
+
+              if (definition.slug === "pressing") {
+                const pressingForSample = pressingPurpose === "Sample Sheet";
+                const pressingOrder = orderRecords.find(
+                  (entry) => entry.orderNo === pressingOrderNo,
+                );
+
+                selectedPressingRows.forEach((row) => {
+                  const resultSnapshot: Record<string, unknown> = {
+                    ...(row as Record<string, unknown>),
+                    ...formValues,
+                    for: pressingForSample ? "Sample" : "Order",
+                    forLabel: pressingForSample ? "Sample" : "Order",
+                    listingState: "done",
+                    pressingFor: pressingPurpose,
+                    purpose: pressingForSample ? "SAMPLE" : "ORDER",
+                  };
+
+                  if (pressingForSample) {
+                    resultSnapshot.sampleNo = pressingSampleNo;
+                  }
+
+                  if (pressingOrder && pressingPurpose === "Order") {
+                    resultSnapshot.orderNo = pressingOrder.orderNo;
+                    resultSnapshot.orderDate = pressingOrder.orderDate;
+                    resultSnapshot.customerName = pressingOrder.customerName;
+                    resultSnapshot.orderItemNo = pressingOrderItemNo;
+                  }
+
+                  const selectedWorkItemId =
+                    typeof row.workItemId === "string"
+                      ? row.workItemId
+                      : String(row.id).startsWith("factory-work-")
+                        ? String(row.id)
+                        : "";
+
+                  if (selectedWorkItemId) {
+                    completeFactoryIssuedWork(selectedWorkItemId, resultSnapshot);
+                    return;
+                  }
+
+                  const issued = issueFactoryWork({
+                    destinationProcess: "Pressing",
+                    sourceProcess: "Pressing",
+                    sourceRow: row,
+                    sourceSlug: "pressing",
+                  });
+                  completeFactoryIssuedWork(issued.id, resultSnapshot);
+                });
+                navigate(paths.list);
+                return;
               }
 
               const workItemId =
@@ -1073,6 +1524,38 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   );
                   if (carriedGroupNo) {
                     resultSnapshot.groupNo = carriedGroupNo;
+                  }
+                }
+
+                if (definition.slug === "pressing") {
+                  const pressingForSample = pressingPurpose === "Sample Sheet";
+                  const pressingOrder = orderRecords.find(
+                    (entry) => entry.orderNo === pressingOrderNo,
+                  );
+                  const pressingLine =
+                    pressingOrder && pressingPurpose === "Order"
+                      ? getPressingOrderLine(pressingOrder, pressingOrderItemNo)
+                      : null;
+                  resultSnapshot.for = pressingForSample ? "Sample" : "Order";
+                  resultSnapshot.forLabel = pressingForSample ? "Sample" : "Order";
+                  resultSnapshot.purpose = pressingForSample ? "SAMPLE" : "ORDER";
+                  resultSnapshot.pressingFor = pressingPurpose;
+                  if (pressingForSample) {
+                    resultSnapshot.sampleNo = pressingSampleNo;
+                  }
+                  if (pressingOrder && pressingLine) {
+                    resultSnapshot.orderNo = pressingOrder.orderNo;
+                    resultSnapshot.orderDate = pressingOrder.orderDate;
+                    resultSnapshot.customerName = pressingOrder.customerName;
+                    resultSnapshot.orderItemNo = pressingOrderItemNo;
+                    resultSnapshot.itemName =
+                      pressingLine.itemName || pressingLine.salesItemName;
+                    resultSnapshot.itemSubCategory = pressingLine.subCategory;
+                    resultSnapshot.grade = pressingLine.grade;
+                    resultSnapshot.length = pressingLine.length;
+                    resultSnapshot.width = pressingLine.width;
+                    resultSnapshot.thickness = pressingLine.thickness;
+                    resultSnapshot.noOfSheets = pressingLine.quantitySheets;
                   }
                 }
 
@@ -1196,6 +1679,16 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
     return groupingCreateSourceColumns;
   }
 
+  if (slug === "splicing") {
+    return splicingCreateSourceColumns;
+  }
+
+  if (slug === "sawing") {
+    return sourceColumnDefinitions.map((column) =>
+      column.key === "batchNo" ? { ...column, label: "Log No." } : column,
+    );
+  }
+
   return sourceColumnDefinitions.filter((column) => {
     if (slug === "drying" && column.key === "remark") {
       return false;
@@ -1241,7 +1734,6 @@ function buildMarquetryOrderOverviewItems(
   const text = (value: unknown) => formatSourceValue(value) || "-";
 
   return [
-    { label: "For", value: details.purpose || "Order" },
     { label: "Order No", value: text(order?.orderNo) },
     { label: "Order Date", value: text(order?.orderDate) },
     { label: "Customer Name", value: text(order?.customerName) },
@@ -1261,6 +1753,7 @@ function buildMarquetryOrderOverviewItems(
 function buildSourceOverviewItems(
   sourceRow: SourceRow | undefined,
   columns: readonly SourceColumnDefinition[],
+  omitEmpty = false,
 ) {
   const items: Array<{ label: string; value: string }> = [];
 
@@ -1275,6 +1768,9 @@ function buildSourceOverviewItems(
     let value = formatSourceValue(rawValue);
 
     if (!value || value.trim() === "") {
+      if (omitEmpty) {
+        return;
+      }
       value = "-";
     }
 
@@ -1339,6 +1835,14 @@ function buildLineItemFields(
         "ratePerSqf",
         "amount",
       ]);
+      if (slug === "slicing") {
+        processExcludedKeys.add("subCategory");
+        processExcludedKeys.add("logCode");
+        processExcludedKeys.add("createdBy");
+        processExcludedKeys.add("createdAt");
+        processExcludedKeys.add("updatedBy");
+        processExcludedKeys.add("updatedAt");
+      }
       return ordered.filter((field) => !processExcludedKeys.has(field.key));
     }
 
@@ -1351,6 +1855,16 @@ function buildLineItemFields(
         "ratePerSqf",
         "amount",
       ]);
+      return ordered.filter((field) => !processExcludedKeys.has(field.key));
+    }
+
+    if (
+      slug === "splicing" ||
+      slug === "pressing" ||
+      slug === "cnc-fluting" ||
+      slug === "finishing"
+    ) {
+      const processExcludedKeys = new Set(["ratePerSqf", "amount", "consumedAmount"]);
       return ordered.filter((field) => !processExcludedKeys.has(field.key));
     }
 

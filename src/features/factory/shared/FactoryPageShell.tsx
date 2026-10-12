@@ -13,6 +13,7 @@ interface FactoryPageShellProps extends PropsWithChildren {
   breadcrumbs?: ErpBreadcrumbItem[] | undefined;
   icon?: LucideIcon | undefined;
   processTabs?: ReactNode | undefined;
+  sectionGap?: number | undefined;
   subtitle?: string | undefined;
   title: string;
 }
@@ -24,6 +25,7 @@ export function FactoryPageShell({
   children,
   icon = Factory,
   processTabs,
+  sectionGap = 2,
   subtitle,
   title,
 }: FactoryPageShellProps) {
@@ -32,14 +34,16 @@ export function FactoryPageShell({
       actions={actions}
       backNav={backNav}
       breadcrumbs={breadcrumbs}
-      contentGap={2}
+      contentGap={sectionGap}
       icon={icon}
       subtitle={subtitle}
       title={title}
     >
       <Stack
         sx={(theme) => ({
-          gap: theme.spacing(2),
+          gap: theme.spacing(sectionGap),
+          minWidth: 0,
+          width: "100%",
         })}
       >
         {processTabs}
