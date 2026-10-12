@@ -15,6 +15,7 @@ import {
 import { X, Save } from "lucide-react";
 import { createHsnApi, fetchHsnsApi, syncHsnMasterToStorage } from "./api/hsnMasterApi";
 import { fetchGstsApi } from "../gst-master/api/gstMasterApi";
+import { QuickAddGstModal } from "../gst-master/QuickAddGstModal";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 
@@ -33,8 +34,25 @@ export function QuickAddHsnModal({
   const [hsnDescription, setHsnDescription] = useState("");
   const [gstPercentage, setGstPercentage] = useState("");
   const [gstOptions, setGstOptions] = useState<string[]>([]);
+  const [quickAddGstOpen, setQuickAddGstOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const loadGstOptions = () => {
+    fetchGstsApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const gsts = active
+          .map((r) => String(r.gstPercentage || r.percentage || "").trim())
+          .filter(Boolean);
+        setGstOptions([...new Set(gsts)]);
+      })
+      .catch((err) => {
+        console.warn("Failed to load GST options:", err);
+      });
+  };
 
   useEffect(() => {
     if (open) {
@@ -43,19 +61,7 @@ export function QuickAddHsnModal({
       setGstPercentage("");
       setError("");
 
-      fetchGstsApi({ status: true, limit: 1000 })
-        .then((records) => {
-          const active = records.filter(
-            (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
-          );
-          const gsts = active
-            .map((r) => String(r.gstPercentage || r.percentage || "").trim())
-            .filter(Boolean);
-          setGstOptions([...new Set(gsts)]);
-        })
-        .catch((err) => {
-          console.warn("Failed to load GST options:", err);
-        });
+      loadGstOptions();
     }
   }, [open]);
 
@@ -195,16 +201,42 @@ export function QuickAddHsnModal({
             </Stack>
 
             <Stack spacing={0.75} sx={{ flex: 1 }}>
-              <Typography
-                component="label"
-                sx={(theme) => ({
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: theme.customTokens.text.primary,
-                })}
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ height: "20px", minHeight: "20px" }}
               >
-                GST %
-              </Typography>
+                <Typography
+                  component="label"
+                  sx={(theme) => ({
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: theme.customTokens.text.primary,
+                  })}
+                >
+                  GST %
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={() => setQuickAddGstOpen(true)}
+                  sx={(theme) => ({
+                    p: 0,
+                    minWidth: "auto",
+                    fontSize: "11px",
+                    lineHeight: 1.3,
+                    fontWeight: 600,
+                    textTransform: "none",
+                    color: theme.customTokens.brand.primary,
+                    "&:hover": {
+                      backgroundColor: "transparent",
+                      textDecoration: "underline",
+                    },
+                  })}
+                >
+                  + Add GST
+                </Button>
+              </Stack>
               <TextField
                 select
                 fullWidth
@@ -272,6 +304,16 @@ export function QuickAddHsnModal({
           </Button>
         </DialogActions>
       </form>
+
+      <QuickAddGstModal
+        open={quickAddGstOpen}
+        onClose={() => setQuickAddGstOpen(false)}
+        onSuccess={(newGst) => {
+          setGstOptions((prev) => (prev.includes(newGst) ? prev : [...prev, newGst]));
+          setGstPercentage(newGst);
+          loadGstOptions();
+        }}
+      />
     </Dialog>
   );
 }

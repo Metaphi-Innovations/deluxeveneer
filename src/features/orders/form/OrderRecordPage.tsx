@@ -520,7 +520,16 @@ export function OrderRecordPage({
               updateOrderRecord(record.id, payload);
             }
 
-            navigate(paths.list);
+            const isEdit = mode !== "add" && Boolean(record);
+            const successMsg = isEdit
+              ? "Order updated successfully."
+              : "Order created successfully.";
+
+            navigate(paths.list, {
+              state: {
+                orderFlashMessage: successMsg,
+              },
+            });
           }}
         />
       </Stack>

@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Divider,
   IconButton,
   Stack,
   Tab,
@@ -20,6 +21,7 @@ import { ChevronLeft, Eye, FileText, Pencil, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../permissions";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
@@ -65,6 +67,28 @@ export function UserManagementViewPage() {
     url: string;
     isPdf: boolean;
   } | null>(null);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Leave Page",
+      description: "Are you sure you want to go back to the user list?",
+      action: () => {
+        navigate(paths.list);
+      },
+    });
+  };
 
   const openDocumentPreview = (title: string, fileUrlOrName?: string) => {
     if (!fileUrlOrName || !fileUrlOrName.trim()) return;
@@ -148,6 +172,11 @@ export function UserManagementViewPage() {
 
   return (
     <MasterPageShell
+      backNav={{
+        label: "Back to User Management",
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "User Management", to: paths.list },
         { label: "View User" },
@@ -158,7 +187,7 @@ export function UserManagementViewPage() {
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
-            onClick={() => navigate(paths.list)}
+            onClick={handleBack}
             startIcon={<ChevronLeft size={14} />}
             sx={[recordViewActionButtonSx, actionButtonSx]}
             variant="outlined"
@@ -256,11 +285,10 @@ export function UserManagementViewPage() {
                       color: isActive
                         ? theme.customTokens.semanticScale.success[800]
                         : theme.customTokens.neutrals[700],
-                      border: `1px solid ${
-                        isActive
+                      border: `1px solid ${isActive
                           ? theme.customTokens.semanticScale.success[200]
                           : theme.customTokens.neutrals[200]
-                      }`,
+                        }`,
                       "& .MuiChip-label": {
                         px: 1,
                       },
@@ -369,84 +397,132 @@ export function UserManagementViewPage() {
               />
             ) : (
               <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "repeat(2, minmax(0, 1fr))",
-                  },
-                }}
+                sx={(theme) => ({
+                  ...formSectionCardSx(theme),
+                  borderRadius: "8px",
+                })}
               >
-                <DetailCard title="Account Details">
-                  <DetailGrid
-                    items={[
-                      { label: "User Name", value: row.userName },
-                      { label: "First Name", value: row.firstName },
-                      { label: "Last Name", value: row.lastName },
-                      { label: "Email", value: row.email },
-                      { label: "Phone", value: row.phoneNo },
-                      { label: "Department", value: row.department },
-                    ]}
-                  />
-                </DetailCard>
+                <Stack spacing={2}>
+                  <Box>
+                    <FormSectionHeader title="Account Information" variant="cardTop" />
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, 1fr)",
+                          md: "repeat(3, 1fr)",
+                          lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 1fr)",
+                        },
+                        columnGap: 2,
+                        rowGap: 1.5,
+                        mt: 1.5,
+                      }}
+                    >
+                      <DetailField label="User Name" value={row.userName} />
+                      <DetailField label="First Name" value={row.firstName} />
+                      <DetailField label="Last Name" value={row.lastName} />
+                      <DetailField label="Email" value={row.email} />
+                      <DetailField label="Phone No" value={row.phoneNo} />
+                      <DetailField label="Department" value={row.department} />
+                    </Box>
+                  </Box>
 
-                <DetailCard title="Personal Details">
-                  <DetailGrid
-                    items={[
-                      {
-                        label: "Date of Birth",
-                        value: formatDisplayDate(row.dateOfBirth),
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, minmax(0, 200px))",
+                        md: "repeat(3, minmax(0, 200px))",
                       },
-                      { label: "Age", value: row.age },
-                      { label: "Blood Group", value: row.bloodGroup },
-                    ]}
-                  />
-                </DetailCard>
+                      columnGap: 2,
+                      rowGap: 1.5,
+                    }}
+                  >
+                    <DetailField
+                      label="Date Of Birth"
+                      value={formatDisplayDate(row.dateOfBirth)}
+                    />
+                    <DetailField label="Age" value={row.age} />
+                    <DetailField label="Blood Group" value={row.bloodGroup} />
+                  </Box>
 
-                <DetailCard title="Address">
-                  <DetailGrid
-                    items={[
-                      { label: "Address", value: row.address, fullWidth: true },
-                      { label: "Country", value: row.country },
-                      { label: "State", value: row.state },
-                      { label: "City", value: row.city },
-                      { label: "Pincode", value: row.pincode },
-                    ]}
+                  <Divider
+                    sx={{
+                      borderColor: theme.customTokens.borders.divider,
+                      my: 0.5,
+                    }}
                   />
-                </DetailCard>
 
-                <DetailCard title="Identity Documents">
-                  <DetailGrid
-                    items={[
-                      { label: "Aadhaar No", value: row.aadhaarNo ?? "" },
-                      {
-                        label: "Aadhaar Upload",
-                        value: row.aadhaarUpload ?? "",
-                        onPreview: () =>
-                          openDocumentPreview(
-                            "Aadhaar Document",
-                            row.aadhaarUpload,
-                          ),
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, 1fr)",
+                        md: "repeat(3, 1fr)",
+                        lg: "minmax(280px, 2.5fr) minmax(130px, 1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr)",
                       },
-                      { label: "PAN No", value: row.panNo ?? "" },
-                      {
-                        label: "PAN Upload",
-                        value: row.panUpload ?? "",
-                        onPreview: () =>
-                          openDocumentPreview("PAN Document", row.panUpload),
-                      },
-                    ]}
-                  />
-                </DetailCard>
+                      columnGap: 2,
+                      rowGap: 1.5,
+                    }}
+                  >
+                    <DetailField label="Address" value={row.address} />
+                    <DetailField label="Pincode" value={row.pincode} />
+                    <DetailField label="Country" value={row.country} />
+                    <DetailField label="State" value={row.state} />
+                    <DetailField label="City" value={row.city} />
+                  </Box>
 
-                <DetailCard title="Additional Information">
-                  <DetailField
-                    label="Remarks"
-                    value={row.remarks}
-                    allowWrap
-                  />
-                </DetailCard>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, 1fr)",
+                        md: "repeat(4, 1fr)",
+                      },
+                      columnGap: 2,
+                      rowGap: 1.5,
+                    }}
+                  >
+                    <DetailField label="Aadhaar No" value={row.aadhaarNo ?? ""} />
+                    <DetailField
+                      label="Aadhaar Upload"
+                      value={row.aadhaarUpload ?? ""}
+                      onPreview={() =>
+                        openDocumentPreview(
+                          "Aadhaar Document",
+                          row.aadhaarUpload,
+                        )
+                      }
+                    />
+                    <DetailField label="PAN No" value={row.panNo ?? ""} />
+                    <DetailField
+                      label="PAN Upload"
+                      value={row.panUpload ?? ""}
+                      onPreview={() =>
+                        openDocumentPreview("PAN Document", row.panUpload)
+                      }
+                    />
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, 1fr)",
+                        md: "repeat(3, 1fr)",
+                      },
+                      columnGap: 2,
+                      rowGap: 1.5,
+                    }}
+                  >
+                    <DetailField label="Remarks" value={row.remarks} allowWrap />
+                  </Box>
+                </Stack>
               </Box>
             )}
           </Stack>
@@ -519,73 +595,22 @@ export function UserManagementViewPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
-  );
-}
-
-function DetailCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  const theme = useTheme();
-
-  return (
-    <Box
-      sx={{
-        ...formSectionCardSx(theme),
-        borderRadius: "8px",
-        minWidth: 0,
-      }}
-    >
-      <Stack spacing={1.25}>
-        <FormSectionHeader title={title} />
-        {children}
-      </Stack>
-    </Box>
-  );
-}
-
-function DetailGrid({
-  items,
-}: {
-  items: {
-    label: string;
-    value: string;
-    fullWidth?: boolean;
-    onPreview?: (() => void) | undefined;
-  }[];
-}) {
-  return (
-    <Box
-      sx={{
-        display: "grid",
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "repeat(2, minmax(0, 1fr))",
-        },
-        columnGap: 2,
-        rowGap: 1.25,
-      }}
-    >
-      {items.map((item) => (
-        <Box
-          key={item.label}
-          sx={{
-            gridColumn: item.fullWidth ? "1 / -1" : "auto",
-            minWidth: 0,
-          }}
-        >
-          <DetailField
-            label={item.label}
-            value={item.value}
-            {...(item.onPreview ? { onPreview: item.onPreview } : {})}
-          />
-        </Box>
-      ))}
-    </Box>
   );
 }
 

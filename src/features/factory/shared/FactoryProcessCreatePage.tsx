@@ -39,6 +39,7 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "./FactoryPageShell";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
@@ -653,8 +654,141 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setEditingSubmitAttempted(false);
   };
 
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Leave Process Creation",
+      description: "Are you sure you want to go back? Any unsaved changes will be lost.",
+      action: () => navigate(paths.list),
+    });
+  };
+
+  const handleCancel = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Process Creation",
+      description: "Are you sure you want to cancel? Any unsaved changes will be lost.",
+      action: () => navigate(paths.list),
+    });
+  };
+
+  const executeSaveProcess = () => {
+    if (quantityConfig && originalQuantity > 0) {
+      appendFactoryProcessRun({
+        stageSlug: definition.slug,
+        sourceKey: sourceAllocationKey,
+        processedNow: currentProcessedQuantity,
+        wastageNow: 0,
+        pendingBalance: Math.max(0, balanceSummary.balanceQuantity),
+        remark: "",
+      });
+    }
+
+    const workItemId =
+      locationState?.workItemId ||
+      (typeof sourceRow?.workItemId === "string"
+        ? sourceRow.workItemId
+        : undefined);
+
+    if (workItemId) {
+      const primaryLineItem = lineItems[0];
+      const resultSnapshot: Record<string, unknown> = {
+        ...(sourceRow ?? {}),
+        ...formValues,
+        ...(usesOrderSelection ? marquetryOrderDetails : {}),
+        ...(primaryLineItem
+          ? Object.fromEntries(
+            Object.entries(primaryLineItem).filter(
+              ([key]) => key !== "id",
+            ),
+          )
+          : {}),
+      };
+
+      if (definition.slug === "grouping") {
+        applyGroupingCreateSnapshot(
+          resultSnapshot,
+          sourceRow as Record<string, unknown> | undefined,
+        );
+      } else {
+        const carriedGroupNo = getExistingGroupNo(
+          sourceRow as Record<string, unknown> | undefined,
+        );
+        if (carriedGroupNo) {
+          resultSnapshot.groupNo = carriedGroupNo;
+        }
+      }
+
+      if (definition.slug !== "sawing" && definition.slug !== "slicing") {
+        completeFactoryIssuedWork(workItemId, resultSnapshot);
+      }
+    }
+
+    const sampleNo =
+      locationState?.sampleNo ||
+      (typeof sourceRow?.sampleNo === "string"
+        ? sourceRow.sampleNo
+        : undefined);
+
+    if (sampleNo) {
+      markSampleProcessDone(sampleNo, definition.slug);
+    }
+
+    const successMsg = `${definition.title} process saved successfully.`;
+
+    if (definition.slug === "sawing") {
+      saveSawingCreateProcess({
+        formValues,
+        lineItems,
+        locationState: locationState as Record<string, any> | null,
+        navigate,
+        rejectAvailableValues,
+        sourceRow: sourceRow as Record<string, any> | undefined,
+        workItemId,
+      });
+      return;
+    }
+
+    if (definition.slug === "slicing") {
+      saveSlicingCreateProcess({
+        formValues,
+        lineItems,
+        navigate,
+        rejectAvailableValues,
+        sourceRow: sourceRow as Record<string, unknown> | undefined,
+        workItemId,
+      });
+      return;
+    }
+
+    navigate(paths.list, {
+      state: {
+        factoryFlashMessage: successMsg,
+      },
+    });
+  };
+
   return (
     <FactoryPageShell
+      backNav={{
+        label: `Back to ${definition.title}`,
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
         { label: definition.title, to: paths.list },
@@ -968,7 +1102,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           <Button
             type="button"
             variant="outlined"
-            onClick={() => navigate(paths.list)}
+            onClick={handleCancel}
             sx={recordFormActionButtonSx}
           >
             Cancel
@@ -1030,99 +1164,42 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 return;
               }
 
-              if (quantityConfig && originalQuantity > 0) {
-                appendFactoryProcessRun({
-                  stageSlug: definition.slug,
-                  sourceKey: sourceAllocationKey,
-                  processedNow: currentProcessedQuantity,
-                  wastageNow: 0,
-                  pendingBalance: Math.max(0, balanceSummary.balanceQuantity),
-                  remark: "",
-                });
-              }
-
-              const workItemId =
-                locationState?.workItemId ||
-                (typeof sourceRow?.workItemId === "string"
-                  ? sourceRow.workItemId
-                  : undefined);
-
-              if (workItemId) {
-                const primaryLineItem = lineItems[0];
-                const resultSnapshot: Record<string, unknown> = {
-                  ...(sourceRow ?? {}),
-                  ...formValues,
-                  ...(usesOrderSelection ? marquetryOrderDetails : {}),
-                  ...(primaryLineItem
-                    ? Object.fromEntries(
-                      Object.entries(primaryLineItem).filter(
-                        ([key]) => key !== "id",
-                      ),
-                    )
-                    : {}),
-                };
-
-                if (definition.slug === "grouping") {
-                  applyGroupingCreateSnapshot(
-                    resultSnapshot,
-                    sourceRow as Record<string, unknown> | undefined,
-                  );
-                } else {
-                  const carriedGroupNo = getExistingGroupNo(
-                    sourceRow as Record<string, unknown> | undefined,
-                  );
-                  if (carriedGroupNo) {
-                    resultSnapshot.groupNo = carriedGroupNo;
-                  }
-                }
-
-              if (definition.slug !== "sawing" && definition.slug !== "slicing") {
-                completeFactoryIssuedWork(workItemId, resultSnapshot);
-              }
-              }
-
-              const sampleNo =
-                locationState?.sampleNo ||
-                (typeof sourceRow?.sampleNo === "string"
-                  ? sourceRow.sampleNo
-                  : undefined);
-
-              if (sampleNo) {
-                markSampleProcessDone(sampleNo, definition.slug);
-              }
-
-              if (definition.slug === "sawing") {
-                saveSawingCreateProcess({
-                  formValues,
-                  lineItems,
-                  locationState: locationState as Record<string, any> | null,
-                  navigate,
-                  rejectAvailableValues,
-                  sourceRow: sourceRow as Record<string, any> | undefined,
-                  workItemId,
-                });
-                return;
-              }
-
-              if (definition.slug === "slicing") {
-                saveSlicingCreateProcess({
-                  formValues,
-                  lineItems,
-                  navigate,
-                  rejectAvailableValues,
-                  sourceRow: sourceRow as Record<string, unknown> | undefined,
-                  workItemId,
-                });
-                return;
-              }
-
-              navigate(paths.list);
+              setSaveConfirmationOpen(true);
             }}
           >
             Save Process
           </Button>
         </Box>
       </Stack>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Save"
+        description={`Are you sure you want to save this ${definition.title.toLowerCase()} process?`}
+        onClose={() => setSaveConfirmationOpen(false)}
+        onConfirm={() => {
+          setSaveConfirmationOpen(false);
+          executeSaveProcess();
+        }}
+        open={saveConfirmationOpen}
+        title="Confirm Save Process"
+        tone="default"
+      />
     </FactoryPageShell>
   );
 }
@@ -1268,9 +1345,9 @@ function buildSourceOverviewItems(
     const rawValue =
       column.key === "availableSqm"
         ? formatSlicingDecimal(
-            calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
-            3,
-          )
+          calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
+          3,
+        )
         : getSourceValue(sourceRow, column.keys);
     let value = formatSourceValue(rawValue);
 

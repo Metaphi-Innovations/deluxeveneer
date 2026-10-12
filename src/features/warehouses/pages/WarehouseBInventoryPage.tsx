@@ -278,22 +278,22 @@ export function WarehouseBInventoryModulePage({
     const displayRows =
       activeInventory === "raw-veneer" && activeRawVeneerTab === "all"
         ? rows.map((row) =>
-            isWarehouseBRawVeneerProductionRow(row)
-              ? {
-                  ...row,
-                  invoiceNo: "-",
-                  supplierName: "-",
-                }
-              : row,
-          )
+          isWarehouseBRawVeneerProductionRow(row)
+            ? {
+              ...row,
+              invoiceNo: "-",
+              supplierName: "-",
+            }
+            : row,
+        )
         : rows;
 
     return activeProcessTab === "issued"
       ? displayRows.filter(
-          (row) =>
-            !revertedRowIds.includes(row.id) &&
-            !movedWarehouseRowIds.has(String(row.id)),
-        )
+        (row) =>
+          !revertedRowIds.includes(row.id) &&
+          !movedWarehouseRowIds.has(String(row.id)),
+      )
       : displayRows;
   }, [
     activeInventory,
@@ -437,14 +437,14 @@ export function WarehouseBInventoryModulePage({
     const baseActions: EnterpriseTableAction<InventoryRecord>[] = [
       ...(canViewWarehouseB
         ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (row: InventoryRecord) =>
-                navigate(inventoryPaths.view(getWarehouseBRecordId(row))),
-            },
-          ]
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (row: InventoryRecord) =>
+              navigate(inventoryPaths.view(getWarehouseBRecordId(row))),
+          },
+        ]
         : []),
     ];
 
@@ -482,16 +482,16 @@ export function WarehouseBInventoryModulePage({
         },
         ...(canCreateWarehouseC
           ? [
-              {
-                id: "move-to-warehouse-c",
-                label: "Move to Warehouse C",
-                icon: Truck,
-                onSelect: () =>
-                  navigate(
-                    `/warehouse-c?section=inventory&inventory=${activeInventory}`,
-                  ),
-              },
-            ]
+            {
+              id: "move-to-warehouse-c",
+              label: "Move to Warehouse C",
+              icon: Truck,
+              onSelect: () =>
+                navigate(
+                  `/warehouse-c?section=inventory&inventory=${activeInventory}`,
+                ),
+            },
+          ]
           : []),
       );
     }
@@ -547,41 +547,41 @@ export function WarehouseBInventoryModulePage({
     if (activeInspectionTab === "pending") {
       return canEditWarehouseB
         ? [
-            {
-              id: "move-to-inspection-done",
-              label: "Move to Inspection Done",
-              icon: BadgeCheck,
-              onSelect: (row) =>
-                setInspectionDoneRowIds((current) =>
-                  current.includes(row.id) ? current : [...current, row.id],
-                ),
-            },
-          ]
+          {
+            id: "move-to-inspection-done",
+            label: "Move to Inspection Done",
+            icon: BadgeCheck,
+            onSelect: (row) =>
+              setInspectionDoneRowIds((current) =>
+                current.includes(row.id) ? current : [...current, row.id],
+              ),
+          },
+        ]
         : [];
     }
 
     return [
       ...(canEditWarehouseB
         ? [
-            {
-              id: "move-to-warehouse-b",
-              label: "Move to Warehouse B",
-              icon: Truck,
-              onSelect: () =>
-                navigate("/warehouse-b?section=inventory&inventory=raw-veneer"),
-            },
-          ]
+          {
+            id: "move-to-warehouse-b",
+            label: "Move to Warehouse B",
+            icon: Truck,
+            onSelect: () =>
+              navigate("/warehouse-b?section=inventory&inventory=raw-veneer"),
+          },
+        ]
         : []),
       ...(canEditWarehouseB && canCreateWarehouseC
         ? [
-            {
-              id: "move-to-warehouse-c",
-              label: "Move to Warehouse C",
-              icon: Truck,
-              onSelect: () =>
-                navigate("/warehouse-c?section=inventory&inventory=raw-veneer"),
-            },
-          ]
+          {
+            id: "move-to-warehouse-c",
+            label: "Move to Warehouse C",
+            icon: Truck,
+            onSelect: () =>
+              navigate("/warehouse-c?section=inventory&inventory=raw-veneer"),
+          },
+        ]
         : []),
     ];
   }, [
@@ -688,7 +688,7 @@ export function WarehouseBInventoryModulePage({
                   onChange={(value) => {
                     const selectedRawTab =
                       rawVeneerTabValueByLabel[
-                        value as keyof typeof rawVeneerTabValueByLabel
+                      value as keyof typeof rawVeneerTabValueByLabel
                       ] ?? "all";
 
                     setSearchParams(
@@ -959,9 +959,9 @@ function getWarehouseBStockRows(
     activeInventory === "raw-veneer"
       ? getWarehouseARawVeneerRows(activeRawVeneerTab)
       : mergeWarehouseSourceRows(
-          warehouseAInventoryConfigs[activeInventory].rows,
-          getWarehouseAInwardRows(activeInventory),
-        );
+        warehouseAInventoryConfigs[activeInventory].rows,
+        getWarehouseAInwardRows(activeInventory),
+      );
 
   return getWarehouseQcPassedRows(sourceRows).map((row) => ({
     ...row,
@@ -992,9 +992,9 @@ function getWarehouseARawVeneerRows(activeRawVeneerTab: WarehouseBRawVeneerTab) 
   const configRows =
     activeRawVeneerTab === "all"
       ? [
-          ...warehouseRawVeneerTabConfigs.purchase.rows,
-          ...warehouseRawVeneerTabConfigs.production.rows,
-        ]
+        ...warehouseRawVeneerTabConfigs.purchase.rows,
+        ...warehouseRawVeneerTabConfigs.production.rows,
+      ]
       : warehouseRawVeneerTabConfigs[activeRawVeneerTab].rows;
 
   return mergeWarehouseSourceRows(

@@ -14,6 +14,7 @@ import {
 import { ChevronLeft, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableColumn,
@@ -120,15 +121,15 @@ const packingItemDetailColumns: readonly {
   label: string;
   minWidth: number;
 }[] = [
-  { key: "itemName", label: "Item Name", minWidth: 180 },
-  { key: "length", label: "Length", minWidth: 120 },
-  { key: "width", label: "Width", minWidth: 120 },
-  { key: "thickness", label: "Thickness", minWidth: 130 },
-  { key: "noOfSheets", label: "No of Sheets", minWidth: 140 },
-  { key: "sqm", label: "SQM", minWidth: 120 },
-  { key: "sqf", label: "SQF", minWidth: 120 },
-  { key: "amount", label: "Amount", minWidth: 140 },
-];
+    { key: "itemName", label: "Item Name", minWidth: 180 },
+    { key: "length", label: "Length", minWidth: 120 },
+    { key: "width", label: "Width", minWidth: 120 },
+    { key: "thickness", label: "Thickness", minWidth: 130 },
+    { key: "noOfSheets", label: "No of Sheets", minWidth: 140 },
+    { key: "sqm", label: "SQM", minWidth: 120 },
+    { key: "sqf", label: "SQF", minWidth: 120 },
+    { key: "amount", label: "Amount", minWidth: 140 },
+  ];
 
 const rawPackingProductCategoryOptions = ["Veneer", "Plywood", "MDF"] as const;
 const finishedPackingProductCategoryOptions = [
@@ -179,6 +180,17 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [selectedSourceRowIds, setSelectedSourceRowIds] = useState<string[]>([]);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
   const canCreate = canAccessPermission("packing", "create");
   const canEdit = canAccessPermission("packing", "edit");
   const canView = canAccessPermission("packing", "view");
@@ -304,8 +316,43 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     );
   }
 
+  const handleRequestBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: "Are you sure you want to go back to the packing list?",
+        action: () => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(paths.list);
+          }
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          if (window.history.length > 1) {
+            navigate(-1);
+          } else {
+            navigate(paths.list);
+          }
+        },
+      });
+    }
+  };
+
   return (
     <MasterPageShell
+      backNav={{
+        label: "Back to Packing",
+        to: paths.list,
+        onBack: handleRequestBack,
+      }}
       breadcrumbs={[
         { label: "Packing", to: paths.list },
         {
@@ -323,11 +370,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
           : mode === "edit"
             ? "Edit Packing"
             : "View Packing"
-      }
-      subtitle={
-        mode === "add"
-          ? "Only packing-eligible items appear. Raw = stock-ready orders. Finished = factory-completed routes only."
-          : undefined
       }
       contentGap={1.5}
     >
@@ -424,7 +466,20 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
             {mode === "view" ? (
               <>
                 <Button
-                  onClick={() => navigate(paths.list)}
+                  onClick={() =>
+                    setLeaveConfirmation({
+                      open: true,
+                      title: "Leave Page",
+                      description: "Are you sure you want to go back to the packing list?",
+                      action: () => {
+                        if (window.history.length > 1) {
+                          navigate(-1);
+                        } else {
+                          navigate(paths.list);
+                        }
+                      },
+                    })
+                  }
                   startIcon={<ChevronLeft size={16} />}
                   sx={recordViewActionButtonSx}
                   variant="outlined"
@@ -451,7 +506,20 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
               <>
                 <Button
                   type="button"
-                  onClick={() => navigate(paths.list)}
+                  onClick={() =>
+                    setLeaveConfirmation({
+                      open: true,
+                      title: "Cancel Changes",
+                      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+                      action: () => {
+                        if (window.history.length > 1) {
+                          navigate(-1);
+                        } else {
+                          navigate(paths.list);
+                        }
+                      },
+                    })
+                  }
                   sx={recordFormActionButtonSx}
                   variant="outlined"
                 >
@@ -545,7 +613,16 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                       );
                     }
 
-                    navigate(paths.list);
+                    const isEdit = mode !== "add" && Boolean(record);
+                    const successMsg = isEdit
+                      ? "Packing record updated successfully."
+                      : "Packing record added to queue successfully.";
+
+                    navigate(paths.list, {
+                      state: {
+                        packingFlashMessage: successMsg,
+                      },
+                    });
                   }}
                   startIcon={mode === "add" ? undefined : <Save size={15} strokeWidth={2} />}
                   sx={(theme) =>
@@ -562,6 +639,21 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
           </Box>
         </Stack>
       </MasterSectionCard>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
   );
 }
@@ -589,68 +681,68 @@ function PackingItemDetailsTable({ record }: { record: PackingRecord }) {
             mx: -0.25,
           })}
         >
-        <Box
-          sx={(theme) => ({
-            overflowX: "auto",
-            scrollbarColor: `${theme.palette.primary.main} transparent`,
-            scrollbarWidth: "thin",
-            "&::-webkit-scrollbar": {
-              height: 8,
-            },
-            "&::-webkit-scrollbar-thumb": {
-              backgroundColor: theme.palette.primary.main,
-              borderRadius: theme.customTokens.radius.pill,
-            },
-            "&::-webkit-scrollbar-track": {
-              backgroundColor: "transparent",
-            },
-          })}
-        >
-          <Table
-            size="small"
-            sx={{
-              minWidth: 1070,
-              tableLayout: "fixed",
-            }}
+          <Box
+            sx={(theme) => ({
+              overflowX: "auto",
+              scrollbarColor: `${theme.palette.primary.main} transparent`,
+              scrollbarWidth: "thin",
+              "&::-webkit-scrollbar": {
+                height: 8,
+              },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: theme.palette.primary.main,
+                borderRadius: theme.customTokens.radius.pill,
+              },
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: "transparent",
+              },
+            })}
           >
-            <TableHead>
-              <TableRow>
-                {packingItemDetailColumns.map((column) => (
-                  <TableCell
-                    key={column.key}
-                    sx={(theme) => ({
-                      ...transactionTableHeaderCellSx(theme, column.minWidth),
-                      minWidth: column.minWidth,
-                      width: column.minWidth,
-                      borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                    })}
-                  >
-                    {column.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                {packingItemDetailColumns.map((column) => (
-                  <TableCell
-                    key={column.key}
-                    sx={(theme) => ({
-                      borderRight: `1px solid ${theme.customTokens.borders.default}`,
-                      color: theme.palette.text.primary,
-                      fontSize: theme.typography.body2.fontSize,
-                      px: theme.spacing(1.5),
-                      py: theme.spacing(1.25),
-                      whiteSpace: "nowrap",
-                    })}
-                  >
-                    {formatPackingDetailValue(record[column.key])}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableBody>
-          </Table>
-        </Box>
+            <Table
+              size="small"
+              sx={{
+                minWidth: 1070,
+                tableLayout: "fixed",
+              }}
+            >
+              <TableHead>
+                <TableRow>
+                  {packingItemDetailColumns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      sx={(theme) => ({
+                        ...transactionTableHeaderCellSx(theme, column.minWidth),
+                        minWidth: column.minWidth,
+                        width: column.minWidth,
+                        borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                      })}
+                    >
+                      {column.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  {packingItemDetailColumns.map((column) => (
+                    <TableCell
+                      key={column.key}
+                      sx={(theme) => ({
+                        borderRight: `1px solid ${theme.customTokens.borders.default}`,
+                        color: theme.palette.text.primary,
+                        fontSize: theme.typography.body2.fontSize,
+                        px: theme.spacing(1.5),
+                        py: theme.spacing(1.25),
+                        whiteSpace: "nowrap",
+                      })}
+                    >
+                      {formatPackingDetailValue(record[column.key])}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
         </Box>
       </Stack>
     </Box>
@@ -815,23 +907,23 @@ function buildPackingSourceRows(
       lineItems.length > 0
         ? lineItems
         : [
-            {
-              id: `${record.id}-line-1`,
-              productCategory: record.productCategory,
-              finishedType: record.productCategory,
-              itemName: record.itemName,
-              subCategory: record.subCategory,
-              series: record.series,
-              grade: record.grade,
-              length: record.length,
-              width: record.width,
-              thickness: record.thickness,
-              quantitySheets: record.quantitySheets,
-              sqm: record.sqm,
-              totalSqm: record.totalSqm,
-              amount: record.amount,
-            },
-          ];
+          {
+            id: `${record.id}-line-1`,
+            productCategory: record.productCategory,
+            finishedType: record.productCategory,
+            itemName: record.itemName,
+            subCategory: record.subCategory,
+            series: record.series,
+            grade: record.grade,
+            length: record.length,
+            width: record.width,
+            thickness: record.thickness,
+            quantitySheets: record.quantitySheets,
+            sqm: record.sqm,
+            totalSqm: record.totalSqm,
+            amount: record.amount,
+          },
+        ];
 
     return normalizedLineItems.flatMap((item, index) => {
       const orderItemNo = `OI-${String(index + 1).padStart(3, "0")}`;

@@ -155,21 +155,21 @@ export const orderModuleConfig: OrderModuleConfig = {
 
 export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
   [
-    { key: "orderDate", label: "Order Date" },
+    { key: "orderDate", label: "Order Date", filterable: true },
     { key: "customerName", label: "Customer Name", filterable: true },
-    { key: "orderNo", label: "Order No" },
-    { key: "orderItemNumber", label: "Order Item No" },
+    { key: "orderNo", label: "Order No", filterable: true },
+    { key: "orderItemNumber", label: "Order Item No", filterable: true },
     { key: "rawMaterial", label: "Product Type", filterable: true },
     { key: "itemName", label: "Item Name", filterable: true },
-    { key: "quantitySheets", label: "No of Sheets" },
+    { key: "quantitySheets", label: "No of Sheets", filterable: true },
     { key: "priority", label: "Priority", filterable: true },
-    { key: "dispatchQuantity", label: "Dispatch Quantity" },
-    { key: "issuedQuantity", label: "Issued Quantity" },
+    { key: "dispatchQuantity", label: "Dispatch Quantity", filterable: true },
+    { key: "issuedQuantity", label: "Issued Quantity", filterable: true },
     { key: "remark", label: "Remark" },
-    { key: "createdBy", label: "Created By" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedBy", label: "Updated By" },
-    { key: "updatedDate", label: "Updated Date" },
+    { key: "createdBy", label: "Created By", filterable: true },
+    { key: "createdDate", label: "Created Date", filterable: true },
+    { key: "updatedBy", label: "Updated By", filterable: true },
+    { key: "updatedDate", label: "Updated Date", filterable: true },
   ];
 
 export const orderTypeOptions = orderCreateOptions.map((option) => option.label);

@@ -122,6 +122,13 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
     type: "select",
   },
   {
+    key: "salesItemName",
+    label: "Sales Item Name",
+    controlWidth: 240,
+    minWidth: 200,
+    type: "text",
+  },
+  {
     key: "itemName",
     label: "Item Name",
     controlWidth: 280,
@@ -215,6 +222,46 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
     minWidth: 120,
     numeric: true,
     readOnly: true,
+    type: "text",
+  },
+  {
+    key: "baseType",
+    label: "Base Type",
+    controlWidth: 160,
+    minWidth: 140,
+    options: baseTypeOptions,
+    type: "select",
+  },
+  {
+    key: "baseName",
+    label: "Base Name",
+    controlWidth: 220,
+    dropdownWidth: 300,
+    minWidth: 200,
+    type: "select",
+  },
+  {
+    key: "baseLength",
+    label: "Base Length",
+    controlWidth: 130,
+    minWidth: 110,
+    numeric: true,
+    type: "text",
+  },
+  {
+    key: "baseWidth",
+    label: "Base Width",
+    controlWidth: 130,
+    minWidth: 110,
+    numeric: true,
+    type: "text",
+  },
+  {
+    key: "baseThickness",
+    label: "Base Thickness",
+    controlWidth: 130,
+    minWidth: 120,
+    numeric: true,
     type: "text",
   },
   {
@@ -410,13 +457,51 @@ const finishedEntryRows: readonly EntryRowConfig[] = [
   },
 ];
 
-const rawEntryRows: readonly EntryRowConfig[] = [
+const veneerEntryRows: readonly EntryRowConfig[] = [
   {
-    keys: ["productCategory", "itemName", "subCategory", "series", "grade"],
+    keys: ["productCategory", "salesItemName", "itemName"],
     template: {
       xs: "1fr",
       sm: "1fr 1fr",
-      md: "minmax(150px, 1.15fr) minmax(220px, 1.9fr) minmax(160px, 1.35fr) minmax(130px, 1.05fr) minmax(120px, 0.95fr)",
+      md: "minmax(160px, 1.1fr) minmax(220px, 1.8fr) minmax(240px, 2.2fr)",
+    },
+  },
+  {
+    keys: ["length", "width", "thickness", "sqm", "ratePerSqf", "amount", "remark"],
+    template: {
+      xs: "1fr 1fr",
+      sm: "repeat(3, 1fr)",
+      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) minmax(220px, 1.8fr)",
+    },
+  },
+];
+
+const sheetBasedRawEntryRows: readonly EntryRowConfig[] = [
+  {
+    keys: ["productCategory", "salesItemName", "itemName"],
+    template: {
+      xs: "1fr",
+      sm: "1fr 1fr",
+      md: "minmax(160px, 1.1fr) minmax(220px, 1.8fr) minmax(240px, 2.2fr)",
+    },
+  },
+  {
+    keys: ["quantitySheets", "length", "width", "thickness", "sqm", "ratePerSqf", "amount", "remark"],
+    template: {
+      xs: "1fr 1fr",
+      sm: "repeat(4, 1fr)",
+      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) minmax(200px, 1.6fr)",
+    },
+  },
+];
+
+const finishedProductEntryRows: readonly EntryRowConfig[] = [
+  {
+    keys: ["productCategory", "salesItemName", "itemName"],
+    template: {
+      xs: "1fr",
+      sm: "1fr 1fr",
+      md: "minmax(160px, 1.1fr) minmax(220px, 1.8fr) minmax(240px, 2.2fr)",
     },
   },
   {
@@ -437,13 +522,75 @@ const rawEntryRows: readonly EntryRowConfig[] = [
     },
   },
   {
-    keys: ["remark"],
+    keys: [
+      "baseType",
+      "baseName",
+      "baseLength",
+      "baseWidth",
+      "baseThickness",
+      "remark",
+    ],
     template: {
       xs: "1fr",
-      md: "minmax(300px, 1fr)",
+      sm: "1fr 1fr",
+      md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
     },
   },
 ];
+
+const emptySelectionEntryRows: readonly EntryRowConfig[] = [
+  {
+    keys: ["productCategory", "salesItemName", "itemName"],
+    template: {
+      xs: "1fr",
+      sm: "1fr 1fr",
+      md: "minmax(160px, 1.1fr) minmax(220px, 1.8fr) minmax(240px, 2.2fr)",
+    },
+  },
+];
+
+function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
+  const normalized = (productType ?? "").trim().toLowerCase();
+  if (!normalized) {
+    return emptySelectionEntryRows;
+  }
+  if (normalized === "veneer") {
+    return veneerEntryRows;
+  }
+  if (normalized === "plywood" || normalized === "mdf") {
+    return sheetBasedRawEntryRows;
+  }
+  if (["decorative", "marquetry", "fluted", "embossed"].includes(normalized)) {
+    return finishedProductEntryRows;
+  }
+  return [
+    {
+      keys: ["productCategory", "salesItemName", "itemName"],
+      template: {
+        xs: "1fr",
+        sm: "1fr 1fr",
+        md: "minmax(160px, 1.1fr) minmax(220px, 1.8fr) minmax(240px, 2.2fr)",
+      },
+    },
+    {
+      keys: [
+        "quantitySheets",
+        "length",
+        "width",
+        "thickness",
+        "sqm",
+        "ratePerSqf",
+        "amount",
+        "remark",
+      ],
+      template: {
+        xs: "1fr 1fr",
+        sm: "repeat(4, minmax(120px, 1fr))",
+        md: "repeat(8, minmax(110px, 1fr))",
+      },
+    },
+  ];
+}
 
 const itemDetailColumns = [
   { key: "itemName", label: "Item Name", minWidth: 180 },
@@ -489,7 +636,7 @@ export const OrderLineItemsTable = forwardRef<
           ? { ...column, options: itemOptions }
           : column.key === "subCategory" && column.type === "select"
             ? { ...column, options: subCategoryOptions }
-          : column,
+            : column,
       ),
     [isFinishedOrder, isUnifiedOrder, itemOptions, subCategoryOptions],
   );
@@ -550,9 +697,9 @@ export const OrderLineItemsTable = forwardRef<
         lineItems.map((row) =>
           row.id === editingRowId
             ? {
-                id: row.id,
-                ...mapValuesToLineItem(draftValues),
-              }
+              id: row.id,
+              ...mapValuesToLineItem(draftValues),
+            }
             : row,
         ),
       );
@@ -637,11 +784,9 @@ export const OrderLineItemsTable = forwardRef<
     ],
   );
 
-  const entryRows = isUnifiedOrder
-    ? unifiedEntryRows
-    : isFinishedOrder
-      ? finishedEntryRows
-      : rawEntryRows;
+  const entryRows = isFinishedOrder
+    ? finishedEntryRows
+    : getDynamicEntryRows(draftValues.productCategory);
   const columnsByKey = useMemo(() => {
     const map = new Map<string, OrderLineItemColumn>();
     columns.forEach((column) => map.set(column.key, column));
@@ -659,8 +804,7 @@ export const OrderLineItemsTable = forwardRef<
           <Stack sx={{ gap: 1.15 }}>
             <FormSectionHeader
               title={
-                `${isFinishedOrder ? "Finished Order Item" : "Raw Order Item"}${
-                  editingRowId ? " · Editing" : ""
+                `${isFinishedOrder ? "Finished Order Item" : "Raw Order Item"}${editingRowId ? " · Editing" : ""
                 }`
               }
             />
@@ -695,10 +839,10 @@ export const OrderLineItemsTable = forwardRef<
                           currentValues: draftValues,
                           errorText: draftSubmitAttempted
                             ? getFieldValidationError(
-                                column,
-                                draftValues,
-                                isFinishedOrder,
-                              )
+                              column,
+                              draftValues,
+                              isFinishedOrder,
+                            )
                             : "",
                           itemRows,
                           onChange: (value) =>
@@ -771,109 +915,109 @@ export const OrderLineItemsTable = forwardRef<
         >
           <FormSectionHeader title="Order Items" />
           <Box sx={(theme) => ({ ...getScrollableTableSx(theme), mx: -1.75, mt: 1.15 })}>
-              <Table
-                size="medium"
-                sx={{ minWidth: isUnifiedOrder ? 1500 : isFinishedOrder ? 1080 : 1020 }}
-              >
-                <TableHead>
-                  <TableRow>
-                    {(isUnifiedOrder
-                      ? unifiedListingHeaders
-                      : isFinishedOrder
+            <Table
+              size="medium"
+              sx={{ minWidth: isUnifiedOrder ? 1500 : isFinishedOrder ? 1080 : 1020 }}
+            >
+              <TableHead>
+                <TableRow>
+                  {(isUnifiedOrder
+                    ? unifiedListingHeaders
+                    : isFinishedOrder
                       ? finishedListingHeaders
                       : rawListingHeaders
-                    ).map((header) => (
-                      <TableCell
-                        key={header.label}
-                        sx={(theme) =>
-                          getHeaderCellSx(theme, header.minWidth, header.align)
-                        }
-                      >
-                        {header.label}
-                      </TableCell>
-                    ))}
-                    {!readOnly ? (
-                      <TableCell
-                        sx={(theme) => getHeaderCellSx(theme, 96, "center")}
-                      >
-                        Actions
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {lineItems.map((row, index) => {
-                    const isEditing = editingRowId === row.id;
+                  ).map((header) => (
+                    <TableCell
+                      key={header.label}
+                      sx={(theme) =>
+                        getHeaderCellSx(theme, header.minWidth, header.align)
+                      }
+                    >
+                      {header.label}
+                    </TableCell>
+                  ))}
+                  {!readOnly ? (
+                    <TableCell
+                      sx={(theme) => getHeaderCellSx(theme, 96, "center")}
+                    >
+                      Actions
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {lineItems.map((row, index) => {
+                  const isEditing = editingRowId === row.id;
 
-                    return (
-                      <TableRow
-                        key={row.id}
-                        sx={(theme) => ({
-                          backgroundColor: isEditing
-                            ? theme.customTokens.navigation.hoverBackground
-                            : index % 2 === 0
-                              ? theme.customTokens.surfaces.surface
-                              : theme.customTokens.surfaces.alt,
-                        })}
-                      >
-                        {(isUnifiedOrder
-                          ? getUnifiedListingValues(row, index)
-                          : isFinishedOrder
+                  return (
+                    <TableRow
+                      key={row.id}
+                      sx={(theme) => ({
+                        backgroundColor: isEditing
+                          ? theme.customTokens.navigation.hoverBackground
+                          : index % 2 === 0
+                            ? theme.customTokens.surfaces.surface
+                            : theme.customTokens.surfaces.alt,
+                      })}
+                    >
+                      {(isUnifiedOrder
+                        ? getUnifiedListingValues(row, index)
+                        : isFinishedOrder
                           ? getFinishedListingValues(row, index)
                           : getRawListingValues(row, index)
-                        ).map((cell) => (
-                          <TableCell
-                            key={cell.label}
-                            sx={(theme) => ({
-                              ...getBodyCellSx(theme, cell.align),
-                              fontSize: "14px",
-                              fontWeight: cell.emphasize ? 500 : 400,
-                            })}
+                      ).map((cell) => (
+                        <TableCell
+                          key={cell.label}
+                          sx={(theme) => ({
+                            ...getBodyCellSx(theme, cell.align),
+                            fontSize: "14px",
+                            fontWeight: cell.emphasize ? 500 : 400,
+                          })}
+                        >
+                          {cell.value || "—"}
+                        </TableCell>
+                      ))}
+                      {!readOnly ? (
+                        <TableCell
+                          align="center"
+                          sx={(theme) => ({
+                            ...getBodyCellSx(theme, "center"),
+                          })}
+                        >
+                          <Stack
+                            direction="row"
+                            justifyContent="center"
+                            spacing={0.5}
                           >
-                            {cell.value || "—"}
-                          </TableCell>
-                        ))}
-                        {!readOnly ? (
-                          <TableCell
-                            align="center"
-                            sx={(theme) => ({
-                              ...getBodyCellSx(theme, "center"),
-                            })}
-                          >
-                            <Stack
-                              direction="row"
-                              justifyContent="center"
-                              spacing={0.5}
+                            <IconButton
+                              aria-label="Edit item"
+                              disabled={isEditing}
+                              onClick={() => handleStartEdit(row)}
+                              size="small"
+                              sx={(theme) => getActionButtonSx(theme)}
+                              title="Edit"
                             >
-                              <IconButton
-                                aria-label="Edit item"
-                                disabled={isEditing}
-                                onClick={() => handleStartEdit(row)}
-                                size="small"
-                                sx={(theme) => getActionButtonSx(theme)}
-                                title="Edit"
-                              >
-                                <Pencil size={15} />
-                              </IconButton>
-                              <IconButton
-                                aria-label="Remove item"
-                                onClick={() => handleDeleteLineItem(row.id)}
-                                size="small"
-                                sx={(theme) => getActionButtonSx(theme)}
-                                title="Remove"
-                              >
-                                <Trash2 size={15} />
-                              </IconButton>
-                            </Stack>
-                          </TableCell>
-                        ) : null}
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </Box>
+                              <Pencil size={15} />
+                            </IconButton>
+                            <IconButton
+                              aria-label="Remove item"
+                              onClick={() => handleDeleteLineItem(row.id)}
+                              size="small"
+                              sx={(theme) => getActionButtonSx(theme)}
+                              title="Remove"
+                            >
+                              <Trash2 size={15} />
+                            </IconButton>
+                          </Stack>
+                        </TableCell>
+                      ) : null}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </Box>
+        </Box>
       ) : null}
 
       <ItemDetailsDialog
@@ -1249,10 +1393,11 @@ function applyLineItemCalculations(
       : areaValues;
   const sqf = parsePositiveNumber(nextValues.totalSqm);
   const ratePerSqf = parsePositiveNumber(nextValues.ratePerSqf);
+  const effectiveArea = sqf > 0 ? sqf : sqm;
 
   return {
     ...nextValues,
-    amount: sqf > 0 && ratePerSqf > 0 ? formatMoneyValue(sqf * ratePerSqf) : "",
+    amount: effectiveArea > 0 && ratePerSqf > 0 ? formatMoneyValue(effectiveArea * ratePerSqf) : "",
   };
 }
 
@@ -1262,7 +1407,7 @@ function applyDimensionAreaCalculations(
 ): Record<string, string> {
   const length = parseDimensionToMeters(values.length);
   const width = parseDimensionToMeters(values.width);
-  const sheets = parsePositiveNumber(values.quantitySheets);
+  const sheets = parsePositiveNumber(values.quantitySheets) || (values.productCategory?.toLowerCase() === "veneer" ? 1 : 0);
 
   if (length > 0 && width > 0 && sheets > 0) {
     const sqm = length * width * sheets;
@@ -1401,16 +1546,16 @@ function renderField({
           },
           ...(column.readOnly
             ? {
-                "& .MuiInputBase-root": {
-                  minHeight: 40,
-                  backgroundColor: theme.customTokens.surfaces.alt,
-                  color: theme.customTokens.text.secondary,
-                  cursor: "default",
-                },
-                "& .MuiInputBase-input": {
-                  fontWeight: 600,
-                },
-              }
+              "& .MuiInputBase-root": {
+                minHeight: 40,
+                backgroundColor: theme.customTokens.surfaces.alt,
+                color: theme.customTokens.text.secondary,
+                cursor: "default",
+              },
+              "& .MuiInputBase-input": {
+                fontWeight: 600,
+              },
+            }
             : {}),
         })}
       />

@@ -7,6 +7,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Snackbar,
   Stack,
   TextField,
   Typography,
@@ -15,6 +16,7 @@ import {
 import { CheckCircle2, Eye, Pencil, Plus, RotateCcw, XCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
+import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -86,6 +88,11 @@ export function SawingListPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewRecord, setViewRecord] = useState<any | null>(null);
 
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
   // Reset page and selection when tab or search changes
   useEffect(() => {
     setPage(1);
@@ -149,8 +156,15 @@ export function SawingListPage() {
       setRevertDialogOpen(false);
       setRevertTargetRow(null);
       setRefreshTrigger((c) => c + 1);
+      setToastNotification({
+        message: "Sawing record reverted successfully.",
+        severity: "success",
+      });
     } catch (err: any) {
-      alert(err.message || "Failed to revert.");
+      setToastNotification({
+        message: err.message || "Failed to revert.",
+        severity: "error",
+      });
     } finally {
       setIsReverting(false);
     }
@@ -171,8 +185,15 @@ export function SawingListPage() {
       setTotalCount((c) => Math.max(0, c - 1));
       setRejectDialogOpen(false);
       setRejectTargetRow(null);
+      setToastNotification({
+        message: "Sawing item marked as rejected.",
+        severity: "success",
+      });
     } catch (err: any) {
-      alert(err.message || "Failed to reject.");
+      setToastNotification({
+        message: err.message || "Failed to reject.",
+        severity: "error",
+      });
     } finally {
       setIsRejecting(false);
     }
@@ -193,6 +214,7 @@ export function SawingListPage() {
     if (inspectionTargetRows.length === 0) return;
     setIsIssuingInspection(true);
     try {
+      const count = inspectionTargetRows.length;
       inspectionTargetRows.forEach((row) => {
         const issuedDate = row.issueDate || row.issuedDate;
         const sawingDate = row.sawingDate || row.processDate;
@@ -222,8 +244,15 @@ export function SawingListPage() {
       setSelectionResetKey((k) => k + 1);
       setInspectionDialogOpen(false);
       setInspectionTargetRows([]);
+      setToastNotification({
+        message: `Issued ${count} item(s) to Sawing Inspection successfully.`,
+        severity: "success",
+      });
     } catch (err: any) {
-      alert(err.message || "Failed to issue for inspection.");
+      setToastNotification({
+        message: err.message || "Failed to issue for inspection.",
+        severity: "error",
+      });
     } finally {
       setIsIssuingInspection(false);
     }
@@ -430,69 +459,38 @@ export function SawingListPage() {
       </Stack>
 
       {/* ── Revert Confirmation Dialog ── */}
-      <Dialog open={revertDialogOpen} onClose={() => setRevertDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Confirm Revert</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 2, fontWeight: 500 }}>
-            Do you really want to revert?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {activeTab === "issued"
-              ? "This will revert the item back to the storage warehouse."
-              : activeTab === "rejected"
-              ? "This will revert this rejected item back to Sawing Done."
-              : "This will revert this completed item back to the issued tab."}
-          </Typography>
-          <TextField
-            label="Remark (Optional)"
-            fullWidth
-            size="small"
-            value={revertRemark}
-            onChange={(e) => setRevertRemark(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setRevertDialogOpen(false)} disabled={isReverting} color="inherit">
-            No
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => void handleConfirmRevert()}
-            disabled={isReverting}
-          >
-            {isReverting ? "Reverting..." : "Yes"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Revert"
+        description={
+          activeTab === "issued"
+            ? "Are you sure you want to revert this item back to the storage warehouse?"
+            : activeTab === "rejected"
+              ? "Are you sure you want to revert this rejected item back to Sawing Done?"
+              : "Are you sure you want to revert this completed item back to the issued tab?"
+        }
+        onClose={() => setRevertDialogOpen(false)}
+        onConfirm={() => void handleConfirmRevert()}
+        open={revertDialogOpen}
+        title="Confirm Revert"
+        tone="danger"
+      />
 
       {/* ── Issue for Inspection Confirmation Dialog ── */}
-      <Dialog open={inspectionDialogOpen} onClose={() => setInspectionDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Confirm Issue for Inspection</DialogTitle>
-        <DialogContent>
-          <Typography variant="body1" sx={{ mb: 1, fontWeight: 500 }}>
-            Do you really want to issue for inspection?
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {inspectionTargetRows.length === 1
-              ? `Item "${inspectionTargetRows[0]?.itemName || "Veneer Block"}" will be issued to Sawing Inspection.`
-              : `${inspectionTargetRows.length} items will be issued to Sawing Inspection.`}
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setInspectionDialogOpen(false)} disabled={isIssuingInspection} color="inherit">
-            No
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => void handleConfirmIssueForInspection()}
-            disabled={isIssuingInspection}
-          >
-            {isIssuingInspection ? "Issuing..." : "Yes"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          inspectionTargetRows.length === 1
+            ? `Are you sure you want to issue "${inspectionTargetRows[0]?.itemName || "Veneer Block"}" to Sawing Inspection?`
+            : `Are you sure you want to issue ${inspectionTargetRows.length} items to Sawing Inspection?`
+        }
+        onClose={() => setInspectionDialogOpen(false)}
+        onConfirm={() => void handleConfirmIssueForInspection()}
+        open={inspectionDialogOpen}
+        title="Confirm Issue for Inspection"
+        tone="default"
+      />
 
       {/* ── Reject Confirmation Dialog ── */}
       <Dialog open={rejectDialogOpen} onClose={() => setRejectDialogOpen(false)} maxWidth="xs" fullWidth>
@@ -553,6 +551,24 @@ export function SawingListPage() {
           <Button onClick={() => setViewModalOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        open={Boolean(toastNotification)}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            sx={{ width: "100%", boxShadow: 3 }}
+            variant="filled"
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </FactoryPageShell>
   );
 }

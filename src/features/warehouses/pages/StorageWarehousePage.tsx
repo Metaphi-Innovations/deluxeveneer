@@ -635,12 +635,12 @@ export function StorageWarehousePage({
     activeInventory === "raw-veneer"
       ? "raw veneer"
       : activeInventory === "plywood"
-      ? "plywood"
-      : activeInventory === "mdf"
-      ? "MDF"
-      : activeInventory === "consumables"
-        ? "consumable"
-        : "veneer block";
+        ? "plywood"
+        : activeInventory === "mdf"
+          ? "MDF"
+          : activeInventory === "consumables"
+            ? "consumable"
+            : "veneer block";
 
   const bulkSecondaryButtonSx = {
     minHeight: 36,

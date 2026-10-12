@@ -8,6 +8,7 @@ import {
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { MasterFormFields, hasFormFieldErrors } from "./MasterFormFields";
 import { MasterPageShell } from "./MasterPageShell";
@@ -137,10 +138,54 @@ export function MasterFormPage({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [toastMessage, setToastMessage] = useState("");
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
   const formDefinition = getMasterFormDefinitionForMode(localDefinition, mode);
+
   const handleCancel = () => {
-    navigate(cancelPath, { replace: true });
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(cancelPath, { replace: true });
+      },
+    });
+  };
+
+  const handleBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: `Are you sure you want to go back to the ${localDefinition.title} list?`,
+        action: () => {
+          navigate(paths.list);
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          navigate(cancelPath, { replace: true });
+        },
+      });
+    }
   };
 
   useEffect(() => {
@@ -277,7 +322,7 @@ export function MasterFormPage({
           const fieldLabel = fieldDef ? fieldDef.label.replace(/\s*\*+$/, "") : key;
           const msg = `${fieldLabel} "${val.trim()}" already exists.`;
           setSaveError(msg);
-          setToastMessage(msg);
+          setToastNotification({ message: msg, severity: "error" });
           return;
         }
       }
@@ -313,11 +358,16 @@ export function MasterFormPage({
         createLocalMasterRecord(localDefinition, valuesToSave);
       }
 
-      navigate(paths.list);
+      const successMsg = `${localDefinition.title.replace(/ Master$/, "")} ${mode === "add" ? "created" : "updated"} successfully.`;
+      navigate(paths.list, {
+        state: {
+          masterFlashMessage: successMsg,
+        },
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unable to save record.";
       setSaveError(msg);
-      setToastMessage(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -391,6 +441,11 @@ export function MasterFormPage({
 
   return (
     <MasterPageShell
+      backNav={{
+        label: `Back to ${localDefinition.title}`,
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Masters", to: "/masters" },
         { label: localDefinition.title, to: paths.list },
@@ -452,7 +507,7 @@ export function MasterFormPage({
                 <Button
                   variant="outlined"
                   startIcon={<ChevronLeft size={16} />}
-                  onClick={() => navigate(paths.list)}
+                  onClick={handleBack}
                   sx={(theme) => mastersFormOutlinedButtonSx(theme)}
                 >
                   Back
@@ -504,20 +559,37 @@ export function MasterFormPage({
       </Box>
 
       <Snackbar
-        open={Boolean(toastMessage)}
+        open={Boolean(toastNotification)}
         autoHideDuration={4000}
-        onClose={() => setToastMessage("")}
+        onClose={() => setToastNotification(null)}
         anchorOrigin={{ vertical: "top", horizontal: "right" }}
       >
-        <Alert
-          onClose={() => setToastMessage("")}
-          severity="error"
-          variant="filled"
-          sx={{ width: "100%", boxShadow: 3 }}
-        >
-          {toastMessage}
-        </Alert>
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
       </Snackbar>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
   );
 }

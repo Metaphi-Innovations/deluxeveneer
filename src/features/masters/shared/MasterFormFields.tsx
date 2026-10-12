@@ -625,6 +625,7 @@ export function MasterFormFields({
                     slotProps={{
                       input: {
                         readOnly: fieldIsReadOnly,
+                        placeholder: !fieldIsReadOnly ? getFieldPlaceholder(field) : undefined,
                       },
                       htmlInput: {
                         inputMode: "numeric",
@@ -1376,11 +1377,11 @@ function getFieldValidationError(
   }
 
   if (isGstNoField(field) && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(textValue)) {
-    return "GSTIN should be 15 characters in the format 22AAAAA0000A1Z5.";
+    return "GSTIN should be 15 characters (e.g. 27ABCDE1234F2Z5).";
   }
 
   if (isHsnCodeField(field) && !/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
-    return "HSN Code must be 4, 6, or 8 digits only.";
+    return "HSN Code must be 4, 6, or 8 digits only (e.g. 44089090).";
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select" && !/^\d+$/.test(textValue)) {
@@ -1388,7 +1389,7 @@ function getFieldValidationError(
   }
 
   if (isPincodeField(field) && !/^\d{6}$/.test(textValue)) {
-    return "Pincode should be exactly 6 digits.";
+    return "Pincode should be exactly 6 digits (e.g. 400001).";
   }
 
   if (isAgeField(field)) {
@@ -1402,11 +1403,11 @@ function getFieldValidationError(
   }
 
   if (isAadhaarField(field) && !/^\d{12}$/.test(textValue)) {
-    return "Aadhaar No should be exactly 12 digits.";
+    return "Aadhaar No should be exactly 12 digits (e.g. 123456789012).";
   }
 
   if (isPanField(field) && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(textValue)) {
-    return "PAN No should be 10 characters in the format AAAAA9999A.";
+    return "PAN No should be 10 characters (e.g. ABCDE1234F).";
   }
 
   if (isFscCodeField(field) && !/^FSC-[CNP]\d{6}$/.test(textValue)) {
@@ -1875,6 +1876,66 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
   return undefined;
 }
 
+function getFieldPlaceholder(field: MasterFieldDefinition): string {
+  if (field.placeholder) {
+    return field.placeholder;
+  }
+
+  const cleanLabel = field.label.replace(/\s*\*+$/, "").trim();
+  const normalizedKey = getNormalizedFieldKey(field);
+  const normalizedLabel = cleanLabel.toLowerCase();
+
+  if (isPhoneField(field)) {
+    return "e.g. 9876543210";
+  }
+
+  if (isEmailField(field)) {
+    return "e.g. name@example.com";
+  }
+
+  if (isAadhaarField(field)) {
+    return "e.g. 123456789012";
+  }
+
+  if (isPanField(field)) {
+    return "e.g. ABCDE1234F";
+  }
+
+  if (isGstNoField(field)) {
+    return "e.g. 27ABCDE1234F2Z5";
+  }
+
+  if (isHsnCodeField(field)) {
+    return "e.g. 44089090";
+  }
+
+  if (isPincodeField(field)) {
+    return "e.g. 400001";
+  }
+
+  if (isAgeField(field)) {
+    return "Enter Age";
+  }
+
+  if (normalizedKey === "remark" || normalizedKey === "remarks" || normalizedLabel === "remark" || normalizedLabel === "remarks") {
+    return "Enter remark";
+  }
+
+  if (field.type === "select" || isLocationField(field)) {
+    return `Select ${cleanLabel}`;
+  }
+
+  if (field.type === "date") {
+    return `Select ${cleanLabel}`;
+  }
+
+  if (field.type === "file") {
+    return `Upload ${cleanLabel}`;
+  }
+
+  return `Enter ${cleanLabel.toLowerCase()}`;
+}
+
 function getTextFieldSlotProps(
   field: MasterFieldDefinition,
   readOnly: boolean,
@@ -1884,6 +1945,7 @@ function getTextFieldSlotProps(
   return {
     input: {
       readOnly,
+      placeholder: !readOnly ? getFieldPlaceholder(field) : undefined,
     },
     htmlInput: {
       autoComplete: "off",

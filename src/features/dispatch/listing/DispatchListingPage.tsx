@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
-import { Button, Stack } from "@mui/material";
-import { CheckCircle2, Eye, Truck } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { CheckCircle2, Eye, RotateCcw, Truck } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -10,6 +11,7 @@ import {
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
 import {
+  revertDispatchEntry,
   type DispatchTabValue,
   type PackingRecord,
 } from "../../packing/shared/packingStore";
@@ -26,6 +28,7 @@ const dispatchTabs = [
 
 export function DispatchPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     activeTab,
     columns,
@@ -37,6 +40,28 @@ export function DispatchPage() {
   const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
     null,
   );
+  const [revertRecord, setRevertRecord] = useState<PackingRecord | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  useEffect(() => {
+    const flashMessage = (
+      location.state as { dispatchFlashMessage?: string } | null
+    )?.dispatchFlashMessage;
+
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
   const canCreate = canAccessPermission("dispatch", "create");
   const canEdit = canAccessPermission("dispatch", "edit");
   const canView = canAccessPermission("dispatch", "view");
@@ -85,15 +110,25 @@ export function DispatchPage() {
             },
           ]
         : []),
+      ...(canEdit || canCreate
+        ? [
+            {
+              id: "revert",
+              label: "Revert",
+              icon: RotateCcw,
+              tone: "danger" as const,
+              onSelect: (row: PackingRecord) => setRevertRecord(row),
+            },
+          ]
+        : []),
     ],
-    [canView, navigate],
+    [canCreate, canEdit, canView, navigate],
   );
 
   return (
     <MasterPageShell
       breadcrumbs={[{ label: "Dispatch" }]}
       title="Dispatch"
-      subtitle="Track items ready for and completed at dispatch."
       contentGap={2}
     >
       <ModuleProcessTabs
@@ -117,11 +152,7 @@ export function DispatchPage() {
           <ClearableSearchField
             value={searchValue}
             onChange={setSearchValue}
-            placeholder={
-              activeTab === "issued"
-                ? "Search issued for dispatch..."
-                : "Search dispatch done..."
-            }
+            placeholder="Search..."
             sx={{
               width: { xs: "100%", sm: 300 },
               maxWidth: "100%",
@@ -136,7 +167,7 @@ export function DispatchPage() {
               sx={listingToolbarButtonSx}
               variant="outlined"
             >
-              Full Dispatch Form
+              Create Dispatch
             </Button>
           ) : null}
         </Stack>
@@ -159,7 +190,56 @@ export function DispatchPage() {
         open={Boolean(markDoneRecord)}
         record={markDoneRecord}
         onClose={() => setMarkDoneRecord(null)}
+        onDone={(rec) => {
+          setToastNotification({
+            message: `Order ${rec.orderNo} (Item ${rec.orderItemNo}) marked as Dispatch Done.`,
+            severity: "success",
+          });
+        }}
       />
+
+      <ConfirmationDialog
+        cancelLabel="Keep Dispatched"
+        confirmLabel="Revert to Issued"
+        description={
+          revertRecord
+            ? `Are you sure you want to revert dispatch for order ${revertRecord.orderNo} (Item ${revertRecord.orderItemNo}) back to Issued for Dispatch?`
+            : undefined
+        }
+        onClose={() => setRevertRecord(null)}
+        onConfirm={() => {
+          if (revertRecord) {
+            const orderInfo = `${revertRecord.orderNo} (Item ${revertRecord.orderItemNo})`;
+            revertDispatchEntry(revertRecord.id);
+            setRevertRecord(null);
+            setToastNotification({
+              message: `Dispatch for order ${orderInfo} reverted to Issued queue.`,
+              severity: "success",
+            });
+          }
+        }}
+        open={Boolean(revertRecord)}
+        title="Revert Dispatch"
+        tone="danger"
+      />
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </MasterPageShell>
   );
 }

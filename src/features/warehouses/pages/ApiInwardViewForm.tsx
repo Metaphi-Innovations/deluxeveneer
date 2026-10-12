@@ -18,6 +18,7 @@ import { ChevronLeft, Pencil } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { MasterSectionCard } from "../../masters/shared";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { getInwardGstMode } from "../../masters/shared/masterDefinitions";
 import { canAccessPermission } from "../../permissions";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
@@ -326,8 +327,27 @@ export function ApiInwardViewForm({
     ];
   }, [detail]);
 
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
   const closeForm = () => {
-    navigate(listPath, { replace: true, flushSync: true });
+    setLeaveConfirmation({
+      open: true,
+      title: "Leave Page",
+      description: "Are you sure you want to go back to the warehouse stock list?",
+      action: () => {
+        navigate(listPath, { replace: true, flushSync: true });
+      },
+    });
   };
 
   if (isLoading) {
@@ -374,6 +394,11 @@ export function ApiInwardViewForm({
 
   return (
     <InventoryPageShell
+      backNav={{
+        label: "Back to Stock",
+        to: listPath,
+        onBack: closeForm,
+      }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
@@ -786,6 +811,21 @@ export function ApiInwardViewForm({
           </Box>
         </Box>
       </Stack>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </InventoryPageShell>
   );
 }

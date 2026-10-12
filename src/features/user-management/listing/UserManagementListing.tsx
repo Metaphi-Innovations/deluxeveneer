@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import {
   Alert,
@@ -14,6 +14,7 @@ import {
   LinearProgress,
   MenuItem,
   Select,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -40,8 +41,9 @@ import {
   Pencil,
   Plus,
 } from "lucide-react";
-import { Link as RouterLink, useNavigate } from "react-router";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ErpToggleSwitch } from "../../../components/inputs/ErpToggleSwitch";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
@@ -139,6 +141,38 @@ export function UserManagementListing() {
     userFilter,
     userOptions,
   } = useUserList(canEdit);
+  const location = useLocation();
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+  const [statusConfirmDialog, setStatusConfirmDialog] = useState<{
+    open: boolean;
+    row: UserManagementRecord | null;
+    checked: boolean;
+  }>({
+    open: false,
+    row: null,
+    checked: false,
+  });
+
+  useEffect(() => {
+    const flashMessage = (
+      location.state as { userManagementFlashMessage?: string } | null
+    )?.userManagementFlashMessage;
+
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
+
   const [passwordDialogUser, setPasswordDialogUser] =
     useState<UserManagementRecord | null>(null);
   const [newPassword, setNewPassword] = useState("");
@@ -288,19 +322,77 @@ export function UserManagementListing() {
     try {
       await changeUserPassword(passwordDialogUser.id, newPassword);
       void invalidateUsers();
+      const targetUserDisplayName = getUserDisplayName(passwordDialogUser);
       setPasswordSuccessMessage("Password changed successfully.");
+      setToastNotification({
+        message: `Password changed successfully for ${targetUserDisplayName}.`,
+        severity: "success",
+      });
       setPasswordDialogUser(null);
       setNewPassword("");
       setConfirmPassword("");
       setShowNewPassword(false);
       setShowConfirmPassword(false);
     } catch (error) {
-      setPasswordError(
-        error instanceof Error ? error.message : "Unable to change password.",
-      );
+      const msg = error instanceof Error ? error.message : "Unable to change password.";
+      setPasswordError(msg);
+      setToastNotification({
+        message: msg,
+        severity: "error",
+      });
     } finally {
       setIsChangingPassword(false);
     }
+  };
+
+  const executeUserStatusChange = async (
+    row: UserManagementRecord,
+    nextChecked: boolean,
+  ) => {
+    const userDisplayName = getUserDisplayName(row);
+    const prevChecked = statusOverrides[row.id] ?? row.isActive;
+
+    setStatusOverrides((current) => ({
+      ...current,
+      [row.id]: nextChecked,
+    }));
+
+    try {
+      await handleStatusChange(row, nextChecked);
+      setToastNotification({
+        message: `${userDisplayName} ${nextChecked ? "activated" : "deactivated"} successfully.`,
+        severity: "success",
+      });
+    } catch (error) {
+      setStatusOverrides((current) => ({
+        ...current,
+        [row.id]: prevChecked,
+      }));
+      setToastNotification({
+        message:
+          error instanceof Error
+            ? error.message
+            : `Unable to ${nextChecked ? "activate" : "deactivate"} ${userDisplayName}.`,
+        severity: "error",
+      });
+    }
+  };
+
+  const onStatusToggleRequested = (
+    row: UserManagementRecord,
+    nextChecked: boolean,
+  ) => {
+    if (!nextChecked) {
+      // Deactivating a user account is an important/destructive action; prompt confirmation alert
+      setStatusConfirmDialog({
+        open: true,
+        row,
+        checked: nextChecked,
+      });
+      return;
+    }
+
+    void executeUserStatusChange(row, nextChecked);
   };
 
   const handleOpenActionMenu = (
@@ -874,21 +966,9 @@ export function UserManagementListing() {
                           ariaLabel={`Active status for ${displayName}`}
                           checked={statusChecked}
                           disabled={statusDisabled}
-                          onChange={(nextChecked) => {
-                            setStatusOverrides((current) => ({
-                              ...current,
-                              [row.id]: nextChecked,
-                            }));
-
-                            Promise.resolve(
-                              handleStatusChange(row, nextChecked),
-                            ).catch(() => {
-                              setStatusOverrides((current) => ({
-                                ...current,
-                                [row.id]: statusChecked,
-                              }));
-                            });
-                          }}
+                          onChange={(nextChecked) =>
+                            onStatusToggleRequested(row, nextChecked)
+                          }
                         />
                       </TableCell>
 
@@ -1302,6 +1382,47 @@ export function UserManagementListing() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Deactivate"
+        description={`Are you sure you want to deactivate ${
+          statusConfirmDialog.row
+            ? `"${getUserDisplayName(statusConfirmDialog.row)}"`
+            : "this user"
+        }? Inactive users will no longer be able to log in to the portal.`}
+        onClose={() =>
+          setStatusConfirmDialog({ open: false, row: null, checked: false })
+        }
+        onConfirm={async () => {
+          const { row, checked } = statusConfirmDialog;
+          setStatusConfirmDialog({ open: false, row: null, checked: false });
+          if (row) {
+            await executeUserStatusChange(row, checked);
+          }
+        }}
+        open={statusConfirmDialog.open}
+        title="Deactivate User"
+        tone="danger"
+      />
     </MasterPageShell>
   );
 }

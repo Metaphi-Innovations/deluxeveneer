@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
-import { Button, Stack } from "@mui/material";
-import { CheckCircle2, Eye, PackageOpen, Plus } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { CheckCircle2, Eye, PackageOpen, Plus, RotateCcw } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -16,6 +17,7 @@ import { PackingMarkDoneDialog } from "../form/PackingMarkDoneDialog";
 import { usePackingList } from "../hooks/usePackingList";
 import {
   getPackingPaths,
+  revertPackingRecord,
   type PackingRecord,
   type PackingTabValue,
 } from "../shared/packingStore";
@@ -27,6 +29,7 @@ const packingTabs = [
 
 export function PackingListingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const paths = getPackingPaths();
   const {
     activeTab,
@@ -39,6 +42,27 @@ export function PackingListingPage() {
   const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
     null,
   );
+  const [revertRecord, setRevertRecord] = useState<PackingRecord | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+
+  useEffect(() => {
+    const flashMessage = (location.state as { packingFlashMessage?: string } | null)
+      ?.packingFlashMessage;
+
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
+    }
+  }, [location.pathname, location.search, location.state, navigate]);
   const canCreatePacking = canAccessPermission("packing", "create");
   const canEditPacking = canAccessPermission("packing", "edit");
   const canViewPacking = canAccessPermission("packing", "view");
@@ -49,24 +73,24 @@ export function PackingListingPage() {
     () => [
       ...(canViewPacking
         ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (row: PackingRecord) => navigate(paths.view(row.id)),
-            },
-          ]
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (row: PackingRecord) => navigate(paths.view(row.id)),
+          },
+        ]
         : []),
       ...(canEditPacking
         ? [
-            {
-              id: "mark-packing-done",
-              label: "Mark Packing Done",
-              icon: CheckCircle2,
-              tone: "primary" as const,
-              onSelect: (row: PackingRecord) => setMarkDoneRecord(row),
-            },
-          ]
+          {
+            id: "mark-packing-done",
+            label: "Mark Packing Done",
+            icon: CheckCircle2,
+            tone: "primary" as const,
+            onSelect: (row: PackingRecord) => setMarkDoneRecord(row),
+          },
+        ]
         : []),
     ],
     [canEditPacking, canViewPacking, navigate, paths],
@@ -76,39 +100,49 @@ export function PackingListingPage() {
     () => [
       ...(canViewPacking
         ? [
-            {
-              id: "view",
-              label: "View",
-              icon: Eye,
-              onSelect: (row: PackingRecord) => navigate(paths.view(row.id)),
-            },
-          ]
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (row: PackingRecord) => navigate(paths.view(row.id)),
+          },
+        ]
         : []),
       ...(canCreateDispatch || canViewDispatch
         ? [
-            {
-              id: "view-dispatch",
-              label: "Issue / View Dispatch",
-              icon: Plus,
-              tone: "primary" as const,
-              onSelect: (row: PackingRecord) =>
-                navigate(
-                  canCreateDispatch
-                    ? `/dispatch/add/${row.id}`
-                    : `/dispatch/view/${row.id}`,
-                ),
-            },
-          ]
+          {
+            id: "view-dispatch",
+            label: "Issue Dispatch",
+            icon: Plus,
+            tone: "primary" as const,
+            onSelect: (row: PackingRecord) =>
+              navigate(
+                canCreateDispatch
+                  ? `/dispatch/add/${row.id}`
+                  : `/dispatch/view/${row.id}`,
+              ),
+          },
+        ]
+        : []),
+      ...(canEditPacking
+        ? [
+          {
+            id: "revert",
+            label: "Revert",
+            icon: RotateCcw,
+            tone: "danger" as const,
+            onSelect: (row: PackingRecord) => setRevertRecord(row),
+          },
+        ]
         : []),
     ],
-    [canCreateDispatch, canViewDispatch, canViewPacking, navigate, paths],
+    [canCreateDispatch, canEditPacking, canViewDispatch, canViewPacking, navigate, paths],
   );
 
   return (
     <MasterPageShell
       breadcrumbs={[{ label: "Packing" }]}
       title="Packing"
-      subtitle="Track items awaiting and completed packing."
       contentGap={2}
     >
       <ModuleProcessTabs
@@ -132,11 +166,7 @@ export function PackingListingPage() {
           <ClearableSearchField
             value={searchValue}
             onChange={setSearchValue}
-            placeholder={
-              activeTab === "issued"
-                ? "Search issued for packing..."
-                : "Search packing done..."
-            }
+            placeholder="Search..."
             sx={{
               width: { xs: "100%", sm: 300 },
               maxWidth: "100%",
@@ -173,7 +203,56 @@ export function PackingListingPage() {
         open={Boolean(markDoneRecord)}
         record={markDoneRecord}
         onClose={() => setMarkDoneRecord(null)}
+        onDone={(rec) => {
+          setToastNotification({
+            message: `Order ${rec.orderNo} (Item ${rec.orderItemNo}) marked as Packing Done.`,
+            severity: "success",
+          });
+        }}
       />
+
+      <ConfirmationDialog
+        cancelLabel="Keep Completed"
+        confirmLabel="Revert to Issued"
+        description={
+          revertRecord
+            ? `Are you sure you want to revert packing for order ${revertRecord.orderNo} (Item ${revertRecord.orderItemNo}) back to Issued for Packing?`
+            : undefined
+        }
+        onClose={() => setRevertRecord(null)}
+        onConfirm={() => {
+          if (revertRecord) {
+            const orderInfo = `${revertRecord.orderNo} (Item ${revertRecord.orderItemNo})`;
+            revertPackingRecord(revertRecord.id);
+            setRevertRecord(null);
+            setToastNotification({
+              message: `Packing for order ${orderInfo} reverted to Issued queue.`,
+              severity: "success",
+            });
+          }
+        }}
+        open={Boolean(revertRecord)}
+        title="Revert Packing"
+        tone="danger"
+      />
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </MasterPageShell>
   );
 }

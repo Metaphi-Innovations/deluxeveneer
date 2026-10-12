@@ -20,10 +20,12 @@ import {
 
 export function PackingMarkDoneDialog({
   onClose,
+  onDone,
   open,
   record,
 }: {
   onClose: () => void;
+  onDone?: (record: PackingRecord) => void;
   open: boolean;
   record: PackingRecord | null;
 }) {
@@ -48,6 +50,7 @@ export function PackingMarkDoneDialog({
       packingDate,
       remark,
     });
+    onDone?.(record);
     onClose();
   };
 
