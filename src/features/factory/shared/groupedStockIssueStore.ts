@@ -129,16 +129,44 @@ export function getIssuedGroupedSheetsTotal(groupingRowId: string) {
   );
 }
 
+function readLeafCount(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.replace(/[^\d.]/g, ""));
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.floor(parsed));
+    }
+  }
+
+  return 0;
+}
+
+/** Original receipt. Sample and order issues never reduce this; a later receipt can raise it. */
+export function getReceivedGroupedLeaves(row: FactoryRecord) {
+  return Math.max(
+    0,
+    readLeafCount(row.originalNoOfLeaves),
+    readLeafCount(row.totalLeaves),
+    readLeafCount(row.noOfLeaves),
+  );
+}
+
 export function getOriginalGroupedSheets(row: FactoryRecord) {
-  const value = getFactoryRowSheetValue(row, [
+  const receivedLeaves = getReceivedGroupedLeaves(row);
+  if (receivedLeaves > 0) {
+    return receivedLeaves;
+  }
+
+  return getFactoryRowSheetValue(row, [
     "originalSheets",
     "totalNoOfSheets",
     "noOfSheets",
     "outputNoOfSheets",
     "issuedNoOfSheets",
   ]);
-
-  return value;
 }
 
 export function getAvailableGroupedSheets(row: FactoryRecord) {

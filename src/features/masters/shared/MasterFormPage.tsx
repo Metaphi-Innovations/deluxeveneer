@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
 import { ChevronLeft, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
@@ -8,6 +8,7 @@ import {
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { MasterFormFields, hasFormFieldErrors } from "./MasterFormFields";
 import { MasterPageShell } from "./MasterPageShell";
@@ -35,14 +36,23 @@ import {
 } from "./utils";
 
 interface MasterFormPageProps {
-  additionalValues?: Record<string, MasterFieldValue>;
+  additionalValues?: Record<string, MasterFieldValue> | undefined;
   afterFields?: ReactNode;
   beforeSave?: () => boolean;
   cancelTo?: string;
   definition: MasterDefinition;
   errorMessage?: string;
+  fieldActions?: Partial<Record<string, ReactNode>> | undefined;
   loading?: boolean;
   mode: "add" | "edit" | "view";
+  renderFields?: (context: {
+    definition: MasterDefinition;
+    values: Record<string, MasterFieldValue>;
+    onChange: (key: string, value: MasterFieldValue) => void;
+    readOnly: boolean;
+    showRequiredErrors: boolean;
+    hasSubmitted: boolean;
+  }) => ReactNode;
   /** When provided, used instead of looking up the row from local mock store. */
   record?: MasterRecord;
   onFieldChange?: (key: string, value: MasterFieldValue) => void;
@@ -91,11 +101,13 @@ export function MasterFormPage({
   cancelTo,
   definition,
   errorMessage = "",
+  fieldActions,
   loading = false,
   mode,
   onFieldChange,
   onSave,
   record,
+  renderFields,
 }: MasterFormPageProps) {
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
@@ -126,9 +138,54 @@ export function MasterFormPage({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
   const formDefinition = getMasterFormDefinitionForMode(localDefinition, mode);
+
   const handleCancel = () => {
-    navigate(cancelPath, { replace: true });
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(cancelPath, { replace: true });
+      },
+    });
+  };
+
+  const handleBack = () => {
+    if (mode === "view") {
+      setLeaveConfirmation({
+        open: true,
+        title: "Leave Page",
+        description: `Are you sure you want to go back to the ${localDefinition.title} list?`,
+        action: () => {
+          navigate(paths.list);
+        },
+      });
+    } else {
+      setLeaveConfirmation({
+        open: true,
+        title: "Discard Changes",
+        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+        action: () => {
+          navigate(cancelPath, { replace: true });
+        },
+      });
+    }
   };
 
   useEffect(() => {
@@ -136,9 +193,10 @@ export function MasterFormPage({
       const nextValues = buildMasterInitialValues(localDefinition, row);
 
       if (row) {
-        const phoneCountryCode = row.phoneNumberCountryCode;
+        const phoneCountryCode = row.phoneNumberCountryCode || row.mobileNumberCountryCode;
         if (typeof phoneCountryCode === "string" && phoneCountryCode.trim()) {
           nextValues.phoneNumberCountryCode = phoneCountryCode;
+          nextValues.mobileNumberCountryCode = phoneCountryCode;
         }
       }
 
@@ -166,7 +224,7 @@ export function MasterFormPage({
         ]}
         title={getMasterPageTitle(localDefinition, mode)}
       >
-        <ContentLoader label="Loading record..." minHeight={240} />
+        <ContentLoader label="Loading..." minHeight={240} />
       </MasterPageShell>
     );
   }
@@ -225,6 +283,51 @@ export function MasterFormPage({
       return;
     }
 
+    // Check for duplicate identifier or name only for the primary key of the CURRENT master
+    const MASTER_PRIMARY_KEYS: Record<string, string[]> = {
+      "item-name-master": ["itemName", "itemCode"],
+      "item-category-master": ["categoryName"],
+      "item-sub-category-master": ["itemSubCategory"],
+      "color-master": ["colorName"],
+      "currency-master": ["currencyName"],
+      "cut-master": ["cutName"],
+      "department-master": ["departmentName"],
+      "grade-master": ["gradeName"],
+      "unit-master": ["unitName", "symbolicName"],
+      "gst-master": ["gstPercentage"],
+      "hsn-master": ["hsnCode", "code"],
+      "supplier-master": ["supplierName", "gstNo"],
+      "customer-master": ["customerName", "gstNo"],
+    };
+
+    const targetKeysToCheck = MASTER_PRIMARY_KEYS[localDefinition.slug] ?? [];
+
+    for (const key of targetKeysToCheck) {
+      const val = values[key];
+      if (typeof val === "string" && val.trim().length > 0) {
+        const normalizedVal = val.trim().toLowerCase();
+        const duplicate = localDefinition.rows.find((existingRow) => {
+          if (row && existingRow.id === row.id) {
+            return false;
+          }
+          const existingVal = existingRow[key] || (key === "hsnCode" ? existingRow.code : undefined);
+          return (
+            typeof existingVal === "string" &&
+            existingVal.trim().toLowerCase() === normalizedVal
+          );
+        });
+
+        if (duplicate) {
+          const fieldDef = formDefinition.fields.find((f) => f.key === key);
+          const fieldLabel = fieldDef ? fieldDef.label.replace(/\s*\*+$/, "") : key;
+          const msg = `${fieldLabel} "${val.trim()}" already exists.`;
+          setSaveError(msg);
+          setToastNotification({ message: msg, severity: "error" });
+          return;
+        }
+      }
+    }
+
     const valuesToSave = {
       ...values,
       ...(additionalValues ?? {}),
@@ -255,11 +358,16 @@ export function MasterFormPage({
         createLocalMasterRecord(localDefinition, valuesToSave);
       }
 
-      navigate(paths.list);
+      const successMsg = `${localDefinition.title.replace(/ Master$/, "")} ${mode === "add" ? "created" : "updated"} successfully.`;
+      navigate(paths.list, {
+        state: {
+          masterFlashMessage: successMsg,
+        },
+      });
     } catch (error) {
-      setSaveError(
-        error instanceof Error ? error.message : "Unable to save record.",
-      );
+      const msg = error instanceof Error ? error.message : "Unable to save record.";
+      setSaveError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -333,6 +441,11 @@ export function MasterFormPage({
 
   return (
     <MasterPageShell
+      backNav={{
+        label: `Back to ${localDefinition.title}`,
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Masters", to: "/masters" },
         { label: localDefinition.title, to: paths.list },
@@ -354,16 +467,28 @@ export function MasterFormPage({
             <Alert severity="error">{errorMessage || saveError}</Alert>
           ) : null}
 
-          <MasterFormFields
-            compact
-            definition={formDefinition}
-            onChange={handleFieldChange}
-            presentation={mode === "view" ? "details" : "form"}
-            readOnly={mode === "view"}
-            showRequiredErrors={mode !== "view" && hasSubmitted}
-            values={values}
-            variant="masters"
-          />
+          {renderFields ? (
+            renderFields({
+              definition: formDefinition,
+              values,
+              onChange: handleFieldChange,
+              readOnly: mode === "view",
+              showRequiredErrors: mode !== "view" && hasSubmitted,
+              hasSubmitted,
+            })
+          ) : (
+            <MasterFormFields
+              compact
+              definition={formDefinition}
+              fieldActions={fieldActions}
+              onChange={handleFieldChange}
+              presentation={mode === "view" ? "details" : "form"}
+              readOnly={mode === "view"}
+              showRequiredErrors={mode !== "view" && hasSubmitted}
+              values={values}
+              variant="masters"
+            />
+          )}
 
           {afterFields}
 
@@ -382,7 +507,7 @@ export function MasterFormPage({
                 <Button
                   variant="outlined"
                   startIcon={<ChevronLeft size={16} />}
-                  onClick={() => navigate(paths.list)}
+                  onClick={handleBack}
                   sx={(theme) => mastersFormOutlinedButtonSx(theme)}
                 >
                   Back
@@ -432,6 +557,39 @@ export function MasterFormPage({
           </Box>
         </Stack>
       </Box>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </MasterPageShell>
   );
 }

@@ -41,6 +41,7 @@ export interface PackingRecord extends EnterpriseTableRow {
   remark: string;
   sourceOrderId?: string;
   sourceOrderItemId?: string;
+  sourceRef?: string;
   dispatchBuyerAddress?: string;
   dispatchSellerAddress?: string;
   dispatchTransactionType?: string;
@@ -65,12 +66,14 @@ export const packingIssuedListingColumns: readonly EnterpriseTableColumn<Packing
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
     { key: "issuedFrom", label: "Ready From", filterable: true },
     { key: "remark", label: "Source Reference" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 export const packingDoneListingColumns: readonly EnterpriseTableColumn<PackingRecord>[] =
@@ -81,9 +84,11 @@ export const packingDoneListingColumns: readonly EnterpriseTableColumn<PackingRe
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Packed Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "packingDate", label: "Packing Date" },
     { key: "issuedFrom", label: "Ready From" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 /** @deprecated Prefer packingDoneListingColumns; kept for compatibility. */
@@ -97,11 +102,13 @@ export const dispatchIssuedListingColumns: readonly EnterpriseTableColumn<Packin
     { key: "customerName", label: "Customer" },
     { key: "orderType", label: "Order Type" },
     { key: "itemName", label: "Product" },
-    { key: "noOfSheets", label: "Packed Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
     { key: "packingDate", label: "Packing Date" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingRecord>[] =
@@ -112,9 +119,11 @@ export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingR
     { key: "customerName", label: "Customer" },
     { key: "dispatchTransporter", label: "Transporter" },
     { key: "dispatchTransportMode", label: "Transport Mode" },
-    { key: "noOfSheets", label: "Qty" },
+    { key: "noOfSheets", label: "No. of Sheets" },
     { key: "dispatchDate", label: "Dispatch Date" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 const packingListeners = new Set<() => void>();
@@ -426,6 +435,80 @@ export function createPackingEntry(
   syncOrderFulfillmentStatus(
     normalizeString(payload.orderNo, existing.orderNo),
   );
+}
+
+function readPackingSourceText(source: Record<string, unknown>, keys: readonly string[]) {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return "";
+}
+
+function resolveFinishedProductCategory(source: Record<string, unknown>) {
+  const raw = readPackingSourceText(source, ["productType", "orderType", "issuedFor"]).toLowerCase();
+  if (raw.includes("marquetry")) return "Marquetry";
+  if (raw.includes("emboss")) return "Embossed";
+  if (raw.includes("flut")) return "Fluted";
+  if (raw.includes("decor")) return "Decorative";
+  return "Finished";
+}
+
+export function issueFinishingToPacking(source: Record<string, unknown>) {
+  const sourceRef = readPackingSourceText(source, ["id", "workItemId"]);
+  if (sourceRef) {
+    const existing = packingRecords.find(
+      (record) => record.sourceRef === sourceRef && record.packingState !== "reverted",
+    );
+    if (existing) {
+      return existing;
+    }
+  }
+
+  const timestamp = new Date();
+  const orderNo = readPackingSourceText(source, ["orderNo"]) || `ORD-FIN-${Date.now()}`;
+  const productCategory = resolveFinishedProductCategory(source);
+  const record: PackingRecord = {
+    id: `packing-finishing-${sourceRef || Date.now()}`,
+    packingId: "",
+    issuedFrom: "Finishing",
+    orderNo,
+    orderItemNo: readPackingSourceText(source, ["orderItemNo"]) || "OI-001",
+    customerName: readPackingSourceText(source, ["customerName"]) || "New Customer",
+    orderType: "Finished",
+    productCategory,
+    preparedBy: "Finishing Supervisor",
+    checkedBy: "Quality Coordinator",
+    itemName: readPackingSourceText(source, ["itemName", "outputItemName"]) || "Finished Sheet",
+    length: readPackingSourceText(source, ["length"]) || "-",
+    width: readPackingSourceText(source, ["width"]) || "-",
+    thickness: readPackingSourceText(source, ["thickness"]) || "-",
+    noOfSheets: readPackingSourceText(source, ["noOfSheets", "finishedSheets", "outputNoOfSheets"]) || "0",
+    sqm: readPackingSourceText(source, ["sqm"]) || "0.000",
+    sqf: readPackingSourceText(source, ["sqf"]) || "0.000",
+    series: readPackingSourceText(source, ["series"]) || "DV-Prime",
+    grade: readPackingSourceText(source, ["grade"]) || "A",
+    amount: readPackingSourceText(source, ["amount"]) || "0.00",
+    remark: readPackingSourceText(source, ["remark"]) || `Transferred from finishing ${sourceRef}`.trim(),
+    ...(sourceRef ? { sourceRef } : {}),
+    packingDate: null,
+    dispatchDate: null,
+    createdBy: "Finishing Supervisor",
+    updatedBy: "Finishing Supervisor",
+    createdDate: timestamp,
+    updatedDate: timestamp,
+    packingState: "issued",
+  };
+
+  updatePackingRecords((records) => [record, ...records]);
+  syncOrderFulfillmentStatus(orderNo);
+  return record;
 }
 
 export function createDispatchEntry(

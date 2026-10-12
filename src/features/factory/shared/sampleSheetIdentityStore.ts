@@ -5,7 +5,7 @@ import type { FactoryRecord } from "./types";
 
 const STORAGE_KEY = "deluxe-veneers-sample-sheet-identities";
 
-export type SampleNextProcess = "Marquetry" | "Splicing";
+export type SampleNextProcess = "Marquetry" | "Pressing" | "Splicing";
 
 export type SampleFactoryStage =
   | "Grouping"
@@ -274,6 +274,90 @@ export function createSampleSheetFromGrouping(input: {
   writeStore({
     sequence,
     samples: [sample, ...store.samples],
+  });
+
+  return sample;
+}
+
+function sheetCountFromRow(row: FactoryRecord) {
+  const raw = getStringField(row, ["noOfSheets", "outputNoOfSheets", "availableSheets", "availableQty"]);
+  const numeric = Number(raw.replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
+}
+
+export function isStoredProductionSample(sample: SampleSheetRecord) {
+  const statuses = [
+    sample.currentStatus,
+    ...sample.journey.map((event) => event.status),
+  ].map((status) => status.toLowerCase());
+
+  return statuses.some((status) => status.includes("pressing done"));
+}
+
+export function storePressingSampleInProduction(row: FactoryRecord) {
+  const sampleNo = getSampleNoFromRow(row);
+  const existing = sampleNo ? getSampleSheetByNo(sampleNo) : null;
+  const pressedSheets = sheetCountFromRow(row);
+
+  if (existing) {
+    return updateSample(existing.sampleNo, (sample) => {
+      const alreadyStored = sample.journey.some(
+        (event) => event.status.toLowerCase() === "pressing done",
+      );
+
+      return {
+        ...sample,
+        itemName: getStringField(row, ["outputItemName", "itemName"]) || sample.itemName,
+        subCategory: getStringField(row, ["itemSubCategory", "subCategory"]) || sample.subCategory,
+        color: getStringField(row, ["cutColor", "color", "colour"]) || sample.color,
+        length: getStringField(row, ["length"]) || sample.length,
+        width: getStringField(row, ["width"]) || sample.width,
+        thickness: getStringField(row, ["thickness"]) || sample.thickness,
+        availableSheets: pressedSheets || sample.availableSheets,
+        originalSheets: pressedSheets || sample.originalSheets,
+        journey: alreadyStored
+          ? sample.journey
+          : [
+              ...sample.journey,
+              { stage: "Pressing", status: "Pressing Done", at: nowIso() },
+            ],
+      };
+    });
+  }
+
+  const store = readStore();
+  const sequence = store.sequence + 1;
+  const createdSampleNo = sampleNo || createSampleNo(sequence);
+  const at = nowIso();
+  const sheets = pressedSheets || 1;
+  const sample = withDerivedFields({
+    sampleNo: createdSampleNo,
+    groupingRowId: getStringField(row, ["groupingRef", "id"]),
+    issueDate: at,
+    originalSheets: sheets,
+    availableSheets: sheets,
+    nextProcess: "Pressing",
+    remark: getStringField(row, ["remark"]),
+    purpose: "SAMPLE",
+    forLabel: "Sample",
+    itemName: getStringField(row, ["outputItemName", "itemName"]) || "Sample Sheet",
+    subCategory: getStringField(row, ["itemSubCategory", "subCategory"]),
+    color: getStringField(row, ["cutColor", "color", "colour"]),
+    length: getStringField(row, ["length"]),
+    width: getStringField(row, ["width"]),
+    thickness: getStringField(row, ["thickness"]),
+    currentStage: "Pressing",
+    currentStatus: "Pressing Done",
+    processRoute: "Pressing",
+    journey: [{ stage: "Pressing", status: "Pressing Done", at }],
+    sourceSnapshot: { ...row },
+    createdAt: at,
+    orderAllocations: [],
+  });
+
+  writeStore({
+    sequence: sampleNo ? store.sequence : sequence,
+    samples: [sample, ...store.samples.filter((entry) => entry.sampleNo !== createdSampleNo)],
   });
 
   return sample;

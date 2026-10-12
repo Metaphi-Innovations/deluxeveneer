@@ -122,15 +122,19 @@ export function getFactoryPaths(slug: string) {
 }
 
 export function getFactoryProcessTabs(title: string) {
-  if (
-    title === "Inspection" ||
-    title === "Sawing Inspection" ||
-    title === "Drying Inspection"
-  ) {
+  if (title === "Sawing Inspection") {
     return [
       { label: "Inspection Pending", value: "issued" },
       { label: "Inspection Done", value: "done" },
       { label: "Inspection Fail", value: "failed" },
+    ] as const satisfies readonly { label: string; value: FactoryProcessTab }[];
+  }
+
+  if (title === "Inspection" || title === "Drying Inspection") {
+    return [
+      { label: "Inspection Pending", value: "issued" },
+      { label: "Inspection Done", value: "done" },
+      { label: "Inspection History", value: "history" },
     ] as const satisfies readonly { label: string; value: FactoryProcessTab }[];
   }
 

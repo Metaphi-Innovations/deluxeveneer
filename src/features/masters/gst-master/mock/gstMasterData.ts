@@ -1,1 +1,1 @@
-export { gstMasterDefinition } from "../../shared/masterDefinitions";
+export { gstMasterDefinition } from "../gstMasterDefinition";

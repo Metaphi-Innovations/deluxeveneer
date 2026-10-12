@@ -17,10 +17,7 @@ import {
 import type { UserPermissionItem } from "./userManagementConfig";
 import type { DynamicWarehousePermissionItem } from "../../shared/warehousePermission";
 import { WAREHOUSE_TYPE_ICONS } from "../../../layouts/sidebarNavigation";
-import {
-  fetchSidebarWarehouses,
-  MASTER_WAREHOUSES_UPDATED_EVENT,
-} from "../../warehouses/shared/warehouseSidebarStore";
+import { useSidebarWarehousesQuery } from "../../../query/useSidebarWarehousesQuery";
 
 export type PermissionBulkUpdate = {
   itemKey: string;
@@ -54,9 +51,16 @@ export function UserPermissionMatrix({
   readOnly = false,
 }: UserPermissionMatrixProps) {
   const theme = useTheme();
-  const [dynamicWarehouses, setDynamicWarehouses] = useState<
-    DynamicWarehousePermissionItem[]
-  >([]);
+  const sidebarWarehousesQuery = useSidebarWarehousesQuery();
+  const dynamicWarehouses: DynamicWarehousePermissionItem[] = useMemo(
+    () =>
+      (sidebarWarehousesQuery.data ?? []).map((warehouse) => ({
+        id: warehouse.id,
+        label: warehouse.label,
+        warehouseType: warehouse.warehouseType,
+      })),
+    [sidebarWarehousesQuery.data],
+  );
   const permissionSections = useMemo(
     () => buildUserPermissionSections(dynamicWarehouses, WAREHOUSE_TYPE_ICONS),
     [dynamicWarehouses],
@@ -65,50 +69,6 @@ export function UserPermissionMatrix({
     userPermissionSections[0]?.id ?? "",
   );
   const [viewFilter, setViewFilter] = useState<"all" | "granted">("granted");
-
-  useEffect(() => {
-    let ignore = false;
-
-    const loadWarehouses = async () => {
-      try {
-        const warehouses = await fetchSidebarWarehouses();
-        if (ignore) {
-          return;
-        }
-
-        setDynamicWarehouses(
-          warehouses.map((warehouse) => ({
-            id: warehouse.id,
-            label: warehouse.label,
-            warehouseType: warehouse.warehouseType,
-          })),
-        );
-      } catch {
-        if (!ignore) {
-          setDynamicWarehouses([]);
-        }
-      }
-    };
-
-    void loadWarehouses();
-
-    const onWarehousesUpdated = () => {
-      void loadWarehouses();
-    };
-
-    window.addEventListener(
-      MASTER_WAREHOUSES_UPDATED_EVENT,
-      onWarehousesUpdated,
-    );
-
-    return () => {
-      ignore = true;
-      window.removeEventListener(
-        MASTER_WAREHOUSES_UPDATED_EVENT,
-        onWarehousesUpdated,
-      );
-    };
-  }, []);
 
   const totals = useMemo(
     () => countPermissionBreakdown(permissions),
@@ -172,32 +132,23 @@ export function UserPermissionMatrix({
       action,
       permissions,
     );
+    const partlySelected = isActionPartlySelected(
+      selectedSection.items,
+      action,
+      permissions,
+    );
+
+    // If indeterminate ("-") or fully selected, clicking clears all permissions for this action.
+    // If none are selected, clicking selects all.
+    const shouldSelect = !fullySelected && !partlySelected;
 
     applyUpdates(
       selectedSection.items.map((item) => ({
         itemKey: item.key,
         action,
-        checked: !fullySelected,
+        checked: shouldSelect,
       })),
     );
-  };
-
-  const clearCategory = () => {
-    if (!selectedSection || readOnly) {
-      return;
-    }
-
-    const updates: PermissionBulkUpdate[] = [];
-
-    selectedSection.items.forEach((item) => {
-      updates.push(
-        { itemKey: item.key, action: "view", checked: false },
-        { itemKey: item.key, action: "edit", checked: false },
-        { itemKey: item.key, action: "create", checked: false },
-      );
-    });
-
-    applyUpdates(updates);
   };
 
   return (
@@ -210,53 +161,22 @@ export function UserPermissionMatrix({
         overflow: "hidden",
       }}
     >
-      <Box sx={{ px: 2, pt: 2, pb: 1.5 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "stretch", sm: "flex-start" }}
-          spacing={1.25}
-        >
-          <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-            <Stack direction="row" alignItems="baseline" spacing={1}>
-              <Typography
-                sx={{
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  color: theme.customTokens.text.primary,
-                  letterSpacing: "-0.01em",
-                }}
-              >
-                Permissions
-              </Typography>
-              <Typography
-                sx={{
-                  fontSize: "0.75rem",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                {totals.total} enabled
-              </Typography>
-            </Stack>
-            <Typography
-              sx={{
-                fontSize: "0.8125rem",
-                color: theme.customTokens.text.secondary,
-              }}
-            >
-              {readOnly
-                ? "Access currently assigned to this user."
-                : "Configure what this user can access."}
-            </Typography>
-          </Stack>
-        </Stack>
-
+      <Box
+        sx={{
+          px: 2,
+          py: 1.25,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 1.5,
+        }}
+      >
         <Stack
           direction="row"
           flexWrap="wrap"
           useFlexGap
           spacing={0.75}
-          sx={{ mt: 1.5 }}
+          sx={{ flex: 1, minWidth: 0 }}
         >
           {permissionSections.map((section) => {
             const selected = section.id === selectedSection?.id;
@@ -319,75 +239,31 @@ export function UserPermissionMatrix({
             );
           })}
         </Stack>
-      </Box>
 
-      <Box
-        sx={{
-          px: 2,
-          py: 1.25,
-          borderTop: `1px solid ${theme.customTokens.borders.divider}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          flexWrap: "wrap",
-        }}
-      >
-        <Stack spacing={0.15}>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              fontWeight: 600,
-              color: theme.customTokens.text.primary,
-            }}
-          >
-            {selectedSection?.label ?? "Permissions"}
-          </Typography>
-          <Typography
-            sx={{
-              fontSize: "0.75rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            {filteredItems.length} module
-            {filteredItems.length === 1 ? "" : "s"}
-          </Typography>
-        </Stack>
-
-        {readOnly ? (
-          <Stack direction="row" spacing={0.5}>
-            <FilterChip
-              label="Granted Only"
-              selected={viewFilter === "granted"}
-              onClick={() => setViewFilter("granted")}
-            />
-            <FilterChip
-              label="All"
-              selected={viewFilter === "all"}
-              onClick={() => setViewFilter("all")}
-            />
-          </Stack>
-        ) : (
-          <Button
-            type="button"
-            variant="text"
-            onClick={clearCategory}
-            sx={{
-              minHeight: 30,
-              px: 1,
-              fontSize: "0.75rem",
-              fontWeight: 500,
-              color: theme.customTokens.text.secondary,
-              textTransform: "none",
-              "&:hover": {
-                backgroundColor: "transparent",
-                color: theme.customTokens.brand.primary,
-              },
-            }}
-          >
-            Clear category
-          </Button>
-        )}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+            gap: 1,
+          }}
+        >
+          {readOnly ? (
+            <Stack direction="row" spacing={0.75}>
+              <FilterChip
+                label="Granted Only"
+                selected={viewFilter === "granted"}
+                onClick={() => setViewFilter("granted")}
+              />
+              <FilterChip
+                label="All"
+                selected={viewFilter === "all"}
+                onClick={() => setViewFilter("all")}
+              />
+            </Stack>
+          ) : null}
+        </Box>
       </Box>
 
       <Box

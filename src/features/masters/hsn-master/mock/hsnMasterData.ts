@@ -1,1 +1,1 @@
-export { hsnMasterDefinition } from "../../shared/masterDefinitions";
+export { hsnMasterDefinition } from "../hsnMasterDefinition";

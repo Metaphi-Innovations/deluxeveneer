@@ -1,1 +1,1 @@
-export { currencyMasterDefinition } from "../../shared/masterDefinitions";
+export { currencyMasterDefinition } from "../currencyMasterDefinition";

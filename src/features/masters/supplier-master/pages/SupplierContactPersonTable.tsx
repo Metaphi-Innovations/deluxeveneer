@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useState } from "react";
 import {
   Box,
   IconButton,
+  MenuItem,
   Stack,
   Table,
   TableBody,
@@ -15,12 +16,18 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 
 import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { countryCodeOptions } from "../../shared/MasterFormFields";
+import {
+  getSelectDropdownOptionSx,
+  getSelectDropdownPaperSx,
+} from "../../../shared/dropdownMenuStyles";
 
 interface SupplierContactPerson {
   contactPersonName: string;
   designation: string;
   email: string;
   phoneNumber: string;
+  countryCode?: string;
 }
 
 export interface SupplierContactPersonTableHandle {
@@ -211,25 +218,125 @@ export const SupplierContactPersonTable = forwardRef<
               <TableRow>
                 {contactColumns.map((column) => (
                   <TableCell key={column.key}>
-                    <TextField
-                      fullWidth
-                      error={Boolean(draftErrors[column.key])}
-                      helperText={draftErrors[column.key] ?? ""}
-                      value={draftContact[column.key]}
-                      onChange={(event) =>
-                        setDraftContact((current) => ({
-                          ...current,
-                          [column.key]:
-                            column.key === "phoneNumber"
-                              ? event.target.value.replace(/\D/g, "").slice(0, 10)
-                              : event.target.value,
-                        }))
-                      }
-                      sx={getCompactFieldSx(
-                        theme,
-                        draftErrors[column.key] ? "error" : "default",
-                      )}
-                    />
+                    {column.key === "phoneNumber" ? (
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1,
+                          gridTemplateColumns: "82px minmax(0, 1fr)",
+                        }}
+                      >
+                        <TextField
+                          select
+                          value={draftContact.countryCode || "+91"}
+                          onChange={(event) =>
+                            setDraftContact((current) => ({
+                              ...current,
+                              countryCode: event.target.value,
+                            }))
+                          }
+                          sx={{
+                            ...getCompactFieldSx(theme, "default"),
+                            "& .MuiSelect-select": {
+                              alignItems: "center",
+                              display: "flex",
+                              height: "100%",
+                              paddingLeft: `${theme.spacing(1)} !important`,
+                              paddingRight: `${theme.spacing(3)} !important`,
+                              fontSize: "0.8125rem",
+                            },
+                          }}
+                          slotProps={{
+                            select: {
+                              MenuProps: {
+                                anchorOrigin: {
+                                  horizontal: "left",
+                                  vertical: "bottom",
+                                },
+                                MenuListProps: {
+                                  dense: true,
+                                  sx: { py: 0.5 },
+                                },
+                                PaperProps: {
+                                  sx: {
+                                    ...getSelectDropdownPaperSx(theme, 280, {
+                                      preferredMinWidth: 280,
+                                    }),
+                                    maxHeight: 240,
+                                    overflowY: "auto",
+                                    "& .MuiMenuItem-root": {
+                                      ...getSelectDropdownOptionSx(theme, true),
+                                    },
+                                  },
+                                },
+                                variant: "menu",
+                              },
+                              renderValue: (selected) => String(selected),
+                            },
+                          }}
+                        >
+                          {countryCodeOptions.map((countryCode) => (
+                            <MenuItem
+                              key={countryCode.code}
+                              value={countryCode.code}
+                              sx={{
+                                fontSize: "0.8125rem",
+                                minHeight: 32,
+                              }}
+                            >
+                              {countryCode.code} - {countryCode.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+
+                        <TextField
+                          fullWidth
+                          error={Boolean(draftErrors[column.key])}
+                          helperText={draftErrors[column.key] ?? ""}
+                          value={draftContact[column.key]}
+                          onChange={(event) =>
+                            setDraftContact((current) => ({
+                              ...current,
+                              [column.key]: event.target.value.replace(/\D/g, "").slice(0, 10),
+                            }))
+                          }
+                          sx={getCompactFieldSx(
+                            theme,
+                            draftErrors[column.key] ? "error" : "default",
+                          )}
+                          slotProps={{
+                            htmlInput: {
+                              inputMode: "numeric",
+                              maxLength: 10,
+                              pattern: "[0-9]*",
+                            },
+                          }}
+                        />
+                      </Box>
+                    ) : (
+                      <TextField
+                        fullWidth
+                        error={Boolean(draftErrors[column.key])}
+                        helperText={draftErrors[column.key] ?? ""}
+                        value={draftContact[column.key]}
+                        onChange={(event) => {
+                          const val = event.target.value;
+                          const nextVal =
+                            column.key === "contactPersonName" || column.key === "designation"
+                              ? val.replace(/[^A-Za-z\s]/g, "")
+                              : val;
+
+                          setDraftContact((current) => ({
+                            ...current,
+                            [column.key]: nextVal,
+                          }));
+                        }}
+                        sx={getCompactFieldSx(
+                          theme,
+                          draftErrors[column.key] ? "error" : "default",
+                        )}
+                      />
+                    )}
                   </TableCell>
                 ))}
                 <TableCell>
@@ -270,7 +377,29 @@ export const SupplierContactPersonTable = forwardRef<
             {contacts.map((contact, index) => (
               <TableRow key={`${contact.contactPersonName}-${index}`}>
                 {contactColumns.map((column) => (
-                  <TableCell key={column.key}>{contact[column.key]}</TableCell>
+                  <TableCell key={column.key}>
+                    {column.key === "phoneNumber" && contact.phoneNumber ? (
+                      <Typography
+                        component="a"
+                        href={`tel:${((contact.countryCode || "+91") + contact.phoneNumber).replace(/[^\d+]/g, "")}`}
+                        onClick={(event) => event.stopPropagation()}
+                        sx={{
+                          color: theme.customTokens.brand.primary,
+                          textDecoration: "none",
+                          fontSize: "inherit",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                          "&:hover": {
+                            textDecoration: "underline",
+                          },
+                        }}
+                      >
+                        {`${contact.countryCode || "+91"} ${contact.phoneNumber}`}
+                      </Typography>
+                    ) : (
+                      contact[column.key] || "—"
+                    )}
+                  </TableCell>
                 ))}
                 {!readOnly ? (
                   <TableCell>

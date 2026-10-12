@@ -1,4 +1,6 @@
 import type { MasterDefinition } from "../shared/types";
+import { uniqueOptions } from "../shared/masterRecordHelpers";
+import { getCachedTransporterMasterRows } from "./api/transporterMasterApi";
 
 export const transporterMasterDefinition: MasterDefinition = {
   slug: "transporter-master",
@@ -9,7 +11,6 @@ export const transporterMasterDefinition: MasterDefinition = {
     { key: "branchName", label: "Branch Name" },
     { key: "transporterId", label: "Transporter Id" },
     { key: "type", label: "Type" },
-    { key: "areaOfOperation", label: "Area Of Operation" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },
@@ -18,7 +19,6 @@ export const transporterMasterDefinition: MasterDefinition = {
   ],
   filters: [
     { key: "type", label: "Type", options: ["Road", "Air", "Rail"] },
-    { key: "areaOfOperation", label: "Area Of Operation", options: [] },
     { key: "status", label: "Status", options: ["Active", "Inactive"] },
   ],
   fields: [
@@ -31,13 +31,24 @@ export const transporterMasterDefinition: MasterDefinition = {
       type: "select",
       options: ["Road", "Air", "Rail"],
     },
-    {
-      key: "areaOfOperation",
-      label: "Area Of Operation",
-      type: "text",
-    },
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: ["Active", "Inactive"] },
   ],
   rows: [],
 };
+
+export function getTransporterMasterOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "transporterName");
+}
+
+/** @deprecated Prefer getTransporterMasterOptions() for live API cache values. */
+export const transporterMasterOptions = getTransporterMasterOptions();
+
+export const transporterTypeOptions = ["Road", "Air", "Rail"];
+
+export function getTransporterAreaOfOperationOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "areaOfOperation");
+}
+
+/** @deprecated Prefer getTransporterAreaOfOperationOptions(). */
+export const transporterAreaOfOperationOptions = getTransporterAreaOfOperationOptions();

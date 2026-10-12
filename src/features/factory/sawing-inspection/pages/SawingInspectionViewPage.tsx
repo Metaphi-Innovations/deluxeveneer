@@ -17,6 +17,14 @@ import {
 import { sawingInspectionDefinition } from "../../shared/factoryDefinitions";
 import { getFactoryIssuedWorkById, factoryIssuedWorkToRow } from "../../shared/factoryIssuedWorkStore";
 
+function displayDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "string" && value.trim()) return value.trim().slice(0, 10);
+  return "-";
+}
+
 export const SawingInspectionViewPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -138,12 +146,12 @@ export const SawingInspectionViewPage: React.FC = () => {
                 {[
                   { label: "Storage Sr No.", value: record.storageSrNo || "-" },
                   {
-                    label: "Issued Inspection Date",
-                    value: record.issuedDate ? String(record.issuedDate).slice(0, 10) : "-",
+                    label: "Issued Date",
+                    value: displayDate(record.issuedDate || record.issueDate),
                   },
                   {
                     label: "Sawing Date",
-                    value: record.sawingDate ? String(record.sawingDate).slice(0, 10) : record.processDate ? String(record.processDate).slice(0, 10) : "-",
+                    value: displayDate(record.sawingDate || record.processDate),
                   },
                   {
                     label: "Inspection Date",

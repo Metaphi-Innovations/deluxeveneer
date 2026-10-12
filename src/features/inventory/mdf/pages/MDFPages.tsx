@@ -7,7 +7,8 @@ import { ApiInwardEditForm } from "../../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../../warehouses/pages/ApiInwardViewForm";
 import { isProductionInventorySearch } from "../../../warehouses/production/productionInventoryPaths";
 import { ProductionInventoryRecordRoute } from "../../../warehouses/production/pages/ProductionInventoryRecordRoute";
-import { InventoryForm, InventoryPageShell, mdfDefinition } from "../../shared";
+import { InventoryForm, InventoryPageShell } from "../../shared";
+import { mdfDefinition } from "../mdfDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function MDFListPage() {

@@ -12,8 +12,10 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { ChevronLeft, Save } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
+
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 
 import {
   MasterFormFields,
@@ -132,15 +134,15 @@ export function FactoryForm<Row extends FactoryRecord>({
     mode === "add"
       ? undefined
       : locationRecord ??
-        definition.rows.find((record) => record.id === params.id) ??
-        (() => {
-          const workItem = params.id
-            ? getFactoryIssuedWorkById(params.id)
-            : null;
-          return workItem
-            ? (factoryIssuedWorkToRow(workItem) as Row)
-            : undefined;
-        })();
+      definition.rows.find((record) => record.id === params.id) ??
+      (() => {
+        const workItem = params.id
+          ? getFactoryIssuedWorkById(params.id)
+          : null;
+        return workItem
+          ? (factoryIssuedWorkToRow(workItem) as Row)
+          : undefined;
+      })();
 
   const formSections = useMemo(() => {
     let sections = [...definition.formSections];
@@ -166,12 +168,70 @@ export function FactoryForm<Row extends FactoryRecord>({
   const itemTableFields = shouldShowItemTable
     ? definition.slug === "sawing"
       ? sawingItemTableFields
-      : factoryItemTableFields
+      : definition.slug === "pressing"
+        ? factoryItemTableFields.filter(
+            (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+          )
+        : definition.slug === "finishing"
+          ? factoryItemTableFields.filter(
+              (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+            )
+          : definition.slug === "cnc-fluting"
+          ? insertItemDetailField(
+              factoryItemTableFields.filter(
+                (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+              ),
+              {
+                key: "designCode",
+                label: "Design Code",
+                type: "text",
+              },
+              "itemSubCategory",
+            )
+          : definition.slug === "embossing"
+            ? insertItemDetailField(factoryItemTableFields, {
+                key: "structureCode",
+                label: "Structure Code",
+                type: "text",
+              }, "itemSubCategory")
+            : factoryItemTableFields
     : [];
   const visibleFormSections =
     shouldShowItemTable
       ? formSections.filter((section) => !isFactoryItemSection(section))
       : formSections;
+
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Leave Form",
+      description: "Are you sure you want to go back? Any unsaved changes will be lost.",
+      action: () => navigate(paths.list),
+    });
+  };
+
+  const handleCancel = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be lost.",
+      action: () => navigate(paths.list),
+    });
+  };
 
   if ((mode === "edit" || mode === "view") && !row) {
     return (
@@ -213,6 +273,11 @@ export function FactoryForm<Row extends FactoryRecord>({
 
   return (
     <FactoryPageShell
+      backNav={{
+        label: `Back to ${definition.title}`,
+        to: paths.list,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
         { label: definition.title, to: paths.list },
@@ -287,37 +352,20 @@ export function FactoryForm<Row extends FactoryRecord>({
             })}
           >
             {mode === "view" ? (
-              <>
-                <Button
-                  variant="outlined"
-                  startIcon={<ChevronLeft size={16} />}
-                  onClick={() => navigate(paths.list)}
-                  sx={recordViewActionButtonSx}
-                >
-                  Back
-                </Button>
-
-                {canEdit && definition.slug !== "sawing" ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Pencil size={16} />}
-                    sx={recordViewActionButtonSx}
-                    onClick={() => {
-                      if (row) {
-                        navigate(paths.edit(row.id));
-                      }
-                    }}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
-              </>
+              <Button
+                variant="outlined"
+                startIcon={<ChevronLeft size={16} />}
+                onClick={() => navigate(paths.list)}
+                sx={recordViewActionButtonSx}
+              >
+                Back
+              </Button>
             ) : (
               <>
                 <Button
                   type="button"
                   variant="outlined"
-                  onClick={() => navigate(paths.list)}
+                  onClick={handleCancel}
                   sx={recordFormActionButtonSx}
                 >
                   Cancel
@@ -338,7 +386,7 @@ export function FactoryForm<Row extends FactoryRecord>({
                     ) {
                       return;
                     }
-                    navigate(paths.list);
+                    setSaveConfirmationOpen(true);
                   }}
                 >
                   {primaryLabel}
@@ -348,6 +396,40 @@ export function FactoryForm<Row extends FactoryRecord>({
           </Box>
         </Stack>
       </MasterSectionCard>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel={primaryLabel}
+        description={`Are you sure you want to ${primaryLabel.toLowerCase()} this factory record?`}
+        onClose={() => setSaveConfirmationOpen(false)}
+        onConfirm={() => {
+          setSaveConfirmationOpen(false);
+          const successMsg = `${definition.title} record ${mode === "add" ? "created" : "updated"} successfully.`;
+          navigate(paths.list, {
+            state: {
+              factoryFlashMessage: successMsg,
+            },
+          });
+        }}
+        open={saveConfirmationOpen}
+        title={`Confirm ${primaryLabel}`}
+        tone="default"
+      />
     </FactoryPageShell>
   );
 }
@@ -367,6 +449,27 @@ const sawingItemTableFields: readonly MasterFieldDefinition[] = [
   { key: "cbf", label: "CBF", type: "text" },
   { key: "remark", label: "Remark", type: "text" },
 ];
+
+function insertItemDetailField(
+  fields: readonly MasterFieldDefinition[],
+  field: MasterFieldDefinition,
+  afterKey: string,
+) {
+  if (fields.some((entry) => entry.key === field.key)) {
+    return fields;
+  }
+
+  const insertAt = fields.findIndex((entry) => entry.key === afterKey);
+  if (insertAt === -1) {
+    return [...fields, field];
+  }
+
+  return [
+    ...fields.slice(0, insertAt + 1),
+    field,
+    ...fields.slice(insertAt + 1),
+  ];
+}
 
 function isFactoryItemSection(section: FactoryFormSection) {
   return section.title.toLowerCase().includes("item");
@@ -405,80 +508,80 @@ function FactoryItemTable({
             overflow: "hidden",
           })}
         >
-        <Box
-          sx={(theme) => ({
-            overflowX: "auto",
-            overflowY: "hidden",
-            scrollbarWidth: "thin",
-            scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
-            "&::-webkit-scrollbar": {
-              height: 8,
-            },
-            "&::-webkit-scrollbar-track": {
-              backgroundColor: theme.customTokens.surfaces.alt,
-            },
-            "&::-webkit-scrollbar-thumb": {
-              borderRadius: 999,
-              backgroundColor: theme.customTokens.brand.primary,
-            },
-          })}
-        >
-          <Table
-            size="small"
-            sx={{
-              minWidth: Math.max(tableWidth, 720),
-              tableLayout: "auto",
-            }}
+          <Box
+            sx={(theme) => ({
+              overflowX: "auto",
+              overflowY: "hidden",
+              scrollbarWidth: "thin",
+              scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
+              "&::-webkit-scrollbar": {
+                height: 8,
+              },
+              "&::-webkit-scrollbar-track": {
+                backgroundColor: theme.customTokens.surfaces.alt,
+              },
+              "&::-webkit-scrollbar-thumb": {
+                borderRadius: 999,
+                backgroundColor: theme.customTokens.brand.primary,
+              },
+            })}
           >
-            <TableHead>
-              <TableRow>
-                {fields.map((field) => (
-                  <TableCell
-                    key={field.key}
-                    sx={(theme) => ({
-                      minWidth: getFactoryItemColumnWidth(field.label),
-                      backgroundColor: theme.customTokens.neutrals[100],
-                      borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-                      borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                      color: theme.customTokens.neutrals[700],
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      letterSpacing: "0.02em",
-                      textTransform: "uppercase",
-                      py: theme.spacing(0.85),
-                      whiteSpace: "nowrap",
-                    })}
-                  >
-                    {field.label}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              <TableRow>
-                {fields.map((field) => (
-                  <TableCell
-                    key={field.key}
-                    sx={(theme) => ({
-                      borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-                      borderRight: `1px solid ${theme.customTokens.borders.default}`,
-                      py: theme.spacing(1.25),
-                      verticalAlign: "top",
-                      whiteSpace: "nowrap",
-                    })}
-                  >
-                    <Typography variant="body2" color="text.primary">
-                      {formatFactoryItemValue(
-                        resolveFactoryItemFieldValue(row, field.key),
-                      )}
-                    </Typography>
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableBody>
-          </Table>
+            <Table
+              size="small"
+              sx={{
+                minWidth: Math.max(tableWidth, 720),
+                tableLayout: "auto",
+              }}
+            >
+              <TableHead>
+                <TableRow>
+                  {fields.map((field) => (
+                    <TableCell
+                      key={field.key}
+                      sx={(theme) => ({
+                        minWidth: getFactoryItemColumnWidth(field.label),
+                        backgroundColor: theme.customTokens.neutrals[100],
+                        borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+                        borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                        color: theme.customTokens.neutrals[700],
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        letterSpacing: "0.02em",
+                        textTransform: "uppercase",
+                        py: theme.spacing(0.85),
+                        whiteSpace: "nowrap",
+                      })}
+                    >
+                      {field.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                <TableRow>
+                  {fields.map((field) => (
+                    <TableCell
+                      key={field.key}
+                      sx={(theme) => ({
+                        borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+                        borderRight: `1px solid ${theme.customTokens.borders.default}`,
+                        py: theme.spacing(1.25),
+                        verticalAlign: "top",
+                        whiteSpace: "nowrap",
+                      })}
+                    >
+                      <Typography variant="body2" color="text.primary">
+                        {formatFactoryItemValue(
+                          resolveFactoryItemFieldValue(row, field.key),
+                        )}
+                      </Typography>
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Box>
         </Box>
-      </Box>
       </Stack>
     </Box>
   );

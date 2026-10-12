@@ -5,7 +5,8 @@ import { canAccessPermission } from "../../../permissions";
 import { getDynamicWarehousePermissionKey } from "../../../shared/warehousePermission";
 import { ApiInwardEditForm } from "../../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../../warehouses/pages/ApiInwardViewForm";
-import { InventoryForm, InventoryPageShell, veneerBlocksDefinition } from "../../shared";
+import { InventoryForm, InventoryPageShell } from "../../shared";
+import { veneerBlocksDefinition } from "../veneerBlocksDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function VeneerBlocksListPage() {

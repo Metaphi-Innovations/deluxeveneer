@@ -409,6 +409,9 @@ const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
     status: index % 2 === 0 ? "Pending" : "Partial Done",
     issueDate: row.issuedDate,
     processDate: row.issuedDate,
+    sawingDate: row.issuedDate,
+    subCategory: row.itemSubCategory,
+    batchNoCode: `SW-CODE-${sequence}`,
     issuedFor: "Sawing Inspection",
   };
 });
@@ -477,7 +480,6 @@ const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
 const cncFlutingRows = factoryRows("cnc-fluting", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
   issuedFor: "Finishing",
-  fluteCode: `FLT-${String(index + 1).padStart(3, "0")}`,
 }));
 
 const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => ({
@@ -489,6 +491,8 @@ const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => ({
 const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
   issuedFor: "Packing",
+  designCode: `DSN-${String(index + 1).padStart(3, "0")}`,
+  structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
 }));
 
 const marquetryRows = factoryRows("marquetry", "Warehouse C", (row, index) => {
@@ -564,7 +568,7 @@ const sawingListingColumns = columns([
 
 export const sawingInspectionListingColumns = columns([
   ["storageSrNo", "Storage Sr No."],
-  ["issuedDate", "Issued Inspection Date"],
+  ["issuedDate", "Issued Date"],
   ["sawingDate", "Sawing Date"],
   ["itemName", "Item Name"],
   ["subCategory", "Sub Category"],
@@ -583,20 +587,27 @@ export const sawingInspectionListingColumns = columns([
 
 const splicingListingColumns = columns([
   ["storageSrNo", "Storage Sr No."],
-  ["issuedFor", "Issued For"],
-  ["groupNo", "Group No."],
-  ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
-  ["customerName", "Customer Name"],
-  ["orderNo", "Order No"],
-  ["orderItemNo", "Order Item No"],
+  ["groupNo", "Group No."],
+  ["groupingDate", "Grouping Date"],
+  ["groupPhoto", "Group Photo"],
+  // TODO(have to discuss): Splicing listing - temporarily hide Order Date.
+  // ["orderDate", "Order Date"],
+  // TODO(have to discuss): Splicing listing - temporarily hide the order/customer columns.
+  // ["customerName", "Customer Name"],
+  // ["orderNo", "Order No"],
+  // ["orderItemNo", "Order Item No"],
+  ["itemName", "Item Name"],
+  ["itemSubCategory", "Item Sub Category"],
+  ["grade", "Grade"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["noOfSheets", "No of Sheets"],
   ["sqm", "SQM"],
   ["sqf", "SQF"],
-  ["cut", "Cut"],
+  // TODO(have to discuss): Splicing listing - temporarily hide Cut.
+  // ["cut", "Cut"],
   ["remark", "Remark"],
   ["createdBy", "Created By"],
   ["createdAt", "Created At"],
@@ -720,7 +731,7 @@ const flutingListingColumns = listingColumns([
   ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
-  ["fluteCode", "Flute Code"],
+  ["designCode", "Design Code"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -816,8 +827,6 @@ const slicingProcessDetailFields = [
   ["storageSrNo", "Storage Sr No."],
   ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
-  ["subCategory", "Sub Category"],
-  ["logCode", "Log Code"],
   ["bundleNumber", "Bundle Number"],
   ["palletNo", "Pallet No"],
   ["length", "Length"],
@@ -827,8 +836,6 @@ const slicingProcessDetailFields = [
   ["sqm", "SQM"],
   ["sqf", "SQF"],
   ["remark", "Remark"],
-  ["createdBy", "Created"],
-  ["updatedBy", "Updated"],
 ] as const;
 
 const sawingProcessDetailFields = [
@@ -928,7 +935,6 @@ const pressingAddItemFields = [
   ["veneerThickness", "Veneer Thickness"],
   ["sqm", "SQM"],
   ["sqf", "SQF"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
   ["baseType", "Base Type"],
   ["consumedFrom", "Consumed From"],
@@ -941,7 +947,6 @@ const pressingAddItemFields = [
   ["consumedSqf", "SQF"],
   ["consumeSqm", "Consume SQM"],
   ["consumeSqf", "Consume SQF"],
-  ["consumedAmount", "Amount"],
 ] as const;
 
 const cncCreateFields = [
@@ -970,7 +975,7 @@ const flutingCreateFields = [
   ["orderNo", "Order No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
-  ["fluteCode", "Flute Code"],
+  ["designCode", "Design Code"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -982,7 +987,6 @@ const flutingCreateFields = [
   ["outputNoOfSheets", "No of Sheets"],
   ["outputSqm", "SQM"],
   ["outputSqf", "SQF"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const;
 

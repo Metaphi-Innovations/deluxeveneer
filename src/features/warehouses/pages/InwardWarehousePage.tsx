@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ClipboardCheck,
   Eye,
@@ -38,6 +39,9 @@ import {
   isInwardEditLockedByQc,
   mapInwardListItemToRow,
 } from "../api/inwardApi";
+import { invalidateWarehouseInward } from "../../../query/queryClient";
+import { queryKeys } from "../../../query/queryKeys";
+import { useDebouncedValue } from "../../../query/useDebouncedValue";
 import { InwardQcUpdateDialog } from "../components/InwardQcUpdateDialog";
 import { isApiSupportedInwardSlug } from "../inward/supportedInwardTypes";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
@@ -134,7 +138,6 @@ export function InwardWarehousePage({
   const [searchValue, setSearchValue] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [totalCount, setTotalCount] = useState(0);
   const [sortBy, setSortBy] = useState<string | null>("inwardDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
   const [columnFilters, setColumnFilters] = useState<
@@ -143,13 +146,10 @@ export function InwardWarehousePage({
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
-  const [rows, setRows] = useState<WarehouseInventoryRow[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
   const [actionError, setActionError] = useState("");
   const [qcInwardId, setQcInwardId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const debouncedSearch = useDebouncedValue(searchValue);
   const activeInventory = getActiveInwardInventoryTab(
     searchParams.get("inventory"),
   );
@@ -160,76 +160,46 @@ export function InwardWarehousePage({
   const canView = canAccessPermission(warehousePermissionKey, "view");
   const isApiSupportedInventory = isApiSupportedInwardSlug(activeInventory);
   const activeInventoryListPath = `${warehouseRootPath}?inventory=${activeInventory}`;
-
-  const loadInwards = useCallback(async () => {
-    if (!isApiSupportedInventory) {
-      setRows([]);
-      setTotalCount(0);
-      setErrorMessage("");
-      setIsLoading(false);
-      return;
-    }
-
-    const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
-    if (!inventoryType || !warehouseId) {
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage("");
-
-    try {
-      const apiSortBy = mapInwardSortField(sortBy);
-      const apiFilters = toApiColumnFilters(columnFilters);
-      const result = await fetchInwardsPaginated({
+  const inventoryType = getInwardInventoryTypeFromSlug(activeInventory);
+  const apiSortBy = mapInwardSortField(sortBy);
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listParams = {
+    warehouseId,
+    inventoryType,
+    page,
+    limit: rowsPerPage,
+    search: debouncedSearch.trim(),
+    sortBy: apiSortBy ?? null,
+    sortOrder,
+    filters: apiFilters,
+  };
+  const listQuery = useQuery({
+    queryKey: queryKeys.warehouse.inward.list(listParams),
+    enabled: isApiSupportedInventory && Boolean(inventoryType) && Boolean(warehouseId),
+    placeholderData: keepPreviousData,
+    queryFn: () =>
+      fetchInwardsPaginated({
         warehouseId,
-        inventoryType,
+        inventoryType: inventoryType!,
         page,
         limit: rowsPerPage,
-        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
         ...(apiSortBy ? { sortBy: apiSortBy } : {}),
         ...(sortOrder ? { sortOrder } : {}),
-        ...(Object.keys(apiFilters).length > 0
-          ? { filters: apiFilters }
-          : {}),
-      });
-
-      setRows(
-        result.items.map((item) =>
-          mapInwardListItemToRow(item, activeInventory),
-        ),
-      );
-      setTotalCount(result.pagination.total);
-    } catch (error) {
-      setRows([]);
-      setTotalCount(0);
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to load inward stock.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [
-    activeInventory,
-    columnFilters,
-    isApiSupportedInventory,
-    page,
-    rowsPerPage,
-    searchValue,
-    sortBy,
-    sortOrder,
-    warehouseId,
-    reloadKey,
-  ]);
-
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = window.setTimeout(() => {
-      void loadInwards();
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [loadInwards]);
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+      }),
+  });
+  const rows = isApiSupportedInventory
+    ? (listQuery.data?.items ?? []).map((item) =>
+        mapInwardListItemToRow(item, activeInventory),
+      )
+    : [];
+  const totalCount = isApiSupportedInventory
+    ? (listQuery.data?.pagination.total ?? 0)
+    : 0;
+  const isLoading = isApiSupportedInventory && listQuery.isLoading;
+  const errorMessage =
+    listQuery.error instanceof Error ? listQuery.error.message : "";
 
   const loadColumnDropdown = useCallback(
     async (columnKey: string) => {
@@ -534,7 +504,9 @@ export function InwardWarehousePage({
         inwardId={qcInwardId}
         open={Boolean(qcInwardId)}
         onClose={() => setQcInwardId(null)}
-        onUpdated={() => setReloadKey((current) => current + 1)}
+        onUpdated={() => {
+          void invalidateWarehouseInward();
+        }}
       />
     </MasterPageShell>
   );

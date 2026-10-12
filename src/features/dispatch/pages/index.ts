@@ -1,4 +1,4 @@
-export { DispatchPage } from "./DispatchPage";
-export { DispatchCreatePage } from "./DispatchCreatePage";
-export { DispatchEditPage } from "./DispatchCreatePage";
-export { DispatchViewPage } from "./DispatchCreatePage";
+export { DispatchPage } from "../listing/DispatchListingPage";
+export { DispatchCreatePage } from "../form/DispatchCreatePage";
+export { DispatchEditPage } from "../form/DispatchCreatePage";
+export { DispatchViewPage } from "../form/DispatchCreatePage";

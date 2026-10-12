@@ -45,28 +45,70 @@ export function moveFactoryRowToWarehouseB(row: Record<string, unknown>) {
     return;
   }
 
-  const movedRow = {
-    ...row,
+  const noOfLeaves = getString(row, ["noOfLeaves", "noOfSheets", "leaves", "availableLeaves", "quantity"]);
+  const inspectionDate = getString(row, ["inspectionDate", "issuedInspectionDate", "processDate"]);
+  const remark = getString(row, ["remark", "inspectionRemark"]);
+  const itemName = getString(row, ["itemName", "productName"]);
+  const subCategory = getString(row, ["subCategory", "itemSubCategory"]);
+  const logCode = getString(row, ["logCode", "logNo", "batchNo"]);
+  const totalSqm = getString(row, ["totalSqMeter", "sqm", "issuedSqm", "totalSqm"]);
+  const totalSqf = getString(row, ["sqf", "issuedSqf", "totalSqf"]);
+  const palletNo = getString(row, ["palletNo", "palletNumber"]);
+  const storageSrNo = getString(row, ["storageSrNo", "storageSerialNumber"]);
+  const movedRow: WarehouseInventoryRow = {
     id: `warehouse-b-inspection-${rowId}`,
     inventoryRecordId: rowId,
     inventorySlug: "raw-veneer",
-    inwardDate: row.issuedDate instanceof Date ? row.issuedDate : new Date(),
+    storageSrNo,
+    inwardSrNo: storageSrNo || "-",
+    inwardType: "Production",
+    inwardDate: readDate(row.inspectionDate ?? row.issuedDate ?? row.issueDate),
     invoiceNo: "-",
+    referenceSrNo: logCode || "-",
     supplierName: "-",
-    itemName: getString(row, ["itemName", "productName"]),
-    subCategory: getString(row, ["itemSubCategory", "subCategory"]),
-    totalUnits: getString(row, ["noOfLeaves", "noOfSheets", "quantity"]),
-    availableUnits: getString(row, ["noOfLeaves", "noOfSheets", "quantity"]),
-    totalSqm: getString(row, ["sqm", "issuedSqm", "totalSqm"]),
-    availableSqm: getString(row, ["sqm", "issuedSqm", "totalSqm"]),
-    totalSqf: getString(row, ["sqf", "issuedSqf", "totalSqf"]),
-    availableSqf: getString(row, ["sqf", "issuedSqf", "totalSqf"]),
+    supplierItemName: itemName,
+    supplierCode: "-",
+    itemName,
+    subCategory,
+    unitName: "",
+    color: getString(row, ["color", "colour"]),
+    palletNo,
+    length: getString(row, ["length"]),
+    width: getString(row, ["width"]),
+    thickness: getString(row, ["thickness", "height"]),
+    totalUnits: noOfLeaves,
+    availableUnits: noOfLeaves,
+    totalSqm,
+    totalSqf,
+    availableSqm: totalSqm,
+    availableSqf: totalSqf,
     currency: getString(row, ["currency"]) || "INR",
     amount: getString(row, ["amount"]),
-    remark: getString(row, ["remark"]),
     qcStatus: "QC Pass",
+    remark,
     status: "Available",
-  } as unknown as WarehouseInventoryRow;
+    veneerSrNo: storageSrNo || "-",
+    itemSrNo: "",
+    mdfSrNo: "",
+    timberCode: "",
+    logCode,
+    bundleNumber: getString(row, ["bundleNumber", "bundleNo"]),
+    palletNumber: palletNo,
+    noOfLeaves,
+    processName: "Drying Inspection",
+    processColor: getString(row, ["color", "colour"]),
+    cutName: getString(row, ["cut", "cutName"]),
+    seriesName: "",
+    grade: getString(row, ["grade"]),
+    expenseAmount: "",
+    totalNoOfSheets: "",
+    avSheets: "",
+    avSqm: "",
+    avSqf: "",
+    plywoodType: "",
+    mdfType: "",
+    inspectionDate,
+  };
 
   writeRows([...readRows(), movedRow]);
 }
@@ -90,9 +132,25 @@ export function useWarehouseBMovedRows() {
   );
 }
 
+function readDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return new Date();
+}
+
 function getString(row: Record<string, unknown>, keys: readonly string[]) {
   for (const key of keys) {
     const value = row[key];
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString().slice(0, 10);
+    }
     if (typeof value === "string" && value.trim()) {
       return value.trim();
     }

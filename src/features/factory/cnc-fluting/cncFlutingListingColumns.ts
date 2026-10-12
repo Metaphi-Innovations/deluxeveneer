@@ -1,0 +1,23 @@
+import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import type { FactoryProcessTab } from "../shared/factoryUtils";
+import type { FactoryRecord } from "../shared/types";
+
+const flutingHiddenOutsideHistory = new Set(["warehouseName", "issuedFor"]);
+const flutingHiddenKeys = new Set(["amount", "rate", "ratePerSqf"]);
+
+export function applyCncFlutingListingColumns<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+  activeTab: FactoryProcessTab,
+): readonly EnterpriseTableColumn<Row>[] {
+  return columns.filter((column) => {
+    if (flutingHiddenKeys.has(column.key)) {
+      return false;
+    }
+
+    if (activeTab === "history") {
+      return true;
+    }
+
+    return !flutingHiddenOutsideHistory.has(column.key);
+  });
+}

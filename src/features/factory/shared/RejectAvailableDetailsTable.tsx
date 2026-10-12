@@ -34,6 +34,7 @@ export type RejectAvailableValues = {
   amount: string;
   cbf?: string;
   cbm?: string;
+  height?: string;
   length: string;
   remark: string;
   sqf: string;
@@ -251,30 +252,60 @@ const decimalFieldConfigs = {
 
 const derivedAreaFieldKeys = new Set<RejectAvailableKey>(["sqm", "sqf", "cbm", "cbf"]);
 
+const slicingAreaColumns: readonly RejectAvailableColumn[] = [
+  {
+    key: "sqm",
+    label: "SQM",
+    minWidth: 140,
+    options: [],
+    type: "text",
+  },
+  {
+    key: "sqf",
+    label: "SQF",
+    minWidth: 140,
+    options: [],
+    type: "text",
+  },
+];
+
 export function RejectAvailableDetailsTable({
   disabledType,
+  editableDerived = false,
   fieldIssues,
   hideAmount,
+  includeArea = false,
   onChange,
   title,
+  useHeight = false,
   values,
   volumeMode = false,
 }: {
   disabledType?: boolean;
+  editableDerived?: boolean;
   fieldIssues: RejectAvailableValidationIssues;
   hideAmount?: boolean;
+  includeArea?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   title?: string | undefined;
+  useHeight?: boolean;
   values: RejectAvailableValues;
   volumeMode?: boolean;
 }) {
   const theme = useTheme();
   const shouldHideAmount = hideAmount ?? title === "Available Details";
   const baseColumns = volumeMode ? rejectAvailableVolumeColumns : rejectAvailableColumns;
-  const columns = baseColumns.filter(
-    (col) => !(shouldHideAmount && col.key === "amount"),
-  );
-  const tableWidth = columns.reduce(
+  const columns = baseColumns
+    .filter((col) => !(shouldHideAmount && col.key === "amount"))
+    .map((col) =>
+      useHeight && col.key === "thickness"
+        ? { ...col, key: "height" as const, label: "Height" }
+        : col,
+    );
+  const columnsWithArea = includeArea
+    ? insertBeforeRemark(columns, slicingAreaColumns)
+    : columns;
+  const tableWidth = columnsWithArea.reduce(
     (total, column) => total + column.minWidth,
     0,
   );
@@ -299,7 +330,7 @@ export function RejectAvailableDetailsTable({
           <Table size="small" sx={{ minWidth: tableWidth, tableLayout: "auto" }}>
             <TableHead>
               <TableRow>
-                {columns.map((column) => (
+                {columnsWithArea.map((column) => (
                   <TableCell
                     key={column.key}
                     sx={getHeaderCellSx(theme, column.minWidth)}
@@ -311,11 +342,12 @@ export function RejectAvailableDetailsTable({
             </TableHead>
             <TableBody>
               <TableRow>
-                {columns.map((column) => (
+                {columnsWithArea.map((column) => (
                   <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                     {renderRejectAvailableField({
                       column,
                       disabled: column.key === "type" && Boolean(disabledType),
+                      editableDerived,
                       issue: fieldIssues[column.key],
                       onChange,
                       theme,
@@ -337,6 +369,7 @@ export function createEmptyRejectAvailableValues(): RejectAvailableValues {
     amount: "",
     cbf: "",
     cbm: "",
+    height: "",
     length: "",
     remark: "",
     sqf: "",
@@ -352,6 +385,7 @@ export function getNextRejectAvailableValues(
   key: RejectAvailableKey,
   value: string,
   volumeMode = false,
+  useHeight = false,
 ): RejectAvailableValues {
   if (key === "amount") {
     return {
@@ -360,11 +394,35 @@ export function getNextRejectAvailableValues(
     };
   }
 
-  if (key === "sqm" || key === "sqf" || key === "cbm" || key === "cbf") {
+  if (key === "sqm" || key === "sqf") {
     return current;
   }
 
-  if (key === "length" || key === "width" || key === "thickness") {
+  if (key === "cbm" || key === "cbf") {
+    if (!volumeMode) {
+      return current;
+    }
+    const nextValue = sanitizeDecimalValue(value, key === "cbm" ? 6 : 4);
+    if (key === "cbf") {
+      return { ...current, cbf: nextValue };
+    }
+    const nextValues = { ...current, cbm: nextValue };
+    return useHeight ? withHeightFromAvailableCbm(nextValues) : {
+      ...nextValues,
+      cbf:
+        Number.parseFloat(nextValue) > 0
+          ? (Number.parseFloat(nextValue) * 35.3147).toFixed(4).replace(/\.?0+$/u, "")
+          : "",
+    };
+  }
+
+  if (key === "length" || key === "width" || key === "thickness" || key === "height") {
+    if (volumeMode && useHeight) {
+      return withDerivedAvailableHeightVolume({
+        ...current,
+        [key]: sanitizeDecimalValue(value, 3),
+      });
+    }
     if (volumeMode) {
       return withDerivedRejectAvailableVolumes({
         ...current,
@@ -383,6 +441,11 @@ export function getNextRejectAvailableValues(
   };
 }
 
+function sawingVolumeDivisor(length: number, width: number, third: number) {
+  if (length > 50 || width > 50 || third > 50) return 1_000_000_000;
+  return 1;
+}
+
 function withDerivedRejectAvailableVolumes(
   values: RejectAvailableValues,
 ): RejectAvailableValues {
@@ -398,15 +461,48 @@ function withDerivedRejectAvailableVolumes(
     };
   }
 
-  const isMm = l > 50 || w > 50;
-  const divisor = isMm ? 1_000_000_000 : 1_000_000;
-  const cbm = (l * w * h) / divisor;
+  const cbm = (l * w * h) / sawingVolumeDivisor(l, w, h);
   const cbf = cbm * 35.3147;
 
   return {
     ...values,
     cbm: cbm.toFixed(6).replace(/\.?0+$/u, ""),
     cbf: cbf.toFixed(4).replace(/\.?0+$/u, ""),
+  };
+}
+
+function withDerivedAvailableHeightVolume(
+  values: RejectAvailableValues,
+): RejectAvailableValues {
+  const length = parseNumericValue(values.length) ?? 0;
+  const width = parseNumericValue(values.width) ?? 0;
+  const height = parseNumericValue(values.height) ?? 0;
+  if (length <= 0 || width <= 0 || height <= 0) {
+    return { ...values, cbf: "", cbm: "" };
+  }
+  const cbm = (length * width * height) / sawingVolumeDivisor(length, width, height);
+  return {
+    ...values,
+    cbm: cbm.toFixed(6).replace(/\.?0+$/u, ""),
+    cbf: (cbm * 35.3147).toFixed(4).replace(/\.?0+$/u, ""),
+  };
+}
+
+function withHeightFromAvailableCbm(
+  values: RejectAvailableValues,
+): RejectAvailableValues {
+  const length = parseNumericValue(values.length) ?? 0;
+  const width = parseNumericValue(values.width) ?? 0;
+  const cbm = parseNumericValue(values.cbm) ?? 0;
+  const cbf = cbm > 0 ? (cbm * 35.3147).toFixed(4).replace(/\.?0+$/u, "") : "";
+  if (length <= 0 || width <= 0 || cbm <= 0) {
+    return { ...values, cbf, height: "" };
+  }
+  const height = (cbm * sawingVolumeDivisor(length, width, 0)) / (length * width);
+  return {
+    ...values,
+    cbf,
+    height: height.toFixed(3).replace(/\.?0+$/u, ""),
   };
 }
 
@@ -543,6 +639,7 @@ function normalizeSourceKey(key: string) {
 function renderRejectAvailableField({
   column,
   disabled,
+  editableDerived = false,
   issue,
   onChange,
   theme,
@@ -550,6 +647,7 @@ function renderRejectAvailableField({
 }: {
   column: RejectAvailableColumn;
   disabled?: boolean;
+  editableDerived?: boolean;
   issue: RejectAvailableValidationIssue | undefined;
   onChange: (key: RejectAvailableKey, value: string) => void;
   theme: Theme;
@@ -587,7 +685,7 @@ function renderRejectAvailableField({
       error={Boolean(issue)}
       fullWidth
       helperText={helperText}
-      inputProps={{ readOnly: isDerivedAreaField }}
+      inputProps={{ readOnly: isDerivedAreaField && !editableDerived }}
       size="small"
       value={value}
       onChange={(event) => onChange(column.key, event.target.value)}
@@ -598,6 +696,22 @@ function renderRejectAvailableField({
       }
     />
   );
+}
+
+function insertBeforeRemark(
+  columns: readonly RejectAvailableColumn[],
+  extra: readonly RejectAvailableColumn[],
+) {
+  const remarkIndex = columns.findIndex((column) => column.key === "remark");
+  if (remarkIndex < 0) {
+    return [...columns, ...extra];
+  }
+
+  return [
+    ...columns.slice(0, remarkIndex),
+    ...extra,
+    ...columns.slice(remarkIndex),
+  ];
 }
 
 function isDecimalValue(value: string) {

@@ -237,6 +237,31 @@ export function completeFactoryIssuedWork(
   return nextItem;
 }
 
+export function revertFactoryIssuedWork(workItemId: string) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const { completedAt: _completedAt, ...rest } = current;
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...rest,
+    listingState: "issued",
+    sourceSnapshot: {
+      ...current.sourceSnapshot,
+      listingState: "issued",
+      qcStatus: "Recheck",
+      isRecheck: true,
+    },
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
 export function failFactoryIssuedWork(
   workItemId: string,
   resultSnapshot?: Record<string, unknown>,
@@ -307,6 +332,17 @@ export function factoryIssuedWorkToRow(
   const isSample = item.purpose === "SAMPLE";
   const warehouseName = getIssuedWorkWarehouseName(item);
   const issuedFrom = getIssuedWorkSourceProcess(item);
+  const snapshotIssuedFor = getStringValue(snapshot, "issuedFor");
+
+  const isSawingInspection = item.destinationSlug === "sawing-inspection";
+  const flowIssueDate = snapshotDate(snapshot.issueDate ?? snapshot.issuedDate);
+  const flowSawingDate = snapshotDate(snapshot.sawingDate ?? snapshot.processDate);
+  const flowSubCategory =
+    typeof snapshot.subCategory === "string" && snapshot.subCategory.trim() && snapshot.subCategory !== "-"
+      ? snapshot.subCategory
+      : typeof snapshot.itemSubCategory === "string"
+        ? snapshot.itemSubCategory
+        : "";
 
   return {
     ...snapshot,
@@ -315,8 +351,18 @@ export function factoryIssuedWorkToRow(
     listingState: item.listingState,
     warehouseName,
     issuedFrom,
-    issuedFor: processLabel,
-    issuedDate: new Date(item.createdAt),
+    issuedFor:
+      item.destinationSlug === "splicing" && snapshotIssuedFor
+        ? snapshotIssuedFor
+        : processLabel,
+    issuedDate:
+      (isSawingInspection || item.destinationSlug === "splicing") && flowIssueDate
+        ? flowIssueDate
+        : new Date(item.createdAt),
+    ...(isSawingInspection && flowSawingDate ? { sawingDate: flowSawingDate } : {}),
+    ...(isSawingInspection && flowSubCategory
+      ? { subCategory: flowSubCategory, itemSubCategory: flowSubCategory }
+      : {}),
     purpose: isSample ? "SAMPLE" : "ORDER",
     for: isSample ? "Sample" : "Order",
     forLabel: isSample ? "Sample" : "Order",
@@ -339,6 +385,12 @@ export function factoryIssuedWorkToRow(
             ? `Order ${snapshot.orderNo}`
             : "",
   } as FactoryRecord;
+}
+
+function snapshotDate(value: unknown): string | Date | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "string" && value.trim()) return value;
+  return undefined;
 }
 
 function getIssuedWorkWarehouseName(item: FactoryIssuedWorkRecord) {

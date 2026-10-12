@@ -295,13 +295,13 @@ export const userManagementFormFields: readonly MasterFieldDefinition[] = [
     key: "email",
     label: "Email",
     type: "text",
-    placeholder: "Enter Email",
+    placeholder: "e.g. name@example.com",
   },
   {
     key: "phoneNo",
     label: "Phone No",
     type: "text",
-    placeholder: "Enter Phone No",
+    placeholder: "e.g. 9876543210",
   },
   {
     key: "dateOfBirth",
@@ -332,7 +332,7 @@ export const userManagementFormFields: readonly MasterFieldDefinition[] = [
     key: "pincode",
     label: "Pincode",
     type: "text",
-    placeholder: "Enter Pincode",
+    placeholder: "e.g. 400001",
   },
   {
     key: "country",
@@ -356,7 +356,7 @@ export const userManagementFormFields: readonly MasterFieldDefinition[] = [
     key: "aadhaarNo",
     label: "Aadhaar No",
     type: "text",
-    placeholder: "Enter Aadhaar No",
+    placeholder: "e.g. 123456789012",
   },
   {
     key: "aadhaarUpload",
@@ -368,7 +368,7 @@ export const userManagementFormFields: readonly MasterFieldDefinition[] = [
     key: "panNo",
     label: "PAN No",
     type: "text",
-    placeholder: "Enter PAN No",
+    placeholder: "e.g. ABCDE1234F",
   },
   {
     key: "panUpload",
