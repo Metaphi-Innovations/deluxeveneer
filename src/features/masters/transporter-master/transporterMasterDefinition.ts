@@ -1,4 +1,6 @@
 import type { MasterDefinition } from "../shared/types";
+import { uniqueOptions } from "../shared/masterRecordHelpers";
+import { getCachedTransporterMasterRows } from "./api/transporterMasterApi";
 
 export const transporterMasterDefinition: MasterDefinition = {
   slug: "transporter-master",
@@ -34,3 +36,19 @@ export const transporterMasterDefinition: MasterDefinition = {
   ],
   rows: [],
 };
+
+export function getTransporterMasterOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "transporterName");
+}
+
+/** @deprecated Prefer getTransporterMasterOptions() for live API cache values. */
+export const transporterMasterOptions = getTransporterMasterOptions();
+
+export const transporterTypeOptions = ["Road", "Air", "Rail"];
+
+export function getTransporterAreaOfOperationOptions() {
+  return uniqueOptions(getCachedTransporterMasterRows(), "areaOfOperation");
+}
+
+/** @deprecated Prefer getTransporterAreaOfOperationOptions(). */
+export const transporterAreaOfOperationOptions = getTransporterAreaOfOperationOptions();

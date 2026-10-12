@@ -1,1 +1,1 @@
-export { colorMasterDefinition } from "../../shared/masterDefinitions";
+export { colorMasterDefinition } from "../colorMasterDefinition";

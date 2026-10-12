@@ -1,1 +1,1 @@
-export { cutMasterDefinition } from "../../shared/masterDefinitions";
+export { cutMasterDefinition } from "../cutMasterDefinition";

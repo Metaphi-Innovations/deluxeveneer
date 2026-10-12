@@ -12,6 +12,7 @@ import {
 import {
   getSampleSheetByNo,
   isSampleEligibleForOrder,
+  isStoredProductionSample,
   resolveSampleFinishedType,
   useSampleSheetRecords,
   type SampleSheetRecord,
@@ -49,7 +50,7 @@ export function SampleSheetsTab({
 
   const sampleRows = useMemo<SampleSheetTableRow[]>(
     () =>
-      sampleRecords.map((sample) => ({
+      sampleRecords.filter(isStoredProductionSample).map((sample) => ({
         id: sample.sampleNo,
         sampleNo: sample.sampleNo,
         issueDate: new Date(sample.issueDate),
@@ -145,7 +146,7 @@ export function SampleSheetsTab({
         actions={actions}
         columns={sampleSheetColumns}
         defaultRowsPerPage={10}
-        emptyStateLabel="No sample sheets have been issued from Grouping yet."
+        emptyStateLabel="No sample sheets have been stored from Pressing yet."
         getRowActions={(row) =>
           actions.filter((action) => {
             if (action.id !== "issue-for-order") {

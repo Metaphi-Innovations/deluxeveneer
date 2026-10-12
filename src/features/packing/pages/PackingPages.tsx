@@ -1,4 +1,5 @@
-import { PackingListingPage, PackingRecordPage } from "../shared";
+import { PackingRecordPage } from "../form/PackingRecordPage";
+import { PackingListingPage } from "../listing/PackingListingPage";
 
 export function PackingPage() {
   return <PackingListingPage />;

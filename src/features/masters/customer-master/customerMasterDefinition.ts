@@ -27,22 +27,27 @@ export const customerMasterDefinition: MasterDefinition = {
     { key: "companyName", label: "Company Name", options: [] },
   ],
   fields: [
-    { key: "customerName", label: "Customer Name", type: "text" },
-    { key: "companyName", label: "Company Name", type: "text" },
+    // Line 1: customer type, customer name, company name, email, phone, dob
     {
       key: "customerType",
       label: "Customer Type",
       type: "select",
       options: ["Platinum", "Gold", "Silver"],
     },
-    { key: "dob", label: "Date of Birth", type: "date" },
+    { key: "customerName", label: "Customer Name", type: "text" },
+    { key: "companyName", label: "Company Name", type: "text" },
     { key: "email", label: "Email", type: "text" },
     { key: "phoneNumber", label: "Phone Number", type: "text" },
+    { key: "dob", label: "Date of Birth", type: "date" },
+
+    // Line 2: address, pincode, country, state, city
     { key: "address", label: "Address", type: "text" },
     { key: "pincode", label: "Pincode", type: "text" },
     { key: "country", label: "Country", type: "select", options: [] },
     { key: "state", label: "State", type: "select", options: [] },
     { key: "city", label: "City", type: "select", options: [] },
+
+    // Line 3: gstin, gstin upload, pan, pan upload, remark
     { key: "gstNo", label: "GSTIN", type: "text" },
     { key: "gstUpload", label: "GSTIN Upload", type: "file" },
     { key: "panNo", label: "PAN No", type: "text" },

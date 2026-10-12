@@ -182,7 +182,7 @@ export function SawingCreatePage() {
       { label: "Sawing Sr No.", value: sourceItem.sawingSrNo || "-" },
       { label: "Item Name", value: sourceItem.itemName || "-" },
       { label: "Sub Category", value: sourceItem.subCategory || sourceItem.itemSubCategoryName || "-" },
-      { label: "Batch No", value: sourceItem.batchNo || "-" },
+      { label: "Log No.", value: sourceItem.batchNo || sourceItem.logNo || "-" },
       { label: "Source Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Height", value: sourceItem.height ? String(sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },

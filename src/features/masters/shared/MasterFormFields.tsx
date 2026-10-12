@@ -203,10 +203,10 @@ export function MasterFormFields({
       : getCompactFieldSx(theme, state, fieldSxOptions);
   const mastersErpProps = isMastersVariant
     ? {
-        controlHeight: mastersErpControlHeight,
-        controlRadius: 6,
-        focusRing: "subtle" as const,
-      }
+      controlHeight: mastersErpControlHeight,
+      controlRadius: 6,
+      focusRing: "subtle" as const,
+    }
     : {};
   const selectedCountry = getLocationValue(definition.fields, values, "country");
   const selectedState = getLocationValue(definition.fields, values, "state");
@@ -338,19 +338,19 @@ export function MasterFormFields({
           gridTemplateColumns: useSingleColumn
             ? "minmax(0, 1fr)"
             : {
-                xs: "repeat(1, minmax(0, 1fr))",
-                sm: compact
-                  ? "repeat(2, minmax(140px, 1fr))"
-                  : "repeat(1, minmax(0, 1fr))",
-                md: compact
-                  ? "repeat(3, minmax(150px, 1fr))"
-                  : "repeat(2, minmax(160px, 1fr))",
-                lg:
-                  desktopColumns >= 5
-                    ? "repeat(5, minmax(140px, 1fr))"
-                    : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-                xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-              },
+              xs: "repeat(1, minmax(0, 1fr))",
+              sm: compact
+                ? "repeat(2, minmax(140px, 1fr))"
+                : "repeat(1, minmax(0, 1fr))",
+              md: compact
+                ? "repeat(3, minmax(150px, 1fr))"
+                : "repeat(2, minmax(160px, 1fr))",
+              lg:
+                desktopColumns >= 5
+                  ? "repeat(5, minmax(140px, 1fr))"
+                  : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+              xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+            },
         })}
       >
         {fields.map((field) => {
@@ -399,9 +399,17 @@ export function MasterFormFields({
                       : 0.75,
                 ),
                 width: "100%",
+                maxWidth: field.maxWidth ?? undefined,
                 minWidth: 0,
-                gridColumn: isFullWidth
+                gridColumn: field.columnSpan
                   ? {
+                    xs: "span 1",
+                    sm: `span ${Math.min(field.columnSpan, 2)}`,
+                    md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                    lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                  }
+                  : isFullWidth
+                    ? {
                       xs: "span 1",
                       lg: useSingleColumn
                         ? "span 1"
@@ -410,16 +418,18 @@ export function MasterFormFields({
                         ? "span 1"
                         : `span ${Math.min(desktopColumns, 2)}`,
                     }
-                  : undefined,
+                    : undefined,
               })}
             >
               <Stack
                 direction="row"
                 alignItems="center"
                 justifyContent="space-between"
-                sx={(theme) => ({
-                  gap: theme.spacing(0.75),
-                  minHeight: isMastersVariant ? "auto" : theme.spacing(2.5),
+                sx={() => ({
+                  gap: 1,
+                  height: "20px",
+                  minHeight: "20px",
+                  maxHeight: "20px",
                 })}
               >
                 <FieldLabel
@@ -480,8 +490,8 @@ export function MasterFormFields({
                 <Box
                   sx={(currentTheme) => ({
                     display: "grid",
-                    gap: currentTheme.spacing(1),
-                    gridTemplateColumns: "92px minmax(0, 1fr)",
+                    gap: currentTheme.spacing(0.75),
+                    gridTemplateColumns: "65px minmax(0, 1fr)",
                   })}
                 >
                   <TextField
@@ -502,13 +512,14 @@ export function MasterFormFields({
                           justifyContent: "flex-start",
                           lineHeight: 1,
                           minHeight: "0 !important",
-                          paddingLeft: `${theme.spacing(1.5)} !important`,
-                          paddingRight: `${theme.spacing(3.5)} !important`,
+                          paddingLeft: `${theme.spacing(1)} !important`,
+                          paddingRight: `${theme.spacing(2.5)} !important`,
                           paddingTop: "0 !important",
                           paddingBottom: "0 !important",
+                          fontSize: "0.8125rem !important",
                         },
                         "& .MuiSelect-icon": {
-                          right: theme.spacing(1),
+                          right: theme.spacing(0.5),
                           top: "50%",
                           transform: "translateY(-50%)",
                         },
@@ -614,6 +625,7 @@ export function MasterFormFields({
                     slotProps={{
                       input: {
                         readOnly: fieldIsReadOnly,
+                        placeholder: !fieldIsReadOnly ? getFieldPlaceholder(field) : undefined,
                       },
                       htmlInput: {
                         inputMode: "numeric",
@@ -626,8 +638,8 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation && renderedFieldType === "text" &&
-              !isPhoneField(field) &&
-              !isLocationField(field) ? (
+                !isPhoneField(field) &&
+                !isLocationField(field) ? (
                 <TextField
                   fullWidth
                   error={Boolean(fieldHasRequiredError || fieldValidationError)}
@@ -641,13 +653,17 @@ export function MasterFormFields({
 
                     handleFieldChange(field, nextValue);
                   }}
-                  sx={{
-                    ...resolveFieldSx(fieldState),
-                    "& .MuiOutlinedInput-root": {
-                      height: theme.spacing(4.5),
-                      minHeight: theme.spacing(4.5),
-                    },
-                  }}
+                  sx={
+                    isMastersVariant
+                      ? resolveFieldSx(fieldState)
+                      : {
+                        ...resolveFieldSx(fieldState),
+                        "& .MuiOutlinedInput-root": {
+                          height: theme.spacing(4.5),
+                          minHeight: theme.spacing(4.5),
+                        },
+                      }
+                  }
                   slotProps={getTextFieldSlotProps(field, fieldIsReadOnly)}
                 />
               ) : null}
@@ -671,7 +687,7 @@ export function MasterFormFields({
               ) : null}
 
               {!isDetailsPresentation &&
-              (renderedFieldType === "select" || isLocationField(field)) ? (
+                (renderedFieldType === "select" || isLocationField(field)) ? (
                 <ErpSelectField
                   helperText={fieldHelperText}
                   maxVisibleOptions={
@@ -681,6 +697,7 @@ export function MasterFormFields({
                   }
                   onChange={(value) => handleFieldChange(field, value)}
                   options={getSelectOptions(field, locationOptions)}
+                  renderBottomAction={field.renderDropdownAction}
                   searchable
                   size={fieldControlSize}
                   state={interactiveFieldState}
@@ -1172,11 +1189,11 @@ function FieldLabel({
         masters
           ? mastersFormLabelSx()
           : {
-              fontSize: compact ? "12px" : "13px",
-              fontWeight: 600,
-              lineHeight: 1.3,
-              whiteSpace: compact ? "nowrap" : undefined,
-            }
+            fontSize: compact ? "12px" : "13px",
+            fontWeight: 600,
+            lineHeight: 1.3,
+            whiteSpace: compact ? "nowrap" : undefined,
+          }
       }
     >
       {getDisplayFieldLabel(label)}
@@ -1257,14 +1274,14 @@ function DetailFilePreview({
           flexShrink: 0,
           ...(fileUrl
             ? {
-                "&:hover": {
-                  borderColor: theme.customTokens.navigation.activeText,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
-                  "& .preview-overlay": {
-                    opacity: 1,
-                  },
+              "&:hover": {
+                borderColor: theme.customTokens.navigation.activeText,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
+                "& .preview-overlay": {
+                  opacity: 1,
                 },
-              }
+              },
+            }
             : {}),
         }}
       >
@@ -1360,11 +1377,11 @@ function getFieldValidationError(
   }
 
   if (isGstNoField(field) && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(textValue)) {
-    return "GSTIN should be 15 characters in the format 22AAAAA0000A1Z5.";
+    return "GSTIN should be 15 characters (e.g. 27ABCDE1234F2Z5).";
   }
 
   if (isHsnCodeField(field) && !/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
-    return "HSN Code must be 4, 6, or 8 digits only.";
+    return "HSN Code must be 4, 6, or 8 digits only (e.g. 44089090).";
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select" && !/^\d+$/.test(textValue)) {
@@ -1372,7 +1389,7 @@ function getFieldValidationError(
   }
 
   if (isPincodeField(field) && !/^\d{6}$/.test(textValue)) {
-    return "Pincode should be exactly 6 digits.";
+    return "Pincode should be exactly 6 digits (e.g. 400001).";
   }
 
   if (isAgeField(field)) {
@@ -1386,11 +1403,11 @@ function getFieldValidationError(
   }
 
   if (isAadhaarField(field) && !/^\d{12}$/.test(textValue)) {
-    return "Aadhaar No should be exactly 12 digits.";
+    return "Aadhaar No should be exactly 12 digits (e.g. 123456789012).";
   }
 
   if (isPanField(field) && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(textValue)) {
-    return "PAN No should be 10 characters in the format AAAAA9999A.";
+    return "PAN No should be 10 characters (e.g. ABCDE1234F).";
   }
 
   if (isFscCodeField(field) && !/^FSC-[CNP]\d{6}$/.test(textValue)) {
@@ -1514,7 +1531,7 @@ function normalizeTextInputValue(field: MasterFieldDefinition, value: string) {
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select") {
-    return value.replace(/\D/g, "");
+    return value.replace(/\D/g, "").slice(0, 2);
   }
 
   if (isPincodeField(field)) {
@@ -1835,7 +1852,15 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
     };
   }
 
-  if (isGstOrHsnNumericField(field) || isPincodeField(field) || isAgeField(field)) {
+  if (isGstOrHsnNumericField(field)) {
+    return {
+      inputMode: "numeric" as const,
+      maxLength: 2,
+      pattern: "[0-9]*",
+    };
+  }
+
+  if (isPincodeField(field) || isAgeField(field)) {
     return {
       inputMode: "numeric" as const,
       pattern: "[0-9]*",
@@ -1851,6 +1876,66 @@ function getTextInputHtmlProps(field: MasterFieldDefinition) {
   return undefined;
 }
 
+function getFieldPlaceholder(field: MasterFieldDefinition): string {
+  if (field.placeholder) {
+    return field.placeholder;
+  }
+
+  const cleanLabel = field.label.replace(/\s*\*+$/, "").trim();
+  const normalizedKey = getNormalizedFieldKey(field);
+  const normalizedLabel = cleanLabel.toLowerCase();
+
+  if (isPhoneField(field)) {
+    return "e.g. 9876543210";
+  }
+
+  if (isEmailField(field)) {
+    return "e.g. name@example.com";
+  }
+
+  if (isAadhaarField(field)) {
+    return "e.g. 123456789012";
+  }
+
+  if (isPanField(field)) {
+    return "e.g. ABCDE1234F";
+  }
+
+  if (isGstNoField(field)) {
+    return "e.g. 27ABCDE1234F2Z5";
+  }
+
+  if (isHsnCodeField(field)) {
+    return "e.g. 44089090";
+  }
+
+  if (isPincodeField(field)) {
+    return "e.g. 400001";
+  }
+
+  if (isAgeField(field)) {
+    return "Enter Age";
+  }
+
+  if (normalizedKey === "remark" || normalizedKey === "remarks" || normalizedLabel === "remark" || normalizedLabel === "remarks") {
+    return "Enter remark";
+  }
+
+  if (field.type === "select" || isLocationField(field)) {
+    return `Select ${cleanLabel}`;
+  }
+
+  if (field.type === "date") {
+    return `Select ${cleanLabel}`;
+  }
+
+  if (field.type === "file") {
+    return `Upload ${cleanLabel}`;
+  }
+
+  return `Enter ${cleanLabel.toLowerCase()}`;
+}
+
 function getTextFieldSlotProps(
   field: MasterFieldDefinition,
   readOnly: boolean,
@@ -1860,6 +1945,7 @@ function getTextFieldSlotProps(
   return {
     input: {
       readOnly,
+      placeholder: !readOnly ? getFieldPlaceholder(field) : undefined,
     },
     htmlInput: {
       autoComplete: "off",

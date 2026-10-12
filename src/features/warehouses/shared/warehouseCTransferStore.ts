@@ -41,20 +41,60 @@ function writeRows(rows: WarehouseInventoryRow[]) {
 export function moveFactoryRowToWarehouseC(row: Record<string, unknown>) {
   const rowId = String(row.id ?? "");
 
-  if (!rowId || readRows().some((entry) => entry.inventoryRecordId === rowId)) {
+  if (!rowId) {
     return;
   }
 
-  const movedRow = {
+  const inventorySlug = getString(row, ["inventorySlug"]) === "sawing" ? "sawing" : "raw-veneer";
+  const movedRow = buildMovedWarehouseRow(row, rowId, inventorySlug);
+  const existing = readRows();
+  const existingIndex = existing.findIndex((entry) => entry.inventoryRecordId === rowId);
+
+  if (existingIndex >= 0) {
+    if (inventorySlug !== "sawing") {
+      return;
+    }
+
+    const nextRows = [...existing];
+    nextRows[existingIndex] = movedRow;
+    writeRows(nextRows);
+    return;
+  }
+
+  writeRows([...existing, movedRow]);
+}
+
+function buildMovedWarehouseRow(
+  row: Record<string, unknown>,
+  rowId: string,
+  inventorySlug: "raw-veneer" | "sawing",
+) {
+  const batchNo = getString(row, ["batchNo", "batchNoCode", "logNo", "logCode"]);
+  const height = getString(row, ["height", "thickness"]);
+  const amount = getString(row, ["amount", "totalAmount"]);
+
+  return {
     ...row,
     id: `warehouse-c-inspection-${rowId}`,
     inventoryRecordId: rowId,
-    inventorySlug: "raw-veneer",
-    inwardDate: row.issuedDate instanceof Date ? row.issuedDate : new Date(),
+    inventorySlug,
+    warehouseName: getString(row, ["warehouseName", "destinationWarehouse"]) || "Warehouse C",
+    storageSrNo: getString(row, ["storageSrNo", "storageSerialNumber"]),
+    inwardDate: readDate(row.issuedDate ?? row.sawingDate ?? row.processDate ?? row.issueDate),
     invoiceNo: "-",
     supplierName: "-",
     itemName: getString(row, ["itemName", "productName"]),
     subCategory: getString(row, ["itemSubCategory", "subCategory"]),
+    color: getString(row, ["color", "colour"]),
+    batchNo,
+    logNo: batchNo,
+    referenceSrNo: batchNo,
+    length: getString(row, ["length"]),
+    width: getString(row, ["width"]),
+    height,
+    thickness: height,
+    cbm: getString(row, ["cbm", "receivedCbm", "availableCbm"]),
+    cbf: getString(row, ["cbf"]),
     totalUnits: getString(row, ["noOfLeaves", "noOfSheets", "quantity"]),
     availableUnits: getString(row, ["noOfLeaves", "noOfSheets", "quantity"]),
     totalSqm: getString(row, ["sqm", "issuedSqm", "totalSqm"]),
@@ -62,13 +102,28 @@ export function moveFactoryRowToWarehouseC(row: Record<string, unknown>) {
     totalSqf: getString(row, ["sqf", "issuedSqf", "totalSqf"]),
     availableSqf: getString(row, ["sqf", "issuedSqf", "totalSqf"]),
     currency: getString(row, ["currency"]) || "INR",
-    amount: getString(row, ["amount"]),
+    amount,
+    totalAmount: getString(row, ["totalAmount"]) || amount,
     remark: getString(row, ["remark"]),
+    updatedBy: getString(row, ["updatedBy"]),
     qcStatus: "QC Pass",
     status: "Available",
   } as unknown as WarehouseInventoryRow;
+}
 
-  writeRows([...readRows(), movedRow]);
+function readDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return new Date();
 }
 
 export function useWarehouseCMovedRows() {

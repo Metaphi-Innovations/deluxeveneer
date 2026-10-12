@@ -1,16 +1,16 @@
 import {
   FactoryForm,
   FactoryListing,
-  FactoryProcessCreatePage,
   pressingDefinition,
 } from "../../shared";
+import { CreatePressingPage } from "../CreatePressingPage";
 
 export function PressingListPage() {
   return <FactoryListing definition={pressingDefinition} />;
 }
 
 export function AddPressingPage() {
-  return <FactoryProcessCreatePage definition={pressingDefinition} />;
+  return <CreatePressingPage />;
 }
 
 export function EditPressingPage() {

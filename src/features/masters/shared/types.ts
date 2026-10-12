@@ -47,9 +47,12 @@ export interface MasterFieldDefinition {
   options?: string[];
   placeholder?: string;
   readOnly?: boolean;
+  renderDropdownAction?: (helpers: { close: () => void }) => React.ReactNode;
   required?: boolean;
   rows?: number;
   span?: "single" | "full";
+  columnSpan?: number;
+  maxWidth?: number | string | Record<string, number | string>;
 }
 
 export interface MasterRecord {

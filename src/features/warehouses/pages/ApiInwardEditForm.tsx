@@ -9,6 +9,7 @@ import {
   hasFormFieldErrors,
   type MasterFieldValue,
 } from "../../masters/shared";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { refreshSupplierMasterCache } from "../../masters/supplier-master/api/supplierMasterApi";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
@@ -257,8 +258,38 @@ export function ApiInwardEditForm({
     [detail],
   );
 
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => undefined,
+  });
+
   const closeForm = () => {
-    navigate(listPath, { replace: true, flushSync: true });
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(listPath, { replace: true, flushSync: true });
+      },
+    });
+  };
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Discard Changes",
+      description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
+      action: () => {
+        navigate(listPath, { replace: true, flushSync: true });
+      },
+    });
   };
 
   const handleSave = async () => {
@@ -429,6 +460,11 @@ export function ApiInwardEditForm({
 
   return (
     <InventoryPageShell
+      backNav={{
+        label: "Back to Stock",
+        to: listPath,
+        onBack: handleBack,
+      }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
@@ -533,6 +569,21 @@ export function ApiInwardEditForm({
           </Box>
         </Box>
       </MasterSectionCard>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+        onConfirm={() => {
+          const act = leaveConfirmation.action;
+          setLeaveConfirmation((c) => ({ ...c, open: false }));
+          act();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </InventoryPageShell>
   );
 }

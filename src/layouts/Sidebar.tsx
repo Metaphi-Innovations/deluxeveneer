@@ -563,6 +563,21 @@ export function Sidebar({
                                 to={item.to}
                                 sx={mastersSidebarChildSx(theme, isItemActive)}
                               >
+                                {item.icon ? (
+                                  <ListItemIcon
+                                    sx={{
+                                      minWidth: 16,
+                                      width: 16,
+                                      mr: 1,
+                                      justifyContent: "center",
+                                      color: isItemActive
+                                        ? theme.customTokens.brand.primary
+                                        : theme.customTokens.neutrals[500],
+                                    }}
+                                  >
+                                    <item.icon size={15} strokeWidth={2} />
+                                  </ListItemIcon>
+                                ) : null}
                                 <ListItemText
                                   primary={item.label}
                                   primaryTypographyProps={{

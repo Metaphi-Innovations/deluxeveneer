@@ -7,11 +7,8 @@ import { ApiInwardEditForm } from "../../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../../warehouses/pages/ApiInwardViewForm";
 import { isProductionInventorySearch } from "../../../warehouses/production/productionInventoryPaths";
 import { ProductionInventoryRecordRoute } from "../../../warehouses/production/pages/ProductionInventoryRecordRoute";
-import {
-  InventoryForm,
-  InventoryPageShell,
-  plywoodDefinition,
-} from "../../shared";
+import { InventoryForm, InventoryPageShell } from "../../shared";
+import { plywoodDefinition } from "../plywoodDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function PlywoodListPage() {

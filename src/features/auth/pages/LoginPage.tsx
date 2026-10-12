@@ -18,6 +18,7 @@ import { ArrowRight, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
 
 import deluxeLogo from "../../../assets/deluxe-veneers.png";
+import { env } from "../../../config/env";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
   demoCredentials,
@@ -30,12 +31,16 @@ import {
 
 type ForgotPasswordStep = "email" | "otp";
 
+const devLoginPassword = env.VITE_DEV_LOGIN_PASSWORD;
+const devLoginEmail = devLoginPassword ? demoCredentials.email : "";
+let devLoginAttempt: Promise<boolean> | null = null;
+
 export function LoginPage() {
   const theme = useTheme();
   const navigate = useNavigate();
   const authenticated = isAuthenticated();
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
+  const [email, setEmail] = useState<string>(devLoginEmail);
+  const [password, setPassword] = useState<string>(devLoginPassword);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -51,6 +56,43 @@ export function LoginPage() {
     useState("");
   const [forgotPasswordMessage, setForgotPasswordMessage] = useState("");
   const [forgotPasswordError, setForgotPasswordError] = useState("");
+
+  useEffect(() => {
+    if (!devLoginPassword || isAuthenticated()) return;
+
+    let cancelled = false;
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    const attempt = devLoginAttempt ?? signIn(devLoginEmail, devLoginPassword);
+    devLoginAttempt = attempt;
+
+    void attempt
+      .then((signedIn) => {
+        if (cancelled) return;
+        if (signedIn) {
+          navigate(getDefaultAuthenticatedRoute(), { replace: true });
+          return;
+        }
+        setErrorMessage("Invalid email or password.");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setErrorMessage(
+          error instanceof Error && error.message.trim()
+            ? error.message
+            : "Invalid email or password.",
+        );
+      })
+      .finally(() => {
+        devLoginAttempt = null;
+        if (!cancelled) setIsSubmitting(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   if (authenticated) {
     return <Navigate to={getDefaultAuthenticatedRoute()} replace />;

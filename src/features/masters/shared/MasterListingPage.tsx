@@ -2,21 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
+  Snackbar,
   Stack,
 } from "@mui/material";
-import { Plus } from "lucide-react";
-import { Link as RouterLink } from "react-router";
+import { Eye, Pencil, Plus } from "lucide-react";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
+import { EnterpriseDataTable } from "../../../components/data-display/EnterpriseDataTable";
+import type { EnterpriseTableAction } from "../../../components/data-display/EnterpriseDataTable";
 import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import {
   canAccessAnyAction,
   canAccessPermission,
   getMasterPermissionKey,
 } from "../../permissions";
 import { MasterPageShell } from "./MasterPageShell";
-import { MasterTable } from "./MasterTable";
 import {
   buildLocalMasterDefinition,
   updateLocalMasterStatus,
@@ -51,7 +53,7 @@ interface MasterListingPageProps {
   sorting?: {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-    onSortChange: (sortBy: string, sortOrder: "asc" | "desc") => void;
+    onSortChange: (sortBy: string | null, sortOrder: "asc" | "desc" | null) => void;
   };
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
   onColumnFiltersChange?: (
@@ -91,36 +93,41 @@ export function MasterListingPage({
   const canEdit = canAccessPermission(permissionKey, "edit");
   const canView = canAccessPermission(permissionKey, "view");
   const canOpenPage = canAccessAnyAction(permissionKey);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [internalSearch, setInternalSearch] = useState("");
   const searchValue = controlledSearch ?? internalSearch;
   const setSearchValue = onSearchChange ?? setInternalSearch;
   const sourceRows = remoteRows ?? localDefinition.rows;
-
-  // Local input state and debounce effect to avoid immediate API firing on every keystroke
-  const [inputValue, setInputValue] = useState(searchValue);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "info" | "warning";
+  } | null>(null);
+  const [statusConfirmDialog, setStatusConfirmDialog] = useState<{
+    open: boolean;
+    row: MasterRecord | null;
+    checked: boolean;
+  }>({
+    open: false,
+    row: null,
+    checked: false,
+  });
 
   useEffect(() => {
-    setInputValue(searchValue);
-  }, [searchValue]);
+    const flashMessage = (location.state as { masterFlashMessage?: string } | null)
+      ?.masterFlashMessage;
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (inputValue !== searchValue) {
-        setSearchValue(inputValue);
-      }
-    }, 450);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue, searchValue, setSearchValue]);
-
-  const handleInputChange = (val: string) => {
-    setInputValue(val);
-    if (val === "") {
-      setSearchValue("");
+    if (flashMessage) {
+      setToastNotification({
+        message: flashMessage,
+        severity: "success",
+      });
+      navigate(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: null,
+      });
     }
-  };
+  }, [location.pathname, location.search, location.state, navigate]);
 
   const filteredRows = useMemo(() => {
     if (serverSearch) {
@@ -144,13 +151,46 @@ export function MasterListingPage({
   const addButtonLabel = `Add ${entityLabel}`;
   const searchPlaceholder = "Search...";
 
+  const executeStatusChange = async (row: MasterRecord, checked: boolean) => {
+    const itemName =
+      formatMasterValue(row.name || row.itemName || row.categoryName || row.code || row.id) ||
+      entityLabel;
+
+    try {
+      if (onStatusChange) {
+        await onStatusChange(row, checked);
+      } else {
+        updateLocalMasterStatus(localDefinition, row, checked);
+      }
+
+      setToastNotification({
+        message: `${entityLabel} "${itemName}" ${checked ? "activated" : "deactivated"} successfully.`,
+        severity: "success",
+      });
+    } catch (error) {
+      setToastNotification({
+        message:
+          error instanceof Error
+            ? error.message
+            : `Unable to ${checked ? "activate" : "deactivate"} ${entityLabel.toLowerCase()}.`,
+        severity: "error",
+      });
+      throw error;
+    }
+  };
+
   const handleStatusChange = async (row: MasterRecord, checked: boolean) => {
-    if (onStatusChange) {
-      await onStatusChange(row, checked);
+    if (!checked) {
+      // Deactivating is an important/destructive action; prompt confirmation
+      setStatusConfirmDialog({
+        open: true,
+        row,
+        checked,
+      });
       return;
     }
 
-    updateLocalMasterStatus(localDefinition, row, checked);
+    await executeStatusChange(row, checked);
   };
 
 
@@ -179,8 +219,8 @@ export function MasterListingPage({
         spacing={1.5}
       >
         <ClearableSearchField
-          value={inputValue}
-          onChange={handleInputChange}
+          value={searchValue}
+          onChange={setSearchValue}
           placeholder={searchPlaceholder}
           sx={{
             width: { xs: "100%", sm: 300 },
@@ -206,30 +246,103 @@ export function MasterListingPage({
           pt: theme.spacing(0.5),
         })}
       >
-        {loading && sourceRows.length === 0 ? (
-          <ContentLoader
-            label="Loading..."
-            minHeight={220}
-          />
-        ) : (
-          <MasterTable
-            canChangeStatus={canEdit}
-            canEdit={canEdit}
-            canView={canView}
-            columns={localDefinition.columns}
-            getEditPath={paths.edit}
-            getViewPath={paths.view}
-            onStatusChange={handleStatusChange}
-            {...(pagination ? { pagination } : {})}
-            {...(sorting ? { sorting } : {})}
-            {...(columnFilters ? { columnFilters } : {})}
-            {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
-            {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
-            {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
-            rows={canView ? filteredRows : []}
-          />
-        )}
+        <EnterpriseDataTable
+          columns={localDefinition.columns}
+          loading={loading}
+          onStatusChange={handleStatusChange}
+          rows={canView ? filteredRows : []}
+          {...(canEdit ? { isStatusChangeDisabled: () => false } : { isStatusChangeDisabled: () => true })}
+          {...(canView || canEdit
+            ? {
+                getRowActions: (row: MasterRecord) => {
+                  const rowActions: EnterpriseTableAction<MasterRecord>[] = [];
+
+                  if (canView) {
+                    rowActions.push({
+                      id: "view",
+                      label: "View",
+                      icon: Eye,
+                      onSelect: () => navigate(paths.view(row.id)),
+                    });
+                  }
+
+                  if (canEdit) {
+                    rowActions.push({
+                      id: "edit",
+                      label: "Edit",
+                      icon: Pencil,
+                      onSelect: () => navigate(paths.edit(row.id)),
+                    });
+                  }
+
+                  return rowActions;
+                },
+              }
+            : {})}
+          {...(pagination ? { pagination } : {})}
+          {...(sorting
+            ? {
+                sorting: {
+                  sortBy: sorting.sortBy,
+                  sortOrder: sorting.sortOrder,
+                  onSortChange: sorting.onSortChange,
+                  onSortClear: () => sorting.onSortChange(null, null),
+                },
+              }
+            : {})}
+          {...(columnFilters ? { columnFilters } : {})}
+          {...(onColumnFiltersChange ? { onColumnFiltersChange } : {})}
+          {...(filterOptionsByColumn ? { filterOptionsByColumn } : {})}
+          {...(onColumnFilterOpen ? { onColumnFilterOpen } : {})}
+        />
       </Stack>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={3500}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Deactivate"
+        description={`Are you sure you want to deactivate ${
+          statusConfirmDialog.row
+            ? `"${formatMasterValue(
+                statusConfirmDialog.row.name ||
+                  statusConfirmDialog.row.itemName ||
+                  statusConfirmDialog.row.categoryName ||
+                  statusConfirmDialog.row.code ||
+                  statusConfirmDialog.row.id,
+              )}"`
+            : `this ${entityLabel.toLowerCase()}`
+        }? Inactive records may not appear in active transaction lookups.`}
+        onClose={() =>
+          setStatusConfirmDialog({ open: false, row: null, checked: false })
+        }
+        onConfirm={async () => {
+          const { row, checked } = statusConfirmDialog;
+          setStatusConfirmDialog({ open: false, row: null, checked: false });
+          if (row) {
+            await executeStatusChange(row, checked);
+          }
+        }}
+        open={statusConfirmDialog.open}
+        title={`Deactivate ${entityLabel}`}
+        tone="danger"
+      />
     </MasterPageShell>
   );
 }
