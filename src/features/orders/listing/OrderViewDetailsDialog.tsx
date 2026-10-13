@@ -1,6 +1,8 @@
+import React from "react";
 import {
   Box,
   Button,
+  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -33,7 +35,45 @@ type DetailColumn<TRow> = {
   getValue: (row: TRow) => unknown;
   label: string;
   minWidth?: number;
+  renderCell?: (row: TRow) => React.ReactNode;
 };
+
+// Color map for all 6 order statuses
+const ORDER_STATUS_COLORS: Record<
+  string,
+  { bg: string; color: string; border: string }
+> = {
+  Draft:                { bg: "#e8eaf6", color: "#283593", border: "#9fa8da" },
+  Confirmed:            { bg: "#e3f2fd", color: "#0d47a1", border: "#90caf9" },
+  "In Production":      { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
+  "Partially Dispatched": { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1" },
+  Completed:            { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
+  Cancelled:            { bg: "#fafafa", color: "#616161", border: "#bdbdbd" },
+};
+
+function StatusChip({ status }: { status: string }) {
+  const palette = ORDER_STATUS_COLORS[status] ?? {
+    bg: "#f5f5f5",
+    color: "#333",
+    border: "#ccc",
+  };
+  return (
+    <Chip
+      label={status}
+      size="small"
+      sx={{
+        backgroundColor: palette.bg,
+        border: `1px solid ${palette.border}`,
+        borderRadius: "6px",
+        color: palette.color,
+        fontWeight: 600,
+        fontSize: "0.72rem",
+        height: 22,
+        letterSpacing: "0.02em",
+      }}
+    />
+  );
+}
 
 const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
   { label: "Order No", minWidth: 140, getValue: (row) => row.orderNo },
@@ -42,7 +82,12 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
   { label: "Customer Name", minWidth: 220, getValue: (row) => row.customerName },
   { label: "Order Type", minWidth: 150, getValue: (row) => row.orderType },
   { label: "Priority", minWidth: 120, getValue: (row) => row.priority },
-  { label: "Order Status", minWidth: 130, getValue: (row) => row.status },
+  {
+    label: "Order Status",
+    minWidth: 170,
+    getValue: (row) => row.status,
+    renderCell: (row) => <StatusChip status={String(row.status ?? "")} />,
+  },
   { label: "Remark", minWidth: 220, getValue: (row) => row.remark },
   { label: "Created Date", minWidth: 130, getValue: (row) => row.createdDate },
   { label: "Updated Date", minWidth: 130, getValue: (row) => row.updatedDate },
@@ -54,43 +99,60 @@ type OrderLineItemTableRow = OrderLineItem & {
   orderItemNo: string;
 };
 
-const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
-  { label: "Order Item No", minWidth: 130, getValue: (row) => row.orderItemNo },
-  { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory },
+const orderItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
+  { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
+  { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
+  { label: "Sales Item Name", minWidth: 160, getValue: (row) => row.salesItemName },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Sub Category", minWidth: 160, getValue: (row) => row.subCategory },
-  { label: "Series", minWidth: 130, getValue: (row) => row.series },
-  { label: "Grade", minWidth: 110, getValue: (row) => row.grade },
-  { label: "Length", minWidth: 120, getValue: (row) => row.length },
-  { label: "Width", minWidth: 120, getValue: (row) => row.width },
-  { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
-  { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
-  { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
-  { label: "SQF", minWidth: 130, getValue: (row) => row.totalSqm },
-  { label: "Rate per SQF", minWidth: 140, getValue: (row) => row.ratePerSqf },
-  { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
-  { label: "Remark", minWidth: 220, getValue: (row) => row.remark },
+  { label: "Length", minWidth: 100, getValue: (row) => row.length },
+  { label: "Width", minWidth: 100, getValue: (row) => row.width },
+  { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
+  { label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets },
+  { label: "SQM", minWidth: 90, getValue: (row) => row.sqm },
+  { label: "SQF", minWidth: 90, getValue: (row) => row.totalSqm },
+  { label: "Rate/SQF", minWidth: 100, getValue: (row) => row.ratePerSqf },
+  { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
+  { label: "Base Type", minWidth: 120, getValue: (row) => row.baseType },
+  { label: "Base Name", minWidth: 150, getValue: (row) => row.baseName },
+  { label: "Base Length", minWidth: 110, getValue: (row) => row.baseLength },
+  { label: "Base Width", minWidth: 110, getValue: (row) => row.baseWidth },
+  { label: "Base Thickness", minWidth: 120, getValue: (row) => row.baseThickness },
+  { label: "Design Code", minWidth: 120, getValue: (row) => row.designCode },
+  { label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode },
+  { label: "Remark", minWidth: 180, getValue: (row) => row.remark },
+];
+
+const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
+  { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
+  { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
+  { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
+  { label: "Length", minWidth: 100, getValue: (row) => row.length },
+  { label: "Width", minWidth: 100, getValue: (row) => row.width },
+  { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
+  { label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets },
+  { label: "SQM", minWidth: 90, getValue: (row) => row.sqm },
+  { label: "SQF", minWidth: 90, getValue: (row) => row.totalSqm },
+  { label: "Rate/SQF", minWidth: 100, getValue: (row) => row.ratePerSqf },
+  { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
+  { label: "Remark", minWidth: 180, getValue: (row) => row.remark },
 ];
 
 const finishedItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
-  { label: "Order Item No", minWidth: 130, getValue: (row) => row.orderItemNo },
-  { label: "Finished Type", minWidth: 150, getValue: (row) => row.finishedType },
-  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
+  { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
+  { label: "Finished Type", minWidth: 140, getValue: (row) => row.finishedType || row.productCategory },
+  { label: "Sales Item", minWidth: 160, getValue: (row) => row.salesItemName },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Length", minWidth: 120, getValue: (row) => row.length },
-  { label: "Width", minWidth: 120, getValue: (row) => row.width },
-  { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
-  { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
-  { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
-  { label: "SQF", minWidth: 130, getValue: (row) => row.totalSqm },
-  { label: "Rate per SQF", minWidth: 140, getValue: (row) => row.ratePerSqf },
-  { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
-  { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
-  { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
-  { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
-  { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
-  { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
-  { label: "Remark", minWidth: 220, getValue: (row) => row.remark },
+  { label: "Length", minWidth: 100, getValue: (row) => row.length },
+  { label: "Width", minWidth: 100, getValue: (row) => row.width },
+  { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
+  { label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets },
+  { label: "SQM", minWidth: 90, getValue: (row) => row.sqm },
+  { label: "SQF", minWidth: 90, getValue: (row) => row.totalSqm },
+  { label: "Rate/SQF", minWidth: 100, getValue: (row) => row.ratePerSqf },
+  { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
+  { label: "Design Code", minWidth: 120, getValue: (row) => row.designCode },
+  { label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode },
+  { label: "Remark", minWidth: 180, getValue: (row) => row.remark },
 ];
 
 export function OrderViewDetailsDialog({
@@ -110,7 +172,7 @@ export function OrderViewDetailsDialog({
   const isFinished = variant === "finished";
   const itemRows = lineItems.map((item, index) => ({
     ...item,
-    orderItemNo: String(index + 1),
+    orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
   }));
 
   return (
@@ -146,7 +208,11 @@ export function OrderViewDetailsDialog({
           py: theme.spacing(1.75),
         })}
       >
-        {isFinished ? "Finished Order Details" : "Raw Order Details"}
+        {variant === "order"
+          ? "Order Details"
+          : isFinished
+            ? "Finished Order Details"
+            : "Raw Order Details"}
       </DialogTitle>
 
       <DialogContent
@@ -173,7 +239,13 @@ export function OrderViewDetailsDialog({
               columns={itemColumns}
               emptyLabel="No order items are available."
               rows={itemRows}
-              title={isFinished ? "Finished Order Items" : "Raw Order Items"}
+              title={
+                variant === "order"
+                  ? "Order Items"
+                  : isFinished
+                    ? "Finished Order Items"
+                    : "Raw Order Items"
+              }
             />
 
             <Box
@@ -290,7 +362,9 @@ function OrderDetailTable<TRow>({
                         key={column.label}
                         sx={(theme) => getDetailBodyCellSx(theme)}
                       >
-                        {formatDialogValue(column.getValue(row))}
+                        {column.renderCell
+                          ? column.renderCell(row)
+                          : formatDialogValue(column.getValue(row))}
                       </TableCell>
                     ))}
                   </TableRow>
@@ -353,6 +427,9 @@ function getDetailTableScrollSx(theme: Theme) {
 }
 
 function getItemDetailColumns(variant: OrderCreateVariant | null) {
+  if (variant === "order") {
+    return orderItemDetailColumns;
+  }
   return variant === "finished" ? finishedItemDetailColumns : rawItemDetailColumns;
 }
 

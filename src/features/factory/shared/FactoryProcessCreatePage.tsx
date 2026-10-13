@@ -1021,7 +1021,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return [] as string[];
     }
 
-    return getOrderLineItems(order.id).map((_, index) => String(index + 1));
+    return getOrderLineItems(order.id).map((_, index) =>
+      `OI-${String(index + 1).padStart(3, "0")}`,
+    );
   }, [orderRecords, pressingOrderNo]);
 
   const [leaveConfirmation, setLeaveConfirmation] = useState<{

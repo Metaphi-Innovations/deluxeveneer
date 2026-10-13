@@ -36,8 +36,12 @@ export function submitSplicingOrderIssue<Row extends FactoryRecord>({
     return "invalid";
   }
 
-  const destinationProcess =
+  let destinationProcess =
     normalizeSplicingOrderType(state.orderType) === "Marquetry" ? "Marquetry" : "Pressing";
+  if (sourceSlug === "finishing" || sourceProcess.toLowerCase().includes("finishing")) {
+    destinationProcess = "Packing";
+  }
+
   const sourceRow = selectedOrderItem
     ? buildSplicingOrderIssueSourceRow(state, selectedOrder, selectedOrderItem)
     : state.row;
@@ -55,3 +59,4 @@ export function submitSplicingOrderIssue<Row extends FactoryRecord>({
 
   return "issued";
 }
+

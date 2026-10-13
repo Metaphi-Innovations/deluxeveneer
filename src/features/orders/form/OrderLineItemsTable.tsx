@@ -1168,7 +1168,7 @@ function FieldLabel({ children }: { children: string }) {
 }
 
 const finishedListingHeaders = [
-  { label: "#", minWidth: 56, align: "left" as const },
+  { label: "Order Item No", minWidth: 120, align: "left" as const },
   { label: "Finished Type", minWidth: 130, align: "left" as const },
   { label: "Sales Item", minWidth: 160, align: "left" as const },
   { label: "Item Name", minWidth: 180, align: "left" as const },
@@ -1185,7 +1185,7 @@ const finishedListingHeaders = [
 ];
 
 const rawListingHeaders = [
-  { label: "#", minWidth: 56, align: "left" as const },
+  { label: "Order Item No", minWidth: 120, align: "left" as const },
   { label: "Product Type", minWidth: 140, align: "left" as const },
   { label: "Item Name", minWidth: 180, align: "left" as const },
   { label: "Length", minWidth: 110, align: "left" as const },
@@ -1199,7 +1199,7 @@ const rawListingHeaders = [
 ];
 
 const unifiedListingHeaders = [
-  { label: "#", minWidth: 56, align: "left" as const },
+  { label: "Order Item No", minWidth: 120, align: "left" as const },
   { label: "Product Type", minWidth: 140, align: "left" as const },
   { label: "Sales Item Name", minWidth: 160, align: "left" as const },
   { label: "Item Name", minWidth: 180, align: "left" as const },
@@ -1223,7 +1223,7 @@ const unifiedListingHeaders = [
 
 function getUnifiedListingValues(row: OrderLineItem, index: number) {
   const values = [
-    { label: "#", value: formatOrderItemNo(row.id, index), align: "left" as const, emphasize: true },
+    { label: "Order Item No", value: formatOrderItemNo(row.id, index), align: "left" as const, emphasize: true },
     { label: "Product Type", value: getUnifiedProductType(row), align: "left" as const },
     { label: "Sales Item Name", value: row.salesItemName, align: "left" as const },
     { label: "Item Name", value: row.itemName, align: "left" as const },
@@ -1281,7 +1281,7 @@ function isBaseField(key: keyof Omit<OrderLineItem, "id">) {
 function getFinishedListingValues(row: OrderLineItem, index: number) {
   return [
     {
-      label: "#",
+      label: "Order Item No",
       value: formatOrderItemNo(row.id, index),
       align: "left" as const,
       emphasize: true,
@@ -1334,8 +1334,8 @@ function getFinishedListingValues(row: OrderLineItem, index: number) {
 function getRawListingValues(row: OrderLineItem, index: number) {
   return [
     {
-      label: "#",
-      value: String(index + 1),
+      label: "Order Item No",
+      value: formatOrderItemNo(row.id, index),
       align: "left" as const,
       emphasize: true,
     },

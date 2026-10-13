@@ -644,33 +644,20 @@ export function syncOrderFulfillmentStatus(orderNo: string) {
 
 export function isRawOrderPackingEligible(order: OrderRecord) {
   const status = normalizeStatus(order.status);
-  if (status === "draft" || status === "cancelled" || status === "completed") {
+  if (status === "cancelled" || status === "completed") {
     return false;
   }
 
-  if (getOrderVariantFromType(order.orderType) !== "raw") {
-    return false;
-  }
-
-  return (
-    status === "confirmed" ||
-    status === "in production" ||
-    status === "partially dispatched"
-  );
+  return true;
 }
 
 export function isFinishedOrderPackingEligible(order: OrderRecord) {
-  const variant = getOrderVariantFromType(order.orderType);
-  if (variant === null || variant === "raw") {
+  const status = normalizeStatus(order.status);
+  if (status === "cancelled" || status === "completed") {
     return false;
   }
 
-  const status = normalizeStatus(order.status);
-  return (
-    status === "confirmed" ||
-    status === "in production" ||
-    status === "partially dispatched"
-  );
+  return true;
 }
 
 export function isOrderItemPackingEligible(order: OrderRecord) {
