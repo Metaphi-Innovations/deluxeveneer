@@ -26,6 +26,7 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
+import { formatSawingCbmDisplay } from "../sawingColumns";
 
 export const SawingViewPage: React.FC = () => {
   const theme = useTheme();
@@ -153,7 +154,7 @@ export const SawingViewPage: React.FC = () => {
       title={
         isIssued
           ? "View Issue for Sawing Item"
-          : `View Sawing ${isRejected ? "Rejected Item" : "Process Details"}`
+          : `View Sawing ${isRejected ? "Rejected Item" : "Output Details"}`
       }
       subtitle={
         isIssued
@@ -200,7 +201,7 @@ export const SawingViewPage: React.FC = () => {
           <Box sx={(t) => formSectionCardSx(t)}>
             <Stack spacing={2.5}>
               <FormSectionHeader
-                title={isRejected ? "Rejected Item Details" : "Sawing Process Details"}
+                title={isRejected ? "Rejected Item Details" : "Output Details"}
               />
 
               {record ? (
@@ -236,10 +237,34 @@ export const SawingViewPage: React.FC = () => {
                     { label: "Length (mm)", value: record.length ?? "-" },
                     { label: "Width (mm)", value: record.width ?? "-" },
                     { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },
-                    { label: "CBM", value: record.cbm ?? "-" },
-                    { label: "CBF", value: record.cbf ?? "-" },
-                    { label: "Available CBM", value: record.availableCbm ?? "-" },
-                    { label: "Available CBF", value: record.availableCbf ?? "-" },
+                    {
+                      label: "CBM",
+                      value:
+                        tab === "done"
+                          ? formatSawingCbmDisplay(record.cbm) || "-"
+                          : (record.cbm ?? "-"),
+                    },
+                    {
+                      label: "CBF",
+                      value:
+                        tab === "done"
+                          ? formatSawingCbmDisplay(record.cbf) || "-"
+                          : (record.cbf ?? "-"),
+                    },
+                    {
+                      label: "Available CBM",
+                      value:
+                        tab === "done"
+                          ? formatSawingCbmDisplay(record.availableCbm) || "-"
+                          : (record.availableCbm ?? "-"),
+                    },
+                    {
+                      label: "Available CBF",
+                      value:
+                        tab === "done"
+                          ? formatSawingCbmDisplay(record.availableCbf) || "-"
+                          : (record.availableCbf ?? "-"),
+                    },
                     { label: "Status", value: isRejected ? "Rejected" : isHistory ? "Inspection Done" : record.status || "Completed" },
                     { label: "Created By", value: record.createdBy || "-" },
                     { label: "Updated By", value: record.updatedBy || "-" },

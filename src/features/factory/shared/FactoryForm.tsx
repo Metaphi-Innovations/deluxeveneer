@@ -129,7 +129,8 @@ export function FactoryForm<Row extends FactoryRecord>({
     (mode === "view" && canView);
 
   const location = useLocation();
-  const locationRecord = (location.state as any)?.record as Row | undefined;
+  const locationState = location.state as { record?: Row; tab?: string } | null;
+  const locationRecord = locationState?.record;
 
   const row =
     mode === "add"
@@ -144,6 +145,8 @@ export function FactoryForm<Row extends FactoryRecord>({
           ? (factoryIssuedWorkToRow(workItem) as Row)
           : undefined;
       })();
+  const returnTab = readFactoryReturnTab(locationState?.tab, row?.listingState);
+  const listPath = returnTab ? `${paths.list}?tab=${returnTab}` : paths.list;
 
   const formSections = useMemo(() => {
     let sections = [...definition.formSections];
@@ -196,7 +199,11 @@ export function FactoryForm<Row extends FactoryRecord>({
           : definition.slug === "embossing"
             ? insertItemDetailField(
                 factoryItemTableFields.filter(
-                  (field) => field.key !== "sqm" && field.key !== "sqf",
+                  (field) =>
+                    field.key !== "sqm" &&
+                    field.key !== "sqf" &&
+                    field.key !== "ratePerSqf" &&
+                    field.key !== "amount",
                 ),
                 {
                   key: "structureCode",
@@ -227,11 +234,16 @@ export function FactoryForm<Row extends FactoryRecord>({
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
 
   const handleBack = () => {
+    if (mode === "view") {
+      navigate(listPath);
+      return;
+    }
+
     setLeaveConfirmation({
       open: true,
       title: "Leave Form",
       description: "Are you sure you want to go back? Any unsaved changes will be lost.",
-      action: () => navigate(paths.list),
+      action: () => navigate(listPath),
     });
   };
 
@@ -240,7 +252,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       open: true,
       title: "Cancel Changes",
       description: "Are you sure you want to cancel? Any unsaved changes will be lost.",
-      action: () => navigate(paths.list),
+      action: () => navigate(listPath),
     });
   };
 
@@ -249,7 +261,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       <FactoryPageShell
         breadcrumbs={[
           { label: "Factory", to: "/factory" },
-          { label: definition.title, to: paths.list },
+          { label: definition.title, to: listPath },
           { label: "Not Found" },
         ]}
         title={definition.title}
@@ -268,7 +280,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       <FactoryPageShell
         breadcrumbs={[
           { label: "Factory", to: "/factory" },
-          { label: definition.title, to: paths.list },
+          { label: definition.title, to: listPath },
           { label: mode === "add" ? "Add" : mode === "edit" ? "Edit" : "View" },
         ]}
         title={getFactoryPageTitle(definition, mode)}
@@ -286,12 +298,12 @@ export function FactoryForm<Row extends FactoryRecord>({
     <FactoryPageShell
       backNav={{
         label: `Back to ${definition.title}`,
-        to: paths.list,
+        to: listPath,
         onBack: handleBack,
       }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
-        { label: definition.title, to: paths.list },
+        { label: definition.title, to: listPath },
         { label: mode === "add" ? "Add" : mode === "edit" ? "Edit" : "View" },
       ]}
       subtitle={getFactoryPageSubtitle(definition, mode)}
@@ -803,7 +815,7 @@ function buildFactoryViewGroups<Row extends FactoryRecord>(
 
   return [
     processItems.length > 0
-      ? { title: "Process Details", items: processItems }
+      ? { title: "Output Details", items: processItems }
       : null,
     itemItems.length > 0 ? { title: "Item Details", items: itemItems } : null,
     historyItems.length > 0 ? { title: "Record History", items: historyItems } : null,
@@ -881,4 +893,11 @@ function formatFactoryViewValue(value: FactoryRecord[string]) {
   }
 
   return "";
+}
+
+const factoryReturnTabs = new Set(["issued", "done", "history", "rejected", "failed"]);
+
+function readFactoryReturnTab(tab: unknown, listingState: unknown) {
+  const candidate = typeof tab === "string" && tab ? tab : listingState;
+  return typeof candidate === "string" && factoryReturnTabs.has(candidate) ? candidate : "";
 }

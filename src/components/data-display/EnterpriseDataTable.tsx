@@ -150,6 +150,11 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   rowsPerPageOptions?: readonly number[];
   selectionResetKey?: string | number;
   selectable?: boolean;
+  /**
+   * When false, a selectable row is chosen only from its checkbox cell.
+   * Defaults to selecting the row from a click anywhere on the entry.
+   */
+  selectOnRowClick?: boolean;
   /** When set, checkbox selection is controlled by the parent. */
   selectedRowIds?: readonly string[];
   selectionColumnLabel?: string;
@@ -208,6 +213,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   rowsPerPageOptions = [10, 25, 50, 75, 100, 200],
   selectionResetKey,
   selectable = false,
+  selectOnRowClick = true,
   selectedRowIds: controlledSelectedRowIds,
   selectionColumnLabel,
   preserveColumnOrder = false,
@@ -933,12 +939,12 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       key={row.id}
                       hover
                       onClick={
-                        selectable
+                        selectable && selectOnRowClick
                           ? () => handleToggleRowSelection(row.id)
                           : undefined
                       }
                       sx={{
-                        cursor: selectable ? "pointer" : "default",
+                        cursor: selectable && selectOnRowClick ? "pointer" : "default",
                         "& td": {
                           backgroundColor: isSelected
                             ? theme.customTokens.navigation.activeBackground
@@ -953,10 +959,16 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     >
                       {selectable ? (
                         <TableCell
+                          onClick={
+                            selectOnRowClick
+                              ? undefined
+                              : () => handleToggleRowSelection(row.id)
+                          }
                           sx={[
                             listingTableBodyCellSx(theme),
                             compactCheckboxCellSx,
                             denseCellSx,
+                            selectOnRowClick ? {} : { cursor: "pointer" },
                           ]}
                         >
                           <Checkbox

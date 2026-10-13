@@ -355,7 +355,7 @@ export function SlicingCreatePage() {
         <Box sx={(t) => formSectionCardSx(t)}>
           <Stack spacing={2}>
             <FormSectionHeader
-              title={editingItemId ? "Edit Process Item" : "Process Details"}
+              title={editingItemId ? "Edit Output Item" : "Output Details"}
             />
 
             <Box

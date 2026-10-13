@@ -451,6 +451,7 @@ export function SawingListPage() {
             },
           }}
           selectable={activeTab === "done"}
+          selectOnRowClick={false}
           selectionResetKey={selectionResetKey}
           onSelectionChange={(selected: any) => setSelectedDoneRows(selected)}
           getRowActions={getRowActions}

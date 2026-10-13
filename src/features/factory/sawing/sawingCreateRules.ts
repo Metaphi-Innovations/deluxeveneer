@@ -67,18 +67,25 @@ function volumeFromDimensions(length: number, width: number, height: number) {
   return (length * width * height) / sawingVolumeDivisor(length, width, height);
 }
 
-export function sawingRowCbm(source: SawingSourceMeasures, thickness: number) {
-  return volumeFromDimensions(source.sourceLength, source.sourceWidth, thickness);
+export function lineSawingCbm(
+  values: Record<string, string>,
+  source: SawingSourceMeasures,
+) {
+  const length = numericField(values.length) || source.sourceLength;
+  const widthText = String(values.width ?? "").trim();
+  const width = widthText ? numericField(widthText) : source.sourceWidth;
+  const thickness = numericField(values.thickness || values.height);
+  return volumeFromDimensions(length, width, thickness);
 }
 
 export function sumSawingLineCbm(
   lineItems: readonly LineItemRecord[],
   source: SawingSourceMeasures,
 ) {
-  return lineItems.reduce((sum, item) => {
-    const thickness = numericField(item.values.thickness || item.values.height);
-    return sum + sawingRowCbm(source, thickness);
-  }, 0);
+  return lineItems.reduce(
+    (sum, item) => sum + lineSawingCbm(item.values, source),
+    0,
+  );
 }
 
 function formatAvailableCbmMessage(value: number) {
@@ -110,32 +117,59 @@ export function getSawingProcessDetailError({
     return "Thickness is required and must be greater than 0.";
   }
 
-  if (!(source.sourceLength > 0) || !(source.sourceWidth > 0)) {
-    return "Source length and width are required to calculate sawing quantity.";
+  const widthText = (values.width ?? "").trim();
+  if (!widthText || !(numericField(widthText) > 0)) {
+    return "Width is required and must be greater than 0.";
   }
 
-  const rowCbm = sawingRowCbm(source, thickness);
+  if (!(source.sourceLength > 0)) {
+    return "Source length is required to calculate sawing quantity.";
+  }
+
+  const rowCbm = lineSawingCbm(values, source);
   if (!(rowCbm > 0)) {
     return "Calculated CBM must be greater than 0.";
   }
 
   const remainingCbm = source.sourceAvailableCbm - otherProcessedCbm;
-  const maximumThickness = heightFromAvailableVolume(
-    source.sourceLength,
-    source.sourceWidth,
-    Math.max(0, remainingCbm),
-  );
   const availableLabel = formatAvailableCbmMessage(remainingCbm);
-
-  if (thickness - maximumThickness > SAWING_CBM_EPSILON) {
-    return `Thickness exceeds the remaining available veneer block size. Available CBM: ${availableLabel}`;
-  }
 
   if (otherProcessedCbm + rowCbm - source.sourceAvailableCbm > SAWING_CBM_EPSILON) {
     return `Sawing quantity exceeds available CBM. Available CBM: ${availableLabel}`;
   }
 
   return "";
+}
+
+export function getSawingAvailableCbmIssue(
+  slug: string,
+  availableCbm: string | undefined,
+  source: SawingSourceMeasures | null,
+  outputCbm: number,
+) {
+  if (slug !== "sawing" || !source) {
+    return {};
+  }
+
+  const enteredText = (availableCbm ?? "").trim();
+  if (!enteredText) {
+    return {};
+  }
+
+  const entered = numericField(enteredText);
+  const sourceCbm = source.sourceAvailableCbm;
+  const output = outputCbm > 0 ? outputCbm : 0;
+  const remaining = Math.max(0, sourceCbm - output);
+  if (entered - remaining <= SAWING_CBM_EPSILON) {
+    return {};
+  }
+
+  return {
+    cbm: {
+      message: `Available CBM cannot exceed ${remaining.toFixed(3)}. Source CBM is ${sourceCbm.toFixed(3)} and selected output details use ${output.toFixed(3)}.`,
+      severity: "warning" as const,
+    },
+  };
 }
 
 export function getSawingCreateSubmitError(
@@ -147,7 +181,7 @@ export function getSawingCreateSubmitError(
   }
 
   if (lineItems.length === 0) {
-    return "Add at least one process detail before creating sawing.";
+    return "Add at least one output detail before creating sawing.";
   }
 
   for (const item of lineItems) {
@@ -178,6 +212,10 @@ export function getSawingCreateSubmitError(
   return "";
 }
 
+function isPlainSawingMeasure(value: string | undefined) {
+  return /^\d+(?:\.\d+)?$/u.test(String(value ?? "").trim());
+}
+
 export function lockSawingProcessDetailValues(
   values: Record<string, string>,
   sourceRow: Record<string, unknown> | undefined,
@@ -188,7 +226,7 @@ export function lockSawingProcessDetailValues(
     ...(source.sourceLength > 0
       ? { length: formatSawingNumber(source.sourceLength, 3) }
       : {}),
-    ...(source.sourceWidth > 0
+    ...(source.sourceWidth > 0 && !isPlainSawingMeasure(values.width)
       ? { width: formatSawingNumber(source.sourceWidth, 3) }
       : {}),
   });
@@ -218,8 +256,8 @@ export function buildSawingAvailableValues(
     width: source.sourceWidth > 0 ? formatSawingNumber(source.sourceWidth, 3) : "",
     height: formatSawingNumber(height, 3),
     thickness: "",
-    cbm: formatSawingNumber(remainingCbm, 6),
-    cbf: formatSawingNumber(remainingCbm * 35.3147, 4),
+    cbm: remainingCbm.toFixed(3),
+    cbf: (remainingCbm * 35.3147).toFixed(3),
   };
 }
 
@@ -267,8 +305,8 @@ export function calculateSawingVolumeValues(values: Record<string, string>) {
 
   return {
     ...values,
-    cbm: cbm.toFixed(6).replace(/\.?0+$/u, "") || "0",
-    cbf: cbf.toFixed(4).replace(/\.?0+$/u, "") || "0",
+    cbm: cbm.toFixed(3),
+    cbf: cbf.toFixed(3),
     availableCbm: availCbm ? availCbm.toFixed(6).replace(/\.?0+$/u, "") : (recCbmVal > 0 ? "0" : (values.availableCbm ?? "")),
     ...(amount ? { amount } : {}),
   };
@@ -308,14 +346,15 @@ const sourceMeasures = readSawingSourceMeasures(sawingSource);
 const processedItemsPayload = lineItems.map((item) => {
   const vals = item.values;
   const t = numericField(vals.thickness || vals.height);
-  const cbmVal = sawingRowCbm(sourceMeasures, t);
+  const width = numericField(vals.width) || sourceMeasures.sourceWidth;
+  const cbmVal = lineSawingCbm(vals, sourceMeasures);
   const cbfVal = cbmVal * 35.3147;
   const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
   const amtVal = Number.parseFloat(vals.amount || "0");
   return {
     batchNo: vals.logNo || vals.batchNo || "",
     length: sourceMeasures.sourceLength,
-    width: sourceMeasures.sourceWidth,
+    width,
     thickness: t,
     cbm: cbmVal,
     cbf: cbfVal,
@@ -357,8 +396,8 @@ updateSawingIssuedAvailability(
     availableCbm: storedRemainingCbm,
     availableCbf:
       editedCbf !== undefined
-        ? formatSawingNumber(editedCbf, 4)
-        : formatSawingNumber(storedRemainingCbm * 35.3147, 4),
+        ? formatSawingNumber(editedCbf, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
   },
 );
 

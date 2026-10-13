@@ -74,6 +74,7 @@ import {
   applySawingVolumeCalculation,
   buildSawingAvailableValues,
   calculateSawingVolumeValues,
+  getSawingAvailableCbmIssue,
   getSawingCreateSubmitError,
   getSawingProcessDetailError,
   lockSawingProcessDetailValues,
@@ -762,10 +763,18 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       ),
     [sourceRow],
   );
-  const rejectAvailableValidationErrors = getRejectAvailableValidationErrors(
-    rejectAvailableValues,
-    rejectAvailableAreaLimits,
-  );
+  const rejectAvailableValidationErrors = {
+    ...getRejectAvailableValidationErrors(
+      rejectAvailableValues,
+      rejectAvailableAreaLimits,
+    ),
+    ...getSawingAvailableCbmIssue(
+      definition.slug,
+      rejectAvailableValues.cbm,
+      sawingSource,
+      sawingProcessedCbm,
+    ),
+  };
   const draftProjectedOverflow = useMemo(() => {
     if (!quantityConfig || originalQuantity <= 0 || allValuesEmpty(draftValues)) {
       return "";
@@ -1033,7 +1042,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setLeaveConfirmation({
       open: true,
       title: "Discard Process Creation?",
-      description: "Are you sure you want to go back? Any unsaved process details will be lost.",
+      description: "Are you sure you want to go back? Any unsaved output details will be lost.",
       action: () => navigate(paths.list),
     });
   };
@@ -1186,7 +1195,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             gap: currentTheme.spacing(1.5),
           })}
         >
-          <FactoryCreateSectionTitle title="Process Details" />
+          <FactoryCreateSectionTitle title="Output Details" />
           {definition.slug === "marquetry" ? (
             <MarquetryIssuedSelection
               columns={marquetrySelectionColumns}
@@ -1258,9 +1267,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                             : "",
                           invalid:
                             definition.slug === "sawing" &&
-                            column.key === "thickness" &&
-                            Boolean(draftValues.thickness?.trim()) &&
-                            Boolean(sawingDraftError),
+                            (column.key === "cbm" || column.key === "width") &&
+                            sawingDraftError.includes("CBM"),
                         })}
                       </TableCell>
                     ))}
@@ -1282,7 +1290,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             {(definition.slug === "sawing" &&
               (sawingStockUnavailable ||
                 sawingSubmitError ||
-                (Boolean(draftValues.thickness?.trim()) && sawingDraftError))) ? (
+                sawingDraftError)) ? (
               <Typography
                 sx={(currentTheme) => ({
                   color: currentTheme.palette.error.main,
@@ -1423,9 +1431,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                     : "",
                                   invalid:
                                     definition.slug === "sawing" &&
-                                    column.key === "thickness" &&
-                                    Boolean(editingValues.thickness?.trim()) &&
-                                    Boolean(sawingEditError),
+                                    (column.key === "cbm" || column.key === "width") &&
+                                    sawingEditError.includes("CBM"),
                                 })
                                 : renderReadOnlyCell(row.values[column.key] ?? "", theme)}
                             </TableCell>
@@ -1466,6 +1473,18 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   </TableBody>
                 </Table>
               </Box>
+            {definition.slug === "sawing" && sawingEditError.includes("CBM") ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  whiteSpace: "normal",
+                })}
+              >
+                {sawingEditError}
+              </Typography>
+            ) : null}
             </Box>
           </Stack>
         ) : null}
@@ -2153,6 +2172,7 @@ function buildLineItemFields(
       slug === "splicing" ||
       slug === "pressing" ||
       slug === "cnc-fluting" ||
+      slug === "embossing" ||
       slug === "finishing"
     ) {
       const processExcludedKeys = new Set(["ratePerSqf", "amount", "consumedAmount"]);
@@ -2574,12 +2594,11 @@ function getDecimalPlaces(value: string) {
   const decimalPart = value.split(".")[1];
   return decimalPart ? decimalPart.length : 0;
 }
-
-function renderReadOnlyCell(value: string, theme: Theme) {
+function renderReadOnlyCell(value: string, theme: Theme, invalid = false) {
   return (
     <Typography
       variant="body2"
-      color="text.primary"
+      color={invalid ? "error" : "text.primary"}
       sx={{
         minHeight: theme.spacing(4.5),
         display: "flex",

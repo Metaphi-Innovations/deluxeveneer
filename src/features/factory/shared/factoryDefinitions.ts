@@ -855,7 +855,7 @@ const slicingDerivedAreaKeys = new Set(["sqm", "sqf"]);
 function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
   return [
     createSection(
-      "Process Details",
+      "Output Details",
       fields(slicingProcessDetailFields, rows).map((fieldDefinition) =>
         slicingDerivedAreaKeys.has(fieldDefinition.key)
           ? { ...fieldDefinition, readOnly: true }
@@ -868,10 +868,9 @@ function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
 function buildSawingFormSections(rows: readonly FactoryRecord[]) {
   return [
     createSection(
-      "Process Details",
+      "Output Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
         fieldDefinition.key === "length" ||
-        fieldDefinition.key === "width" ||
         fieldDefinition.key === "cbm" ||
         fieldDefinition.key === "cbf"
           ? { ...fieldDefinition, readOnly: true }
@@ -1006,7 +1005,6 @@ const embossingCreateFields = [
   ["sqf", "SQF"],
   ["issueRemark", "Remark"],
   ["cncDate", "Embossing Date"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const;
 

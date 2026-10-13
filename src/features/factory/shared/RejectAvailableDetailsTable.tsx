@@ -7,6 +7,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
@@ -311,6 +312,14 @@ export function RejectAvailableDetailsTable({
     (total, column) => total + column.minWidth,
     0,
   );
+  const issueMessages = [
+    ...new Set(
+      columnsWithArea.flatMap((column) => {
+        const message = fieldIssues[column.key]?.message;
+        return message ? [message] : [];
+      }),
+    ),
+  ];
 
   return (
     <Stack
@@ -363,6 +372,19 @@ export function RejectAvailableDetailsTable({
           </Table>
         </Box>
       </Box>
+      {issueMessages.map((message) => (
+        <Typography
+          key={message}
+          sx={(currentTheme) => ({
+            color: currentTheme.palette.error.main,
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            whiteSpace: "normal",
+          })}
+        >
+          {message}
+        </Typography>
+      ))}
     </Stack>
   );
 }
@@ -405,7 +427,10 @@ export function getNextRejectAvailableValues(
     if (!volumeMode) {
       return current;
     }
-    const nextValue = sanitizeDecimalValue(value, key === "cbm" ? 6 : 4);
+    const nextValue = sanitizeDecimalValue(
+      value,
+      key === "cbf" ? (useHeight ? 3 : 4) : useHeight ? 3 : 6,
+    );
     if (key === "cbf") {
       return { ...current, cbf: nextValue };
     }
@@ -658,7 +683,6 @@ function renderRejectAvailableField({
   theme: Theme;
   value: string;
 }) {
-  const helperText = issue?.message ?? "";
   const isError = issue?.severity === "error";
   const isWarning = issue?.severity === "warning";
   const isDerivedAreaField = derivedAreaFieldKeys.has(column.key);
@@ -696,7 +720,6 @@ function renderRejectAvailableField({
     <TextField
       error={Boolean(issue)}
       fullWidth
-      helperText={helperText}
       inputProps={{
         readOnly: (lockMeasuredFields && isMeasuredField) || (isDerivedAreaField && !editableDerived),
       }}

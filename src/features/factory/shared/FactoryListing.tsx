@@ -198,6 +198,7 @@ export function FactoryListing<Row extends FactoryRecord>({
 }: FactoryListingProps<Row>) {
   const navigate = useNavigate();
   const orderRecords = useOrderRecords();
+  const groupedStockIssues = useGroupedStockSampleIssues();
   const paths = getFactoryPaths(definition.slug);
   const permissionKey = getFactoryPermissionKey(definition.slug);
   const canCreate = canAccessPermission(permissionKey, "create");
@@ -290,7 +291,6 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [inspectionTrackingMap, setInspectionTrackingMap] = useState<
     Record<string, { passQty: number; failQty: number; availableLeaves: number; status: "Pending" | "Partially Pending" | "Done" }>
   >({});
-  const groupedStockIssues = useGroupedStockSampleIssues();
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const slicingFlowState = useSlicingFlowState();
@@ -1319,6 +1319,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             emptyStateLabel={`No ${definition.title.toLowerCase()} records are available for this tab.`}
             rows={canView ? tableRows : []}
             selectable={isSelectableTab}
+            selectOnRowClick={false}
             {...(isSelectableTab ? { onSelectionChange: setSelectedListingRows } : {})}
             {...(getRowActions ? { getRowActions } : {})}
             {...(definition.initialSort

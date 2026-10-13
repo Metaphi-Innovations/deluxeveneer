@@ -114,6 +114,7 @@ export function mapStorageItemToRow(
     inwardItemCode: item.inwardItemCode ?? "",
     itemName: item.itemName ?? "",
     factoryCode: item.factoryCode ?? "",
+    hsnCode: item.hsnCode ?? "",
     subCategory: item.itemSubCategoryName ?? "",
     specification: item.specification ?? "",
     brandName: item.brandName ?? "",
