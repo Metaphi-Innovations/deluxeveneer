@@ -52,7 +52,6 @@ import {
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import {
   getListingToolbarButtonSx,
-  recordFormActionButtonSx,
 } from "../../shared/buttonStyles";
 import {
   formSectionCardSx,
@@ -118,13 +117,19 @@ import {
   applyDryingListingRows,
   dryingLeafArea,
   dryingLeafCount,
+  getDryingEditLimits,
   revertDryingDoneToIssued,
+  updateDryingDoneItem,
   updateDryingIssuedLeaves,
   useDryingFlowState,
 } from "../drying/dryingFrontendStore";
 import { IssueForDryingDialog } from "../slicing/IssueForDryingDialog";
 import { applySlicingListingColumns } from "../slicing/slicingListingColumns";
-import { applySlicingListingRows, useSlicingFlowState } from "../slicing/slicingFrontendStore";
+import {
+  applySlicingListingRows,
+  updateSlicingDoneAvailableLeaves,
+  useSlicingFlowState,
+} from "../slicing/slicingFrontendStore";
 import {
   factoryIssuedWorkToRow,
   completeFactoryIssuedWork,
@@ -160,7 +165,6 @@ import {
   getSplicingSelectedOrderItem,
   GroupingOrderIssueDialog,
   GroupingSampleIssueDialog,
-  inspectionDialogPaperSx,
   InspectionDecisionDialog,
   issueToNextFactoryProcess,
   normalizeFactorySourceColumns,
@@ -274,6 +278,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingInspectionIssueRow, setDryingInspectionIssueRow] =
     useState<Row | null>(null);
   const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
+  const [dryingEditRow, setDryingEditRow] = useState<Row | null>(null);
   const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
   const [splicingPressingIssueRow, setSplicingPressingIssueRow] =
     useState<Row | null>(null);
@@ -329,7 +334,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     const movedSourceRowIds = new Set(
       factoryIssuedWorkItems
         .filter((item) => {
-          if (definition.slug === "grouping") {
+          if (definition.slug === "grouping" || definition.slug === "slicing") {
             return false;
           }
           if (item.sourceSlug === "drying") {
@@ -776,8 +781,16 @@ export function FactoryListing<Row extends FactoryRecord>({
       };
 
       return (row) => {
+        const dryingRowActions = rowActions.map((action) =>
+          action.id === "edit"
+            ? {
+                ...action,
+                onSelect: (selectedRow: Row) => setDryingEditRow(selectedRow),
+              }
+            : action,
+        );
         return [
-          ...rowActions,
+          ...dryingRowActions,
           ...(canEdit || canCreate
             ? [
               {
@@ -979,17 +992,26 @@ export function FactoryListing<Row extends FactoryRecord>({
             row: selectedRow,
             submitted: false,
           }),
-      ).map((action) =>
-        definition.slug === "slicing" && action.id === "issue-for-drying"
-          ? {
-              ...action,
-              onSelect: (selectedRow: Row) => {
-                setIssueDryingRows([selectedRow]);
-                setConfirmIssueDryingOpen(true);
-              },
-            }
-          : action,
-      );
+      )
+        .map((action) =>
+          definition.slug === "slicing" && action.id === "issue-for-drying"
+            ? {
+                ...action,
+                onSelect: (selectedRow: Row) => {
+                  setIssueDryingRows([selectedRow]);
+                  setConfirmIssueDryingOpen(true);
+                },
+              }
+            : action,
+        )
+        .filter(
+          (action) =>
+            !(
+              definition.slug === "slicing" &&
+              action.id === "issue-for-drying" &&
+              Number(row.availableLeaves ?? row.noOfLeaves ?? 0) <= 0
+            ),
+        );
 
       if (nextProcessActions.length === 0) {
         return withIssueToPressing(doneActions);
@@ -1352,67 +1374,20 @@ export function FactoryListing<Row extends FactoryRecord>({
         state={groupingOrderIssue}
       />
 
-      <Dialog
-        fullWidth
-        maxWidth="sm"
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Move"
+        description={
+          sawingWarehouseMoveRows.length === 1
+            ? "Are you sure you want to move this passed item to Warehouse C under Sawing?"
+            : `Are you sure you want to move ${sawingWarehouseMoveRows.length} passed items to Warehouse C under Sawing?`
+        }
         onClose={closeSawingWarehouseMove}
+        onConfirm={confirmSawingWarehouseMove}
         open={sawingWarehouseMoveRows.length > 0}
-        slotProps={{
-          paper: {
-            sx: inspectionDialogPaperSx,
-          },
-        }}
-      >
-        <DialogTitle
-          sx={(theme) => ({
-            borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-            fontSize: theme.typography.h3.fontSize,
-            fontWeight: 700,
-            px: theme.spacing(2),
-            py: theme.spacing(1.5),
-          })}
-        >
-          Move to Warehouse
-        </DialogTitle>
-        <DialogContent
-          sx={(theme) => ({
-            px: theme.spacing(2),
-            py: `${theme.spacing(2)} !important`,
-          })}
-        >
-          <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-            <Typography
-              sx={(theme) => ({
-                color: theme.customTokens.text.secondary,
-                fontSize: theme.typography.body2.fontSize,
-              })}
-            >
-              Save {sawingWarehouseMoveRows.length} passed item
-              {sawingWarehouseMoveRows.length === 1 ? "" : "s"} in Warehouse C under Sawing.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions
-          sx={(theme) => ({
-            borderTop: `1px solid ${theme.customTokens.borders.default}`,
-            gap: theme.spacing(1),
-            px: theme.spacing(2),
-            py: theme.spacing(1.5),
-          })}
-        >
-          <Button onClick={closeSawingWarehouseMove} sx={recordFormActionButtonSx} variant="outlined">
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            onClick={confirmSawingWarehouseMove}
-            sx={recordFormActionButtonSx}
-            variant="contained"
-          >
-            Confirm
-          </Button>
-        </DialogActions>
-      </Dialog>
+        title="Confirm Move to Warehouse C"
+        tone="default"
+      />
 
       <MoveToWarehouseBDialog
         onClose={() => setWarehouseBMoveRow(null)}
@@ -1501,7 +1476,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             : 0
         }
         onClose={() => setInspectionDecisionTargetRow(null)}
-        onPass={(targetRow, decisionRemark, inspectionDateVal, counts) => {
+        onPass={(targetRow, decisionRemark, inspectionDateVal, counts, attachment) => {
           if (isDryingInspectionModule) {
             const rowId = String(targetRow.id);
             const currentTotal =
@@ -1531,6 +1506,12 @@ export function FactoryListing<Row extends FactoryRecord>({
               totalLeaves: String(inspectedLeaves),
               warehouseBStatus: "Not transferred",
               qcStatus: "Done",
+              ...(attachment
+                ? {
+                    inspectionImage: attachment.dataUrl,
+                    inspectionImageName: attachment.name,
+                  }
+                : {}),
             };
 
             setInspectionTrackingMap((prev) => ({
@@ -1611,6 +1592,12 @@ export function FactoryListing<Row extends FactoryRecord>({
             failQty: thisFail,
             noOfLeaves: String(thisPass),
             totalLeaves: String(thisPass),
+            ...(attachment
+              ? {
+                  inspectionImage: attachment.dataUrl,
+                  inspectionImageName: attachment.name,
+                }
+              : {}),
           };
           const closesIssuedWithBoth = Boolean(workItemId && isFullyDone && thisPass > 0 && thisFail > 0);
 
@@ -1656,7 +1643,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             setActiveTab(thisPass > 0 ? "done" : "failed");
           }
         }}
-        onFail={(targetRow, decisionRemark, inspectionDateVal, counts) => {
+        onFail={(targetRow, decisionRemark, inspectionDateVal, counts, attachment) => {
           if (isDryingInspectionModule) {
             return;
           }
@@ -1694,6 +1681,12 @@ export function FactoryListing<Row extends FactoryRecord>({
             failQty: thisFail,
             noOfLeaves: String(thisFail),
             totalLeaves: String(thisFail),
+            ...(attachment
+              ? {
+                  inspectionImage: attachment.dataUrl,
+                  inspectionImageName: attachment.name,
+                }
+              : {}),
           };
 
           if (thisFail > 0) {
@@ -1824,6 +1817,24 @@ export function FactoryListing<Row extends FactoryRecord>({
             },
           ]);
           setDryingCreateRow(null);
+        }}
+      />
+
+      <DryingCreateDialog
+        maximumLeaves={getDryingEditLimits(dryingEditRow).maximumLeaves}
+        minimumLeaves={getDryingEditLimits(dryingEditRow).minimumLeaves}
+        mode="edit"
+        open={Boolean(dryingEditRow)}
+        row={dryingEditRow}
+        onClose={() => setDryingEditRow(null)}
+        onSave={(entry) => {
+          if (!dryingEditRow) return;
+          updateDryingDoneItem(dryingEditRow, entry);
+          setDryingEditRow(null);
+          setToastNotification({
+            message: "Drying item updated successfully.",
+            severity: "success",
+          });
         }}
       />
 
@@ -2116,28 +2127,41 @@ export function FactoryListing<Row extends FactoryRecord>({
           setIssueDryingRows([]);
           setConfirmIssueDryingOpen(false);
         }}
-        onConfirm={() => {
-          issueDryingRows.forEach((selectedRow) => {
+        onConfirm={(entries) => {
+          entries.forEach(({ leaves, remark, row: selectedRow }) => {
+            const availableLeaves = Math.max(
+              0,
+              Number(
+                selectedRow.availableLeaves ??
+                  selectedRow.receivedLeaves ??
+                  selectedRow.noOfLeaves ??
+                  0,
+              ) || 0,
+            );
+            const remainingLeaves = Math.max(0, availableLeaves - leaves);
+            const issuedRow = {
+              ...selectedRow,
+              availableLeaves: String(leaves),
+              noOfLeaves: String(leaves),
+              receivedLeaves: String(leaves),
+              remark: remark || selectedRow.remark || "",
+              totalLeaves: String(leaves),
+            } as Row;
             issueFactoryWork({
               destinationProcess: "Drying",
               sourceSlug: definition.slug,
               sourceProcess: "Slicing",
               sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
-              sourceRow: selectedRow,
+              sourceRow: issuedRow,
             });
+            updateSlicingDoneAvailableLeaves(selectedRow, remainingLeaves);
           });
-          const issuedIds = new Set(issueDryingRows.map((row) => row.id));
-          setRevertedRowIds((current) => [
-            ...current,
-            ...issueDryingRows.map((row) => row.id),
-          ]);
-          setSelectedListingRows((current) =>
-            current.filter((row) => !issuedIds.has(row.id)),
-          );
+          const issuedIds = new Set(entries.map(({ row }) => row.id));
+          setSelectedListingRows((current) => current.filter((row) => !issuedIds.has(row.id)));
           setIssueDryingRows([]);
           setConfirmIssueDryingOpen(false);
           setToastNotification({
-            message: `Issued ${issuedIds.size} item(s) to Drying successfully.`,
+            message: `Issued ${entries.reduce((total, entry) => total + entry.leaves, 0)} leaves from ${issuedIds.size} item(s) to Drying successfully.`,
             severity: "success",
           });
         }}

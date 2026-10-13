@@ -1,14 +1,41 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
-
-import { recordFormActionButtonSx } from "../../shared/buttonStyles";
-import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import { useEffect, useMemo, useState } from "react";
 import {
-  formatDialogMeasure,
-  formatInspectionDialogDate,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+
+import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { recordFormActionButtonSx } from "../../shared/buttonStyles";
+import { formSectionCardSx } from "../../shared/formSectionStyles";
+import {
+  DialogFieldLabel,
   inspectionDialogPaperSx,
-  ReadOnlyDialogField,
 } from "../shared/listing/factoryListingParts";
 import type { FactoryRecord } from "../shared/types";
+
+export type IssueForDryingEntry<Row extends FactoryRecord> = {
+  leaves: number;
+  remark: string;
+  row: Row;
+};
+
+function availableLeafCount(row: FactoryRecord) {
+  const value = Number(
+    row.availableLeaves ??
+      row.receivedLeaves ??
+      row.noOfLeaves ??
+      row.noOfSheets ??
+      0,
+  );
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
 
 export function IssueForDryingDialog<Row extends FactoryRecord>({
   onClose,
@@ -17,21 +44,51 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
   rows,
 }: {
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (entries: readonly IssueForDryingEntry<Row>[]) => void;
   open: boolean;
   rows: readonly Row[];
 }) {
+  const [values, setValues] = useState<
+    Record<string, { leaves: string; remark: string }>
+  >({});
+
+  useEffect(() => {
+    if (!open) return;
+    setValues(
+      Object.fromEntries(
+        rows.map((row) => [
+          String(row.id),
+          {
+            leaves: String(availableLeafCount(row) || ""),
+            remark: "",
+          },
+        ]),
+      ),
+    );
+  }, [open, rows]);
+
+  const entries = useMemo(
+    () =>
+      rows.map((row) => ({
+        available: availableLeafCount(row),
+        leaves: Number(values[String(row.id)]?.leaves ?? 0),
+        remark: values[String(row.id)]?.remark?.trim() ?? "",
+        row,
+      })),
+    [rows, values],
+  );
+  const hasInvalidQuantity = entries.some(
+    ({ available, leaves }) =>
+      !Number.isInteger(leaves) || leaves <= 0 || leaves > available,
+  );
+
   return (
     <Dialog
       fullWidth
-      maxWidth="md"
+      maxWidth="sm"
       onClose={onClose}
       open={open}
-      slotProps={{
-        paper: {
-          sx: inspectionDialogPaperSx,
-        },
-      }}
+      slotProps={{ paper: { sx: inspectionDialogPaperSx } }}
     >
       <DialogTitle
         sx={(theme) => ({
@@ -50,63 +107,72 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
           py: `${theme.spacing(2)} !important`,
         })}
       >
-        <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Typography
-            sx={(theme) => ({
-              color: theme.customTokens.text.secondary,
-              fontSize: theme.typography.body2.fontSize,
-            })}
-          >
-            Confirm issuing {rows.length} item
-            {rows.length === 1 ? "" : "s"} for drying.
-          </Typography>
-          {rows.map((selectedRow, index) => {
-            const detailFields = [
-              { label: "Storage Sr No.", value: String(selectedRow.storageSrNo ?? selectedRow.id ?? "-") },
-              { label: "Slicing Date", value: formatInspectionDialogDate(selectedRow.issueDate ?? selectedRow.processDate) },
-              { label: "Item Name", value: String(selectedRow.itemName ?? "-") },
-              { label: "Sub Category", value: String(selectedRow.subCategory ?? selectedRow.itemSubCategory ?? "-") },
-              { label: "Log Code", value: String(selectedRow.logCode ?? selectedRow.logNo ?? "-") },
-              { label: "Bundle Number", value: String(selectedRow.bundleNumber ?? "-") },
-              { label: "Pallet No", value: String(selectedRow.palletNo ?? "-") },
-              { label: "Length", value: formatDialogMeasure(selectedRow.length) },
-              { label: "Width", value: formatDialogMeasure(selectedRow.width) },
-              { label: "Thickness", value: formatDialogMeasure(selectedRow.thickness ?? selectedRow.height) },
-              { label: "No of Leaves", value: String(selectedRow.noOfLeaves ?? selectedRow.noOfSheets ?? "-") },
-              { label: "SQM", value: formatDialogMeasure(selectedRow.sqm ?? selectedRow.totalSqMeter) },
-              { label: "SQF", value: formatDialogMeasure(selectedRow.sqf) },
-            ];
+        <Stack spacing={2}>
+          {entries.map(({ available, leaves, row }, index) => {
+            const rowId = String(row.id);
+            const current = values[rowId] ?? { leaves: "", remark: "" };
+            const invalid =
+              !Number.isInteger(leaves) || leaves <= 0 || leaves > available;
+
             return (
-              <Box key={selectedRow.id} sx={(theme) => formSectionCardSx(theme)}>
-                <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
-                  <FormSectionHeader
-                    title={rows.length > 1 ? `Item Details ${index + 1}` : "Item Details"}
-                  />
-                  <Box
-                    sx={(theme) => ({
-                      display: "grid",
-                      gap: theme.spacing(2),
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(3, minmax(0, 1fr))",
-                      },
-                    })}
-                  >
-                    {detailFields.map((field) => (
-                      <ReadOnlyDialogField
-                        key={field.label}
-                        label={field.label}
-                        value={field.value}
-                      />
-                    ))}
-                    <Box sx={{ gridColumn: "1 / -1" }}>
-                      <ReadOnlyDialogField
-                        label="Remark"
-                        value={String(selectedRow.remark ?? "-")}
-                      />
-                    </Box>
-                  </Box>
+              <Box key={rowId} sx={(theme) => formSectionCardSx(theme)}>
+                <Stack spacing={1.5}>
+                  {entries.length > 1 ? (
+                    <Typography color="text.secondary" variant="caption">
+                      Selected item {index + 1}
+                    </Typography>
+                  ) : null}
+                  <Stack spacing={0.75}>
+                    <DialogFieldLabel required>No. of Leaves</DialogFieldLabel>
+                    <TextField
+                      error={invalid}
+                      fullWidth
+                      helperText={
+                        available <= 0
+                          ? "No leaves are available to issue."
+                          : invalid
+                            ? `Enter a whole number from 1 to ${available}.`
+                            : `Available leaves: ${available}`
+                      }
+                      inputProps={{ min: 1, max: available, step: 1 }}
+                      onChange={(event) =>
+                        setValues((currentValues) => ({
+                          ...currentValues,
+                          [rowId]: {
+                            ...(currentValues[rowId] ?? current),
+                            leaves: event.target.value,
+                          },
+                        }))
+                      }
+                      size="small"
+                      sx={(theme) =>
+                        getCompactFieldSx(theme, invalid ? "error" : "default")
+                      }
+                      type="number"
+                      value={current.leaves}
+                    />
+                  </Stack>
+                  <Stack spacing={0.75}>
+                    <DialogFieldLabel>Remark</DialogFieldLabel>
+                    <TextField
+                      fullWidth
+                      minRows={2}
+                      multiline
+                      onChange={(event) =>
+                        setValues((currentValues) => ({
+                          ...currentValues,
+                          [rowId]: {
+                            ...(currentValues[rowId] ?? current),
+                            remark: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="Enter remark"
+                      size="small"
+                      sx={(theme) => getCompactFieldSx(theme)}
+                      value={current.remark}
+                    />
+                  </Stack>
                 </Stack>
               </Box>
             );
@@ -125,7 +191,16 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
-        <Button onClick={onConfirm} sx={recordFormActionButtonSx} variant="contained">
+        <Button
+          disabled={rows.length === 0 || hasInvalidQuantity}
+          onClick={() =>
+            onConfirm(
+              entries.map(({ leaves, remark, row }) => ({ leaves, remark, row })),
+            )
+          }
+          sx={recordFormActionButtonSx}
+          variant="contained"
+        >
           Issue for Drying
         </Button>
       </DialogActions>

@@ -151,8 +151,8 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   selectionResetKey?: string | number;
   selectable?: boolean;
   /**
-   * When false, a selectable row is chosen only from its checkbox cell.
-   * Defaults to selecting the row from a click anywhere on the entry.
+   * When true, clicking anywhere on a selectable row toggles its selection.
+   * Defaults to false so selection is limited to the checkbox cell.
    */
   selectOnRowClick?: boolean;
   /** When set, checkbox selection is controlled by the parent. */
@@ -213,7 +213,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   rowsPerPageOptions = [10, 25, 50, 75, 100, 200],
   selectionResetKey,
   selectable = false,
-  selectOnRowClick = true,
+  selectOnRowClick = false,
   selectedRowIds: controlledSelectedRowIds,
   selectionColumnLabel,
   preserveColumnOrder = false,

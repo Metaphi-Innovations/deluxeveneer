@@ -249,8 +249,8 @@ export interface InspectionDecisionDialogProps<Row extends FactoryRecord> {
   row: Row | null;
   processSlug?: string;
   onClose: () => void;
-  onPass: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }) => void;
-  onFail: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }) => void;
+  onPass: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
+  onFail: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
   passCount: number;
   failCount: number;
 }
@@ -382,7 +382,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
   return (
     <Dialog
       fullWidth
-      maxWidth="md"
+      maxWidth={isSawingInspection ? "sm" : "md"}
       onClose={onClose}
       open={open}
       slotProps={{
@@ -409,37 +409,39 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Box sx={(theme) => formSectionCardSx(theme)}>
-            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
-              <FormSectionHeader title="Item Details" />
-              <Box
-                sx={(theme) => ({
-                  display: "grid",
-                  gap: theme.spacing(2),
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(3, minmax(0, 1fr))",
-                  },
-                })}
-              >
-                {detailFields.map((field) => (
-                  <ReadOnlyDialogField
-                    key={field.label}
-                    label={field.label}
-                    value={field.value}
-                  />
-                ))}
-                <Box sx={{ gridColumn: "1 / -1" }}>
-                  <ReadOnlyDialogField label="Remark" value={detailRemark} />
+          {!isSawingInspection ? (
+            <Box sx={(theme) => formSectionCardSx(theme)}>
+              <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                <FormSectionHeader title="Item Details" />
+                <Box
+                  sx={(theme) => ({
+                    display: "grid",
+                    gap: theme.spacing(2),
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(3, minmax(0, 1fr))",
+                    },
+                  })}
+                >
+                  {detailFields.map((field) => (
+                    <ReadOnlyDialogField
+                      key={field.label}
+                      label={field.label}
+                      value={field.value}
+                    />
+                  ))}
+                  <Box sx={{ gridColumn: "1 / -1" }}>
+                    <ReadOnlyDialogField label="Remark" value={detailRemark} />
+                  </Box>
                 </Box>
-              </Box>
-            </Stack>
-          </Box>
+              </Stack>
+            </Box>
+          ) : null}
 
           <Box sx={(theme) => formSectionCardSx(theme)}>
             <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-              <FormSectionHeader title="Inspection" />
+              {!isSawingInspection ? <FormSectionHeader title="Inspection" /> : null}
               {isDryingInspection ? (
                 <Box
                   sx={(theme) => ({
@@ -564,7 +566,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
               onPass(row, remark, inspectionDate, {
                 passQty: currentPass,
                 failQty: currentFail,
-              })
+              }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
             }
             sx={recordFormActionButtonSx}
             variant="contained"
@@ -580,7 +582,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 onFail(row, remark, inspectionDate, {
                   passQty: isSawingInspection ? 0 : currentPass,
                   failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
-                })
+                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
               }
               startIcon={<AlertCircle size={16} />}
               sx={recordFormActionButtonSx}
@@ -595,7 +597,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 onPass(row, remark, inspectionDate, {
                   passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
                   failQty: isSawingInspection ? 0 : currentFail,
-                })
+                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
               }
               startIcon={<CheckCircle2 size={16} />}
               sx={recordFormActionButtonSx}

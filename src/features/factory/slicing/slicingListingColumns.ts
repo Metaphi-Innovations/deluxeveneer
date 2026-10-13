@@ -41,6 +41,16 @@ export function applySlicingListingColumns<Row extends FactoryRecord>(
     } else {
       columns = mapped;
     }
+
+    const leavesIndex = columns.findIndex((column) => column.key === "noOfLeaves");
+    if (leavesIndex >= 0) {
+      columns = [
+        ...columns.slice(0, leavesIndex),
+        { key: "receivedLeaves", label: "Received Leaves" },
+        { key: "availableLeaves", label: "Available Leaves" },
+        ...columns.slice(leavesIndex + 1),
+      ];
+    }
   }
 
   if (activeTab === "history") {

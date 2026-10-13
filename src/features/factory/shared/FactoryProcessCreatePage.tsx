@@ -85,10 +85,17 @@ import {
 } from "../sawing/sawingCreateRules";
 import {
   buildSlicingAvailableValues,
+  calculateTotalSlicingConsumption,
+  getSlicingCreateSubmitError,
   saveSlicingCreateProcess,
+  SLICING_CBM_EPSILON,
   slicingCreateSourceColumns,
-  slicingSliceFitsStock,
+  validateSlicingRow,
 } from "../slicing/slicingCreateRules";
+import {
+  applySlicingDerivedAreas,
+  slicingStockCbm,
+} from "./slicingAreaCalculation";
 import { splicingCreateSourceColumns } from "../splicing/splicingCreateRules";
 import { processDateBySlug } from "./factoryCreateProcessDates";
 import {
@@ -367,6 +374,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           },
           sourceRow as Record<string, unknown> | undefined,
         )
+      : definition.slug === "slicing"
+        ? buildDefaultSlicingLineItemValues(lineItemFields, sourceRow)
       : buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
   const [lineItems, setLineItems] = useState<LineItemRecord[]>([]);
@@ -608,17 +617,44 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   });
   const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
     useState(false);
+  const slicingAvailableLineItems = useMemo(() => {
+    if (definition.slug !== "slicing") return lineItems;
+
+    const projected = editingRowId
+      ? lineItems.map((item) =>
+          item.id === editingRowId
+            ? { ...item, values: applySlicingDerivedAreas(editingValues) }
+            : item,
+        )
+      : lineItems;
+    const draftHasProcessValues = Boolean(
+      draftValues.thickness?.trim() ||
+        draftValues.height?.trim() ||
+        draftValues.noOfLeaves?.trim() ||
+        draftValues.noOfSheets?.trim(),
+    );
+
+    return !editingRowId && draftHasProcessValues
+      ? [
+          ...projected,
+          {
+            id: "slicing-current-draft",
+            values: applySlicingDerivedAreas(draftValues),
+          },
+        ]
+      : projected;
+  }, [definition.slug, draftValues, editingRowId, editingValues, lineItems]);
 
   useEffect(() => {
     if (definition.slug !== "sawing" && definition.slug !== "slicing") return;
     const source = sourceRow as Record<string, unknown> | undefined;
     setRejectAvailableValues((current) => ({
       ...(definition.slug === "slicing"
-        ? buildSlicingAvailableValues(source, lineItems)
+        ? buildSlicingAvailableValues(source, slicingAvailableLineItems)
         : buildSawingAvailableValues(source, lineItems)),
       remark: current.remark,
     }));
-  }, [definition.slug, lineItems, sourceRow]);
+  }, [definition.slug, lineItems, slicingAvailableLineItems, sourceRow]);
 
   useEffect(() => {
     if (definition.slug !== "sawing") return;
@@ -717,6 +753,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     [currentProcessedQuantity, originalQuantity, runTotals.processed],
   );
   const [sawingSubmitError, setSawingSubmitError] = useState("");
+  const [slicingSubmitError, setSlicingSubmitError] = useState("");
   const sawingSource = useMemo(
     () =>
       definition.slug === "sawing"
@@ -730,6 +767,56 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   );
   const sawingStockUnavailable = Boolean(
     sawingSource && sawingSource.sourceAvailableCbm <= SAWING_CBM_EPSILON,
+  );
+  const slicingSource = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? (sourceRow as Record<string, unknown> | undefined)
+        : undefined,
+    [definition.slug, sourceRow],
+  );
+  const slicingConsumedCbm = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? calculateTotalSlicingConsumption(lineItems)
+        : 0,
+    [definition.slug, lineItems],
+  );
+  const slicingStockUnavailable = Boolean(
+    definition.slug === "slicing" &&
+      slicingStockCbm(slicingSource) <= SLICING_CBM_EPSILON,
+  );
+  const slicingRemainingCbm =
+    definition.slug === "slicing"
+      ? Math.max(0, slicingStockCbm(slicingSource) - slicingConsumedCbm)
+      : 0;
+  const slicingFullyConsumed =
+    definition.slug === "slicing" &&
+    lineItems.length > 0 &&
+    slicingRemainingCbm <= SLICING_CBM_EPSILON;
+  const slicingDraftValidation = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? validateSlicingRow({
+            otherConsumedCbm: slicingConsumedCbm,
+            sourceRow: slicingSource,
+            values: draftValues,
+          })
+        : { fieldErrors: {}, maximumLeaves: 0, message: "" },
+    [definition.slug, draftValues, slicingConsumedCbm, slicingSource],
+  );
+  const slicingEditValidation = useMemo(
+    () =>
+      definition.slug === "slicing" && editingRowId
+        ? validateSlicingRow({
+            otherConsumedCbm: calculateTotalSlicingConsumption(
+              lineItems.filter((row) => row.id !== editingRowId),
+            ),
+            sourceRow: slicingSource,
+            values: editingValues,
+          })
+        : { fieldErrors: {}, maximumLeaves: 0, message: "" },
+    [definition.slug, editingRowId, editingValues, lineItems, slicingSource],
   );
   const sawingDraftError = useMemo(() => {
     if (!sawingSource) return "";
@@ -764,10 +851,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     [sourceRow],
   );
   const rejectAvailableValidationErrors = {
-    ...getRejectAvailableValidationErrors(
-      rejectAvailableValues,
-      rejectAvailableAreaLimits,
-    ),
+    ...(definition.slug === "slicing"
+      ? {}
+      : getRejectAvailableValidationErrors(
+          rejectAvailableValues,
+          rejectAvailableAreaLimits,
+        )),
     ...getSawingAvailableCbmIssue(
       definition.slug,
       rejectAvailableValues.cbm,
@@ -812,9 +901,18 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
-    if (definition.slug === "slicing" && !slicingSliceFitsStock(draftValues, sourceRow, lineItems)) {
-      setDraftSubmitAttempted(true);
-      return;
+    if (definition.slug === "slicing") {
+      const validation = validateSlicingRow({
+        committing: true,
+        otherConsumedCbm: slicingConsumedCbm,
+        sourceRow: slicingSource,
+        values: draftValues,
+      });
+      if (validation.message) {
+        setDraftSubmitAttempted(true);
+        setSlicingSubmitError(validation.message);
+        return;
+      }
     }
 
     if (definition.slug === "sawing") {
@@ -864,6 +962,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             draftValues,
             sourceRow as Record<string, unknown> | undefined,
           )
+        : definition.slug === "slicing"
+          ? applySlicingDerivedAreas(draftValues)
         : draftValues;
     const nextId = `${definition.slug}-line-item-${nextRowId.current}`;
     nextRowId.current += 1;
@@ -877,6 +977,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     ];
     setLineItems(nextLineItems);
     setSawingSubmitError("");
+    setSlicingSubmitError("");
 
     if (definition.slug === "sawing" && sawingSource) {
       const clearedValues = lockSawingProcessDetailValues(
@@ -891,6 +992,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       clearedValues.cbm = "";
       clearedValues.cbf = "";
       setDraftValues(clearedValues);
+    } else if (definition.slug === "slicing") {
+      setDraftValues(buildDefaultSlicingLineItemValues(lineItemFields, sourceRow));
     } else {
       setDraftValues(buildDefaultLineItemValues(lineItemFields, sourceRow));
     }
@@ -900,6 +1003,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const handleDeleteLineItem = (rowId: string) => {
     setLineItems((current) => current.filter((row) => row.id !== rowId));
     setSawingSubmitError("");
+    setSlicingSubmitError("");
 
     if (editingRowId === rowId) {
       setEditingRowId(null);
@@ -944,15 +1048,33 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
-    if (
-      definition.slug === "slicing" &&
-      !slicingSliceFitsStock(
-        editingValues,
-        sourceRow,
-        lineItems.filter((row) => row.id !== rowId),
-      )
-    ) {
-      setEditingSubmitAttempted(true);
+    if (definition.slug === "slicing") {
+      const validation = validateSlicingRow({
+        committing: true,
+        otherConsumedCbm: calculateTotalSlicingConsumption(
+          lineItems.filter((row) => row.id !== rowId),
+        ),
+        sourceRow: slicingSource,
+        values: editingValues,
+      });
+      if (validation.message) {
+        setEditingSubmitAttempted(true);
+        setSlicingSubmitError(validation.message);
+        return;
+      }
+
+      const calculatedEdit = applySlicingDerivedAreas(editingValues);
+      setLineItems((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? { ...row, values: { ...calculatedEdit } }
+            : row,
+        ),
+      );
+      setEditingRowId(null);
+      setEditingValues(createEmptyLineItemValues(lineItemFields));
+      setEditingSubmitAttempted(false);
+      setSlicingSubmitError("");
       return;
     }
 
@@ -1238,7 +1360,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       >
                         <ColumnLabel
                           label={column.label}
-                          required={isLineItemColumnRequired(column)}
+                          required={
+                            isLineItemColumnRequired(column) ||
+                            (definition.slug === "slicing" &&
+                              (column.key === "thickness" ||
+                                column.key === "height" ||
+                                column.key === "noOfLeaves"))
+                          }
                         />
                       </TableCell>
                     ))}
@@ -1250,7 +1378,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                         {renderEditableField({
                           column,
-                          onChange: (value) =>
+                          onChange: (value) => {
+                            if (definition.slug === "slicing") {
+                              setSlicingSubmitError("");
+                            }
                             setDraftValues((current) =>
                               applySawingVolumeCalculation(
                                 definition.slug,
@@ -1261,16 +1392,22 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   definition.slug,
                                 ),
                               ),
-                            ),
+                            );
+                          },
                           theme,
                           value: draftValues[column.key] ?? "",
                           errorText: draftSubmitAttempted
-                            ? getFieldValidationError(column, draftValues)
+                            ? definition.slug === "slicing"
+                              ? slicingDraftValidation.fieldErrors[column.key] ||
+                                getFieldValidationError(column, draftValues)
+                              : getFieldValidationError(column, draftValues)
                             : "",
                           invalid:
-                            definition.slug === "sawing" &&
-                            (column.key === "cbm" || column.key === "width") &&
-                            sawingDraftError.includes("CBM"),
+                            (definition.slug === "sawing" &&
+                              (column.key === "cbm" || column.key === "width") &&
+                              sawingDraftError.includes("CBM")) ||
+                            (definition.slug === "slicing" &&
+                              Boolean(slicingDraftValidation.fieldErrors[column.key])),
                         })}
                       </TableCell>
                     ))}
@@ -1307,6 +1444,24 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   ? "No CBM is available for Sawing."
                   : sawingSubmitError || sawingDraftError}
               </Typography>
+            ) : definition.slug === "slicing" &&
+              (slicingStockUnavailable ||
+                slicingSubmitError ||
+                slicingDraftValidation.message) ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  flex: "1 1 220px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "normal",
+                })}
+              >
+                {slicingStockUnavailable
+                  ? "No CBM is available for Slicing."
+                  : slicingSubmitError || slicingDraftValidation.message}
+              </Typography>
             ) : draftSubmitAttempted && draftProjectedOverflow ? (
               <Typography
                 sx={(currentTheme) => ({
@@ -1321,7 +1476,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             ) : null}
             <Button
               disableElevation
-              disabled={sawingStockUnavailable}
+              disabled={
+                sawingStockUnavailable ||
+                slicingStockUnavailable ||
+                slicingFullyConsumed
+              }
               onClick={handleAddLineItem}
               startIcon={<Plus size={15} strokeWidth={2} />}
               sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
@@ -1387,7 +1546,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                         >
                           <ColumnLabel
                             label={column.label}
-                            required={isLineItemColumnRequired(column)}
+                            required={
+                              isLineItemColumnRequired(column) ||
+                              (definition.slug === "slicing" &&
+                                (column.key === "thickness" ||
+                                  column.key === "height" ||
+                                  column.key === "noOfLeaves"))
+                            }
                           />
                         </TableCell>
                       ))}
@@ -1414,7 +1579,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                               {isEditing
                                 ? renderEditableField({
                                   column,
-                                  onChange: (value) =>
+                                  onChange: (value) => {
+                                    if (definition.slug === "slicing") {
+                                      setSlicingSubmitError("");
+                                    }
                                     setEditingValues((current) =>
                                       applySawingVolumeCalculation(
                                         definition.slug,
@@ -1425,16 +1593,22 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                           definition.slug,
                                         ),
                                       ),
-                                    ),
+                                    );
+                                  },
                                   theme,
                                   value: editingValues[column.key] ?? "",
                                   errorText: editingSubmitAttempted
-                                    ? getFieldValidationError(column, editingValues)
+                                    ? definition.slug === "slicing"
+                                      ? slicingEditValidation.fieldErrors[column.key] ||
+                                        getFieldValidationError(column, editingValues)
+                                      : getFieldValidationError(column, editingValues)
                                     : "",
                                   invalid:
-                                    definition.slug === "sawing" &&
-                                    (column.key === "cbm" || column.key === "width") &&
-                                    sawingEditError.includes("CBM"),
+                                    (definition.slug === "sawing" &&
+                                      (column.key === "cbm" || column.key === "width") &&
+                                      sawingEditError.includes("CBM")) ||
+                                    (definition.slug === "slicing" &&
+                                      Boolean(slicingEditValidation.fieldErrors[column.key])),
                                 })
                                 : renderReadOnlyCell(row.values[column.key] ?? "", theme)}
                             </TableCell>
@@ -1486,6 +1660,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               >
                 {sawingEditError}
               </Typography>
+            ) : definition.slug === "slicing" && slicingEditValidation.message ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  whiteSpace: "normal",
+                })}
+              >
+                {slicingEditValidation.message}
+              </Typography>
             ) : null}
             </Box>
           </Stack>
@@ -1500,8 +1685,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 : undefined
             }
             volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
-            useHeight={definition.slug === "sawing"}
+            useHeight={definition.slug === "sawing" || definition.slug === "slicing"}
             editableDerived={definition.slug === "sawing"}
+            lockMeasuredFields={definition.slug === "slicing"}
             hideAmount={
               definition.slug === "sawing" ||
               definition.slug === "slicing" ||
@@ -1519,7 +1705,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   key,
                   value,
                   definition.slug === "sawing" || definition.slug === "slicing",
-                  definition.slug === "sawing",
+                  definition.slug === "sawing" || definition.slug === "slicing",
                 ),
               );
             }}
@@ -1548,7 +1734,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             type="button"
             variant="contained"
             disableElevation
-            disabled={sawingStockUnavailable}
+            disabled={sawingStockUnavailable || slicingStockUnavailable}
             sx={{
               ...highlightedRecordFormPrimaryButtonSx,
               backgroundColor: (t) => t.palette.primary.main,
@@ -1562,6 +1748,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             onClick={async () => {
               setHasSubmitted(true);
               const draftHasValues = !allValuesEmpty(draftValues);
+              const slicingDraftHasValues =
+                definition.slug === "slicing" &&
+                Boolean(
+                  draftValues.thickness?.trim() ||
+                    draftValues.height?.trim() ||
+                    draftValues.noOfLeaves?.trim() ||
+                    draftValues.noOfSheets?.trim(),
+                );
               const draftErrors = getLineItemValidationErrors(
                 lineItemColumns,
                 draftValues,
@@ -1585,7 +1779,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   : definition.slug === "pressing"
                     ? selectedPressingRows.length === 0
                   : lineItems.length === 0 ||
-                    (draftHasValues && hasValidationErrors(draftErrors)) ||
+                    ((definition.slug === "slicing"
+                      ? slicingDraftHasValues
+                      : draftHasValues) && hasValidationErrors(draftErrors)) ||
                     Boolean(editingRowId && hasValidationErrors(editingErrors));
               const quantityInvalid = Boolean(quantityOverflowError);
               const rejectAvailableInvalid = hasRejectAvailableValidationErrors(
@@ -1630,12 +1826,40 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                         })
                       : "")
                   : "";
+              const slicingPendingDraftError =
+                definition.slug === "slicing" && slicingDraftHasValues
+                  ? validateSlicingRow({
+                      committing: true,
+                      otherConsumedCbm: slicingConsumedCbm,
+                      sourceRow: slicingSource,
+                      values: draftValues,
+                    }).message
+                  : "";
+              const slicingValidationError =
+                definition.slug === "slicing"
+                  ? slicingPendingDraftError ||
+                    (editingRowId
+                      ? "Save or cancel the edited Process Detail row before saving."
+                      : getSlicingCreateSubmitError(
+                          slicingSource,
+                          lineItems,
+                          rejectAvailableValues,
+                        ))
+                  : "";
 
-              if (lineItemsInvalid || sawingValidationError) {
-                setDraftSubmitAttempted(lineItems.length === 0 || draftHasValues || Boolean(sawingValidationError));
+              if (lineItemsInvalid || sawingValidationError || slicingValidationError) {
+                setDraftSubmitAttempted(
+                  lineItems.length === 0 ||
+                    draftHasValues ||
+                    Boolean(sawingValidationError) ||
+                    Boolean(slicingValidationError),
+                );
                 setEditingSubmitAttempted(Boolean(editingRowId));
                 if (sawingValidationError) {
                   setSawingSubmitError(sawingValidationError);
+                }
+                if (slicingValidationError) {
+                  setSlicingSubmitError(slicingValidationError);
                 }
               }
 
@@ -1647,6 +1871,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 hasRequiredFieldErrors(metadataFields, formValues) ||
                 lineItemsInvalid ||
                 Boolean(sawingValidationError) ||
+                Boolean(slicingValidationError) ||
                 quantityInvalid ||
                 rejectAvailableInvalid ||
                 orderDetailsInvalid ||
@@ -2277,6 +2502,23 @@ function buildDefaultLineItemValues(
       return typeof value === "string" ? value : "";
     }),
   );
+}
+
+function buildDefaultSlicingLineItemValues(
+  fields: readonly MasterFieldDefinition[],
+  sourceRow?: SourceRow,
+) {
+  return applySlicingDerivedAreas({
+    ...buildDefaultLineItemValues(fields, sourceRow),
+    height: "",
+    thickness: "",
+    noOfLeaves: "",
+    noOfSheets: "",
+    cbm: "",
+    cbf: "",
+    sqm: "",
+    sqf: "",
+  });
 }
 
 

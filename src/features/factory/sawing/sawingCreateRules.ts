@@ -7,6 +7,7 @@ import {
 } from "../shared/RejectAvailableDetailsTable";
 import {
   addSawingDoneItems,
+  replaceSawingDoneItems,
   updateSawingIssuedAvailability,
 } from "./sawingFrontendStore";
 
@@ -448,4 +449,114 @@ addSawingDoneItems(
 
 navigate("/factory/sawing?tab=done");
 return;
+}
+
+export function saveSawingEditProcess({
+  formValues,
+  lineItems,
+  navigate,
+  originalRows,
+  rejectAvailableValues,
+  sourceRow,
+}: {
+  formValues: Record<string, MasterFieldValue>;
+  lineItems: readonly SawingCreateLineItem[];
+  navigate: (path: string) => void;
+  originalRows: readonly Record<string, any>[];
+  rejectAvailableValues: RejectAvailableValues;
+  sourceRow: Record<string, any>;
+}) {
+  const sourceMeasures = readSawingSourceMeasures(sourceRow);
+  const timestamp = Date.now();
+  const processRunId =
+    String(originalRows[0]?.processRunId ?? "") || `sawing-edit-${timestamp}`;
+  const processDate = formValues.processDate
+    ? formValues.processDate instanceof Date
+      ? formValues.processDate.toISOString().slice(0, 10)
+      : String(formValues.processDate).slice(0, 10)
+    : String(originalRows[0]?.sawingDate ?? originalRows[0]?.processDate ?? "")
+        .slice(0, 10);
+
+  const replacementRows = lineItems.map((item, index) => {
+    const original =
+      originalRows.find((row) => String(row.id) === String(item.id)) ??
+      originalRows[0] ??
+      sourceRow;
+    const values = item.values;
+    const cbm = lineSawingCbm(values, sourceMeasures);
+
+    return {
+      ...original,
+      ...formValues,
+      id: `saw-edit-${timestamp}-${index}`,
+      doneId: `saw-edit-${timestamp}-${index}`,
+      processRunId,
+      processDate,
+      sawingDate: processDate,
+      batchNoCode: values.batchNoCode || values.logNo || original.batchNoCode,
+      length: sourceMeasures.sourceLength,
+      width: numericField(values.width) || sourceMeasures.sourceWidth,
+      thickness: numericField(values.thickness || values.height),
+      height: numericField(values.thickness || values.height),
+      cbm,
+      cbf: cbm * 35.3147,
+      remark: values.remark || original.remark || "-",
+      updatedBy: "Admin",
+      listingState: "done",
+    };
+  });
+
+  const processedCbm = replacementRows.reduce(
+    (total, row) => total + (Number(row.cbm) || 0),
+    0,
+  );
+  const remainingCbm = Math.max(
+    0,
+    sourceMeasures.sourceAvailableCbm - processedCbm,
+  );
+  const editedLength = readEditedAvailableNumber(rejectAvailableValues.length);
+  const editedWidth = readEditedAvailableNumber(rejectAvailableValues.width);
+  const editedHeight = readEditedAvailableNumber(rejectAvailableValues.height);
+  const editedCbm = readEditedAvailableNumber(rejectAvailableValues.cbm);
+  const editedCbf = readEditedAvailableNumber(rejectAvailableValues.cbf);
+  const availableLength = editedLength ?? sourceMeasures.sourceLength;
+  const availableWidth = editedWidth ?? sourceMeasures.sourceWidth;
+  const storedRemainingCbm = editedCbm ?? remainingCbm;
+  const availableHeight =
+    editedHeight ??
+    heightFromAvailableVolume(
+      availableLength,
+      availableWidth,
+      storedRemainingCbm,
+    );
+  const sourceKey = String(
+    sourceRow.sourceIssueId ||
+      originalRows[0]?.sourceIssueId ||
+      sourceRow.id ||
+      sourceRow.storageSrNo ||
+      "",
+  );
+  const aliases = [
+    sourceKey,
+    sourceRow.id,
+    sourceRow.storageSrNo,
+    originalRows[0]?.sourceIssueId,
+  ];
+
+  updateSawingIssuedAvailability(aliases, {
+    length: formatSawingNumber(availableLength, 3),
+    width: formatSawingNumber(availableWidth, 3),
+    height: formatSawingNumber(availableHeight, 3),
+    availableCbm: storedRemainingCbm,
+    availableCbf:
+      editedCbf !== undefined
+        ? formatSawingNumber(editedCbf, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
+  });
+  replaceSawingDoneItems(
+    originalRows,
+    replacementRows,
+    sourceKey ? { [sourceKey]: storedRemainingCbm } : undefined,
+  );
+  navigate("/factory/sawing?tab=done");
 }

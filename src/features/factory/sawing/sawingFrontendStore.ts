@@ -136,6 +136,72 @@ export function getSawingAvailableCbm(key: string, fallback: number) {
   return fallback;
 }
 
+function sameSawingCreation(
+  candidate: SawingFlowRow,
+  selected: SawingFlowRow,
+) {
+  const groupingKeys = ["processRunId", "sourceIssueId", "issueId", "storageSrNo"];
+  const groupKey = groupingKeys.find((key) => text(selected[key]));
+
+  return groupKey
+    ? text(candidate[groupKey]) === text(selected[groupKey])
+    : String(candidate.id) === String(selected.id);
+}
+
+export function getSawingEditContext(
+  selected: SawingFlowRow,
+  definitionRows: readonly SawingFlowRow[],
+) {
+  const state = readState();
+  const doneRows = listSawingFlowRows("done", definitionRows);
+  const rows = doneRows.filter((row) => sameSawingCreation(row, selected));
+  const groupedRows = rows.length > 0 ? rows : [selected];
+  const aliases = rowKeys(selected);
+  const availabilityPatch = aliases
+    .map((key) => state.issuedAvailability[key])
+    .find(Boolean);
+  const availableKey = aliases.find((key) => key in state.availableCbm);
+  const remainingCbm = availableKey
+    ? Number(state.availableCbm[availableKey] ?? 0)
+    : 0;
+  const processedCbm = groupedRows.reduce(
+    (total, row) => total + (Number(row.cbm) || 0),
+    0,
+  );
+  const recordedReceivedCbm = Number(selected.receivedCbm) || 0;
+  const sourceCbm = Math.max(
+    recordedReceivedCbm,
+    processedCbm + Math.max(0, remainingCbm),
+  );
+  const length = Number(availabilityPatch?.length ?? selected.sourceLength ?? selected.length) || 0;
+  const width = Number(availabilityPatch?.width ?? selected.sourceWidth ?? selected.width) || 0;
+  const derivedHeight =
+    length > 0 && width > 0 && sourceCbm > 0
+      ? sourceCbm / (length * width)
+      : 0;
+  const height =
+    Number(availabilityPatch?.height ?? selected.sourceHeight) ||
+    derivedHeight ||
+    Number(selected.height ?? selected.thickness) ||
+    0;
+
+  return {
+    rows: groupedRows,
+    sourceRow: {
+      ...selected,
+      id: selected.sourceIssueId || selected.issueId || selected.id,
+      length,
+      width,
+      height,
+      thickness: height,
+      sourceCbm,
+      receivedCbm: sourceCbm,
+      availableCbm: sourceCbm,
+      cbm: sourceCbm,
+    },
+  };
+}
+
 export function listSawingFlowRows(
   tab: SawingFlowTab,
   definitionRows: readonly SawingFlowRow[],
@@ -268,6 +334,28 @@ export function addSawingDoneItems(items: readonly SawingFlowRow[], availableCbm
   writeState({
     ...state,
     extraDone: [...items.map(presentRow), ...state.extraDone],
+    availableCbm: { ...state.availableCbm, ...(availableCbmPatch ?? {}) },
+  });
+}
+
+export function replaceSawingDoneItems(
+  originalItems: readonly SawingFlowRow[],
+  replacementItems: readonly SawingFlowRow[],
+  availableCbmPatch?: Record<string, number>,
+) {
+  const state = readState();
+  const originalIds = new Set(originalItems.map((row) => String(row.id)));
+  const hiddenIds = Array.from(
+    new Set([...state.hiddenIds, ...originalIds]),
+  );
+
+  writeState({
+    ...state,
+    extraDone: [
+      ...replacementItems.map(presentRow),
+      ...state.extraDone.filter((row) => !originalIds.has(String(row.id))),
+    ],
+    hiddenIds,
     availableCbm: { ...state.availableCbm, ...(availableCbmPatch ?? {}) },
   });
 }

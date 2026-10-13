@@ -46,6 +46,10 @@ export const SawingInspectionViewPage: React.FC = () => {
   const isPass = tab === "done" || record?.qcStatus === "Pass";
   const isFail = tab === "failed" || record?.qcStatus === "Fail";
   const isPending = !isPass && !isFail;
+  const inspectionImage =
+    typeof record?.inspectionImage === "string"
+      ? record.inspectionImage.trim()
+      : "";
 
   const sourceOverviewItems = useMemo(() => {
     if (!record) return [];
@@ -224,6 +228,47 @@ export const SawingInspectionViewPage: React.FC = () => {
             )}
           </Stack>
         </Box>
+
+        {inspectionImage ? (
+          <Box sx={(t) => formSectionCardSx(t)}>
+            <Stack spacing={1.5}>
+              <FormSectionHeader title="Inspection Image" />
+              <Box
+                component="a"
+                href={inspectionImage}
+                rel="noreferrer"
+                target="_blank"
+                title="Open inspection image"
+                sx={{
+                  alignSelf: "flex-start",
+                  display: "block",
+                  maxWidth: "100%",
+                  textDecoration: "none",
+                }}
+              >
+                <Box
+                  alt={record?.inspectionImageName || "Inspection attachment"}
+                  component="img"
+                  src={inspectionImage}
+                  sx={{
+                    backgroundColor: theme.customTokens.surfaces.alt,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
+                    borderRadius: "8px",
+                    display: "block",
+                    maxHeight: 420,
+                    maxWidth: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </Box>
+              {record?.inspectionImageName ? (
+                <Typography color="text.secondary" variant="caption">
+                  {record.inspectionImageName}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Box>
+        ) : null}
       </Stack>
     </FactoryPageShell>
   );

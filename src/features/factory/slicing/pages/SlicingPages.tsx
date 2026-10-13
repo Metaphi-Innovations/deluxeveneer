@@ -4,6 +4,7 @@ import {
   FactoryProcessCreatePage,
   slicingDefinition,
 } from "../../shared";
+import { SlicingEditPage } from "./SlicingEditPage";
 
 export function SlicingListPage() {
   return <FactoryListing definition={slicingDefinition} />;
@@ -14,7 +15,7 @@ export function AddSlicingPage() {
 }
 
 export function EditSlicingPage() {
-  return <FactoryForm definition={slicingDefinition} mode="edit" />;
+  return <SlicingEditPage />;
 }
 
 export function ViewSlicingPage() {

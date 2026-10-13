@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
@@ -52,9 +53,53 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
   }
 
   if (activeTab === "done" || activeTab === "failed") {
-    return sourceColumns.filter(
+    const columns = sourceColumns.filter(
       (column) => column.key !== "qcStatus" && column.key !== "status",
     );
+
+    if (slug === "sawing-inspection" && activeTab === "done") {
+      return insertColumnsAfter(columns, "cbf", [
+        {
+          key: "inspectionImage",
+          label: "Inspection Image",
+          filterable: false,
+          renderCell: (row) => {
+            const imageUrl =
+              typeof row.inspectionImage === "string"
+                ? row.inspectionImage.trim()
+                : "";
+            if (!imageUrl) return "-";
+
+            return createElement(
+              "a",
+              {
+                href: imageUrl,
+                rel: "noreferrer",
+                target: "_blank",
+                title: "Open inspection image",
+                style: { display: "inline-flex", verticalAlign: "middle" },
+              },
+              createElement("img", {
+                alt:
+                  typeof row.inspectionImageName === "string"
+                    ? row.inspectionImageName
+                    : "Inspection",
+                src: imageUrl,
+                style: {
+                  border: "1px solid rgba(0, 0, 0, 0.12)",
+                  borderRadius: 6,
+                  height: 40,
+                  objectFit: "cover",
+                  width: 56,
+                },
+              }),
+            );
+          },
+        },
+      ]);
+    }
+
+    return columns;
   }
 
   if (isDryingInspectionSlug(slug) && activeTab === "issued") {

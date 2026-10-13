@@ -18,12 +18,14 @@ export type DryingIssuedPatch = {
 
 type DryingFlowState = {
   extraDone: DryingFlowRow[];
+  hiddenDoneIds: string[];
   hiddenIssuedIds: string[];
   issuedPatches: Record<string, DryingIssuedPatch>;
 };
 
 const emptyState = (): DryingFlowState => ({
   extraDone: [],
+  hiddenDoneIds: [],
   hiddenIssuedIds: [],
   issuedPatches: {},
 });
@@ -49,6 +51,9 @@ function readState(): DryingFlowState {
     const parsed = JSON.parse(raw) as Partial<DryingFlowState>;
     memoryState = {
       extraDone: Array.isArray(parsed.extraDone) ? parsed.extraDone : [],
+      hiddenDoneIds: Array.isArray(parsed.hiddenDoneIds)
+        ? parsed.hiddenDoneIds.map(String)
+        : [],
       hiddenIssuedIds: Array.isArray(parsed.hiddenIssuedIds)
         ? parsed.hiddenIssuedIds.map(String)
         : [],
@@ -88,7 +93,7 @@ export function useDryingFlowState() {
 }
 
 function rowAliases(row: DryingFlowRow) {
-  return [row.id, row.workItemId, row.storageSrNo, row.sourceStorageId, row.sourceRowId]
+  return [row.id, row.sourceIssuedId, row.workItemId, row.storageSrNo, row.sourceStorageId, row.sourceRowId]
     .filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
     .map(String);
 }
@@ -158,9 +163,11 @@ export function applyDryingListingRows<Row extends DryingFlowRow>(
   }
 
   if (tab === "done") {
-    const existingIds = new Set(rows.map((row) => String(row.id)));
+    const hidden = new Set(state.hiddenDoneIds);
+    const visibleRows = rows.filter((row) => !hidden.has(String(row.id)));
+    const existingIds = new Set(visibleRows.map((row) => String(row.id)));
     const extras = state.extraDone.filter((row) => !existingIds.has(String(row.id))) as Row[];
-    return [...extras, ...rows];
+    return [...extras, ...visibleRows];
   }
 
   return [...rows];
@@ -194,6 +201,80 @@ export function addDryingDoneItems(items: readonly DryingFlowRow[]) {
   writeState({
     ...state,
     extraDone: [...items, ...state.extraDone],
+  });
+}
+
+export function getDryingEditLimits(row: DryingFlowRow | null | undefined) {
+  if (!row) return { inspectedLeaves: 0, maximumLeaves: 0, minimumLeaves: 1 };
+  const state = readState();
+  const currentLeaves = dryingReceivedLeafCount(row);
+  const availableDoneLeaves = dryingLeafCount(row);
+  const inspectedLeaves = Math.max(0, currentLeaves - availableDoneLeaves);
+  const issuedPatch = findPatch(row, state.issuedPatches);
+  const sourceAvailableLeaves = patchAvailableLeaves(issuedPatch) ?? 0;
+  return {
+    inspectedLeaves,
+    maximumLeaves: currentLeaves + sourceAvailableLeaves,
+    minimumLeaves: Math.max(1, inspectedLeaves),
+  };
+}
+
+export function updateDryingDoneItem(
+  row: DryingFlowRow,
+  entry: { driedLeaves: number; dryingDate: string; remark: string },
+) {
+  const state = readState();
+  const rowId = String(row.id);
+  const currentLeaves = dryingReceivedLeafCount(row);
+  const currentAvailableLeaves = dryingLeafCount(row);
+  const inspectedLeaves = Math.max(0, currentLeaves - currentAvailableLeaves);
+  const nextAvailableLeaves = Math.max(0, entry.driedLeaves - inspectedLeaves);
+  const area = dryingLeafArea(row.length, row.width, nextAvailableLeaves);
+  const aliases = rowAliases(row);
+  const currentSourceAvailable =
+    patchAvailableLeaves(aliases.map((key) => state.issuedPatches[key]).find(Boolean)) ?? 0;
+  const nextSourceAvailable = Math.max(
+    0,
+    currentSourceAvailable + currentLeaves - entry.driedLeaves,
+  );
+  const issuedPatches = { ...state.issuedPatches };
+  const nextPatch: DryingIssuedPatch = {
+    availableLeaves: String(nextSourceAvailable),
+  };
+  aliases.forEach((key) => {
+    issuedPatches[key] = nextPatch;
+  });
+  const replacement = {
+    ...row,
+    dryingDate: entry.dryingDate,
+    issueDate: entry.dryingDate,
+    noOfLeaves: String(entry.driedLeaves),
+    receivedLeaves: String(entry.driedLeaves),
+    availableLeaves: String(nextAvailableLeaves),
+    sqm: area.sqm,
+    sqf: area.sqf,
+    totalSqMeter: area.sqm,
+    remark: entry.remark,
+    updatedBy: "Admin",
+  };
+  const storedRow = state.extraDone.some((item) => String(item.id) === rowId);
+  const replacementRow = storedRow
+    ? replacement
+    : { ...replacement, id: `drying-edit-${Date.now()}` };
+
+  writeState({
+    ...state,
+    extraDone: storedRow
+      ? state.extraDone.map((item) => String(item.id) === rowId ? replacementRow : item)
+      : [replacementRow, ...state.extraDone],
+    hiddenDoneIds: storedRow
+      ? state.hiddenDoneIds
+      : Array.from(new Set([...state.hiddenDoneIds, rowId])),
+    hiddenIssuedIds:
+      nextSourceAvailable <= 0
+        ? Array.from(new Set([...state.hiddenIssuedIds, ...aliases]))
+        : state.hiddenIssuedIds.filter((id) => !aliases.includes(id)),
+    issuedPatches,
   });
 }
 

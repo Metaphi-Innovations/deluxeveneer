@@ -110,11 +110,17 @@ function ReadOnlyDetailField({ label, value }: { label: string; value: unknown }
 }
 
 export function DryingCreateDialog({
+  minimumLeaves = 1,
+  mode = "create",
+  maximumLeaves,
   onClose,
   onSave,
   open,
   row,
 }: {
+  minimumLeaves?: number;
+  mode?: "create" | "edit";
+  maximumLeaves?: number;
   onClose: () => void;
   onSave: (entry: { driedLeaves: number; dryingDate: string; remark: string }) => void;
   open: boolean;
@@ -125,21 +131,25 @@ export function DryingCreateDialog({
   const [dryingDate, setDryingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const availableLeaves = dryingLeafCount(row);
+  const availableLeaves = maximumLeaves ?? dryingLeafCount(row);
 
   useEffect(() => {
     if (!open) return;
-    setLeaves("");
-    setDryingDate(new Date().toISOString().slice(0, 10));
-    setRemark("");
+    setLeaves(mode === "edit" ? String(dryingReceivedLeafCount(row) || "") : "");
+    setDryingDate(
+      mode === "edit"
+        ? String(row?.dryingDate || row?.issueDate || new Date().toISOString().slice(0, 10)).slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+    );
+    setRemark(mode === "edit" ? String(row?.remark || "") : "");
     setSubmitted(false);
-  }, [open, row]);
+  }, [mode, open, row]);
 
   const driedLeaves = Number(leaves);
   const invalid =
     leaves.trim() === "" ||
     !Number.isInteger(driedLeaves) ||
-    driedLeaves <= 0 ||
+    driedLeaves < minimumLeaves ||
     driedLeaves > availableLeaves;
   const dateMissing = dryingDate.trim() === "";
   const previewArea = dryingLeafArea(row?.length, row?.width, !invalid ? driedLeaves : 0);
@@ -218,7 +228,7 @@ export function DryingCreateDialog({
           py: dialogTheme.spacing(1.5),
         })}
       >
-        Create Drying
+        {mode === "edit" ? "Edit Drying" : "Create Drying"}
       </DialogTitle>
       <DialogContent
         sx={(dialogTheme) => ({
@@ -350,7 +360,8 @@ export function DryingCreateDialog({
                     fontSize: dialogTheme.typography.caption.fontSize,
                   })}
                 >
-                  Enter a whole number of leaves up to {availableLeaves}.
+                  Enter a whole number of leaves
+                  {minimumLeaves > 1 ? ` from ${minimumLeaves}` : ""} up to {availableLeaves}.
                 </Typography>
               ) : null}
             </Stack>
@@ -393,7 +404,7 @@ export function DryingCreateDialog({
           sx={recordFormActionButtonSx}
           variant="contained"
         >
-          Save
+          {mode === "edit" ? "Update" : "Save"}
         </Button>
       </DialogActions>
     </Dialog>
