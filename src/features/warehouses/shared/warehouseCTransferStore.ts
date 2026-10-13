@@ -69,8 +69,15 @@ function buildMovedWarehouseRow(
   rowId: string,
   inventorySlug: "raw-veneer" | "sawing",
 ) {
-  const batchNo = getString(row, ["batchNo", "batchNoCode", "logNo", "logCode"]);
+  const batchNo =
+    inventorySlug === "sawing"
+      ? getString(row, ["batchNo", "logNo", "logCode"])
+      : getString(row, ["batchNo", "batchNoCode", "logNo", "logCode"]);
   const height = getString(row, ["height", "thickness"]);
+  const thickness =
+    inventorySlug === "sawing"
+      ? getString(row, ["thickness"]) || height
+      : height;
   const amount = getString(row, ["amount", "totalAmount"]);
 
   return {
@@ -92,7 +99,7 @@ function buildMovedWarehouseRow(
     length: getString(row, ["length"]),
     width: getString(row, ["width"]),
     height,
-    thickness: height,
+    thickness,
     cbm: getString(row, ["cbm", "receivedCbm", "availableCbm"]),
     cbf: getString(row, ["cbf"]),
     totalUnits: getString(row, ["noOfLeaves", "noOfSheets", "quantity"]),

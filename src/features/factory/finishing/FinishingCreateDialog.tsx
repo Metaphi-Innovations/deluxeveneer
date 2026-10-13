@@ -75,10 +75,11 @@ function scaleMeasure(value: unknown, fromSheets: number, toSheets: number) {
 
 export function buildFinishingDoneSnapshot(
   row: FactoryRecord,
-  entry: { finishingType: FinishingType; noOfSheets: number },
+  entry: { finishingType: FinishingType; noOfSheets: number; remark: string },
 ) {
   const availableSheets = availableSheetCount(row);
   const sheets = String(entry.noOfSheets);
+  const remark = entry.remark.trim();
 
   return {
     ...row,
@@ -89,6 +90,7 @@ export function buildFinishingDoneSnapshot(
     outputNoOfSheets: sheets,
     sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
     sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    ...(remark ? { remark } : {}),
   };
 }
 
@@ -99,12 +101,17 @@ export function FinishingCreateDialog({
   row,
 }: {
   onClose: () => void;
-  onSave: (entry: { finishingType: FinishingType; noOfSheets: number }) => void;
+  onSave: (entry: {
+    finishingType: FinishingType;
+    noOfSheets: number;
+    remark: string;
+  }) => void;
   open: boolean;
   row: FactoryRecord | null;
 }) {
   const [sheets, setSheets] = useState("");
   const [finishingType, setFinishingType] = useState("");
+  const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const availableSheets = availableSheetCount(row);
 
@@ -112,6 +119,7 @@ export function FinishingCreateDialog({
     if (!open) return;
     setSheets("");
     setFinishingType("");
+    setRemark("");
     setSubmitted(false);
   }, [open, row]);
 
@@ -267,6 +275,19 @@ export function FinishingCreateDialog({
                     value={finishingType}
                   />
                 </Stack>
+                <Stack spacing={0.75} sx={{ gridColumn: "1 / -1" }}>
+                  <DialogFieldLabel>Remark</DialogFieldLabel>
+                  <TextField
+                    fullWidth
+                    minRows={2}
+                    multiline
+                    onChange={(event) => setRemark(event.target.value)}
+                    placeholder="Enter remark"
+                    size="small"
+                    value={remark}
+                    sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
               </Box>
             </Stack>
           </Box>
@@ -290,6 +311,7 @@ export function FinishingCreateDialog({
             onSave({
               finishingType: finishingType as FinishingType,
               noOfSheets: parsedSheets,
+              remark: remark.trim(),
             });
           }}
           sx={recordFormActionButtonSx}

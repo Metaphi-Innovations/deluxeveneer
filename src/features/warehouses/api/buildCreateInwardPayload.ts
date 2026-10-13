@@ -6,6 +6,7 @@ import {
   getCachedSupplierMasterRows,
   refreshSupplierMasterCache,
 } from "../../masters/supplier-master/api/supplierMasterApi";
+import { fetchItemSubCategoriesPaginated } from "../../masters/item-sub-category-master/api/itemSubCategoryMasterApi";
 import { fetchUnitsApi } from "../../masters/unit-master/api/unitMasterApi";
 import type { MasterRecord } from "../../masters/shared";
 import type {
@@ -158,6 +159,27 @@ async function resolveHsnRecord(hsnCode: string): Promise<MasterRecord | null> {
   );
 }
 
+async function resolveSubCategoryId(name: string): Promise<string | null> {
+  const normalized = normalizeLabel(name);
+  if (!normalized) return null;
+
+  const result = await fetchItemSubCategoriesPaginated({
+    page: 1,
+    limit: 100,
+    status: true,
+    search: name.trim(),
+  });
+
+  const match =
+    result.items.find(
+      (row) =>
+        normalizeLabel(String(row.itemSubCategory ?? "")) === normalized ||
+        normalizeLabel(String(row.name ?? "")) === normalized,
+    ) ?? null;
+
+  return asOptionalId(match?.id);
+}
+
 async function resolveUnitId(unitName: string): Promise<string | null> {
   const normalized = normalizeLabel(unitName);
   if (!normalized) return null;
@@ -228,6 +250,13 @@ async function mapLineItemToPayload(
 
   const itemMaster = await resolveItemMasterByName(itemName);
   const itemCategoryId = asOptionalId(itemMaster?.categoryId);
+  const subCategoryName = String(values.itemSubCategory ?? "").trim();
+  const itemSubCategoryId =
+    subCategoryName &&
+    normalizeLabel(String(itemMaster?.subCategory ?? itemMaster?.subCategoryName ?? "")) ===
+      normalizeLabel(subCategoryName)
+      ? asOptionalId(itemMaster?.subCategoryId)
+      : await resolveSubCategoryId(subCategoryName);
 
   const hsnFromItemMaster =
     asOptionalId(itemMaster?.hsnId) &&
@@ -262,7 +291,7 @@ async function mapLineItemToPayload(
     itemId: asOptionalId(itemMaster?.id),
     itemName,
     itemCategoryId,
-    itemSubCategoryId: null,
+    itemSubCategoryId,
     hsnId,
     hsnCode: hsnCode || null,
     inwardItemCode,
@@ -321,7 +350,7 @@ async function mapLineItemToPayload(
     const unitId = unitName ? await resolveUnitId(unitName) : null;
     return {
       ...base,
-      batchNo: null,
+      batchNo: String(values.batchNo ?? "").trim() || null,
       logCode: null,
       bundleNumber: null,
       palletNo: null,
@@ -335,6 +364,8 @@ async function mapLineItemToPayload(
       cbm: null,
       supplierItemName:
         String(values.supplierItemName ?? "").trim() || null,
+      specification: String(values.specification ?? "").trim() || null,
+      brandName: String(values.brandName ?? "").trim() || null,
       unitId,
       unitName: unitName || null,
       quantity: parseNumber(values.quantity),

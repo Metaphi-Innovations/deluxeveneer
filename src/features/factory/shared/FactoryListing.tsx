@@ -311,7 +311,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const isDryingDoneTab = definition.slug === "drying" && activeTab === "done";
   const isSlicingDoneTab = definition.slug === "slicing" && activeTab === "done";
   const isSawingInspectionDoneTab = definition.slug === "sawing-inspection" && activeTab === "done";
-  const isSelectableTab = isDryingDoneTab || isSlicingDoneTab || isSawingInspectionDoneTab;
+  const isSelectableTab = isSlicingDoneTab || isSawingInspectionDoneTab;
   const [selectedListingRows, setSelectedListingRows] = useState<Row[]>([]);
   const isGroupingDoneTab = isGroupingModule && activeTab === "done";
   const shouldUsePressingIssuedForLabels =
@@ -791,19 +791,6 @@ export function FactoryListing<Row extends FactoryRecord>({
               },
             ]
             : []),
-          ...(canCreate
-            ? [
-              {
-                id: "issue-for-inspection",
-                label: "Issue for Inspection",
-                icon: Plus,
-                tone: "primary" as const,
-                onSelect: (selectedRow: Row) => {
-                  setDryingInspectionIssueRow(selectedRow);
-                },
-              },
-            ]
-            : []),
           ...((canEdit || canCreate) && canRevertDryingDone(row)
             ? [
               {
@@ -1271,20 +1258,6 @@ export function FactoryListing<Row extends FactoryRecord>({
                 <Typography variant="body2" color="text.secondary">
                   {selectedListingRows.length} item(s) selected
                 </Typography>
-                {isDryingDoneTab && canCreate ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setConfirmIssueInspectionOpen(true)}
-                    sx={{
-                      backgroundColor: "primary.main",
-                      textTransform: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Issue for Inspection
-                  </Button>
-                ) : null}
                 {isSlicingDoneTab && canCreate ? (
                   <Button
                     variant="contained"

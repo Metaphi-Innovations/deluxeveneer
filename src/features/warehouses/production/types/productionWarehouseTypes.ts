@@ -202,42 +202,41 @@ export const consumablesColumns: readonly EnterpriseTableColumn<ConsumablesRow>[
   ];
 
 export interface SawingRow extends EnterpriseTableRow {
-  productionSrNo: string;
   storageSrNo: string;
-  inwardDate: string | Date;
+  issuedDate: string | Date;
+  sawingDate: string | Date;
   itemName: string;
   subCategory: string;
-  color: string;
   batchNo: string;
+  batchNoCode: string;
   length: string;
   width: string;
-  height: string;
+  thickness: string;
   cbm: string;
   cbf: string;
-  amount: string;
-  totalAmount: string;
   remark: string;
+  createdBy: string;
+  updatedBy: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
-  updatedBy: string;
 }
 
 export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
-  { key: "storageSrNo", label: "Storage Sr No" },
-  { key: "inwardDate", label: "Process Date" },
+  { key: "storageSrNo", label: "Storage Sr No." },
+  { key: "issuedDate", label: "Issued Date" },
+  { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "color", label: "Color" },
-  { key: "batchNo", label: "Batch No" },
+  { key: "batchNo", label: "Log No." },
+  { key: "batchNoCode", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
-  { key: "height", label: "Thickness" },
+  { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
   { key: "cbf", label: "CBF" },
-  { key: "amount", label: "Amount" },
-  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
-  { key: "updatedBy", label: "Updated By" },
+  { key: "createdBy", label: "Created" },
+  { key: "updatedBy", label: "Updated" },
 ];
 
 export interface SampleSheetTableRow extends EnterpriseTableRow {

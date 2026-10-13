@@ -33,7 +33,6 @@ export const slicingCreateSourceColumns = [
       { key: "height", keys: ["height", "thickness"], label: "Height", minWidth: 120 },
       { key: "receivedCbm", keys: ["receivedCbm", "cbm"], label: "Received CBM", minWidth: 140 },
       { key: "availableCbm", keys: ["availableCbm", "receivedCbm", "cbm"], label: "Available CBM", minWidth: 140 },
-      { key: "availableSqm", keys: ["availableSqm"], label: "Available SQM", minWidth: 140 },
       { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },
       { key: "createdBy", keys: ["createdBy"], label: "Created", minWidth: 140 },
       { key: "updatedBy", keys: ["updatedBy"], label: "Updated", minWidth: 140 },

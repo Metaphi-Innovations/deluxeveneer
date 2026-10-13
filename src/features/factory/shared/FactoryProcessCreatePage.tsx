@@ -19,6 +19,7 @@ import { Eye, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import {
@@ -88,10 +89,6 @@ import {
   slicingSliceFitsStock,
 } from "../slicing/slicingCreateRules";
 import { splicingCreateSourceColumns } from "../splicing/splicingCreateRules";
-import {
-  calculateSlicingRemainder,
-  formatSlicingDecimal,
-} from "./slicingAreaCalculation";
 import { processDateBySlug } from "./factoryCreateProcessDates";
 import {
   buildFactorySourceAllocationKey,
@@ -1009,9 +1006,6 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setEditingSubmitAttempted(false);
   };
 
-  const handleBack = () => navigate(paths.list);
-  const handleCancel = () => navigate(paths.list);
-
   const pressingOrderItemOptions = useMemo(() => {
     const order = orderRecords.find((entry) => entry.orderNo === pressingOrderNo);
     if (!order) {
@@ -1894,6 +1888,21 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           </Button>
         </Box>
       </Stack>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((current) => ({ ...current, open: false }))}
+        onConfirm={() => {
+          const action = leaveConfirmation.action;
+          setLeaveConfirmation((current) => ({ ...current, open: false }));
+          action();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </FactoryPageShell>
   );
 }
@@ -2046,13 +2055,7 @@ function buildSourceOverviewItems(
   const items: Array<{ label: string; value: string }> = [];
 
   columns.forEach((column) => {
-    const rawValue =
-      column.key === "availableSqm"
-        ? formatSlicingDecimal(
-          calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
-          3,
-        )
-        : getSourceValue(sourceRow, column.keys);
+    const rawValue = getSourceValue(sourceRow, column.keys);
     let value = formatSourceValue(rawValue);
 
     if (!value || value.trim() === "") {

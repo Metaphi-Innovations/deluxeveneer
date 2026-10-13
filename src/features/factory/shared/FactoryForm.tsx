@@ -37,6 +37,7 @@ import {
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
 import { FactoryPageShell } from "./FactoryPageShell";
+import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
   buildFactoryInitialValues,
   getFactoryPageSubtitle,
@@ -179,7 +180,11 @@ export function FactoryForm<Row extends FactoryRecord>({
           : definition.slug === "cnc-fluting"
           ? insertItemDetailField(
               factoryItemTableFields.filter(
-                (field) => field.key !== "ratePerSqf" && field.key !== "amount",
+                (field) =>
+                  field.key !== "ratePerSqf" &&
+                  field.key !== "amount" &&
+                  field.key !== "sqm" &&
+                  field.key !== "sqf",
               ),
               {
                 key: "designCode",
@@ -189,11 +194,17 @@ export function FactoryForm<Row extends FactoryRecord>({
               "itemSubCategory",
             )
           : definition.slug === "embossing"
-            ? insertItemDetailField(factoryItemTableFields, {
-                key: "structureCode",
-                label: "Structure Code",
-                type: "text",
-              }, "itemSubCategory")
+            ? insertItemDetailField(
+                factoryItemTableFields.filter(
+                  (field) => field.key !== "sqm" && field.key !== "sqf",
+                ),
+                {
+                  key: "structureCode",
+                  label: "Structure Code",
+                  type: "text",
+                },
+                "itemSubCategory",
+              )
             : factoryItemTableFields
     : [];
   const visibleFormSections =
@@ -286,6 +297,11 @@ export function FactoryForm<Row extends FactoryRecord>({
       subtitle={getFactoryPageSubtitle(definition, mode)}
       title={getFactoryPageTitle(definition, mode)}
     >
+      {mode === "view" ? (
+        row ? (
+          <FactoryRecordView definition={definition} onBack={handleBack} row={row} />
+        ) : null
+      ) : (
       <MasterSectionCard>
         <Stack
           sx={(theme) => ({
@@ -329,8 +345,7 @@ export function FactoryForm<Row extends FactoryRecord>({
                     [key]: value,
                   }))
                 }
-                presentation={mode === "view" ? "details" : "form"}
-                readOnly={mode === "view"}
+                presentation="form"
                 showRequiredErrors={mode === "add" && hasSubmitted}
                 values={values}
               />
@@ -351,51 +366,39 @@ export function FactoryForm<Row extends FactoryRecord>({
               borderTop: `1px solid ${theme.customTokens.borders.divider}`,
             })}
           >
-            {mode === "view" ? (
-              <Button
-                variant="outlined"
-                startIcon={<ChevronLeft size={16} />}
-                onClick={() => navigate(paths.list)}
-                sx={recordViewActionButtonSx}
-              >
-                Back
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="outlined"
-                  onClick={handleCancel}
-                  sx={recordFormActionButtonSx}
-                >
-                  Cancel
-                </Button>
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={handleCancel}
+              sx={recordFormActionButtonSx}
+            >
+              Cancel
+            </Button>
 
-                <Button
-                  type="button"
-                  variant="contained"
-                  startIcon={<Save size={16} />}
-                  sx={recordFormActionButtonSx}
-                  onClick={() => {
-                    setHasSubmitted(true);
-                    if (
-                      mode === "add" &&
-                      formSections.some((section) =>
-                        hasRequiredFieldErrors(section.fields, values),
-                      )
-                    ) {
-                      return;
-                    }
-                    setSaveConfirmationOpen(true);
-                  }}
-                >
-                  {primaryLabel}
-                </Button>
-              </>
-            )}
+            <Button
+              type="button"
+              variant="contained"
+              startIcon={<Save size={16} />}
+              sx={recordFormActionButtonSx}
+              onClick={() => {
+                setHasSubmitted(true);
+                if (
+                  mode === "add" &&
+                  formSections.some((section) =>
+                    hasRequiredFieldErrors(section.fields, values),
+                  )
+                ) {
+                  return;
+                }
+                setSaveConfirmationOpen(true);
+              }}
+            >
+              {primaryLabel}
+            </Button>
           </Box>
         </Stack>
       </MasterSectionCard>
+      )}
 
       <ConfirmationDialog
         cancelLabel="Stay on Page"
@@ -628,4 +631,254 @@ function formatFactoryItemValue(value: FactoryRecord[string]) {
   }
 
   return String(value);
+}
+
+const viewHiddenKeysBySlug: Record<string, readonly string[]> = {
+  pressing: ["amount", "consumedAmount", "rate", "ratePerSqf"],
+  "cnc-fluting": ["amount", "rate", "ratePerSqf"],
+  embossing: ["amount", "rate", "ratePerSqf"],
+  finishing: ["amount", "rate", "ratePerSqf"],
+};
+
+const extraViewFieldsBySlug: Record<string, readonly (readonly [string, string])[]> = {
+  "cnc-fluting": [["designCode", "Design Code"]],
+  embossing: [["structureCode", "Structure Code"]],
+  finishing: [
+    ["designCode", "Design Code"],
+    ["finishingType", "Finishing Type"],
+    ["structureCode", "Structure Code"],
+  ],
+  pressing: [
+    ["for", "For"],
+    ["purpose", "Purpose"],
+    ["sampleNo", "Sample No"],
+  ],
+};
+
+const viewItemKeys = new Set([
+  "availableCbf",
+  "availableCbm",
+  "batchNo",
+  "batchNoCode",
+  "bundleNumber",
+  "cbf",
+  "cbm",
+  "color",
+  "cut",
+  "cutColor",
+  "designCode",
+  "finishingType",
+  "grade",
+  "height",
+  "itemName",
+  "itemSubCategory",
+  "length",
+  "logNo",
+  "noOfLeaves",
+  "noOfSheets",
+  "outputNoOfSheets",
+  "palletNo",
+  "productName",
+  "receivedCbm",
+  "sqf",
+  "sqm",
+  "structureCode",
+  "subCategory",
+  "thickness",
+  "width",
+]);
+
+const viewHistoryKeys = new Set([
+  "createdAt",
+  "createdBy",
+  "updatedAt",
+  "updatedBy",
+]);
+
+const viewSkippedKeys = new Set([
+  "doneId",
+  "eventType",
+  "id",
+  "inventoryRecordId",
+  "inventorySlug",
+  "issueRemark",
+  "listingState",
+  "remark",
+  "sourceIssueId",
+  "workItemId",
+]);
+
+function FactoryRecordView<Row extends FactoryRecord>({
+  definition,
+  onBack,
+  row,
+}: {
+  definition: FactoryDefinition<Row>;
+  onBack: () => void;
+  row: Row;
+}) {
+  const groups = buildFactoryViewGroups(definition, row);
+  const remark = readFactoryViewValue(row, "remark");
+
+  return (
+    <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+      {groups.map((group) => (
+        <FactorySourceOverviewPanel
+          key={group.title}
+          items={group.items}
+          title={group.title}
+        />
+      ))}
+      {remark ? (
+        <FactorySourceOverviewPanel
+          items={[{ label: "Remark", value: remark, wide: true }]}
+          title="Remark"
+        />
+      ) : null}
+      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+        <Button
+          onClick={onBack}
+          startIcon={<ChevronLeft size={16} />}
+          sx={recordViewActionButtonSx}
+          variant="outlined"
+        >
+          Back
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
+function buildFactoryViewGroups<Row extends FactoryRecord>(
+  definition: FactoryDefinition<Row>,
+  row: Row,
+) {
+  const hiddenKeys = new Set(viewHiddenKeysBySlug[definition.slug] ?? []);
+  const seenKeys = new Set<string>();
+  const seenLabels = new Set<string>();
+  const processItems: Array<{ label: string; value: string }> = [];
+  const itemItems: Array<{ label: string; value: string }> = [];
+  const historyItems: Array<{ label: string; value: string }> = [];
+
+  const push = (key: string, label: string) => {
+    if (viewSkippedKeys.has(key) || hiddenKeys.has(key) || seenKeys.has(key)) {
+      return;
+    }
+
+    const value = readFactoryViewValue(row, key);
+    if (!value) {
+      return;
+    }
+
+    const labelKey = label.trim().toLowerCase();
+    if (seenLabels.has(labelKey)) {
+      return;
+    }
+
+    seenKeys.add(key);
+    seenLabels.add(labelKey);
+    const item = { label, value };
+    if (viewHistoryKeys.has(key)) {
+      historyItems.push(item);
+      return;
+    }
+    if (viewItemKeys.has(key)) {
+      itemItems.push(item);
+      return;
+    }
+    processItems.push(item);
+  };
+
+  definition.listColumns.forEach((column) => {
+    push(String(column.key), column.label);
+  });
+  definition.formSections.forEach((section) => {
+    section.fields.forEach((field) => {
+      push(field.key, field.label);
+    });
+  });
+  (extraViewFieldsBySlug[definition.slug] ?? []).forEach(([key, label]) => {
+    push(key, label);
+  });
+
+  return [
+    processItems.length > 0
+      ? { title: "Process Details", items: processItems }
+      : null,
+    itemItems.length > 0 ? { title: "Item Details", items: itemItems } : null,
+    historyItems.length > 0 ? { title: "Record History", items: historyItems } : null,
+  ].filter((group): group is { title: string; items: Array<{ label: string; value: string }> } =>
+    Boolean(group),
+  );
+}
+
+function readFactoryViewValue(row: FactoryRecord, key: string) {
+  const aliases = [
+    key,
+    ...(commonFactoryItemFieldAliases[key] ?? []),
+    ...(factoryViewAliases[key] ?? []),
+  ];
+  const seen = new Set<string>();
+
+  for (const alias of aliases) {
+    if (seen.has(alias)) {
+      continue;
+    }
+    seen.add(alias);
+    const formatted = formatFactoryViewValue(row[alias]);
+    if (formatted) {
+      return formatted;
+    }
+  }
+
+  return "";
+}
+
+const factoryViewAliases: Record<string, readonly string[]> = {
+  availableCbm: ["availableCbm", "receivedCbm", "cbm"],
+  batchNo: ["batchNo", "logNo", "logCode"],
+  cbf: ["cbf", "availableCbf"],
+  cbm: ["cbm", "availableCbm", "receivedCbm"],
+  for: ["forLabel", "for", "purpose"],
+  issuedDate: ["issuedDate", "issueDate", "processDate"],
+  issuedFrom: ["issuedFrom", "sourceProcess"],
+  itemSubCategory: ["itemSubCategory", "subCategory"],
+  noOfSheets: [
+    "noOfSheets",
+    "issuedNoOfSheets",
+    "outputNoOfSheets",
+    "finishedSheets",
+    "availableSheets",
+  ],
+  receivedCbm: ["receivedCbm", "cbm"],
+  remark: ["remark", "issueRemark"],
+  sqf: ["sqf", "issuedSqf", "outputSqf", "totalSqf", "availableSqf"],
+  sqm: ["sqm", "issuedSqm", "outputSqm", "totalSqm", "totalSqMeter", "availableSqm"],
+  storageSrNo: ["storageSrNo", "storageSerialNumber"],
+  thickness: ["thickness", "height"],
+  warehouseName: ["warehouseName", "storageWarehouseName", "destinationWarehouse"],
+};
+
+function formatFactoryViewValue(value: FactoryRecord[string]) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(value);
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  if (typeof value === "string" && value.trim() && value.trim() !== "-") {
+    return value.trim();
+  }
+
+  return "";
 }

@@ -10,6 +10,7 @@ import {
 export type FactorySourceOverviewItem = {
   label: string;
   value: ReactNode;
+  wide?: boolean;
 };
 
 export function FactorySourceOverviewPanel({
@@ -56,7 +57,14 @@ export function FactorySourceOverviewPanel({
           })}
         >
           {visibleItems.map((item) => (
-            <Stack key={item.label} spacing={0.5} sx={{ minWidth: 0 }}>
+            <Stack
+              key={item.label}
+              spacing={0.5}
+              sx={{
+                minWidth: 0,
+                ...(item.wide ? { gridColumn: "1 / -1" } : {}),
+              }}
+            >
               <Typography
                 sx={(theme) => ({
                   ...formFieldLabelSx(theme),

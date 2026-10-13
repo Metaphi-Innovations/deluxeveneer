@@ -40,6 +40,9 @@ export type WarehouseInventoryRow = {
   itemName: string;
   inwardItemCode?: string;
   factoryCode?: string;
+  specification?: string;
+  brandName?: string;
+  batchNo?: string;
   category?: string;
   subCategory: string;
   unitName: string;

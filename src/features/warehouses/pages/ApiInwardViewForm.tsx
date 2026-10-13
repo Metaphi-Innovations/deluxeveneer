@@ -273,9 +273,13 @@ export function ApiInwardViewForm({
         "Inward Item Code",
         "Item Name",
         "Factory Code",
+        "Sub Category",
         "HSN",
+        "Specification / Model",
+        "Brand / Make",
+        "Batch / Lot No",
+        "Quantity",
         "Unit",
-        "Qty",
         "Rate",
         "Amount",
         ...taxHeaders,
@@ -988,16 +992,30 @@ function ItemRow({
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.factoryCode || "—"}
       </TableCell>
+      {isConsumables ? (
+        <TableCell sx={getViewBodyCellSx(theme)}>
+          {item.itemSubCategoryName || "—"}
+        </TableCell>
+      ) : null}
       <TableCell sx={getViewBodyCellSx(theme)}>
         {item.hsnCode || "—"}
       </TableCell>
       {isConsumables ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.unitName || "—"}
+            {item.specification || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.brandName || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.batchNo || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.quantity)}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.unitName || "—"}
           </TableCell>
         </>
       ) : isRawVeneer ? (

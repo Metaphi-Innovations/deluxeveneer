@@ -20,7 +20,6 @@ export function applySlicingListingColumns<Row extends FactoryRecord>(
       { key: "height", label: "Height" },
       { key: "receivedCbm", label: "Received CBM" },
       { key: "availableCbm", label: "Available CBM" },
-      { key: "availableSqm", label: "Available SQM" },
       { key: "remark", label: "Remark" },
       { key: "createdBy", label: "Created" },
       { key: "updatedBy", label: "Updated" },

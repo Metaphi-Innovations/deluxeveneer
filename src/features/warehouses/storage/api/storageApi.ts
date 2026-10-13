@@ -22,6 +22,9 @@ export interface StorageInventoryItem {
   itemName: string;
   inwardItemCode?: string | null;
   factoryCode?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
+  unitName?: string | null;
   itemCategoryId: string | null;
   itemCategoryName: string | null;
   itemSubCategoryId: string | null;
@@ -112,7 +115,10 @@ export function mapStorageItemToRow(
     itemName: item.itemName ?? "",
     factoryCode: item.factoryCode ?? "",
     subCategory: item.itemSubCategoryName ?? "",
-    unitName: "",
+    specification: item.specification ?? "",
+    brandName: item.brandName ?? "",
+    batchNo: item.batchNo ?? "",
+    unitName: item.unitName ?? "",
     color: "",
     palletNo: item.palletNo ?? "",
     length: item.length != null ? `${item.length} m` : "",

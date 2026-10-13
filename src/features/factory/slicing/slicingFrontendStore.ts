@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-import { calculateSqmFromCbm, formatSlicingDecimal } from "../shared/slicingAreaCalculation";
-
 const STORAGE_KEY = "deluxe-slicing-frontend-flow";
 
 export type SlicingFlowRow = Record<string, unknown>;
@@ -113,17 +111,7 @@ export function applySlicingListingRows<Row extends SlicingFlowRow>(
     return rows
       .map((row) => {
         const patch = findPatch(row, state.issuedPatches);
-        const next = patch ? ({ ...row, ...patch } as Row) : row;
-        const availableCbm = Number(String(next.availableCbm ?? "").replace(/[^\d.]/g, ""));
-        const depth = next.height || next.thickness;
-        const sqm = calculateSqmFromCbm(
-          Number.isFinite(availableCbm) ? availableCbm : 0,
-          depth,
-        );
-        return {
-          ...next,
-          availableSqm: sqm > 0 ? formatSlicingDecimal(sqm, 3) : "",
-        };
+        return patch ? ({ ...row, ...patch } as Row) : row;
       })
       .filter((row) => {
         if (isHiddenIssued(row, state.hiddenIssuedIds)) return false;

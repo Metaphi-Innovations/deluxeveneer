@@ -72,6 +72,8 @@ export interface CreateInwardItemPayload {
   inwardItemCode?: string | null;
   factoryCode?: string | null;
   supplierItemName?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
   unitId?: string | null;
   unitName?: string | null;
   quantity?: number | null;
@@ -133,6 +135,8 @@ export interface InwardItemDetail {
   inwardItemCode?: string | null;
   factoryCode?: string | null;
   supplierItemName?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
   unitId?: string | null;
   unitName?: string | null;
   quantity?: number | null;

@@ -23,20 +23,6 @@ export function applyDryingListingColumns<Row extends FactoryRecord>(
     columns = columns.map((col) =>
       col.key === "issueDate" ? { ...col, label: "Drying Date" } : col,
     );
-    const insertIndex = columns.findIndex((col) => col.key === "noOfLeaves");
-    const extraCols = [
-      { key: "issueForInspection", label: "Issue for Inspection" },
-      { key: "availableLeaves", label: "Available Leaves" },
-    ];
-    if (insertIndex >= 0) {
-      columns = [
-        ...columns.slice(0, insertIndex + 1),
-        ...extraCols,
-        ...columns.slice(insertIndex + 1),
-      ];
-    } else {
-      columns = [...columns, ...extraCols];
-    }
   }
 
   if (activeTab === "history") {
