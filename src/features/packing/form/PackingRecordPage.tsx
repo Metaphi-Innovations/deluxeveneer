@@ -266,11 +266,15 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   );
 
   useEffect(() => {
-    setSelectedSourceRowIds((current) =>
-      current.filter((rowId) =>
+    setSelectedSourceRowIds((current) => {
+      const valid = current.filter((rowId) =>
         filteredSourceRows.some((row) => row.id === rowId),
-      ),
-    );
+      );
+      if (valid.length === 0 && filteredSourceRows.length > 0) {
+        return filteredSourceRows.map((r) => r.id);
+      }
+      return valid;
+    });
   }, [filteredSourceRows]);
 
   if ((mode === "edit" || mode === "view") && !record) {
@@ -542,10 +546,15 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                       return;
                     }
 
+                    const rowsToUse =
+                      selectedSourceRows.length > 0
+                        ? selectedSourceRows
+                        : filteredSourceRows;
+
                     if (
                       mode === "add" &&
                       showOrderSourceTable &&
-                      selectedSourceRows.length === 0
+                      rowsToUse.length === 0
                     ) {
                       return;
                     }
@@ -558,8 +567,8 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                       const remark =
                         typeof values.remark === "string" ? values.remark : "";
 
-                      if (showOrderSourceTable && selectedSourceRows.length > 0) {
-                        selectedSourceRows.forEach((row) => {
+                      if (showOrderSourceTable && rowsToUse.length > 0) {
+                        rowsToUse.forEach((row) => {
                           const isRaw =
                             normalizePackingOrderType(row.orderType) === "Raw";
                           createPackingEntry(undefined, {

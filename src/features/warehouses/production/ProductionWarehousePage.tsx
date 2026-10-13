@@ -118,8 +118,8 @@ export function ProductionWarehousePage({
     () =>
       selectedIssueOrder
         ? getOrderLineItems(selectedIssueOrder.id).map((_, index) =>
-            String(index + 1),
-          )
+          `OI-${String(index + 1).padStart(3, "0")}`,
+        )
         : [],
     [selectedIssueOrder],
   );
@@ -181,8 +181,8 @@ export function ProductionWarehousePage({
 
     const tab =
       activeInventory === "plywood" ||
-      activeInventory === "mdf" ||
-      activeInventory === "consumables"
+        activeInventory === "mdf" ||
+        activeInventory === "consumables"
         ? activeInventory
         : "raw-veneer";
 

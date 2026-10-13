@@ -2104,7 +2104,7 @@ export function getSplicingOrderLineItemOptions(
   return getOrderLineItems(order.id)
     .map((lineItem, index) => ({
       lineItem,
-      orderItemNo: String(index + 1),
+      orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
     }))
     .filter((option) => {
       const lineItemOrderType =
