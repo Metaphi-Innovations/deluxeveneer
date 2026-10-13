@@ -870,7 +870,10 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Process Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
-        fieldDefinition.key === "cbm" || fieldDefinition.key === "cbf"
+        fieldDefinition.key === "length" ||
+        fieldDefinition.key === "width" ||
+        fieldDefinition.key === "cbm" ||
+        fieldDefinition.key === "cbf"
           ? { ...fieldDefinition, readOnly: true }
           : fieldDefinition,
       ),

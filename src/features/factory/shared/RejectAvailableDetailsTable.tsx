@@ -275,6 +275,7 @@ export function RejectAvailableDetailsTable({
   fieldIssues,
   hideAmount,
   includeArea = false,
+  lockMeasuredFields = false,
   onChange,
   title,
   useHeight = false,
@@ -286,6 +287,7 @@ export function RejectAvailableDetailsTable({
   fieldIssues: RejectAvailableValidationIssues;
   hideAmount?: boolean;
   includeArea?: boolean;
+  lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   title?: string | undefined;
   useHeight?: boolean;
@@ -348,6 +350,7 @@ export function RejectAvailableDetailsTable({
                       column,
                       disabled: column.key === "type" && Boolean(disabledType),
                       editableDerived,
+                      lockMeasuredFields,
                       issue: fieldIssues[column.key],
                       onChange,
                       theme,
@@ -641,6 +644,7 @@ function renderRejectAvailableField({
   disabled,
   editableDerived = false,
   issue,
+  lockMeasuredFields = false,
   onChange,
   theme,
   value,
@@ -649,6 +653,7 @@ function renderRejectAvailableField({
   disabled?: boolean;
   editableDerived?: boolean;
   issue: RejectAvailableValidationIssue | undefined;
+  lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   theme: Theme;
   value: string;
@@ -657,6 +662,13 @@ function renderRejectAvailableField({
   const isError = issue?.severity === "error";
   const isWarning = issue?.severity === "warning";
   const isDerivedAreaField = derivedAreaFieldKeys.has(column.key);
+  const isMeasuredField =
+    column.key === "length" ||
+    column.key === "width" ||
+    column.key === "height" ||
+    column.key === "thickness" ||
+    column.key === "cbm" ||
+    column.key === "cbf";
 
   if (column.type === "select") {
     if (disabled) {
@@ -685,7 +697,9 @@ function renderRejectAvailableField({
       error={Boolean(issue)}
       fullWidth
       helperText={helperText}
-      inputProps={{ readOnly: isDerivedAreaField && !editableDerived }}
+      inputProps={{
+        readOnly: (lockMeasuredFields && isMeasuredField) || (isDerivedAreaField && !editableDerived),
+      }}
       size="small"
       value={value}
       onChange={(event) => onChange(column.key, event.target.value)}

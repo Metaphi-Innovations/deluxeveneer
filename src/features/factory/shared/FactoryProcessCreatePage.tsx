@@ -73,7 +73,13 @@ import {
   applySawingVolumeCalculation,
   buildSawingAvailableValues,
   calculateSawingVolumeValues,
+  getSawingCreateSubmitError,
+  getSawingProcessDetailError,
+  lockSawingProcessDetailValues,
+  readSawingSourceMeasures,
+  SAWING_CBM_EPSILON,
   saveSawingCreateProcess,
+  sumSawingLineCbm,
 } from "../sawing/sawingCreateRules";
 import {
   buildSlicingAvailableValues,
@@ -353,7 +359,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [resolvedGroupNo]);
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(() =>
-    buildDefaultLineItemValues(lineItemFields, sourceRow),
+    definition.slug === "sawing"
+      ? lockSawingProcessDetailValues(
+          {
+            ...buildDefaultLineItemValues(lineItemFields, sourceRow),
+            thickness: "",
+            cbm: "",
+            cbf: "",
+          },
+          sourceRow as Record<string, unknown> | undefined,
+        )
+      : buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
   const [lineItems, setLineItems] = useState<LineItemRecord[]>([]);
   const [selectedMarquetryIds, setSelectedMarquetryIds] = useState<string[]>([]);
@@ -608,25 +624,48 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
   useEffect(() => {
     if (definition.slug !== "sawing") return;
+    const source = sourceRow as Record<string, unknown> | undefined;
     setDraftValues((current) => {
-      const next = calculateSawingVolumeValues(current);
-      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      const next = lockSawingProcessDetailValues(current, source);
+      if (
+        next.length === current.length &&
+        next.width === current.width &&
+        next.cbm === current.cbm &&
+        next.cbf === current.cbf
+      ) {
+        return current;
+      }
       return next;
     });
     setEditingValues((current) => {
-      const next = calculateSawingVolumeValues(current);
-      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      const next = lockSawingProcessDetailValues(current, source);
+      if (
+        next.length === current.length &&
+        next.width === current.width &&
+        next.cbm === current.cbm &&
+        next.cbf === current.cbf
+      ) {
+        return current;
+      }
       return next;
     });
-  }, [definition.slug, draftValues, editingValues]);
+  }, [definition.slug, draftValues, editingValues, sourceRow]);
 
   useEffect(() => {
     if (definition.slug !== "sawing") return;
     setLineItems((current) => {
       let changed = false;
       const next = current.map((item) => {
-        const values = calculateSawingVolumeValues(item.values);
-        if (values.cbm === item.values.cbm && values.cbf === item.values.cbf) {
+        const values = lockSawingProcessDetailValues(
+          item.values,
+          sourceRow as Record<string, unknown> | undefined,
+        );
+        if (
+          values.length === item.values.length &&
+          values.width === item.values.width &&
+          values.cbm === item.values.cbm &&
+          values.cbf === item.values.cbf
+        ) {
           return item;
         }
         changed = true;
@@ -679,6 +718,41 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       }),
     [currentProcessedQuantity, originalQuantity, runTotals.processed],
   );
+  const [sawingSubmitError, setSawingSubmitError] = useState("");
+  const sawingSource = useMemo(
+    () =>
+      definition.slug === "sawing"
+        ? readSawingSourceMeasures(sourceRow as Record<string, unknown> | undefined)
+        : null,
+    [definition.slug, sourceRow],
+  );
+  const sawingProcessedCbm = useMemo(
+    () => (sawingSource ? sumSawingLineCbm(lineItems, sawingSource) : 0),
+    [lineItems, sawingSource],
+  );
+  const sawingStockUnavailable = Boolean(
+    sawingSource && sawingSource.sourceAvailableCbm <= SAWING_CBM_EPSILON,
+  );
+  const sawingDraftError = useMemo(() => {
+    if (!sawingSource) return "";
+    return getSawingProcessDetailError({
+      otherProcessedCbm: sawingProcessedCbm,
+      source: sawingSource,
+      values: draftValues,
+    });
+  }, [draftValues, sawingProcessedCbm, sawingSource]);
+  const sawingEditError = useMemo(() => {
+    if (!sawingSource || !editingRowId) return "";
+    const otherProcessedCbm = sumSawingLineCbm(
+      lineItems.filter((row) => row.id !== editingRowId),
+      sawingSource,
+    );
+    return getSawingProcessDetailError({
+      otherProcessedCbm,
+      source: sawingSource,
+      values: editingValues,
+    });
+  }, [editingRowId, editingValues, lineItems, sawingSource]);
   const quantityOverflowError = getProcessQuantityOverflowError({
     originalQuantity,
     previouslyProcessed: runTotals.processed,
@@ -738,14 +812,26 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     }
 
     if (definition.slug === "sawing") {
-      const draftCbm = Number.parseFloat(draftValues.cbm || "0") || 0;
-      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
-      const currentlyUsedCbm = lineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
-      const remainingCbm = Math.max(0, initialRecCbm - currentlyUsedCbm);
-
-      if (initialRecCbm > 0 && draftCbm > remainingCbm + 0.00001) {
-        alert(`Process CBM (${draftCbm.toFixed(4)}) cannot exceed available received CBM (${remainingCbm.toFixed(4)} CBM).`);
+      if (!sawingSource || sawingStockUnavailable) {
         setDraftSubmitAttempted(true);
+        setSawingSubmitError("No CBM is available for Sawing.");
+        return;
+      }
+
+      const lockedDraft = lockSawingProcessDetailValues(
+        draftValues,
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      const availabilityError = getSawingProcessDetailError({
+        committing: true,
+        otherProcessedCbm: sawingProcessedCbm,
+        source: sawingSource,
+        values: lockedDraft,
+      });
+      if (availabilityError) {
+        setDraftValues(lockedDraft);
+        setDraftSubmitAttempted(true);
+        setSawingSubmitError(availabilityError);
         return;
       }
     }
@@ -766,6 +852,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
+    const valuesToAdd =
+      definition.slug === "sawing"
+        ? lockSawingProcessDetailValues(
+            draftValues,
+            sourceRow as Record<string, unknown> | undefined,
+          )
+        : draftValues;
     const nextId = `${definition.slug}-line-item-${nextRowId.current}`;
     nextRowId.current += 1;
 
@@ -773,20 +866,24 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       ...lineItems,
       {
         id: nextId,
-        values: { ...draftValues },
+        values: { ...valuesToAdd },
       },
     ];
     setLineItems(nextLineItems);
+    setSawingSubmitError("");
 
-    if (definition.slug === "sawing") {
-      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
-      const newTotalUsedCbm = nextLineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
-      const newRemainingCbm = Math.max(0, initialRecCbm - newTotalUsedCbm);
-
-      const clearedValues = createEmptyLineItemValues(lineItemFields);
-      clearedValues.logNo = draftValues.logNo || "";
-      clearedValues.receivedCbm = initialRecCbm ? initialRecCbm.toFixed(4).replace(/\.?0+$/u, "") : "";
-      clearedValues.availableCbm = newRemainingCbm.toFixed(4).replace(/\.?0+$/u, "");
+    if (definition.slug === "sawing" && sawingSource) {
+      const clearedValues = lockSawingProcessDetailValues(
+        {
+          ...createEmptyLineItemValues(lineItemFields),
+          logNo: valuesToAdd.logNo || "",
+          batchNoCode: valuesToAdd.batchNoCode || "",
+          thickness: "",
+        },
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      clearedValues.cbm = "";
+      clearedValues.cbf = "";
       setDraftValues(clearedValues);
     } else {
       setDraftValues(buildDefaultLineItemValues(lineItemFields, sourceRow));
@@ -796,6 +893,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
   const handleDeleteLineItem = (rowId: string) => {
     setLineItems((current) => current.filter((row) => row.id !== rowId));
+    setSawingSubmitError("");
 
     if (editingRowId === rowId) {
       setEditingRowId(null);
@@ -849,6 +947,50 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       )
     ) {
       setEditingSubmitAttempted(true);
+      return;
+    }
+
+    if (definition.slug === "sawing") {
+      if (!sawingSource || sawingStockUnavailable) {
+        setEditingSubmitAttempted(true);
+        setSawingSubmitError("No CBM is available for Sawing.");
+        return;
+      }
+
+      const lockedEdit = lockSawingProcessDetailValues(
+        editingValues,
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      const availabilityError = getSawingProcessDetailError({
+        committing: true,
+        otherProcessedCbm: sumSawingLineCbm(
+          lineItems.filter((row) => row.id !== rowId),
+          sawingSource,
+        ),
+        source: sawingSource,
+        values: lockedEdit,
+      });
+      if (availabilityError) {
+        setEditingValues(lockedEdit);
+        setEditingSubmitAttempted(true);
+        setSawingSubmitError(availabilityError);
+        return;
+      }
+
+      setLineItems((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? {
+              ...row,
+              values: { ...lockedEdit },
+            }
+            : row,
+        ),
+      );
+      setEditingRowId(null);
+      setEditingValues(createEmptyLineItemValues(lineItemFields));
+      setEditingSubmitAttempted(false);
+      setSawingSubmitError("");
       return;
     }
 
@@ -1043,6 +1185,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                           errorText: draftSubmitAttempted
                             ? getFieldValidationError(column, draftValues)
                             : "",
+                          invalid:
+                            definition.slug === "sawing" &&
+                            column.key === "thickness" &&
+                            Boolean(draftValues.thickness?.trim()) &&
+                            Boolean(sawingDraftError),
                         })}
                       </TableCell>
                     ))}
@@ -1061,7 +1208,25 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               flexWrap: "wrap",
             }}
           >
-            {draftSubmitAttempted && draftProjectedOverflow ? (
+            {(definition.slug === "sawing" &&
+              (sawingStockUnavailable ||
+                sawingSubmitError ||
+                (Boolean(draftValues.thickness?.trim()) && sawingDraftError))) ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  flex: "1 1 220px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "normal",
+                })}
+              >
+                {sawingStockUnavailable
+                  ? "No CBM is available for Sawing."
+                  : sawingSubmitError || sawingDraftError}
+              </Typography>
+            ) : draftSubmitAttempted && draftProjectedOverflow ? (
               <Typography
                 sx={(currentTheme) => ({
                   color: currentTheme.palette.error.main,
@@ -1075,6 +1240,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             ) : null}
             <Button
               disableElevation
+              disabled={sawingStockUnavailable}
               onClick={handleAddLineItem}
               startIcon={<Plus size={15} strokeWidth={2} />}
               sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
@@ -1182,11 +1348,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   theme,
                                   value: editingValues[column.key] ?? "",
                                   errorText: editingSubmitAttempted
-                                    ? getFieldValidationError(
-                                      column,
-                                      editingValues,
-                                    )
+                                    ? getFieldValidationError(column, editingValues)
                                     : "",
+                                  invalid:
+                                    definition.slug === "sawing" &&
+                                    column.key === "thickness" &&
+                                    Boolean(editingValues.thickness?.trim()) &&
+                                    Boolean(sawingEditError),
                                 })
                                 : renderReadOnlyCell(row.values[column.key] ?? "", theme)}
                             </TableCell>
@@ -1252,7 +1420,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               rejectAvailableValidationErrors,
               rejectAvailableSubmitAttempted,
             )}
-            onChange={(key, value) =>
+            onChange={(key, value) => {
               setRejectAvailableValues((current) =>
                 getNextRejectAvailableValues(
                   current,
@@ -1261,8 +1429,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   definition.slug === "sawing" || definition.slug === "slicing",
                   definition.slug === "sawing",
                 ),
-              )
-            }
+              );
+            }}
             values={rejectAvailableValues}
           />
         ) : null}
@@ -1288,6 +1456,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             type="button"
             variant="contained"
             disableElevation
+            disabled={sawingStockUnavailable}
             sx={{
               ...highlightedRecordFormPrimaryButtonSx,
               backgroundColor: (t) => t.palette.primary.main,
@@ -1340,9 +1509,42 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     (!pressingOrderNo || !pressingOrderItemNo)) ||
                   (pressingPurpose === "Sample Sheet" && !pressingSampleNo));
 
-              if (lineItemsInvalid) {
-                setDraftSubmitAttempted(lineItems.length === 0 || draftHasValues);
+              const sawingRowsForSubmit =
+                definition.slug === "sawing" && sawingSource
+                  ? lineItems.map((row) =>
+                      row.id === editingRowId
+                        ? {
+                            ...row,
+                            values: lockSawingProcessDetailValues(
+                              editingValues,
+                              sourceRow as Record<string, unknown> | undefined,
+                            ),
+                          }
+                        : row,
+                    )
+                  : lineItems;
+              const sawingValidationError =
+                definition.slug === "sawing" && sawingSource
+                  ? getSawingCreateSubmitError(sawingSource, sawingRowsForSubmit) ||
+                    (draftValues.thickness?.trim()
+                      ? getSawingProcessDetailError({
+                          committing: true,
+                          otherProcessedCbm: sumSawingLineCbm(
+                            sawingRowsForSubmit,
+                            sawingSource,
+                          ),
+                          source: sawingSource,
+                          values: draftValues,
+                        })
+                      : "")
+                  : "";
+
+              if (lineItemsInvalid || sawingValidationError) {
+                setDraftSubmitAttempted(lineItems.length === 0 || draftHasValues || Boolean(sawingValidationError));
                 setEditingSubmitAttempted(Boolean(editingRowId));
+                if (sawingValidationError) {
+                  setSawingSubmitError(sawingValidationError);
+                }
               }
 
               if (rejectAvailableInvalid) {
@@ -1352,6 +1554,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               if (
                 hasRequiredFieldErrors(metadataFields, formValues) ||
                 lineItemsInvalid ||
+                Boolean(sawingValidationError) ||
                 quantityInvalid ||
                 rejectAvailableInvalid ||
                 orderDetailsInvalid ||
@@ -2131,16 +2334,19 @@ function getDefaultPlaceholder(field: MasterFieldDefinition) {
 function renderEditableField({
   column,
   errorText,
+  invalid = false,
   onChange,
   theme,
   value,
 }: {
   column: LineItemColumnDefinition;
   errorText?: string;
+  invalid?: boolean;
   onChange: (value: string) => void;
   theme: Theme;
   value: string;
 }) {
+  const hasError = Boolean(errorText) || invalid;
   if (column.readOnly) {
     return renderReadOnlyCell(value, theme);
   }
@@ -2151,7 +2357,7 @@ function renderEditableField({
         helperText={errorText}
         onChange={onChange}
         options={column.options ?? []}
-        state={errorText ? "error" : "default"}
+        state={hasError ? "error" : "default"}
         value={value}
       />
     );
@@ -2160,7 +2366,7 @@ function renderEditableField({
   if (column.type === "file") {
     return (
       <TextField
-        error={Boolean(errorText)}
+        error={hasError}
         fullWidth
         helperText={errorText}
         placeholder={column.placeholder}
@@ -2232,14 +2438,14 @@ function renderEditableField({
           },
         }}
         value={value}
-        sx={getCompactFieldSx(theme, errorText ? "error" : "default")}
+        sx={getCompactFieldSx(theme, hasError ? "error" : "default")}
       />
     );
   }
 
   return (
     <TextField
-      error={Boolean(errorText)}
+      error={hasError}
       fullWidth
       helperText={errorText}
       size="small"
@@ -2253,7 +2459,7 @@ function renderEditableField({
         event.preventDefault();
         onChange(getNextMeasurementValue(value, event.deltaY));
       }}
-      sx={getCompactFieldSx(theme, errorText ? "error" : "default")}
+      sx={getCompactFieldSx(theme, hasError ? "error" : "default")}
     />
   );
 }
