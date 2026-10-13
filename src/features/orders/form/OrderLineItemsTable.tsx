@@ -1916,15 +1916,18 @@ function applyOrderItemMasterDefaults(
     return nextValues;
   }
 
-  const productType = getRawProductTypeFromItem(item);
+  // Preserve user-selected Product Type (especially Embossed, Fluted, Marquetry, Decorative, etc.)
+  if (!nextValues.productCategory?.trim()) {
+    const productType = getRawProductTypeFromItem(item);
 
-  if (productType) {
-    nextValues.productCategory = productType;
-  } else if (category) {
-    nextValues.productCategory = category;
+    if (productType) {
+      nextValues.productCategory = productType;
+    } else if (category) {
+      nextValues.productCategory = category;
+    }
   }
 
-  if (subCategory) {
+  if (subCategory && !nextValues.subCategory?.trim()) {
     nextValues.subCategory = subCategory;
   }
 

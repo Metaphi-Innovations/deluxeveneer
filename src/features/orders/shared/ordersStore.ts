@@ -158,6 +158,7 @@ export const orderModuleConfig: OrderModuleConfig = {
 export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
   [
     { key: "orderDate", label: "Order Date", filterable: true },
+    { key: "deliveryDate", label: "Required Delivery Date", filterable: true },
     { key: "customerName", label: "Customer Name", filterable: true },
     { key: "orderNo", label: "Order No", filterable: true },
     { key: "orderItemNumber", label: "Order Item No", filterable: true },
@@ -165,6 +166,7 @@ export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] 
     { key: "itemName", label: "Item Name", filterable: true },
     { key: "quantitySheets", label: "No of Sheets", filterable: true },
     { key: "priority", label: "Priority", filterable: true },
+    { key: "status", label: "Order Status", filterable: true },
     { key: "dispatchQuantity", label: "Dispatch Quantity", filterable: true },
     { key: "issuedQuantity", label: "Issued Quantity", filterable: true },
     { key: "remark", label: "Remark" },
@@ -205,12 +207,12 @@ const salesCoordinatorOptions = [
   "Vikram Mehta",
 ] as const;
 
-const statusOptions = [
+export const statusOptions = [
   "Draft",
   "Confirmed",
   "In Production",
-  "Packing Scheduled",
-  "Ready for Dispatch",
+  "Partially Dispatched",
+  "Completed",
   "Cancelled",
 ] as const;
 
@@ -231,6 +233,12 @@ export function getOrderFormFields(): readonly MasterFieldDefinition[] {
       required: true,
     },
     {
+      key: "deliveryDate",
+      label: "Required Delivery Date",
+      type: "date",
+      required: true,
+    },
+    {
       key: "customerName",
       label: "Customer Name",
       type: "select",
@@ -241,6 +249,12 @@ export function getOrderFormFields(): readonly MasterFieldDefinition[] {
       label: "Priority",
       type: "select",
       options: [...priorityOptions],
+    },
+    {
+      key: "status",
+      label: "Order Status",
+      type: "select",
+      options: [...statusOptions],
     },
     {
       key: "remark",
