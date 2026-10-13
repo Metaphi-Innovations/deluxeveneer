@@ -40,6 +40,8 @@ export interface OrderLineItem {
   baseWidth: string;
   baseThickness: string;
   amount: string;
+  designCode?: string;
+  structuredCode?: string;
   remark: string;
 }
 

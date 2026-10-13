@@ -1021,6 +1021,83 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     return getOrderLineItems(order.id).map((_, index) => String(index + 1));
   }, [orderRecords, pressingOrderNo]);
 
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => {},
+  });
+
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Discard Process Creation?",
+      description: "Are you sure you want to go back? Any unsaved process details will be lost.",
+      action: () => navigate(paths.list),
+    });
+  };
+
+  const handleCancel = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Process Creation?",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => navigate(paths.list),
+    });
+  };
+
+  const executeSaveProcess = async () => {
+    const workItemId =
+      locationState?.workItemId ||
+      (typeof sourceRow?.workItemId === "string"
+        ? sourceRow.workItemId
+        : undefined);
+
+    const sampleNo =
+      locationState?.sampleNo ||
+      (typeof sourceRow?.sampleNo === "string"
+        ? sourceRow.sampleNo
+        : undefined);
+
+    if (sampleNo) {
+      markSampleProcessDone(sampleNo, definition.slug);
+    }
+
+    if (definition.slug === "sawing") {
+      saveSawingCreateProcess({
+        formValues,
+        lineItems,
+        locationState: locationState as Record<string, any> | null,
+        navigate,
+        rejectAvailableValues,
+        sourceRow: sourceRow as Record<string, any> | undefined,
+        workItemId,
+      });
+      return;
+    }
+
+    if (definition.slug === "slicing") {
+      saveSlicingCreateProcess({
+        formValues,
+        lineItems,
+        navigate,
+        rejectAvailableValues,
+        sourceRow: sourceRow as Record<string, unknown> | undefined,
+        workItemId,
+      });
+      return;
+    }
+
+    navigate(paths.list);
+  };
+
   return (
     <FactoryPageShell
       backNav={{
