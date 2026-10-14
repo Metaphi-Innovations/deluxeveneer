@@ -75,8 +75,8 @@ export function MarquetryOrderDetails({
               options={orderItemOptions}
               value={value.orderItemNo}
             />
-            <SelectedOrderDetails order={selectedOrder} orderItemNo={value.orderItemNo} />
       </Box>
+      <SelectedOrderDetails order={selectedOrder} orderItemNo={value.orderItemNo} />
     </Stack>
   );
 }

@@ -363,28 +363,34 @@ export function MasterFormFields({
             showRequiredErrors &&
             !fieldIsReadOnly &&
             isRequiredFieldEmpty(field, fieldValue);
+          const validationError = !fieldIsReadOnly
+            ? getFieldValidationError(field, fieldValue)
+            : "";
+          const hasEnteredValue =
+            typeof fieldValue === "string" && fieldValue.trim().length > 0;
           const fieldValidationError =
-            showRequiredErrors && !fieldIsReadOnly
-              ? getFieldValidationError(field, fieldValue)
-              : "";
+            (showRequiredErrors || hasEnteredValue) ? validationError : "";
+          const isExplicitErrorHelper =
+            typeof field.helperText === "string" &&
+            (field.helperText.includes("already exists") ||
+              field.helperText.toLowerCase().includes("invalid"));
+          const isErrorState = Boolean(
+            fieldHasRequiredError || fieldValidationError || isExplicitErrorHelper
+          );
           const fieldHelperText =
             fieldHasRequiredError
               ? getRequiredFieldMessage(field)
               : fieldValidationError || field.helperText;
-          const fieldState = fieldHasRequiredError
+          const fieldState = isErrorState
             ? "error"
-            : fieldValidationError
-              ? "error"
-              : fieldIsReadOnly
-                ? "readOnly"
-                : "default";
-          const interactiveFieldState = fieldHasRequiredError
+            : fieldIsReadOnly
+              ? "readOnly"
+              : "default";
+          const interactiveFieldState = isErrorState
             ? "error"
-            : fieldValidationError
-              ? "error"
-              : fieldIsReadOnly
-                ? "disabled"
-                : "default";
+            : fieldIsReadOnly
+              ? "disabled"
+              : "default";
           const fieldAction = fieldActions?.[field.key] ?? null;
 
           return (
@@ -1174,12 +1180,12 @@ function FieldLabel({
   compact = false,
   label,
   masters = false,
-  required: _required,
+  required = false,
 }: {
   compact?: boolean;
   label: string;
   masters?: boolean;
-  required: boolean;
+  required?: boolean;
 }) {
   return (
     <Typography
@@ -1197,6 +1203,18 @@ function FieldLabel({
       }
     >
       {getDisplayFieldLabel(label)}
+      {required ? (
+        <Typography
+          component="span"
+          sx={{
+            color: "error.main",
+            fontWeight: 700,
+            ml: 0.5,
+          }}
+        >
+          *
+        </Typography>
+      ) : null}
     </Typography>
   );
 }
@@ -1376,20 +1394,35 @@ function getFieldValidationError(
     }
   }
 
-  if (isGstNoField(field) && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(textValue)) {
-    return "GSTIN should be 15 characters (e.g. 27ABCDE1234F2Z5).";
+  if (isGstNoField(field)) {
+    if (textValue.length < 15) {
+      return `GSTIN must be 15 characters (${textValue.length}/15).`;
+    }
+    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(textValue)) {
+      return "GSTIN format is invalid (2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, 'Z', 1 alphanumeric).";
+    }
   }
 
-  if (isHsnCodeField(field) && !/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
-    return "HSN Code must be 4, 6, or 8 digits only (e.g. 44089090).";
+  if (isHsnCodeField(field)) {
+    if (![4, 6, 8].includes(textValue.length)) {
+      return `HSN Code must be 4, 6, or 8 digits (${textValue.length} entered).`;
+    }
+    if (!/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
+      return "HSN Code must contain digits only.";
+    }
   }
 
   if (isGstOrHsnNumericField(field) && field.type !== "select" && !/^\d+$/.test(textValue)) {
     return `${getDisplayFieldLabel(field.label)} should contain numbers only.`;
   }
 
-  if (isPincodeField(field) && !/^\d{6}$/.test(textValue)) {
-    return "Pincode should be exactly 6 digits (e.g. 400001).";
+  if (isPincodeField(field)) {
+    if (textValue.length < 6) {
+      return `Pincode must be 6 digits (${textValue.length}/6).`;
+    }
+    if (!/^\d{6}$/.test(textValue)) {
+      return "Pincode should be exactly 6 digits.";
+    }
   }
 
   if (isAgeField(field)) {
@@ -1402,12 +1435,22 @@ function getFieldValidationError(
     }
   }
 
-  if (isAadhaarField(field) && !/^\d{12}$/.test(textValue)) {
-    return "Aadhaar No should be exactly 12 digits (e.g. 123456789012).";
+  if (isAadhaarField(field)) {
+    if (textValue.length < 12) {
+      return `Aadhaar No must be 12 digits (${textValue.length}/12).`;
+    }
+    if (!/^\d{12}$/.test(textValue)) {
+      return "Aadhaar No should be exactly 12 digits.";
+    }
   }
 
-  if (isPanField(field) && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(textValue)) {
-    return "PAN No should be 10 characters (e.g. ABCDE1234F).";
+  if (isPanField(field)) {
+    if (textValue.length < 10) {
+      return `PAN No must be 10 characters (${textValue.length}/10).`;
+    }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(textValue)) {
+      return "PAN No format is invalid (5 letters, 4 digits, 1 letter).";
+    }
   }
 
   if (isFscCodeField(field) && !/^FSC-[CNP]\d{6}$/.test(textValue)) {
@@ -1448,7 +1491,48 @@ function isRequiredFieldEmpty(
   return false;
 }
 
-function isRequiredField(_field: MasterFieldDefinition) {
+function isRequiredField(field: MasterFieldDefinition) {
+  if (field.readOnly) {
+    return false;
+  }
+  if (field.required !== undefined) {
+    return field.required;
+  }
+  const key = getNormalizedFieldKey(field);
+  const label = getNormalizedFieldLabel(field);
+
+  // User management important mandatory fields
+  if (
+    key === "username" ||
+    key === "firstname" ||
+    key === "lastname" ||
+    key === "department" ||
+    key === "email" ||
+    key === "phoneno" ||
+    key === "phonenumber" ||
+    key === "aadhaarno" ||
+    key === "panno"
+  ) {
+    return true;
+  }
+
+  // Master definitions important primary identifiers
+  if (
+    key.endsWith("name") ||
+    key.endsWith("code") ||
+    key === "name" ||
+    key === "code" ||
+    key === "gstpercentage" ||
+    key === "gstno" ||
+    key === "gstin" ||
+    label.endsWith(" name") ||
+    label.endsWith(" code") ||
+    label === "gst %" ||
+    label === "gstin"
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -1886,31 +1970,31 @@ function getFieldPlaceholder(field: MasterFieldDefinition): string {
   const normalizedLabel = cleanLabel.toLowerCase();
 
   if (isPhoneField(field)) {
-    return "e.g. 9876543210";
+    return "9876543210";
   }
 
   if (isEmailField(field)) {
-    return "e.g. name@example.com";
+    return "name@example.com";
   }
 
   if (isAadhaarField(field)) {
-    return "e.g. 123456789012";
+    return "123456789012";
   }
 
   if (isPanField(field)) {
-    return "e.g. ABCDE1234F";
+    return "ABCDE1234F";
   }
 
   if (isGstNoField(field)) {
-    return "e.g. 27ABCDE1234F2Z5";
+    return "27ABCDE1234F2Z5";
   }
 
   if (isHsnCodeField(field)) {
-    return "e.g. 44089090";
+    return "44089090";
   }
 
   if (isPincodeField(field)) {
-    return "e.g. 400001";
+    return "400001";
   }
 
   if (isAgeField(field)) {

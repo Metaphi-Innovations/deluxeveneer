@@ -7,7 +7,7 @@ import {
 } from "../shared/RejectAvailableDetailsTable";
 import {
   addSawingDoneItems,
-  getSawingAvailableCbm,
+  replaceSawingDoneItems,
   updateSawingIssuedAvailability,
 } from "./sawingFrontendStore";
 
@@ -18,14 +18,37 @@ export const sawingProcessDate = {
 } as const;
 
 type SawingCreateLineItem = {
+  id?: string;
   values: Record<string, string>;
 };
 
 type LineItemRecord = SawingCreateLineItem;
 
+export const SAWING_CBM_EPSILON = 0.000001;
+
 export function numericField(value: unknown) {
   const parsed = Number(String(value ?? "").replace(/[^\d.]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export type SawingSourceMeasures = {
+  sourceAvailableCbm: number;
+  sourceHeight: number;
+  sourceLength: number;
+  sourceReceivedCbm: number;
+  sourceWidth: number;
+};
+
+export function readSawingSourceMeasures(
+  sourceRow: Record<string, unknown> | undefined,
+): SawingSourceMeasures {
+  return {
+    sourceLength: numericField(sourceRow?.length),
+    sourceWidth: numericField(sourceRow?.width),
+    sourceHeight: numericField(sourceRow?.height ?? sourceRow?.thickness),
+    sourceReceivedCbm: numericField(sourceRow?.receivedCbm),
+    sourceAvailableCbm: numericField(sourceRow?.availableCbm),
+  };
 }
 
 export function formatSawingNumber(value: number, digits: number) {
@@ -45,64 +68,203 @@ function volumeFromDimensions(length: number, width: number, height: number) {
   return (length * width * height) / sawingVolumeDivisor(length, width, height);
 }
 
+export function lineSawingCbm(
+  values: Record<string, string>,
+  source: SawingSourceMeasures,
+) {
+  const length = numericField(values.length) || source.sourceLength;
+  const widthText = String(values.width ?? "").trim();
+  const width = widthText ? numericField(widthText) : source.sourceWidth;
+  const thickness = numericField(values.thickness || values.height);
+  return volumeFromDimensions(length, width, thickness);
+}
+
+export function sumSawingLineCbm(
+  lineItems: readonly LineItemRecord[],
+  source: SawingSourceMeasures,
+) {
+  return lineItems.reduce(
+    (sum, item) => sum + lineSawingCbm(item.values, source),
+    0,
+  );
+}
+
+function formatAvailableCbmMessage(value: number) {
+  return (value > 0 ? value : 0).toFixed(3);
+}
+
+export function getSawingProcessDetailError({
+  committing = false,
+  otherProcessedCbm,
+  source,
+  values,
+}: {
+  committing?: boolean;
+  otherProcessedCbm: number;
+  source: SawingSourceMeasures;
+  values: Record<string, string>;
+}) {
+  if (source.sourceAvailableCbm <= SAWING_CBM_EPSILON) {
+    return "No CBM is available for Sawing.";
+  }
+
+  const thicknessText = (values.thickness ?? "").trim();
+  if (!thicknessText) {
+    return committing ? "Thickness is required and must be greater than 0." : "";
+  }
+
+  const thickness = numericField(thicknessText);
+  if (!(thickness > 0)) {
+    return "Thickness is required and must be greater than 0.";
+  }
+
+  const widthText = (values.width ?? "").trim();
+  if (!widthText || !(numericField(widthText) > 0)) {
+    return "Width is required and must be greater than 0.";
+  }
+
+  if (!(source.sourceLength > 0)) {
+    return "Source length is required to calculate sawing quantity.";
+  }
+
+  const rowCbm = lineSawingCbm(values, source);
+  if (!(rowCbm > 0)) {
+    return "Calculated CBM must be greater than 0.";
+  }
+
+  const remainingCbm = source.sourceAvailableCbm - otherProcessedCbm;
+  const availableLabel = formatAvailableCbmMessage(remainingCbm);
+
+  if (otherProcessedCbm + rowCbm - source.sourceAvailableCbm > SAWING_CBM_EPSILON) {
+    return `Sawing quantity exceeds available CBM. Available CBM: ${availableLabel}`;
+  }
+
+  return "";
+}
+
+export function getSawingAvailableCbmIssue(
+  slug: string,
+  availableCbm: string | undefined,
+  source: SawingSourceMeasures | null,
+  outputCbm: number,
+) {
+  if (slug !== "sawing" || !source) {
+    return {};
+  }
+
+  const enteredText = (availableCbm ?? "").trim();
+  if (!enteredText) {
+    return {};
+  }
+
+  const entered = numericField(enteredText);
+  const sourceCbm = source.sourceAvailableCbm;
+  const output = outputCbm > 0 ? outputCbm : 0;
+  const remaining = Math.max(0, sourceCbm - output);
+  if (entered - remaining <= SAWING_CBM_EPSILON) {
+    return {};
+  }
+
+  return {
+    cbm: {
+      message: `Available CBM cannot exceed ${remaining.toFixed(3)}. Source CBM is ${sourceCbm.toFixed(3)} and selected output details use ${output.toFixed(3)}.`,
+      severity: "warning" as const,
+    },
+  };
+}
+
+export function getSawingCreateSubmitError(
+  source: SawingSourceMeasures,
+  lineItems: readonly LineItemRecord[],
+) {
+  if (source.sourceAvailableCbm <= SAWING_CBM_EPSILON) {
+    return "No CBM is available for Sawing.";
+  }
+
+  if (lineItems.length === 0) {
+    return "Add at least one output detail before creating sawing.";
+  }
+
+  for (const item of lineItems) {
+    const otherProcessedCbm = sumSawingLineCbm(
+      lineItems.filter((row) => row.id !== item.id),
+      source,
+    );
+    const error = getSawingProcessDetailError({
+      committing: true,
+      otherProcessedCbm,
+      source,
+      values: item.values,
+    });
+    if (error) {
+      return error;
+    }
+  }
+
+  const totalProcessedCbm = sumSawingLineCbm(lineItems, source);
+  const remainingCbm = source.sourceAvailableCbm - totalProcessedCbm;
+  if (
+    totalProcessedCbm - source.sourceAvailableCbm > SAWING_CBM_EPSILON ||
+    remainingCbm < -SAWING_CBM_EPSILON
+  ) {
+    return `Sawing quantity exceeds available CBM. Available CBM: ${formatAvailableCbmMessage(remainingCbm)}`;
+  }
+
+  return "";
+}
+
+function isPlainSawingMeasure(value: string | undefined) {
+  return /^\d+(?:\.\d+)?$/u.test(String(value ?? "").trim());
+}
+
+export function lockSawingProcessDetailValues(
+  values: Record<string, string>,
+  sourceRow: Record<string, unknown> | undefined,
+) {
+  const source = readSawingSourceMeasures(sourceRow);
+  return calculateSawingVolumeValues({
+    ...values,
+    ...(source.sourceLength > 0
+      ? { length: formatSawingNumber(source.sourceLength, 3) }
+      : {}),
+    ...(source.sourceWidth > 0 && !isPlainSawingMeasure(values.width)
+      ? { width: formatSawingNumber(source.sourceWidth, 3) }
+      : {}),
+  });
+}
+
 export function buildSawingAvailableValues(
   sourceRow: Record<string, unknown> | undefined,
   lineItems: readonly LineItemRecord[],
 ): RejectAvailableValues {
   const empty = createEmptyRejectAvailableValues();
-  if (lineItems.length === 0) {
-    return {
-      ...empty,
-      type: "Available",
-    };
-  }
-
-  const sourceLength = numericField(sourceRow?.length);
-  const sourceWidth = numericField(sourceRow?.width);
-  const sourceHeight = numericField(sourceRow?.height || sourceRow?.thickness);
-  const originalCbm =
-    numericField(sourceRow?.receivedCbm) ||
-    numericField(sourceRow?.cbm) ||
-    volumeFromDimensions(sourceLength, sourceWidth, sourceHeight);
-  const stockCbm = numericField(sourceRow?.availableCbm) || originalCbm;
-  let usedThickness = 0;
-  const processedCbm = lineItems.reduce((sum, item) => {
-    const length = numericField(item.values.length) || sourceLength;
-    const width = numericField(item.values.width) || sourceWidth;
-    const thickness = numericField(item.values.thickness || item.values.height);
-    usedThickness += thickness;
-    return sum + volumeFromDimensions(length, width, thickness);
-  }, 0);
-  const remainingCbm = Math.max(0, stockCbm - processedCbm);
-  const thicknessUsedUp = sourceHeight > 0 && usedThickness >= sourceHeight - 0.000001;
-  const nothingLeft = lineItems.length > 0 && (remainingCbm <= 0.000001 || thicknessUsedUp);
-
-  if (nothingLeft) {
-    return {
-      ...empty,
-      type: "Available",
-      length: "0",
-      width: "0",
-      height: "0",
-      thickness: "",
-      cbm: "0",
-      cbf: "0",
-    };
+  const source = readSawingSourceMeasures(sourceRow);
+  const processedCbm = sumSawingLineCbm(lineItems, source);
+  let remainingCbm = source.sourceAvailableCbm - processedCbm;
+  if (Math.abs(remainingCbm) <= SAWING_CBM_EPSILON || remainingCbm < 0) {
+    remainingCbm = 0;
   }
 
   const height =
-    heightFromAvailableVolume(sourceLength, sourceWidth, remainingCbm) || sourceHeight;
+    source.sourceLength > 0 && source.sourceWidth > 0
+      ? heightFromAvailableVolume(source.sourceLength, source.sourceWidth, remainingCbm)
+      : 0;
 
   return {
     ...empty,
     type: "Available",
-    length: formatSawingNumber(sourceLength, 3),
-    width: formatSawingNumber(sourceWidth, 3),
+    length: source.sourceLength > 0 ? formatSawingNumber(source.sourceLength, 3) : "",
+    width: source.sourceWidth > 0 ? formatSawingNumber(source.sourceWidth, 3) : "",
     height: formatSawingNumber(height, 3),
     thickness: "",
-    cbm: formatSawingNumber(remainingCbm, 6),
-    cbf: formatSawingNumber(remainingCbm * 35.3147, 4),
+    cbm: remainingCbm.toFixed(3),
+    cbf: (remainingCbm * 35.3147).toFixed(3),
   };
+}
+
+function readEditedAvailableNumber(value: string | undefined) {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function heightFromAvailableVolume(length: number, width: number, cbm: number) {
@@ -144,8 +306,8 @@ export function calculateSawingVolumeValues(values: Record<string, string>) {
 
   return {
     ...values,
-    cbm: cbm.toFixed(6).replace(/\.?0+$/u, "") || "0",
-    cbf: cbf.toFixed(4).replace(/\.?0+$/u, "") || "0",
+    cbm: cbm.toFixed(3),
+    cbf: cbf.toFixed(3),
     availableCbm: availCbm ? availCbm.toFixed(6).replace(/\.?0+$/u, "") : (recCbmVal > 0 ? "0" : (values.availableCbm ?? "")),
     ...(amount ? { amount } : {}),
   };
@@ -181,19 +343,19 @@ const issueItemId = locState?.issueItemId || sawingSource?.id;
 const issueId = locState?.issueId || sawingSource?.issueId;
 const storageWarehouseId = locState?.storageWarehouseId || sawingSource?.storageWarehouseId;
 
+const sourceMeasures = readSawingSourceMeasures(sawingSource);
 const processedItemsPayload = lineItems.map((item) => {
   const vals = item.values;
-  const l = Number.parseFloat(vals.length || "0") || 0;
-  const w = Number.parseFloat(vals.width || "0") || 0;
-  const t = Number.parseFloat(vals.height || vals.thickness || "0") || 0;
-  const cbmVal = Number.parseFloat(vals.cbm || "0") || 0;
-  const cbfVal = Number.parseFloat(vals.cbf || "0") || 0;
+  const t = numericField(vals.thickness || vals.height);
+  const width = numericField(vals.width) || sourceMeasures.sourceWidth;
+  const cbmVal = lineSawingCbm(vals, sourceMeasures);
+  const cbfVal = cbmVal * 35.3147;
   const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
   const amtVal = Number.parseFloat(vals.amount || "0");
   return {
-    batchNo: vals.logNo || vals.batchNo || "",
-    length: l,
-    width: w,
+    batchNo: vals.logNo || vals.batchNo || sawingSource?.batchNo || sawingSource?.logNo || "",
+    length: sourceMeasures.sourceLength,
+    width,
     thickness: t,
     cbm: cbmVal,
     cbf: cbfVal,
@@ -214,37 +376,29 @@ const totalSawedCbm = processedItemsPayload.reduce(
 );
 
 const itemKey = String(issueItemId || sawingSource?.storageSrNo || "");
-const fallbackBaseCbm = Number(sawingSource?.availableCbm ?? sawingSource?.receivedCbm ?? sawingSource?.cbm ?? 0);
-const previousAvailableCbm = itemKey
-  ? getSawingAvailableCbm(itemKey, fallbackBaseCbm)
-  : fallbackBaseCbm;
-
-const enteredAvailableCbm = numericField(rejectAvailableValues.cbm);
-const remainingCbm = Math.max(
-  0,
-  Number(
-    (
-      (enteredAvailableCbm > 0
-        ? enteredAvailableCbm
-        : (previousAvailableCbm ?? 0) - totalSawedCbm)
-    ).toFixed(4),
-  ),
-);
-const availableLength = numericField(rejectAvailableValues.length);
-const availableWidth = numericField(rejectAvailableValues.width);
-const availableHeight = heightFromAvailableVolume(
-  availableLength,
-  availableWidth,
-  remainingCbm,
-);
+const remainingCbm = Math.max(0, sourceMeasures.sourceAvailableCbm - totalSawedCbm);
+const editedLength = readEditedAvailableNumber(rejectAvailableValues.length);
+const editedWidth = readEditedAvailableNumber(rejectAvailableValues.width);
+const editedHeight = readEditedAvailableNumber(rejectAvailableValues.height);
+const editedCbm = readEditedAvailableNumber(rejectAvailableValues.cbm);
+const editedCbf = readEditedAvailableNumber(rejectAvailableValues.cbf);
+const availableLength = editedLength ?? sourceMeasures.sourceLength;
+const availableWidth = editedWidth ?? sourceMeasures.sourceWidth;
+const storedRemainingCbm = editedCbm ?? remainingCbm;
+const availableHeight =
+  editedHeight ??
+  heightFromAvailableVolume(availableLength, availableWidth, storedRemainingCbm);
 updateSawingIssuedAvailability(
   [itemKey, sawingSource?.id, sawingSource?.storageSrNo],
   {
     length: formatSawingNumber(availableLength, 3),
     width: formatSawingNumber(availableWidth, 3),
     height: formatSawingNumber(availableHeight, 3),
-    availableCbm: remainingCbm,
-    availableCbf: formatSawingNumber(remainingCbm * 35.3147, 4),
+    availableCbm: storedRemainingCbm,
+    availableCbf:
+      editedCbf !== undefined
+        ? formatSawingNumber(editedCbf, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
   },
 );
 
@@ -261,9 +415,11 @@ const sawingDate = processDateVal
 const issuedDate = sawingSource?.issueDate || sawingSource?.issuedDate || sawingDate;
 const subCategory =
   sawingSource?.subCategory || sawingSource?.itemSubCategory || "-";
+const sawingRunId = `sawing-run-${Date.now()}`;
 const newDoneItems = processedItemsPayload.map((p, idx) => ({
-  id: `done-${Date.now()}-${idx}`,
-  doneId: `done-${Date.now()}-${idx}`,
+  id: `done-${sawingRunId}-${idx}`,
+  doneId: `done-${sawingRunId}-${idx}`,
+  processRunId: sawingRunId,
   sourceIssueId: issueItemId,
   storageSrNo: sawingSource?.storageSrNo || "-",
   issueDate: issuedDate,
@@ -290,9 +446,119 @@ const newDoneItems = processedItemsPayload.map((p, idx) => ({
 }));
 addSawingDoneItems(
   newDoneItems,
-  itemKey ? { [itemKey]: remainingCbm } : undefined,
+  itemKey ? { [itemKey]: storedRemainingCbm } : undefined,
 );
 
 navigate("/factory/sawing?tab=done");
 return;
+}
+
+export function saveSawingEditProcess({
+  formValues,
+  lineItems,
+  navigate,
+  originalRows,
+  rejectAvailableValues,
+  sourceRow,
+}: {
+  formValues: Record<string, MasterFieldValue>;
+  lineItems: readonly SawingCreateLineItem[];
+  navigate: (path: string) => void;
+  originalRows: readonly Record<string, any>[];
+  rejectAvailableValues: RejectAvailableValues;
+  sourceRow: Record<string, any>;
+}) {
+  const sourceMeasures = readSawingSourceMeasures(sourceRow);
+  const timestamp = Date.now();
+  const processRunId =
+    String(originalRows[0]?.processRunId ?? "") || `sawing-edit-${timestamp}`;
+  const processDate = formValues.processDate
+    ? formValues.processDate instanceof Date
+      ? formValues.processDate.toISOString().slice(0, 10)
+      : String(formValues.processDate).slice(0, 10)
+    : String(originalRows[0]?.sawingDate ?? originalRows[0]?.processDate ?? "")
+        .slice(0, 10);
+
+  const replacementRows = lineItems.map((item, index) => {
+    const original =
+      originalRows.find((row) => String(row.id) === String(item.id)) ??
+      originalRows[0] ??
+      sourceRow;
+    const values = item.values;
+    const cbm = lineSawingCbm(values, sourceMeasures);
+
+    return {
+      ...original,
+      ...formValues,
+      id: `saw-edit-${timestamp}-${index}`,
+      doneId: `saw-edit-${timestamp}-${index}`,
+      processRunId,
+      processDate,
+      sawingDate: processDate,
+      batchNoCode: values.batchNoCode || values.logNo || original.batchNoCode,
+      length: sourceMeasures.sourceLength,
+      width: numericField(values.width) || sourceMeasures.sourceWidth,
+      thickness: numericField(values.thickness || values.height),
+      height: numericField(values.thickness || values.height),
+      cbm,
+      cbf: cbm * 35.3147,
+      remark: values.remark || original.remark || "-",
+      updatedBy: "Admin",
+      listingState: "done",
+    };
+  });
+
+  const processedCbm = replacementRows.reduce(
+    (total, row) => total + (Number(row.cbm) || 0),
+    0,
+  );
+  const remainingCbm = Math.max(
+    0,
+    sourceMeasures.sourceAvailableCbm - processedCbm,
+  );
+  const editedLength = readEditedAvailableNumber(rejectAvailableValues.length);
+  const editedWidth = readEditedAvailableNumber(rejectAvailableValues.width);
+  const editedHeight = readEditedAvailableNumber(rejectAvailableValues.height);
+  const editedCbm = readEditedAvailableNumber(rejectAvailableValues.cbm);
+  const editedCbf = readEditedAvailableNumber(rejectAvailableValues.cbf);
+  const availableLength = editedLength ?? sourceMeasures.sourceLength;
+  const availableWidth = editedWidth ?? sourceMeasures.sourceWidth;
+  const storedRemainingCbm = editedCbm ?? remainingCbm;
+  const availableHeight =
+    editedHeight ??
+    heightFromAvailableVolume(
+      availableLength,
+      availableWidth,
+      storedRemainingCbm,
+    );
+  const sourceKey = String(
+    sourceRow.sourceIssueId ||
+      originalRows[0]?.sourceIssueId ||
+      sourceRow.id ||
+      sourceRow.storageSrNo ||
+      "",
+  );
+  const aliases = [
+    sourceKey,
+    sourceRow.id,
+    sourceRow.storageSrNo,
+    originalRows[0]?.sourceIssueId,
+  ];
+
+  updateSawingIssuedAvailability(aliases, {
+    length: formatSawingNumber(availableLength, 3),
+    width: formatSawingNumber(availableWidth, 3),
+    height: formatSawingNumber(availableHeight, 3),
+    availableCbm: storedRemainingCbm,
+    availableCbf:
+      editedCbf !== undefined
+        ? formatSawingNumber(editedCbf, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
+  });
+  replaceSawingDoneItems(
+    originalRows,
+    replacementRows,
+    sourceKey ? { [sourceKey]: storedRemainingCbm } : undefined,
+  );
+  navigate("/factory/sawing?tab=done");
 }

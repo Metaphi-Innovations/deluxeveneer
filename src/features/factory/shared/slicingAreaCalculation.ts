@@ -153,21 +153,8 @@ export function measureSlicingSlice(values: SlicingSliceInput) {
 }
 
 export function slicingStockCbm(source: Record<string, unknown> | undefined) {
-  const given =
-    parseNumericValue(source?.availableCbm) ??
-    parseNumericValue(source?.receivedCbm) ??
-    parseNumericValue(source?.cbm);
-
-  if (given !== null && given > 0) {
-    return given;
-  }
-
-  return calculateSlicingCbm(
-    source?.length,
-    source?.width,
-    source?.height || source?.thickness,
-    1,
-  );
+  const available = parseNumericValue(source?.availableCbm);
+  return available !== null && available > 0 ? available : 0;
 }
 
 export function calculateSlicingRemainder(
@@ -176,27 +163,22 @@ export function calculateSlicingRemainder(
 ) {
   const length = resolveSlicingDimensionMetres(source?.length);
   const width = resolveSlicingDimensionMetres(source?.width);
-  const height = resolveSlicingDimensionMetres(source?.height || source?.thickness);
   const stockCbm = slicingStockCbm(source);
   const usedCbm = slices.reduce((sum, slice) => sum + measureSlicingSlice(slice).cbm, 0);
   const cbm = Math.max(0, stockCbm - usedCbm);
-  const depleted = slices.length > 0 && cbm <= 0.000001;
-  const depth = depleted
-    ? 0
-    : height > 0 && stockCbm > 0
-      ? height * (cbm / stockCbm)
-      : calculateDepthFromCbm(cbm, length, width);
-  const sqm = depleted ? 0 : calculateSqmFromCbm(cbm, depth);
+  const depleted = cbm <= 0.000001;
+  const depth = depleted ? 0 : calculateDepthFromCbm(cbm, length, width);
+  const sqm = depleted || length <= 0 || width <= 0 ? 0 : length * width;
 
   return {
     cbf: depleted ? 0 : cbm * CBM_TO_CBF,
     cbm: depleted ? 0 : cbm,
     depleted,
     height: depth,
-    length: depleted ? 0 : length,
+    length,
     sqf: sqm * SQM_TO_SQF,
     sqm,
-    width: depleted ? 0 : width,
+    width,
   };
 }
 

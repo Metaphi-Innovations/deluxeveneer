@@ -14,7 +14,7 @@ export function AddCNCFlutingPage() {
 }
 
 export function EditCNCFlutingPage() {
-  return <FactoryForm definition={cncFlutingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={cncFlutingDefinition} mode="edit" />;
 }
 
 export function ViewCNCFlutingPage() {

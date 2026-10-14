@@ -1,15 +1,28 @@
 import type { ReactNode } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import {
+  Box,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from "@mui/material";
 
 import {
-  formFieldLabelSx,
   formSectionCardSx,
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
+import {
+  getDialogBodyCellSx,
+  getDialogHeaderCellSx,
+  getDialogScrollableTableSx,
+} from "./listing/factoryListingParts";
 
 export type FactorySourceOverviewItem = {
   label: string;
   value: ReactNode;
+  wide?: boolean;
 };
 
 export function FactorySourceOverviewPanel({
@@ -43,40 +56,27 @@ export function FactorySourceOverviewPanel({
     >
       <Stack spacing={1.5}>
         <FormSectionHeader title={title} />
-
-        <Box
-          sx={(theme) => ({
-            display: "grid",
-            gap: theme.spacing(2),
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
-              md: "repeat(4, minmax(0, 1fr))",
-            },
-          })}
-        >
-          {visibleItems.map((item) => (
-            <Stack key={item.label} spacing={0.5} sx={{ minWidth: 0 }}>
-              <Typography
-                sx={(theme) => ({
-                  ...formFieldLabelSx(theme),
-                })}
-              >
-                {item.label}
-              </Typography>
-              <Typography
-                sx={(theme) => ({
-                  color: theme.customTokens.text.primary,
-                  fontSize: "14px",
-                  fontWeight: 400,
-                  lineHeight: 1.45,
-                  wordBreak: "break-word",
-                })}
-              >
-                {item.value}
-              </Typography>
-            </Stack>
-          ))}
+        <Box sx={getDialogScrollableTableSx}>
+          <Table size="small" sx={{ minWidth: "100%" }}>
+            <TableHead>
+              <TableRow>
+                {visibleItems.map((item) => (
+                  <TableCell key={item.label} sx={getDialogHeaderCellSx}>
+                    {item.label}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow>
+                {visibleItems.map((item) => (
+                  <TableCell key={item.label} sx={getDialogBodyCellSx}>
+                    {item.value}
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableBody>
+          </Table>
         </Box>
       </Stack>
     </Box>

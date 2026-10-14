@@ -1,12 +1,13 @@
 export * from "./SawingListPage";
-import { FactoryForm, FactoryProcessCreatePage, sawingDefinition } from "../../shared";
+import { FactoryProcessCreatePage, sawingDefinition } from "../../shared";
+import { SawingEditPage } from "./SawingEditPage";
 
 export function AddSawingPage() {
   return <FactoryProcessCreatePage definition={sawingDefinition} />;
 }
 
 export function EditSawingPage() {
-  return <FactoryForm definition={sawingDefinition} mode="edit" />;
+  return <SawingEditPage />;
 }
 
 export { SawingViewPage as ViewSawingPage } from "./SawingViewPage";

@@ -98,7 +98,7 @@ export function DryingInspectionIssueDialog<Row extends FactoryRecord>({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ fontWeight: 600, pb: 1 }}>
-        Issue for Inspection
+        Issue to Inspection
       </DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Typography variant="caption" sx={{ fontWeight: 700, color: "text.secondary", textTransform: "uppercase", letterSpacing: "0.05em", mb: 1, display: "block" }}>
@@ -237,7 +237,7 @@ export function DryingInspectionIssueDialog<Row extends FactoryRecord>({
           disabled={exceedsTotal}
           sx={{ textTransform: "none", fontWeight: 600, minWidth: 120 }}
         >
-          Issue for Inspection
+          Issue to Inspection
         </Button>
       </DialogActions>
     </Dialog>
@@ -249,8 +249,8 @@ export interface InspectionDecisionDialogProps<Row extends FactoryRecord> {
   row: Row | null;
   processSlug?: string;
   onClose: () => void;
-  onPass: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }) => void;
-  onFail: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }) => void;
+  onPass: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
+  onFail: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
   passCount: number;
   failCount: number;
 }
@@ -271,13 +271,18 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
   );
   const [attachmentName, setAttachmentName] = useState<string>("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
-
-  const totalQuantity = row
-    ? Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
-    : 0;
-
   const [passQtyStr, setPassQtyStr] = useState<string>("");
   const [failQtyStr, setFailQtyStr] = useState<string>("0");
+  const isSawingInspection = processSlug === "sawing-inspection";
+  const isDryingInspection =
+    !isSawingInspection &&
+    (processSlug === "drying-inspection" || processSlug === "drying");
+
+  const totalQuantity = row
+    ? isDryingInspection
+      ? Number(row.availableLeaves ?? row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
+      : Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
+    : 0;
 
   useEffect(() => {
     if (open && row) {
@@ -285,18 +290,16 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
       setInspectionDate(new Date().toISOString().slice(0, 10));
       setAttachmentName("");
       setAttachmentPreview(null);
-      const total = Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0);
+      const total = isDryingInspection
+        ? Number(row.availableLeaves ?? row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
+        : Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0);
       setPassQtyStr(total > 0 ? String(total) : "");
       setFailQtyStr("0");
     }
-  }, [open, row]);
+  }, [isDryingInspection, open, row]);
 
   if (!row) return null;
 
-  const isSawingInspection = processSlug === "sawing-inspection";
-  const isDryingInspection =
-    !isSawingInspection &&
-    (processSlug === "drying-inspection" || processSlug === "drying");
   const detailFields = isSawingInspection
     ? [
         { label: "Storage Sr No.", value: String(row.storageSrNo ?? row.id ?? "-") },
@@ -382,7 +385,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
   return (
     <Dialog
       fullWidth
-      maxWidth="md"
+      maxWidth={isSawingInspection ? "sm" : "md"}
       onClose={onClose}
       open={open}
       slotProps={{
@@ -409,37 +412,47 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Box sx={(theme) => formSectionCardSx(theme)}>
-            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
-              <FormSectionHeader title="Item Details" />
-              <Box
-                sx={(theme) => ({
-                  display: "grid",
-                  gap: theme.spacing(2),
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(3, minmax(0, 1fr))",
-                  },
-                })}
-              >
-                {detailFields.map((field) => (
-                  <ReadOnlyDialogField
-                    key={field.label}
-                    label={field.label}
-                    value={field.value}
-                  />
-                ))}
-                <Box sx={{ gridColumn: "1 / -1" }}>
-                  <ReadOnlyDialogField label="Remark" value={detailRemark} />
+          {!isDryingInspection && !isSawingInspection ? (
+            <Box sx={(theme) => formSectionCardSx(theme)}>
+              <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                <FormSectionHeader title="Item Details" />
+                <Box
+                  sx={(theme) => ({
+                    display: "grid",
+                    gap: theme.spacing(2),
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(3, minmax(0, 1fr))",
+                    },
+                  })}
+                >
+                  {detailFields.map((field) => (
+                    <ReadOnlyDialogField
+                      key={field.label}
+                      label={field.label}
+                      value={field.value}
+                    />
+                  ))}
+                  <Box sx={{ gridColumn: "1 / -1" }}>
+                    <ReadOnlyDialogField label="Remark" value={detailRemark} />
+                  </Box>
                 </Box>
-              </Box>
-            </Stack>
-          </Box>
+              </Stack>
+            </Box>
+          ) : null}
 
           <Box sx={(theme) => formSectionCardSx(theme)}>
             <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-              <FormSectionHeader title="Inspection" />
+              {!isSawingInspection && !isDryingInspection ? (
+                <FormSectionHeader title="Inspection" />
+              ) : null}
+              {isDryingInspection ? (
+                <ReadOnlyDialogField
+                  label="Available No of Leaves"
+                  value={String(totalQuantity || "-")}
+                />
+              ) : null}
               {isDryingInspection ? (
                 <Box
                   sx={(theme) => ({
@@ -453,7 +466,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     <TextField
                       error={exceedsTotal}
                       fullWidth
-                      helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
+                      helperText={exceedsTotal ? `Pass + Fail cannot exceed available leaves (${totalQuantity})` : ""}
                       onChange={(event) => handlePassChange(event.target.value)}
                       placeholder="Enter pass count"
                       size="small"
@@ -467,7 +480,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     <TextField
                       error={exceedsTotal}
                       fullWidth
-                      helperText={exceedsTotal ? `Pass + Fail cannot exceed total leaves (${totalQuantity})` : ""}
+                      helperText={exceedsTotal ? `Pass + Fail cannot exceed available leaves (${totalQuantity})` : ""}
                       onChange={(event) => handleFailChange(event.target.value)}
                       placeholder="Enter fail count"
                       size="small"
@@ -564,7 +577,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
               onPass(row, remark, inspectionDate, {
                 passQty: currentPass,
                 failQty: currentFail,
-              })
+              }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
             }
             sx={recordFormActionButtonSx}
             variant="contained"
@@ -580,7 +593,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 onFail(row, remark, inspectionDate, {
                   passQty: isSawingInspection ? 0 : currentPass,
                   failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
-                })
+                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
               }
               startIcon={<AlertCircle size={16} />}
               sx={recordFormActionButtonSx}
@@ -595,7 +608,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 onPass(row, remark, inspectionDate, {
                   passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
                   failQty: isSawingInspection ? 0 : currentFail,
-                })
+                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
               }
               startIcon={<CheckCircle2 size={16} />}
               sx={recordFormActionButtonSx}
@@ -1157,25 +1170,6 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
   const availableSheetsNumber = state
     ? getAvailableGroupedSheets(state.row)
     : 0;
-  const availableSheets = String(availableSheetsNumber);
-  const itemName = getGroupingSampleField(state?.row, ["itemName", "productName"]);
-  const subCategory = getGroupingSampleField(state?.row, [
-    "itemSubCategory",
-    "subCategory",
-  ]);
-  const color = getGroupingSampleField(state?.row, [
-    "color",
-    "colour",
-    "processColour",
-  ]);
-  const length = getGroupingSampleField(state?.row, ["length"]);
-  const width = getGroupingSampleField(state?.row, ["width"]);
-  const thickness = getGroupingSampleField(state?.row, [
-    "height",
-    "thickness",
-    "thickess",
-  ]);
-  const groupingRef = state?.row?.id ? String(state.row.id) : "";
   const issueSheetsNumber = Number(state?.issueSheets ?? "");
   const hasIssueSheetsValue = Boolean(state?.issueSheets);
   const exceedsAvailableSheets =
@@ -1188,25 +1182,19 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
         issueSheetsNumber <= 0)),
   );
 
+  const issueSheetsMessage = hasIssueSheetsError
+    ? exceedsAvailableSheets
+      ? `Issue quantity cannot exceed ${availableSheetsNumber} available.`
+      : "Enter a valid whole number."
+    : "";
+
   return (
     <Dialog
       fullWidth
       maxWidth="md"
       onClose={onClose}
       open={Boolean(state)}
-      slotProps={{
-        paper: {
-          sx: (theme) => ({
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            borderRadius: `${theme.customTokens.radius.md}px`,
-            boxShadow: theme.shadows[0],
-            outline: "none",
-            "&:focus, &:focus-visible": {
-              outline: "none",
-            },
-          }),
-        },
-      }}
+      slotProps={{ paper: { sx: inspectionDialogPaperSx } }}
     >
       <DialogTitle
         sx={(theme) => ({
@@ -1227,93 +1215,89 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Box
-            sx={(theme) => ({
-              display: "grid",
-              gap: theme.spacing(2),
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, minmax(0, 1fr))",
-                lg: "repeat(3, minmax(0, 1fr))",
-              },
-            })}
-          >
-            <ReadOnlyDialogField label="Item Name" value={itemName} />
-            <ReadOnlyDialogField label="Sub Category" value={subCategory} />
-            <ReadOnlyDialogField label="Color" value={color} />
-            <ReadOnlyDialogField label="Length" value={length || "-"} />
-            <ReadOnlyDialogField label="Width" value={width || "-"} />
-            <ReadOnlyDialogField label="Thickness" value={thickness || "-"} />
-            <ReadOnlyDialogField
-              label="Available No. of Leaves"
-              value={availableSheets}
-            />
-            <ReadOnlyDialogField label="Grouping Reference" value={groupingRef} />
-
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Issue Date</DialogFieldLabel>
-              <ErpDatePickerField
-                size="dense"
-                value={state?.issueDate ?? null}
-                onChange={(value) =>
-                  onChange((current) =>
-                    current ? { ...current, issueDate: value } : current,
-                  )
-                }
-              />
-            </Stack>
-
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Issue Quantity / No. of Leaves</DialogFieldLabel>
-              <TextField
-                autoFocus
-                error={hasIssueSheetsError}
-                fullWidth
-                helperText={
-                  hasIssueSheetsError
-                    ? exceedsAvailableSheets
-                      ? "Issue sheets cannot exceed available sheets."
-                      : "Enter a valid whole number."
-                    : " "
-                }
-                value={state?.issueSheets ?? ""}
-                onChange={(event) => {
-                  const nextValue = event.target.value.replace(/\D/g, "");
-                  onChange((current) =>
-                    current ? { ...current, issueSheets: nextValue } : current,
-                  );
-                }}
-                slotProps={{
-                  htmlInput: {
-                    inputMode: "numeric",
-                    pattern: "[0-9]*",
+          <Box sx={(theme) => formSectionCardSx(theme)}>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Issue Details" />
+              <Box
+                sx={(theme) => ({
+                  display: "grid",
+                  gap: theme.spacing(2),
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(3, minmax(0, 1fr))",
                   },
-                }}
-                sx={(theme) =>
-                  getCompactFieldSx(
-                    theme,
-                    hasIssueSheetsError ? "error" : "default",
-                  )
-                }
-              />
-            </Stack>
+                })}
+              >
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Issue Date</DialogFieldLabel>
+                  <ErpDatePickerField
+                    size="dense"
+                    value={state?.issueDate ?? null}
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current ? { ...current, issueDate: value } : current,
+                      )
+                    }
+                  />
+                </Stack>
 
-            <Stack spacing={0.75} sx={{ gridColumn: { xs: "1", lg: "1 / -1" } }}>
-              <DialogFieldLabel>Remark</DialogFieldLabel>
-              <TextField
-                fullWidth
-                multiline
-                minRows={2}
-                value={state?.remark ?? ""}
-                onChange={(event) =>
-                  onChange((current) =>
-                    current
-                      ? { ...current, remark: event.target.value }
-                      : current,
-                  )
-                }
-                sx={(theme) => getCompactFieldSx(theme, "default")}
-              />
+                <ReadOnlyDialogField
+                  label="Available No of Leaves"
+                  value={String(availableSheetsNumber)}
+                />
+
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel required>Issue Quantity / No. of Leaves</DialogFieldLabel>
+                  <TextField
+                    autoFocus
+                    error={hasIssueSheetsError}
+                    fullWidth
+                    helperText={issueSheetsMessage}
+                    placeholder="Enter number of leaves"
+                    size="small"
+                    value={state?.issueSheets ?? ""}
+                    onChange={(event) => {
+                      const nextValue = event.target.value.replace(/\D/g, "");
+                      onChange((current) =>
+                        current ? { ...current, issueSheets: nextValue } : current,
+                      );
+                    }}
+                    slotProps={{
+                      htmlInput: {
+                        inputMode: "numeric",
+                        pattern: "[0-9]*",
+                      },
+                    }}
+                    sx={(theme) =>
+                      getCompactFieldSx(
+                        theme,
+                        hasIssueSheetsError ? "error" : "default",
+                      )
+                    }
+                  />
+                </Stack>
+
+                <Stack spacing={0.75} sx={{ gridColumn: "1 / -1" }}>
+                  <DialogFieldLabel>Remark</DialogFieldLabel>
+                  <TextField
+                    fullWidth
+                    minRows={2}
+                    multiline
+                    placeholder="Enter remark"
+                    size="small"
+                    value={state?.remark ?? ""}
+                    onChange={(event) =>
+                      onChange((current) =>
+                        current
+                          ? { ...current, remark: event.target.value }
+                          : current,
+                      )
+                    }
+                    sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
+              </Box>
             </Stack>
           </Box>
         </Stack>
@@ -1322,6 +1306,7 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
       <DialogActions
         sx={(theme) => ({
           borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          gap: theme.spacing(1),
           px: theme.spacing(2),
           py: theme.spacing(1.5),
         })}
@@ -1334,7 +1319,7 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
         >
           Cancel
         </Button>
-
+        <Box sx={{ flex: 1 }} />
         <Button
           type="button"
           onClick={onSubmit}
@@ -1370,27 +1355,6 @@ export function ReadOnlyDialogField({
       />
     </Stack>
   );
-}
-
-export function getGroupingSampleField(
-  row: FactoryRecord | undefined,
-  keys: readonly string[],
-) {
-  if (!row) {
-    return "";
-  }
-
-  for (const key of keys) {
-    const value = row[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-
-  return "";
 }
 
 export function GroupingOrderIssueDialog<Row extends FactoryRecord>({
@@ -1448,25 +1412,19 @@ export function GroupingOrderIssueDialog<Row extends FactoryRecord>({
     selectedOrderItem,
   );
 
+  const issueSheetsMessage = hasIssueSheetsError
+    ? exceedsMaxIssuable
+      ? "Issue sheets cannot exceed available grouped stock or order sheets."
+      : "Enter a valid whole number."
+    : "";
+
   return (
     <Dialog
       fullWidth
-      maxWidth="md"
+      maxWidth="lg"
       onClose={onClose}
       open={Boolean(state)}
-      slotProps={{
-        paper: {
-          sx: (theme) => ({
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            borderRadius: `${theme.customTokens.radius.md}px`,
-            boxShadow: theme.shadows[0],
-            outline: "none",
-            "&:focus, &:focus-visible": {
-              outline: "none",
-            },
-          }),
-        },
-      }}
+      slotProps={{ paper: { sx: inspectionDialogPaperSx } }}
     >
       <DialogTitle
         sx={(theme) => ({
@@ -1487,197 +1445,198 @@ export function GroupingOrderIssueDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Box
-            sx={(theme) => ({
-              display: "grid",
-              gap: theme.spacing(2),
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "repeat(2, minmax(0, 1fr))",
-                lg: "repeat(4, minmax(0, 1fr))",
-              },
-            })}
-          >
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Issued Date</DialogFieldLabel>
-              <ErpDatePickerField
-                size="dense"
-                value={state?.issueDate ?? null}
-                onChange={(value) =>
-                  onChange((current) =>
-                    current ? { ...current, issueDate: value } : current,
-                  )
-                }
-              />
-            </Stack>
-
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Available Grouped Sheets</DialogFieldLabel>
-              <TextField
-                fullWidth
-                value={String(availableGroupedSheets)}
-                slotProps={{
-                  input: {
-                    readOnly: true,
+          <Box sx={(theme) => formSectionCardSx(theme)}>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Issue Details" />
+              <Box
+                sx={(theme) => ({
+                  display: "grid",
+                  gap: theme.spacing(2),
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    lg: "repeat(4, minmax(0, 1fr))",
                   },
-                }}
-                sx={(theme) => getCompactFieldSx(theme, "readOnly")}
-              />
-            </Stack>
+                })}
+              >
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Issued Date</DialogFieldLabel>
+                  <ErpDatePickerField
+                    size="dense"
+                    value={state?.issueDate ?? null}
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current ? { ...current, issueDate: value } : current,
+                      )
+                    }
+                  />
+                </Stack>
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order Type</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: "",
-                        orderNo: "",
-                        orderType: value,
-                      }
-                      : current,
-                  )
-                }
-                options={groupingOrderTypeOptions}
-                size="dense"
-                state="default"
-                value={state?.orderType ?? ""}
-              />
-            </Stack>
+                <ReadOnlyDialogField
+                  label="Available Grouped Sheets"
+                  value={String(availableGroupedSheets)}
+                />
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order No</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: "",
-                        orderNo: value,
-                      }
-                      : current,
-                  )
-                }
-                options={orderNumberOptions}
-                size="dense"
-                state={!state?.orderType ? "disabled" : "default"}
-                value={state?.orderNo ?? ""}
-              />
-            </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order Type</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: "",
+                            orderNo: "",
+                            orderType: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={groupingOrderTypeOptions}
+                    placeholder="Select order type"
+                    size="dense"
+                    state="default"
+                    value={state?.orderType ?? ""}
+                  />
+                </Stack>
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order Item No</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: value,
-                      }
-                      : current,
-                  )
-                }
-                options={orderItemOptions}
-                size="dense"
-                state={!state?.orderNo ? "disabled" : "default"}
-                value={state?.orderItemNo ?? ""}
-              />
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order No</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: "",
+                            orderNo: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={orderNumberOptions}
+                    placeholder="Select order no"
+                    size="dense"
+                    state={!state?.orderType ? "disabled" : "default"}
+                    value={state?.orderNo ?? ""}
+                  />
+                </Stack>
+
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order Item No</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={orderItemOptions}
+                    placeholder="Select order item no"
+                    size="dense"
+                    state={!state?.orderNo ? "disabled" : "default"}
+                    value={state?.orderItemNo ?? ""}
+                  />
+                </Stack>
+              </Box>
             </Stack>
           </Box>
 
           {showOrderItemTable ? (
-            <Box
-              sx={(theme) => ({
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: `${theme.customTokens.radius.md}px`,
-                overflow: "hidden",
-              })}
-            >
-              <Box sx={getDialogScrollableTableSx}>
-                <Table
-                  size="small"
-                  sx={{
-                    minWidth: 720,
-                    tableLayout: "auto",
-                  }}
-                >
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={getDialogHeaderCellSx}>Item Name</TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Order Sheets
-                      </TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Available Grouped Sheets
-                      </TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Max Issuable
-                      </TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Issue No. of Sheets
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {selectedOrderItem?.itemName || "-"}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {String(orderSheets)}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {String(availableGroupedSheets)}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {String(maxIssuable)}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        <TextField
-                          autoFocus
-                          error={hasIssueSheetsError}
-                          fullWidth
-                          helperText={
-                            hasIssueSheetsError
-                              ? exceedsMaxIssuable
-                                ? "Issue sheets cannot exceed available grouped stock or order sheets."
-                                : "Enter a valid whole number."
-                              : " "
-                          }
-                          value={state?.issueSheets ?? ""}
-                          onChange={(event) => {
-                            const nextValue = event.target.value.replace(/\D/g, "");
-                            onChange((current) =>
-                              current
-                                ? { ...current, issueSheets: nextValue }
-                                : current,
-                            );
-                          }}
-                          slotProps={{
-                            htmlInput: {
-                              inputMode: "numeric",
-                              pattern: "[0-9]*",
-                            },
-                          }}
-                          sx={(theme) =>
-                            getCompactFieldSx(
-                              theme,
-                              hasIssueSheetsError ? "error" : "default",
-                            )
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </Box>
+            <Box sx={(theme) => formSectionCardSx(theme)}>
+              <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                <FormSectionHeader title="Order Item" />
+                <Box sx={getDialogScrollableTableSx}>
+                  <Table
+                    size="small"
+                    sx={{
+                      minWidth: 720,
+                      tableLayout: "auto",
+                    }}
+                  >
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={getDialogHeaderCellSx}>Item Name</TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Order Sheets
+                        </TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Available Grouped Sheets
+                        </TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Max Issuable
+                        </TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Issue No. of Sheets
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {selectedOrderItem?.itemName || "-"}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {String(orderSheets)}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {String(availableGroupedSheets)}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {String(maxIssuable)}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          <TextField
+                            autoFocus
+                            error={hasIssueSheetsError}
+                            fullWidth
+                            placeholder="Enter sheets"
+                            size="small"
+                            value={state?.issueSheets ?? ""}
+                            onChange={(event) => {
+                              const nextValue = event.target.value.replace(/\D/g, "");
+                              onChange((current) =>
+                                current
+                                  ? { ...current, issueSheets: nextValue }
+                                  : current,
+                              );
+                            }}
+                            slotProps={{
+                              htmlInput: {
+                                inputMode: "numeric",
+                                pattern: "[0-9]*",
+                              },
+                            }}
+                            sx={(theme) =>
+                              getCompactFieldSx(
+                                theme,
+                                hasIssueSheetsError ? "error" : "default",
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+                {issueSheetsMessage ? (
+                  <Typography
+                    sx={(theme) => ({
+                      color: theme.palette.error.main,
+                      fontSize: theme.typography.caption.fontSize,
+                    })}
+                  >
+                    {issueSheetsMessage}
+                  </Typography>
+                ) : null}
+              </Stack>
             </Box>
           ) : null}
         </Stack>
@@ -1686,6 +1645,7 @@ export function GroupingOrderIssueDialog<Row extends FactoryRecord>({
       <DialogActions
         sx={(theme) => ({
           borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          gap: theme.spacing(1),
           px: theme.spacing(2),
           py: theme.spacing(1.5),
         })}
@@ -1698,7 +1658,7 @@ export function GroupingOrderIssueDialog<Row extends FactoryRecord>({
         >
           Cancel
         </Button>
-
+        <Box sx={{ flex: 1 }} />
         <Button
           type="button"
           onClick={onSubmit}
@@ -1763,30 +1723,19 @@ export function SplicingOrderIssueDialog<Row extends FactoryRecord>({
     selectedOrderItem,
   );
 
+  const issueSheetsMessage = hasIssueSheetsError
+    ? exceedsAvailableSheets
+      ? "Issue sheets cannot exceed available sheets."
+      : "Enter a valid whole number."
+    : "";
+
   return (
     <Dialog
       fullWidth
-      maxWidth={false}
+      maxWidth="lg"
       onClose={onClose}
       open={Boolean(state)}
-      slotProps={{
-        paper: {
-          sx: (theme) => ({
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            borderRadius: `${theme.customTokens.radius.md}px`,
-            boxShadow: theme.shadows[0],
-            maxWidth: "calc(100vw - 48px)",
-            width: {
-              xs: "calc(100vw - 24px)",
-              lg: "min(1400px, calc(100vw - 64px))",
-            },
-            outline: "none",
-            "&:focus, &:focus-visible": {
-              outline: "none",
-            },
-          }),
-        },
-      }}
+      slotProps={{ paper: { sx: inspectionDialogPaperSx } }}
     >
       <DialogTitle
         sx={(theme) => ({
@@ -1807,175 +1756,180 @@ export function SplicingOrderIssueDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <Box
-            sx={(theme) => ({
-              display: "grid",
-              gap: theme.spacing(2),
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "repeat(4, minmax(0, 1fr))",
-              },
-            })}
-          >
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Issued Date</DialogFieldLabel>
-              <ErpDatePickerField
-                size="dense"
-                value={state?.issueDate ?? null}
-                onChange={(value) =>
-                  onChange((current) =>
-                    current ? { ...current, issueDate: value } : current,
-                  )
-                }
-              />
-            </Stack>
+          <Box sx={(theme) => formSectionCardSx(theme)}>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Issue Details" />
+              <Box
+                sx={(theme) => ({
+                  display: "grid",
+                  gap: theme.spacing(2),
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    lg: "repeat(4, minmax(0, 1fr))",
+                  },
+                })}
+              >
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Issued Date</DialogFieldLabel>
+                  <ErpDatePickerField
+                    size="dense"
+                    value={state?.issueDate ?? null}
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current ? { ...current, issueDate: value } : current,
+                      )
+                    }
+                  />
+                </Stack>
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order Type</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: "",
-                        orderNo: "",
-                        orderType: value,
-                      }
-                      : current,
-                  )
-                }
-                options={splicingOrderTypeOptions}
-                size="dense"
-                state="default"
-                value={state?.orderType ?? ""}
-              />
-            </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order Type</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: "",
+                            orderNo: "",
+                            orderType: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={splicingOrderTypeOptions}
+                    placeholder="Select order type"
+                    size="dense"
+                    state="default"
+                    value={state?.orderType ?? ""}
+                  />
+                </Stack>
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order No</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: "",
-                        orderNo: value,
-                      }
-                      : current,
-                  )
-                }
-                options={orderNumberOptions}
-                size="dense"
-                state={!state?.orderType ? "disabled" : "default"}
-                value={state?.orderNo ?? ""}
-              />
-            </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order No</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: "",
+                            orderNo: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={orderNumberOptions}
+                    placeholder="Select order no"
+                    size="dense"
+                    state={!state?.orderType ? "disabled" : "default"}
+                    value={state?.orderNo ?? ""}
+                  />
+                </Stack>
 
-            <Stack spacing={0.75}>
-              <DialogFieldLabel>Order Item No</DialogFieldLabel>
-              <ErpSelectField
-                onChange={(value) =>
-                  onChange((current) =>
-                    current
-                      ? {
-                        ...current,
-                        issueSheets: "",
-                        orderItemNo: value,
-                      }
-                      : current,
-                  )
-                }
-                options={orderItemOptions}
-                size="dense"
-                state={!state?.orderNo ? "disabled" : "default"}
-                value={state?.orderItemNo ?? ""}
-              />
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Order Item No</DialogFieldLabel>
+                  <ErpSelectField
+                    onChange={(value) =>
+                      onChange((current) =>
+                        current
+                          ? {
+                            ...current,
+                            issueSheets: "",
+                            orderItemNo: value,
+                          }
+                          : current,
+                      )
+                    }
+                    options={orderItemOptions}
+                    placeholder="Select order item no"
+                    size="dense"
+                    state={!state?.orderNo ? "disabled" : "default"}
+                    value={state?.orderItemNo ?? ""}
+                  />
+                </Stack>
+              </Box>
             </Stack>
           </Box>
 
           {showOrderItemTable ? (
-            <Box
-              sx={(theme) => ({
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: `${theme.customTokens.radius.md}px`,
-                overflow: "hidden",
-              })}
-            >
-              <Box sx={getDialogScrollableTableSx}>
-                <Table
-                  size="small"
-                  sx={{
-                    minWidth: 1040,
-                    tableLayout: "auto",
-                  }}
-                >
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={getDialogHeaderCellSx}>Item Name</TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        No. of Sheets
-                      </TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Available No. of Sheets
-                      </TableCell>
-                      <TableCell sx={getDialogHeaderCellSx}>
-                        Issue No. of Sheets
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {selectedOrderItem?.itemName || "-"}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {getOrderLineItemSheetsLabel(selectedOrderItem)}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        {availableSheets || "-"}
-                      </TableCell>
-                      <TableCell sx={getDialogBodyCellSx}>
-                        <TextField
-                          error={hasIssueSheetsError}
-                          fullWidth
-                          helperText={
-                            hasIssueSheetsError
-                              ? exceedsAvailableSheets
-                                ? "Issue sheets cannot exceed available sheets."
-                                : "Enter a valid whole number."
-                              : " "
-                          }
-                          value={state?.issueSheets ?? ""}
-                          onChange={(event) => {
-                            const nextValue = event.target.value.replace(/\D/g, "");
-                            onChange((current) =>
-                              current
-                                ? { ...current, issueSheets: nextValue }
-                                : current,
-                            );
-                          }}
-                          slotProps={{
-                            htmlInput: {
-                              inputMode: "numeric",
-                              pattern: "[0-9]*",
-                            },
-                          }}
-                          sx={(theme) =>
-                            getCompactFieldSx(
-                              theme,
-                              hasIssueSheetsError ? "error" : "default",
-                            )
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </Box>
+            <Box sx={(theme) => formSectionCardSx(theme)}>
+              <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                <FormSectionHeader title="Order Item" />
+                <Box sx={getDialogScrollableTableSx}>
+                  <Table size="small" sx={{ minWidth: 720, tableLayout: "auto" }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={getDialogHeaderCellSx}>Item Name</TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          No. of Sheets
+                        </TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Available No. of Sheets
+                        </TableCell>
+                        <TableCell sx={getDialogHeaderCellSx}>
+                          Issue No. of Sheets
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {selectedOrderItem?.itemName || "-"}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {getOrderLineItemSheetsLabel(selectedOrderItem)}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          {availableSheets || "-"}
+                        </TableCell>
+                        <TableCell sx={getDialogBodyCellSx}>
+                          <TextField
+                            error={hasIssueSheetsError}
+                            fullWidth
+                            placeholder="Enter sheets"
+                            size="small"
+                            value={state?.issueSheets ?? ""}
+                            onChange={(event) => {
+                              const nextValue = event.target.value.replace(/\D/g, "");
+                              onChange((current) =>
+                                current
+                                  ? { ...current, issueSheets: nextValue }
+                                  : current,
+                              );
+                            }}
+                            slotProps={{
+                              htmlInput: {
+                                inputMode: "numeric",
+                                pattern: "[0-9]*",
+                              },
+                            }}
+                            sx={(theme) =>
+                              getCompactFieldSx(
+                                theme,
+                                hasIssueSheetsError ? "error" : "default",
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+                {issueSheetsMessage ? (
+                  <Typography
+                    sx={(theme) => ({
+                      color: theme.palette.error.main,
+                      fontSize: theme.typography.caption.fontSize,
+                    })}
+                  >
+                    {issueSheetsMessage}
+                  </Typography>
+                ) : null}
+              </Stack>
             </Box>
           ) : null}
         </Stack>
@@ -1984,6 +1938,7 @@ export function SplicingOrderIssueDialog<Row extends FactoryRecord>({
       <DialogActions
         sx={(theme) => ({
           borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          gap: theme.spacing(1),
           px: theme.spacing(2),
           py: theme.spacing(1.5),
         })}
@@ -1996,7 +1951,7 @@ export function SplicingOrderIssueDialog<Row extends FactoryRecord>({
         >
           Cancel
         </Button>
-
+        <Box sx={{ flex: 1 }} />
         <Button
           type="button"
           onClick={onSubmit}
@@ -2118,7 +2073,7 @@ export function getSplicingOrderLineItemOptions(
   return getOrderLineItems(order.id)
     .map((lineItem, index) => ({
       lineItem,
-      orderItemNo: String(index + 1),
+      orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
     }))
     .filter((option) => {
       const lineItemOrderType =

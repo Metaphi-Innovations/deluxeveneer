@@ -49,6 +49,7 @@ import {
   createUserManagementRecord,
   fetchUserManagementDetail,
   fetchUserManagementMeta,
+  fetchUserManagementRows,
   updateUserManagementRecord,
 } from "../api/userManagementApi";
 import { invalidateUsers } from "../../../query/queryClient";
@@ -66,10 +67,14 @@ const ACCOUNT_FIELD_KEYS = [
   "lastName",
   "email",
   "phoneNo",
-  "department",
 ] as const;
 
-const PERSONAL_FIELD_KEYS = ["dateOfBirth", "age", "bloodGroup"] as const;
+const PERSONAL_FIELD_KEYS = [
+  "department",
+  "dateOfBirth",
+  "age",
+  "bloodGroup",
+] as const;
 
 const ADDRESS_FIELD_KEYS = [
   "address",
@@ -149,8 +154,48 @@ export function UserManagementFormPage({
     return age >= 0 ? String(age) : "";
   };
 
+  const [values, setValues] = useState<Record<string, MasterFieldValue>>(() =>
+    buildUserManagementInitialValues(baseFields),
+  );
+  const [permissions, setPermissions] = useState<
+    Record<string, UserPermissionFlags>
+  >(() => buildDefaultUserPermissions());
+
+  const detailQuery = useQuery({
+    queryKey: queryKeys.users.detail(params.id ?? ""),
+    queryFn: () => fetchUserManagementDetail(params.id!),
+    enabled: mode !== "add" && Boolean(params.id),
+  });
+
+  const allUsersQuery = useQuery({
+    queryKey: queryKeys.users.all,
+    queryFn: () => fetchUserManagementRows(),
+    staleTime: 30000,
+  });
+
+  const existingUsers = allUsersQuery.data ?? [];
+
+  const currentEnteredUsername =
+    typeof values.userName === "string" ? values.userName.trim().toLowerCase() : "";
+
+  const duplicateUsernameUser = useMemo(() => {
+    if (!currentEnteredUsername) return null;
+    return existingUsers.find((u) => {
+      if (mode === "edit" && params.id && (u.id === params.id || u.userName === row?.userName)) {
+        return false;
+      }
+      return (u.userName || "").trim().toLowerCase() === currentEnteredUsername;
+    });
+  }, [currentEnteredUsername, existingUsers, mode, params.id, row?.userName]);
+
   const activeFields = useMemo(() => {
     return (baseFields as MasterFieldDefinition[]).map((field) => {
+      if (field.key === "userName" && duplicateUsernameUser) {
+        return {
+          ...field,
+          helperText: `Username "${values.userName}" already exists. Please choose a different username.`,
+        };
+      }
       if (field.key === "department" && departmentNames.length > 0) {
         return {
           ...field,
@@ -165,7 +210,7 @@ export function UserManagementFormPage({
       }
       return field;
     });
-  }, [baseFields, departmentNames]);
+  }, [baseFields, duplicateUsernameUser, values.userName, departmentNames]);
 
   const accountFields = useMemo(
     () => filterFieldsByKeys(activeFields, ACCOUNT_FIELD_KEYS),
@@ -187,19 +232,6 @@ export function UserManagementFormPage({
     () => filterFieldsByKeys(activeFields, ADDITIONAL_FIELD_KEYS),
     [activeFields],
   );
-
-  const [values, setValues] = useState<Record<string, MasterFieldValue>>(() =>
-    buildUserManagementInitialValues(baseFields),
-  );
-  const [permissions, setPermissions] = useState<
-    Record<string, UserPermissionFlags>
-  >(() => buildDefaultUserPermissions());
-
-  const detailQuery = useQuery({
-    queryKey: queryKeys.users.detail(params.id ?? ""),
-    queryFn: () => fetchUserManagementDetail(params.id!),
-    enabled: mode !== "add" && Boolean(params.id),
-  });
 
   useEffect(() => {
     setErrorMessage("");
@@ -370,6 +402,12 @@ export function UserManagementFormPage({
 
   const validateBasicDetails = () => {
     setHasSubmitted(true);
+    if (duplicateUsernameUser) {
+      setErrorMessage(
+        `Username "${values.userName}" already exists. Please choose a different username.`
+      );
+      return false;
+    }
     return !hasFormFieldErrors(activeFields, values);
   };
 
@@ -380,7 +418,6 @@ export function UserManagementFormPage({
     }
 
     if (!validateBasicDetails()) {
-      setErrorMessage("");
       return;
     }
 
@@ -395,6 +432,14 @@ export function UserManagementFormPage({
     }
 
     setHasSubmitted(true);
+
+    if (duplicateUsernameUser) {
+      setErrorMessage(
+        `Username "${values.userName}" already exists. Please choose a different username.`
+      );
+      setActiveStep("basic");
+      return;
+    }
 
     if (hasFormFieldErrors(activeFields, values)) {
       setActiveStep("basic");
@@ -532,7 +577,7 @@ export function UserManagementFormPage({
         xs: "1fr !important",
         sm: "repeat(2, 1fr) !important",
         md: "repeat(3, 1fr) !important",
-        lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 1fr) !important",
+        lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 185px) !important",
       },
       columnGap: "16px !important",
       rowGap: "16px !important",
@@ -565,7 +610,7 @@ export function UserManagementFormPage({
       gridTemplateColumns: {
         xs: "1fr !important",
         sm: "repeat(2, minmax(0, 200px)) !important",
-        md: "repeat(3, minmax(0, 200px)) !important",
+        md: "repeat(4, minmax(0, 200px)) !important",
       },
       columnGap: "16px !important",
       rowGap: "16px !important",
@@ -678,25 +723,7 @@ export function UserManagementFormPage({
   };
 
   const handleBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: "Are you sure you want to go back to the user list?",
-        action: () => {
-          navigate(paths.list);
-        },
-      });
-    } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          navigate(paths.list);
-        },
-      });
-    }
+    navigate(paths.list);
   };
 
   return (
@@ -830,7 +857,7 @@ export function UserManagementFormPage({
                           <MasterFormFields
                             definition={{
                               fields: personalFields,
-                              gridColumns: 3,
+                              gridColumns: 4,
                             }}
                             onChange={handleFieldChange}
                             readOnly={mode === "view"}

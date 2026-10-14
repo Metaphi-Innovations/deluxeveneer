@@ -242,8 +242,8 @@ export function useUserList(canEdit: boolean) {
                     ...currentRow,
                     isActive: updatedUser.isActive,
                     statusLabel: updatedUser.statusLabel,
-                    updatedBy: updatedUser.updatedBy,
-                    updatedDate: updatedUser.updatedDate,
+                    updatedBy: currentRow.updatedBy,
+                    updatedDate: currentRow.updatedDate,
                   }
                 : currentRow,
             ),

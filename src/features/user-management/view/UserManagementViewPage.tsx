@@ -80,14 +80,7 @@ export function UserManagementViewPage() {
   });
 
   const handleBack = () => {
-    setLeaveConfirmation({
-      open: true,
-      title: "Leave Page",
-      description: "Are you sure you want to go back to the user list?",
-      action: () => {
-        navigate(paths.list);
-      },
-    });
+    navigate(paths.list);
   };
 
   const openDocumentPreview = (title: string, fileUrlOrName?: string) => {
@@ -303,61 +296,9 @@ export function UserManagementViewPage() {
                     lineHeight: 1.3,
                   }}
                 >
-                  {row.email || "—"}
+                  {[row.userName ? `@${row.userName}` : "", row.email || ""].filter(Boolean).join(" • ") || "—"}
                 </Typography>
               </Stack>
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: "auto minmax(0, 1fr)",
-                  columnGap: 1.25,
-                  rowGap: 0.75,
-                  minWidth: { xs: "100%", sm: 240 },
-                  flex: "1 1 220px",
-                }}
-              >
-                <SummaryMetaLabel>Department</SummaryMetaLabel>
-                <SummaryMetaValue>{row.department || "—"}</SummaryMetaValue>
-                <SummaryMetaLabel>Phone</SummaryMetaLabel>
-                <SummaryMetaValue>
-                  {row.phoneNo ? (
-                    <Typography
-                      component="a"
-                      href={`tel:${row.phoneNo.replace(/[^\d+]/g, "")}`}
-                      sx={(theme) => ({
-                        color: theme.customTokens.brand.primary,
-                        textDecoration: "none",
-                        fontSize: "inherit",
-                        fontWeight: "inherit",
-                        cursor: "pointer",
-                        "&:hover": {
-                          textDecoration: "underline",
-                        },
-                      })}
-                    >
-                      {row.phoneNo}
-                    </Typography>
-                  ) : (
-                    "—"
-                  )}
-                </SummaryMetaValue>
-              </Box>
-
-              {canEdit ? (
-                <Button
-                  onClick={() => navigate(paths.edit(row.id))}
-                  startIcon={<Pencil size={14} />}
-                  sx={[
-                    recordViewActionButtonSx,
-                    actionButtonSx,
-                    { ml: { xs: 0, md: "auto" } },
-                  ]}
-                  variant="outlined"
-                >
-                  Edit
-                </Button>
-              ) : null}
             </Box>
 
             <Tabs
@@ -412,7 +353,7 @@ export function UserManagementViewPage() {
                           xs: "1fr",
                           sm: "repeat(2, 1fr)",
                           md: "repeat(3, 1fr)",
-                          lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 175px) minmax(0, 1fr)",
+                          lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 185px)",
                         },
                         columnGap: 2,
                         rowGap: 1.5,
@@ -424,7 +365,6 @@ export function UserManagementViewPage() {
                       <DetailField label="Last Name" value={row.lastName} />
                       <DetailField label="Email" value={row.email} />
                       <DetailField label="Phone No" value={row.phoneNo} />
-                      <DetailField label="Department" value={row.department} />
                     </Box>
                   </Box>
 
@@ -434,12 +374,13 @@ export function UserManagementViewPage() {
                       gridTemplateColumns: {
                         xs: "1fr",
                         sm: "repeat(2, minmax(0, 200px))",
-                        md: "repeat(3, minmax(0, 200px))",
+                        md: "repeat(4, minmax(0, 200px))",
                       },
                       columnGap: 2,
                       rowGap: 1.5,
                     }}
                   >
+                    <DetailField label="Department" value={row.department} />
                     <DetailField
                       label="Date Of Birth"
                       value={formatDisplayDate(row.dateOfBirth)}

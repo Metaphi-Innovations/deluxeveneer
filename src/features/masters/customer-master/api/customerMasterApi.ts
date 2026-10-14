@@ -487,9 +487,9 @@ async function getFilePayloadValue(
           resolve(
             fallbackUrl
               ? encodeMasterDocumentValue(
-                  file.name || existingName || "Document",
-                  fallbackUrl,
-                )
+                file.name || existingName || "Document",
+                fallbackUrl,
+              )
               : null,
           );
         };

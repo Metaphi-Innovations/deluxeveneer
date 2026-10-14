@@ -145,6 +145,13 @@ export function getFactoryIssuedWorkItems() {
   return [...readStore().items];
 }
 
+export function removeFactoryIssuedWork(id: string) {
+  const store = readStore();
+  const items = store.items.filter((item) => item.id !== id);
+  if (items.length === store.items.length) return;
+  writeStore({ items });
+}
+
 export function getFactoryIssuedWorkById(id: string) {
   return readStore().items.find((item) => item.id === id) ?? null;
 }
@@ -230,6 +237,128 @@ export function completeFactoryIssuedWork(
     sourceSnapshot: resultSnapshot
       ? { ...current.sourceSnapshot, ...resultSnapshot }
       : current.sourceSnapshot,
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
+function applyFactoryProcessResult(
+  workItemId: string,
+  resultSnapshot: Record<string, unknown>,
+) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const orderNo =
+    typeof resultSnapshot.orderNo === "string" ? resultSnapshot.orderNo.trim() : "";
+  const orderItemNo =
+    typeof resultSnapshot.orderItemNo === "string"
+      ? resultSnapshot.orderItemNo.trim()
+      : "";
+  const sampleNo =
+    typeof resultSnapshot.sampleNo === "string" ? resultSnapshot.sampleNo.trim() : "";
+  const isSample =
+    resultSnapshot.purpose === "SAMPLE" || resultSnapshot.pressingFor === "Sample Sheet";
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...current,
+    listingState: "done",
+    completedAt:
+      current.listingState === "done" && current.completedAt
+        ? current.completedAt
+        : new Date().toISOString(),
+    ...(orderNo ? { orderNo } : {}),
+    ...(orderItemNo ? { orderItemNo } : {}),
+    ...(isSample && sampleNo ? { sampleNo, purpose: "SAMPLE" } : {}),
+    sourceSnapshot: {
+      ...current.sourceSnapshot,
+      ...resultSnapshot,
+      listingState: "done",
+    },
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
+export function applyMarquetryProcessResult(
+  workItemId: string,
+  resultSnapshot: Record<string, unknown>,
+) {
+  return applyFactoryProcessResult(workItemId, resultSnapshot);
+}
+
+export function applyPressingProcessResult(
+  workItemId: string,
+  resultSnapshot: Record<string, unknown>,
+) {
+  return applyFactoryProcessResult(workItemId, resultSnapshot);
+}
+
+export function reopenPressingIssuedWork(workItemId: string) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const { completedAt: _completedAt, ...rest } = current;
+  const savedSource = current.sourceSnapshot.pressingSourceItem;
+  const sourceSnapshot =
+    savedSource && typeof savedSource === "object" && !Array.isArray(savedSource)
+      ? { ...(savedSource as Record<string, unknown>) }
+      : { ...current.sourceSnapshot };
+
+  delete sourceSnapshot.baseMaterialType;
+  delete sourceSnapshot.outputItemName;
+  delete sourceSnapshot.pressingDate;
+  delete sourceSnapshot.pressingFor;
+  delete sourceSnapshot.pressingProcessId;
+  delete sourceSnapshot.pressingSourceItem;
+  delete sourceSnapshot.processRemark;
+  delete sourceSnapshot.qtyToUse;
+  delete sourceSnapshot.rejectDetails;
+  delete sourceSnapshot.selectedBaseMaterial;
+  sourceSnapshot.listingState = "issued";
+
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...rest,
+    listingState: "issued",
+    sourceSnapshot,
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
+export function reopenMarquetryIssuedWork(workItemId: string) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const { completedAt: _completedAt, ...rest } = current;
+  const sourceSnapshot = { ...current.sourceSnapshot };
+  delete sourceSnapshot.marquetryProcessId;
+  delete sourceSnapshot.leavesUsed;
+  delete sourceSnapshot.sqmUsed;
+  delete sourceSnapshot.sqfUsed;
+  sourceSnapshot.listingState = "issued";
+
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...rest,
+    listingState: "issued",
+    sourceSnapshot,
   };
   const items = [...store.items];
   items[index] = nextItem;
@@ -348,6 +477,11 @@ export function factoryIssuedWorkToRow(
     ...snapshot,
     id: item.id,
     workItemId: item.id,
+    sourceRowId: item.sourceRowId,
+    sourceDoneId:
+      typeof snapshot.sourceDoneId === "string" && snapshot.sourceDoneId.trim()
+        ? snapshot.sourceDoneId
+        : item.sourceRowId,
     listingState: item.listingState,
     warehouseName,
     issuedFrom,

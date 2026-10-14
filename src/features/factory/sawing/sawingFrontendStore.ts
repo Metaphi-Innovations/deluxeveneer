@@ -136,6 +136,72 @@ export function getSawingAvailableCbm(key: string, fallback: number) {
   return fallback;
 }
 
+function sameSawingCreation(
+  candidate: SawingFlowRow,
+  selected: SawingFlowRow,
+) {
+  const groupingKeys = ["processRunId", "sourceIssueId", "issueId", "storageSrNo"];
+  const groupKey = groupingKeys.find((key) => text(selected[key]));
+
+  return groupKey
+    ? text(candidate[groupKey]) === text(selected[groupKey])
+    : String(candidate.id) === String(selected.id);
+}
+
+export function getSawingEditContext(
+  selected: SawingFlowRow,
+  definitionRows: readonly SawingFlowRow[],
+) {
+  const state = readState();
+  const doneRows = listSawingFlowRows("done", definitionRows);
+  const rows = doneRows.filter((row) => sameSawingCreation(row, selected));
+  const groupedRows = rows.length > 0 ? rows : [selected];
+  const aliases = rowKeys(selected);
+  const availabilityPatch = aliases
+    .map((key) => state.issuedAvailability[key])
+    .find(Boolean);
+  const availableKey = aliases.find((key) => key in state.availableCbm);
+  const remainingCbm = availableKey
+    ? Number(state.availableCbm[availableKey] ?? 0)
+    : 0;
+  const processedCbm = groupedRows.reduce(
+    (total, row) => total + (Number(row.cbm) || 0),
+    0,
+  );
+  const recordedReceivedCbm = Number(selected.receivedCbm) || 0;
+  const sourceCbm = Math.max(
+    recordedReceivedCbm,
+    processedCbm + Math.max(0, remainingCbm),
+  );
+  const length = Number(availabilityPatch?.length ?? selected.sourceLength ?? selected.length) || 0;
+  const width = Number(availabilityPatch?.width ?? selected.sourceWidth ?? selected.width) || 0;
+  const derivedHeight =
+    length > 0 && width > 0 && sourceCbm > 0
+      ? sourceCbm / (length * width)
+      : 0;
+  const height =
+    Number(availabilityPatch?.height ?? selected.sourceHeight) ||
+    derivedHeight ||
+    Number(selected.height ?? selected.thickness) ||
+    0;
+
+  return {
+    rows: groupedRows,
+    sourceRow: {
+      ...selected,
+      id: selected.sourceIssueId || selected.issueId || selected.id,
+      length,
+      width,
+      height,
+      thickness: height,
+      sourceCbm,
+      receivedCbm: sourceCbm,
+      availableCbm: sourceCbm,
+      cbm: sourceCbm,
+    },
+  };
+}
+
 export function listSawingFlowRows(
   tab: SawingFlowTab,
   definitionRows: readonly SawingFlowRow[],
@@ -165,6 +231,72 @@ export function listSawingFlowRows(
   }
 
   return items.map(presentRow);
+}
+
+function visibleSawingRows(rows: readonly SawingFlowRow[], hidden: ReadonlySet<string>) {
+  return rows.filter((row) => !hidden.has(String(row.id)));
+}
+
+export function getSawingDoneEditBlockReason(selected: SawingFlowRow) {
+  const state = readState();
+  const hidden = new Set(state.hiddenIds);
+  const group = [
+    ...state.extraDone,
+    ...state.extraHistory,
+    ...state.extraRejected,
+    ...(sawingDefinition.rows as unknown as SawingFlowRow[]),
+  ].filter((row) => sameSawingCreation(row, selected));
+  const visible = visibleSawingRows(group, hidden);
+  const forwarded = visible.some((row) => row.listingState === "history");
+  const rejected = visible.some((row) => row.listingState === "rejected");
+
+  if (!forwarded && !rejected) return "";
+
+  if (forwarded && rejected) {
+    return "Edit is unavailable because an item from this sawing entry was forwarded to Sawing Inspection and an item was rejected.";
+  }
+
+  if (forwarded) {
+    return "Edit is unavailable because an item from this sawing entry was forwarded to Sawing Inspection.";
+  }
+
+  return "Edit is unavailable because an item from this sawing entry was rejected.";
+}
+
+export function restoreSawingDoneFromInspection(sourceDoneId: string) {
+  const id = sourceDoneId.trim();
+  if (!id) return;
+
+  const state = readState();
+  const historyMatches = state.extraHistory.filter(
+    (row) => String(row.sourceDoneId ?? "") === id || String(row.id) === id,
+  );
+  const historyIds = new Set(historyMatches.map((row) => String(row.id)));
+  const hidden = new Set(state.hiddenIds);
+  historyIds.forEach((historyId) => hidden.add(historyId));
+  hidden.delete(id);
+
+  const inExtraDone = state.extraDone.some((row) => String(row.id) === id);
+  const historyRow = historyMatches[0];
+  const extraDone =
+    inExtraDone || !historyRow
+      ? state.extraDone
+      : [
+          presentRow({
+            ...historyRow,
+            id,
+            sourceDoneId: id,
+            listingState: "done",
+          }),
+          ...state.extraDone,
+        ];
+
+  writeState({
+    ...state,
+    extraDone,
+    extraHistory: state.extraHistory.filter((row) => !historyIds.has(String(row.id))),
+    hiddenIds: Array.from(hidden),
+  });
 }
 
 export function searchSawingFlowRows(rows: readonly SawingFlowRow[], search: string) {
@@ -272,6 +404,28 @@ export function addSawingDoneItems(items: readonly SawingFlowRow[], availableCbm
   });
 }
 
+export function replaceSawingDoneItems(
+  originalItems: readonly SawingFlowRow[],
+  replacementItems: readonly SawingFlowRow[],
+  availableCbmPatch?: Record<string, number>,
+) {
+  const state = readState();
+  const originalIds = new Set(originalItems.map((row) => String(row.id)));
+  const hiddenIds = Array.from(
+    new Set([...state.hiddenIds, ...originalIds]),
+  );
+
+  writeState({
+    ...state,
+    extraDone: [
+      ...replacementItems.map(presentRow),
+      ...state.extraDone.filter((row) => !originalIds.has(String(row.id))),
+    ],
+    hiddenIds,
+    availableCbm: { ...state.availableCbm, ...(availableCbmPatch ?? {}) },
+  });
+}
+
 export function hideSawingRows(ids: readonly string[]) {
   const state = readState();
   const hiddenIds = Array.from(new Set([...state.hiddenIds, ...ids.map(String)]));
@@ -283,6 +437,7 @@ export function recordSawingHistory(rows: readonly SawingFlowRow[]) {
   const today = new Date().toISOString().slice(0, 10);
   const history = rows.map((row, index) => ({
     ...presentRow(row),
+    sourceDoneId: String(row.sourceDoneId || row.id),
     id: `saw-history-${Date.now()}-${index}`,
     listingState: "history",
     processDate: today,
@@ -298,6 +453,7 @@ export function recordSawingRejection(row: SawingFlowRow, remark: string) {
   const state = readState();
   const rejected = presentRow({
     ...row,
+    sourceDoneId: String(row.sourceDoneId || row.id),
     id: `saw-rejected-${Date.now()}`,
     listingState: "rejected",
     processDate: new Date().toISOString().slice(0, 10),

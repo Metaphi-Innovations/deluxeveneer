@@ -100,6 +100,7 @@ type DetailColumn<TRow> = {
 const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
   { label: "Order No", minWidth: 120, getValue: (row) => row.orderNo },
   { label: "Order Date", minWidth: 130, getValue: (row) => row.orderDate },
+  { label: "Required Delivery Date", minWidth: 160, getValue: (row) => row.deliveryDate },
   { label: "Customer Name", minWidth: 220, getValue: (row) => row.customerName },
   { label: "Order Type", minWidth: 150, getValue: (row) => row.orderType },
   { label: "Priority", minWidth: 120, getValue: (row) => row.priority },
@@ -562,16 +563,20 @@ function OrderSectionTitle({ title }: { title: string }) {
 const orderDetailsFieldOrder = [
   "orderNo",
   "orderDate",
+  "deliveryDate",
   "customerName",
   "priority",
+  "status",
   "remark",
 ] as const;
 
 const orderHeaderFieldSizes: Partial<Record<string, FormFieldSize>> = {
   orderNo: "sm",
   orderDate: "sm",
+  deliveryDate: "sm",
   customerName: "md",
   priority: "xs",
+  status: "sm",
   remark: "full",
 };
 
@@ -1055,9 +1060,9 @@ function getDetailHeaderCellSx(
     lineHeight: 1.35,
     ...(allowWrap
       ? {
-          whiteSpace: "normal",
-          overflowWrap: "anywhere",
-        }
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+      }
       : {}),
   } as const;
 }
@@ -1069,9 +1074,9 @@ function getDetailBodyCellSx(theme: Theme, allowWrap = false) {
     color: theme.palette.text.primary,
     ...(allowWrap
       ? {
-          whiteSpace: "normal",
-          overflowWrap: "anywhere",
-        }
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+      }
       : {}),
   } as const;
 }
@@ -1119,13 +1124,30 @@ function buildOrderInitialValues(
       return accumulator;
     }
 
+    if (!record && field.key === "status") {
+      accumulator[field.key] = "Draft";
+      return accumulator;
+    }
+
     if (field.type === "date") {
       if (value instanceof Date) {
         accumulator[field.key] = value;
         return accumulator;
       }
 
-      accumulator[field.key] = !record && field.key === "orderDate" ? new Date() : null;
+      if (!record && field.key === "orderDate") {
+        accumulator[field.key] = new Date();
+        return accumulator;
+      }
+
+      if (!record && field.key === "deliveryDate") {
+        const defaultDelivery = new Date();
+        defaultDelivery.setDate(defaultDelivery.getDate() + 12);
+        accumulator[field.key] = defaultDelivery;
+        return accumulator;
+      }
+
+      accumulator[field.key] = null;
       return accumulator;
     }
 

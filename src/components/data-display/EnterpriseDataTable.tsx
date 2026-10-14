@@ -32,6 +32,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -104,6 +105,8 @@ export interface EnterpriseTableColumn<
   /** When set, overrides automatic filter-type inference. */
   filterType?: ColumnFilterType;
   renderCell?: (row: Row) => ReactNode;
+  /** Keep this column stuck to the left of the actions column while the table scrolls. */
+  stickyBeforeActions?: boolean;
 }
 
 type AuditColumnType = "created" | "updated";
@@ -126,6 +129,8 @@ export interface EnterpriseTableAction<
   icon?: LucideIcon;
   onSelect: (row: Row) => void;
   tone?: "primary" | "danger" | "default";
+  disabled?: boolean;
+  disabledReason?: string | undefined;
 }
 
 interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
@@ -150,6 +155,11 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   rowsPerPageOptions?: readonly number[];
   selectionResetKey?: string | number;
   selectable?: boolean;
+  /**
+   * When true, clicking anywhere on a selectable row toggles its selection.
+   * Defaults to false so selection is limited to the checkbox cell.
+   */
+  selectOnRowClick?: boolean;
   /** When set, checkbox selection is controlled by the parent. */
   selectedRowIds?: readonly string[];
   selectionColumnLabel?: string;
@@ -205,9 +215,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   onStatusChange,
   renderActionCell,
   rows,
-  rowsPerPageOptions = [10, 25, 50, 75, 100, 200],
+  rowsPerPageOptions = [10, 25, 50, 75, 100],
   selectionResetKey,
   selectable = false,
+  selectOnRowClick = false,
   selectedRowIds: controlledSelectedRowIds,
   selectionColumnLabel,
   preserveColumnOrder = false,
@@ -245,6 +256,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const [internalPage, setInternalPage] = useState(1);
   const [internalRowsPerPage, setInternalRowsPerPage] =
     useState(defaultRowsPerPage);
+  const [goToPageInput, setGoToPageInput] = useState("1");
+  const [goToPageError, setGoToPageError] = useState("");
   const [internalSelectedRowIds, setInternalSelectedRowIds] = useState<string[]>([]);
   const selectedRowIds = controlledSelectedRowIds ?? internalSelectedRowIds;
   const commitSelectedRowIds = (nextIds: readonly string[]) => {
@@ -335,6 +348,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     }
 
     setInternalFilters(resolved);
+    setInternalPage(1);
   };
 
   const columnFilterMeta = useMemo(() => {
@@ -448,7 +462,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     : isServerPagination
       ? sortedRows
       : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
-  const visiblePaginationPages = getVisiblePaginationPages(totalPages);
+  const visiblePaginationPages = getVisiblePaginationPages(safePage, totalPages);
   const currentPageIds = currentPageRows.map((row) => row.id);
   const allCurrentPageSelected =
     selectable &&
@@ -480,6 +494,11 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       setInternalPage(safePage);
     }
   }, [isServerPagination, page, safePage]);
+
+  useEffect(() => {
+    setGoToPageInput(String(safePage));
+    setGoToPageError("");
+  }, [safePage]);
 
   useEffect(() => {
     if (controlledSelectedRowIds !== undefined) {
@@ -668,6 +687,28 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     ? getRowActions?.(activeRow) ?? actions
     : actions;
 
+  const handleGoToPageSubmit = () => {
+    const trimmed = goToPageInput.trim();
+    if (!trimmed) {
+      setGoToPageError(`Enter a page number between 1 and ${totalPages}.`);
+      return;
+    }
+
+    if (!/^\d+$/.test(trimmed)) {
+      setGoToPageError(`Enter a page number between 1 and ${totalPages}.`);
+      return;
+    }
+
+    const targetPage = Number(trimmed);
+    if (!Number.isInteger(targetPage) || targetPage < 1 || targetPage > totalPages) {
+      setGoToPageError(`Enter a page number between 1 and ${totalPages}.`);
+      return;
+    }
+
+    setGoToPageError("");
+    goToPage(targetPage);
+  };
+
   return (
     <Stack spacing={1.25}>
       {hasActiveFilters ? (
@@ -786,6 +827,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   );
 
                   const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
+                  const pinBeforeActions = Boolean(column.stickyBeforeActions && hasActions);
 
                   return (
                     <TableCell
@@ -795,6 +837,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                         ...denseCellSx,
                         ...(columnMinWidth
                           ? { minWidth: columnMinWidth }
+                          : {}),
+                        ...(pinBeforeActions
+                          ? {
+                              right: actionColumnWidth,
+                              zIndex: 4,
+                              boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                            }
                           : {}),
                       }}
                     >
@@ -933,12 +982,12 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       key={row.id}
                       hover
                       onClick={
-                        selectable
+                        selectable && selectOnRowClick
                           ? () => handleToggleRowSelection(row.id)
                           : undefined
                       }
                       sx={{
-                        cursor: selectable ? "pointer" : "default",
+                        cursor: selectable && selectOnRowClick ? "pointer" : "default",
                         "& td": {
                           backgroundColor: isSelected
                             ? theme.customTokens.navigation.activeBackground
@@ -953,10 +1002,16 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     >
                       {selectable ? (
                         <TableCell
+                          onClick={
+                            selectOnRowClick
+                              ? undefined
+                              : () => handleToggleRowSelection(row.id)
+                          }
                           sx={[
                             listingTableBodyCellSx(theme),
                             compactCheckboxCellSx,
                             denseCellSx,
+                            selectOnRowClick ? {} : { cursor: "pointer" },
                           ]}
                         >
                           <Checkbox
@@ -971,6 +1026,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
                       {displayColumns.map((column) => {
                         const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
+                        const pinBeforeActions = Boolean(column.stickyBeforeActions && hasActions);
 
                         return (
                           <TableCell
@@ -980,6 +1036,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                               ...denseCellSx,
                               ...(columnMinWidth
                                 ? { minWidth: columnMinWidth }
+                                : {}),
+                              ...(pinBeforeActions
+                                ? {
+                                    position: "sticky",
+                                    right: actionColumnWidth,
+                                    zIndex: 1,
+                                    boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                                  }
                                 : {}),
                             }}
                           >
@@ -1114,7 +1178,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                 </Select>
               </Stack>
 
-              <Stack direction="row" alignItems="center" spacing={0.5}>
+              <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
                 <IconButton
                   aria-label="Previous page"
                   size="small"
@@ -1126,12 +1190,12 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                 </IconButton>
 
                 {visiblePaginationPages.map((pageItem, index) =>
-                  pageItem === "ellipsis" ? (
+                  typeof pageItem === "string" && pageItem.startsWith("ellipsis") ? (
                     <Typography
-                      key={`pagination-ellipsis-${index}`}
+                      key={`pagination-${pageItem}-${index}`}
                       variant="caption"
                       color="text.secondary"
-                      sx={{ px: 0.5 }}
+                      sx={{ px: 0.5, userSelect: "none" }}
                     >
                       …
                     </Typography>
@@ -1139,10 +1203,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     <Button
                       key={pageItem}
                       size="small"
-                      onClick={() => goToPage(pageItem)}
+                      onClick={() => goToPage(Number(pageItem))}
                       sx={listingPageNumberButtonSx(
                         theme,
-                        pageItem === safePage,
+                        Number(pageItem) === safePage,
                       )}
                     >
                       {pageItem}
@@ -1162,6 +1226,111 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   <ChevronRight size={16} />
                 </IconButton>
               </Stack>
+
+              <Stack
+                direction="row"
+                alignItems="center"
+                spacing={0.75}
+                sx={{ position: "relative" }}
+              >
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: "12px", whiteSpace: "nowrap" }}
+                >
+                  Go to
+                </Typography>
+
+                <TextField
+                  size="small"
+                  value={goToPageInput}
+                  onChange={(event) => {
+                    setGoToPageInput(event.target.value);
+                    if (goToPageError) setGoToPageError("");
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleGoToPageSubmit();
+                    }
+                  }}
+                  error={Boolean(goToPageError)}
+                  inputProps={{
+                    inputMode: "numeric",
+                    pattern: "[0-9]*",
+                    "aria-label": "Go to page",
+                  }}
+                  sx={{
+                    width: 52,
+                    "& .MuiOutlinedInput-root": {
+                      height: 30,
+                      borderRadius: `${theme.customTokens.radius.sm}px`,
+                      fontSize: "12px",
+                      backgroundColor: theme.customTokens.surfaces.surface,
+                    },
+                    "& .MuiOutlinedInput-input": {
+                      p: "4px 6px",
+                      textAlign: "center",
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.borders.default,
+                    },
+                    "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.borders.hover,
+                    },
+                    "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.borders.focus,
+                    },
+                  }}
+                />
+
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={handleGoToPageSubmit}
+                  sx={{
+                    minWidth: 36,
+                    height: 30,
+                    px: 1,
+                    py: 0,
+                    borderRadius: `${theme.customTokens.radius.sm}px`,
+                    fontSize: "12px",
+                    fontWeight: 500,
+                    textTransform: "none",
+                    borderColor: theme.customTokens.borders.default,
+                    color: theme.customTokens.brand.primary,
+                    "&:hover": {
+                      borderColor: theme.customTokens.brand.primary,
+                      backgroundColor: theme.customTokens.surfaces.alt,
+                    },
+                  }}
+                >
+                  Go
+                </Button>
+
+                {goToPageError ? (
+                  <Typography
+                    variant="caption"
+                    color="error"
+                    sx={{
+                      position: "absolute",
+                      bottom: -18,
+                      right: 0,
+                      fontSize: "11px",
+                      whiteSpace: "nowrap",
+                      zIndex: 2,
+                    }}
+                  >
+                    {goToPageError}
+                  </Typography>
+                ) : null}
+              </Stack>
             </Stack>
           </Box>
         ) : null}
@@ -1178,6 +1347,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               label: action.label,
               icon: action.icon,
               tone: action.tone,
+              disabled: action.disabled,
+              disabledReason: action.disabledReason,
               onSelect: () => action.onSelect(activeRow),
             }))
             : []
@@ -1386,7 +1557,13 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
     return renderGroupPhotoCell(row[column.key], theme);
   }
 
-  if (isInspectionStatusValue(row[column.key])) {
+  const isStatusRelatedColumn =
+    column.key === "status" ||
+    column.key === "qcStatus" ||
+    column.key === "inspectionStatus" ||
+    String(column.label ?? "").toLowerCase().includes("status");
+
+  if (isStatusRelatedColumn && isInspectionStatusValue(row[column.key])) {
     return renderQcStatusChip(row[column.key], theme);
   }
 
@@ -1529,13 +1706,20 @@ function orderEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
   columns: readonly EnterpriseDisplayTableColumn<Row>[],
 ) {
   const remarkColumns = columns.filter(isEnterpriseRemarkColumn);
-  const statusColumns = columns.filter(isEnterpriseStatusColumn);
+  const pinnedColumns = columns.filter((column) => column.stickyBeforeActions);
+  const statusColumns = columns.filter(
+    (column) => isEnterpriseStatusColumn(column) && !column.stickyBeforeActions,
+  );
   const createdColumns = columns.filter((column) => column.audit?.type === "created");
   const updatedColumns = columns.filter((column) => column.audit?.type === "updated");
   const trailingColumnKeys = new Set(
-    [...remarkColumns, ...statusColumns, ...createdColumns, ...updatedColumns].map(
-      (column) => column.key,
-    ),
+    [
+      ...remarkColumns,
+      ...statusColumns,
+      ...createdColumns,
+      ...updatedColumns,
+      ...pinnedColumns,
+    ].map((column) => column.key),
   );
 
   return [
@@ -1544,6 +1728,7 @@ function orderEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
     ...statusColumns,
     ...createdColumns,
     ...updatedColumns,
+    ...pinnedColumns,
   ];
 }
 
@@ -1907,14 +2092,49 @@ function isInspectionStatusValue(value: EnterpriseTableCellValue) {
   return formatEnterpriseValue(value).trim().toLowerCase().startsWith("inspection ");
 }
 
-function getVisiblePaginationPages(totalPages: number) {
+function getVisiblePaginationPages(
+  currentPage: number,
+  totalPages: number,
+): Array<number | "ellipsis-left" | "ellipsis-right" | "ellipsis"> {
+  // If totalPages <= 5: show all page numbers normally, NO ellipsis.
   if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
 
+  // If totalPages > 5:
+  // For currentPage in the initial 5-page window (1 to 5):
+  // Render: < 1 2 3 4 5 ... totalPages >
+  if (currentPage <= 5) {
+    return [1, 2, 3, 4, 5, "ellipsis-right", totalPages];
+  }
+
+  // Near the end: when current page is within the final 5-page window (totalPages - 4 to totalPages):
+  // Render: < 1 ... (totalPages - 4) (totalPages - 3) (totalPages - 2) (totalPages - 1) totalPages >
+  if (currentPage >= totalPages - 4) {
+    return [
+      1,
+      "ellipsis-left",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+
+  // Once current page moves beyond the initial 5-page window (e.g. currentPage = 6, 10, 50...):
+  // 5-page window around current page: [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2]
+  // Render: < 1 ... (currentPage - 2) (currentPage - 1) [currentPage] (currentPage + 1) (currentPage + 2) ... totalPages >
+  // e.g. currentPage = 6 => < 1 ... 4 5 [6] 7 8 ... 154 >
   return [
-    ...Array.from({ length: 5 }, (_, index) => index + 1),
-    "ellipsis" as const,
+    1,
+    "ellipsis-left",
+    currentPage - 2,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    currentPage + 2,
+    "ellipsis-right",
     totalPages,
   ];
 }

@@ -34,6 +34,7 @@ import { invalidateWarehouseInward } from "../../../query/queryClient";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
 import { resolveInwardAttachmentUrl } from "../api/resolveInwardAttachment";
 import {
+  getInwardStockLabel,
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
 } from "../inward/supportedInwardTypes";
@@ -145,7 +146,11 @@ function mapDetailItemToLineValues(
       inwardItemCode: item.inwardItemCode ?? "",
       itemName: item.itemName ?? "",
       factoryCode: item.factoryCode ?? "",
+      itemSubCategory: item.itemSubCategoryName ?? "",
       hsn: item.hsnCode ?? "",
+      specification: item.specification ?? "",
+      brandName: item.brandName ?? "",
+      batchNo: item.batchNo ?? "",
       unitName: item.unitName ?? "",
       quantity: formatOptionalNumber(item.quantity),
       rate: formatOptionalNumber(item.rate),
@@ -270,26 +275,21 @@ export function ApiInwardEditForm({
     action: () => undefined,
   });
 
+  const navigateToList = () => {
+    navigate(listPath, { replace: true, flushSync: true });
+  };
+
   const closeForm = () => {
     setLeaveConfirmation({
       open: true,
       title: "Cancel Changes",
       description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
+      action: navigateToList,
     });
   };
 
   const handleBack = () => {
-    setLeaveConfirmation({
-      open: true,
-      title: "Discard Changes",
-      description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
-    });
+    navigate(listPath, { replace: true, flushSync: true });
   };
 
   const handleSave = async () => {
@@ -378,7 +378,7 @@ export function ApiInwardEditForm({
       });
 
       void invalidateWarehouseInward();
-      closeForm();
+      navigateToList();
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to save inward.",
@@ -388,15 +388,17 @@ export function ApiInwardEditForm({
     }
   };
 
+  const editStockTitle = `Edit ${getInwardStockLabel(inventorySlug)}`;
+
   if (isLoading) {
     return (
       <InventoryPageShell
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <ContentLoader label="Loading inward record..." minHeight={220} />
@@ -411,9 +413,9 @@ export function ApiInwardEditForm({
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <Alert severity="error">
@@ -440,9 +442,9 @@ export function ApiInwardEditForm({
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <Alert severity="info">
@@ -461,17 +463,17 @@ export function ApiInwardEditForm({
   return (
     <InventoryPageShell
       backNav={{
-        label: "Back to Stock",
+        label: `Back to ${getInwardStockLabel(inventorySlug)}`,
         to: listPath,
         onBack: handleBack,
       }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
-        { label: "Edit Stock" },
+        { label: editStockTitle },
       ]}
       subtitle=" "
-      title="Edit Stock"
+      title={editStockTitle}
     >
       <MasterSectionCard>
         <Box

@@ -43,7 +43,10 @@ import { invalidateWarehouseInward } from "../../../query/queryClient";
 import { queryKeys } from "../../../query/queryKeys";
 import { useDebouncedValue } from "../../../query/useDebouncedValue";
 import { InwardQcUpdateDialog } from "../components/InwardQcUpdateDialog";
-import { isApiSupportedInwardSlug } from "../inward/supportedInwardTypes";
+import {
+  getInwardStockLabel,
+  isApiSupportedInwardSlug,
+} from "../inward/supportedInwardTypes";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
   isActiveColumnFilter,
@@ -119,6 +122,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -433,7 +437,7 @@ export function InwardWarehousePage({
                 variant="contained"
                 sx={(theme) => getListingToolbarButtonSx(theme)}
               >
-                Add Stock
+                Add {getInwardStockLabel(activeInventory)}
               </Button>
             ) : null}
 

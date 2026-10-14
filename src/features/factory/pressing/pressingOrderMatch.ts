@@ -134,8 +134,10 @@ function orderItemNumbersMatch(rowValue: unknown, selectedValue: string) {
     return true;
   }
 
-  if (/^\d+$/.test(rowItemNo) && /^\d+$/.test(selectedItemNo)) {
-    return Number(rowItemNo) === Number(selectedItemNo);
+  const rowDigits = rowItemNo.replace(/\D/g, "");
+  const selectedDigits = selectedItemNo.replace(/\D/g, "");
+  if (rowDigits && selectedDigits) {
+    return Number(rowDigits) === Number(selectedDigits);
   }
 
   return false;

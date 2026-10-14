@@ -40,6 +40,12 @@ export type WarehouseInventoryRow = {
   itemName: string;
   inwardItemCode?: string;
   factoryCode?: string;
+  hsnCode?: string;
+  cbm?: string;
+  rate?: string;
+  specification?: string;
+  brandName?: string;
+  batchNo?: string;
   category?: string;
   subCategory: string;
   unitName: string;
@@ -88,6 +94,7 @@ export type WarehouseInventoryRow = {
   mdfType: string;
   issueTo?: string;
   inspectionDate?: string;
+  createdBy?: string;
   updatedBy?: string;
 };
 
@@ -140,6 +147,7 @@ export const warehouseInvoiceListingColumns: readonly EnterpriseTableColumn<Ware
     { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 

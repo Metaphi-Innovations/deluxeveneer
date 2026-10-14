@@ -95,44 +95,26 @@ export function SawingTab({
   );
 }
 
-function toSawingRow(row: {
-  amount: string;
-  color: string;
-  id: string;
-  inventoryRecordId: string;
-  inwardDate: Date;
-  itemName: string;
-  length: string;
-  referenceSrNo: string;
-  remark: string;
-  storageSrNo?: string;
-  subCategory: string;
-  thickness: string;
-  width: string;
-}): SawingRow {
+function toSawingRow(row: object): SawingRow {
   return {
-    id: row.id,
-    productionSrNo: readMovedText(row, ["productionSrNo"]) || row.storageSrNo || "",
-    storageSrNo: row.storageSrNo || "",
-    inwardDate: readMovedDate(row, ["inwardDate", "issuedDate", "sawingDate", "processDate"]),
-    itemName: row.itemName,
-    subCategory: row.subCategory,
-    color: row.color || readMovedText(row, ["colour"]),
-    batchNo:
-      readMovedText(row, ["batchNo", "batchNoCode", "logNo", "logCode"]) ||
-      row.referenceSrNo ||
-      "",
-    length: row.length,
-    width: row.width,
-    height: readMovedText(row, ["height", "thickness"]) || row.thickness,
+    id: readMovedText(row, ["id"]),
+    storageSrNo: readMovedText(row, ["storageSrNo"]),
+    issuedDate: readMovedDate(row, ["issuedDate", "issueDate"]),
+    sawingDate: readMovedDate(row, ["sawingDate", "processDate"]),
+    itemName: readMovedText(row, ["itemName"]),
+    subCategory: readMovedText(row, ["subCategory", "itemSubCategory"]),
+    batchNo: readMovedText(row, ["batchNo", "logNo", "logCode"]),
+    batchNoCode: readMovedText(row, ["batchNoCode"]),
+    length: readMovedText(row, ["length"]),
+    width: readMovedText(row, ["width"]),
+    thickness: readMovedText(row, ["thickness", "height"]),
     cbm: readMovedText(row, ["cbm", "receivedCbm"]),
     cbf: readMovedText(row, ["cbf"]),
-    amount: row.amount,
-    totalAmount: readMovedText(row, ["totalAmount"]) || row.amount,
-    remark: row.remark,
+    remark: readMovedText(row, ["remark"]),
+    createdBy: readMovedText(row, ["createdBy"]),
     updatedBy: readMovedText(row, ["updatedBy"]),
     inventorySlug: "sawing",
-    inventoryRecordId: row.inventoryRecordId,
+    inventoryRecordId: readMovedText(row, ["inventoryRecordId"]),
   };
 }
 
@@ -148,9 +130,10 @@ function readMovedDate(row: object, keys: readonly string[]) {
       if (!Number.isNaN(parsed.getTime())) {
         return parsed;
       }
+      return value.trim();
     }
   }
-  return new Date();
+  return "";
 }
 
 function readMovedText(row: object, keys: readonly string[]) {

@@ -48,7 +48,10 @@ import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInw
 import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
 import { resolveInwardAttachmentUrl } from "../../warehouses/api/resolveInwardAttachment";
-import { isApiSupportedInwardSlug } from "../../warehouses/inward/supportedInwardTypes";
+import {
+  getInwardStockLabel,
+  isApiSupportedInwardSlug,
+} from "../../warehouses/inward/supportedInwardTypes";
 import { ApiInwardEditForm } from "../../warehouses/pages/ApiInwardEditForm";
 import { ApiInwardViewForm } from "../../warehouses/pages/ApiInwardViewForm";
 import { ProductionInventoryRecordPage } from "../../warehouses/production/pages/ProductionInventoryRecordPage";
@@ -253,37 +256,21 @@ function InventoryFormContent<Row extends InventoryRecord>({
     action: () => undefined,
   });
 
+  const navigateToList = () => {
+    navigate(listPath, { replace: true, flushSync: true });
+  };
+
   const closeInventoryForm = () => {
     setLeaveConfirmation({
       open: true,
       title: "Cancel Changes",
       description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
+      action: navigateToList,
     });
   };
 
   const handleBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: `Are you sure you want to go back to the ${definition.title} list?`,
-        action: () => {
-          navigate(listPath, { replace: true, flushSync: true });
-        },
-      });
-    } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          navigate(listPath, { replace: true, flushSync: true });
-        },
-      });
-    }
+    navigate(listPath, { replace: true, flushSync: true });
   };
 
   const baseFields =
@@ -516,8 +503,11 @@ function InventoryFormContent<Row extends InventoryRecord>({
   }
 
   const primaryLabel = warehouseAAddStockSlug ? "Save Inward" : "Save";
+  const inwardAddStockLabel = warehouseAAddStockSlug
+    ? `Add ${getInwardStockLabel(warehouseAAddStockSlug)}`
+    : "Add Stock";
   const pageTitle = warehouseAAddStockSlug
-    ? "Add Stock"
+    ? inwardAddStockLabel
     : getInventoryPageTitle(definition, mode);
   const pageSubtitle = warehouseAAddStockSlug
     ? " "
@@ -526,7 +516,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
     ? [
         { label: "Warehouses" },
         { label: warehouseLabel, to: warehouseRootPath },
-        { label: "Add Stock" },
+        { label: inwardAddStockLabel },
       ]
     : getInventoryBreadcrumbs({
         currentLabel:
@@ -923,7 +913,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                               additionalCharges,
                             });
                             await createInwardApi(payload);
-                            closeInventoryForm();
+                            navigateToList();
                           } catch (error) {
                             setSaveError(
                               error instanceof Error
@@ -946,7 +936,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         }
                       }
 
-                      closeInventoryForm();
+                      navigateToList();
                     })();
                   }}
                 >

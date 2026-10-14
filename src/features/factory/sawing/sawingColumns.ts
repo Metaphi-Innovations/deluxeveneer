@@ -1,5 +1,18 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 
+export function formatSawingCbmDisplay(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  const parsed = Number.parseFloat(String(value).replace(/,/g, ""));
+  if (!Number.isFinite(parsed)) {
+    return String(value);
+  }
+
+  return parsed.toFixed(3);
+}
+
 // ── Issued Tab Columns ──────────────────────────────────────────────
 // storage sr no., Item Name, Log No., Length, Width, Height, Received CBM, Available CBM, remark, created by, updated by, action
 export const SAWING_ISSUED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
@@ -30,8 +43,16 @@ export const SAWING_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "height", label: "Thickness" },
-  { key: "cbm", label: "CBM" },
-  { key: "cbf", label: "CBF" },
+  {
+    key: "cbm",
+    label: "CBM",
+    renderCell: (row) => formatSawingCbmDisplay(row.cbm),
+  },
+  {
+    key: "cbf",
+    label: "CBF",
+    renderCell: (row) => formatSawingCbmDisplay(row.cbf),
+  },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },

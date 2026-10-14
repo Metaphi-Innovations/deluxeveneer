@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react";
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField } from "@mui/material";
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+} from "@mui/material";
 
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
@@ -8,7 +22,9 @@ import { FormSectionHeader } from "../../shared/FormSectionHeader";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
 import {
   DialogFieldLabel,
-  ReadOnlyDialogField,
+  getDialogBodyCellSx,
+  getDialogHeaderCellSx,
+  getDialogScrollableTableSx,
 } from "../shared/listing/factoryListingParts";
 import type { FactoryRecord } from "../shared/types";
 
@@ -26,10 +42,14 @@ function displayDetail(value: unknown) {
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
+    return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
   }
 
   if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value.trim());
+    if (!Number.isNaN(numeric) && !value.includes("-") && !value.includes("/")) {
+      return Number.isInteger(numeric) ? value.trim() : Number(numeric.toFixed(3)).toString();
+    }
     return value.trim();
   }
 
@@ -75,10 +95,11 @@ function scaleMeasure(value: unknown, fromSheets: number, toSheets: number) {
 
 export function buildFinishingDoneSnapshot(
   row: FactoryRecord,
-  entry: { finishingType: FinishingType; noOfSheets: number },
+  entry: { finishingType: FinishingType; noOfSheets: number; remark: string },
 ) {
   const availableSheets = availableSheetCount(row);
   const sheets = String(entry.noOfSheets);
+  const remark = entry.remark.trim();
 
   return {
     ...row,
@@ -89,31 +110,50 @@ export function buildFinishingDoneSnapshot(
     outputNoOfSheets: sheets,
     sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
     sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    ...(remark ? { remark } : {}),
   };
 }
 
 export function FinishingCreateDialog({
+  mode = "create",
   onClose,
   onSave,
   open,
   row,
 }: {
+  mode?: "create" | "edit";
   onClose: () => void;
-  onSave: (entry: { finishingType: FinishingType; noOfSheets: number }) => void;
+  onSave: (entry: {
+    finishingType: FinishingType;
+    noOfSheets: number;
+    remark: string;
+  }) => void;
   open: boolean;
   row: FactoryRecord | null;
 }) {
   const [sheets, setSheets] = useState("");
   const [finishingType, setFinishingType] = useState("");
+  const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const availableSheets = availableSheetCount(row);
 
   useEffect(() => {
     if (!open) return;
-    setSheets("");
-    setFinishingType("");
+    if (mode === "edit" && row) {
+      setSheets(String(row.noOfSheets ?? row.finishedSheets ?? row.outputNoOfSheets ?? ""));
+      setFinishingType(
+        row.finishingType === "Glossy" || row.finishingType === "Rough"
+          ? (row.finishingType as FinishingType)
+          : "",
+      );
+      setRemark(String(row.remark ?? ""));
+    } else {
+      setSheets("");
+      setFinishingType("");
+      setRemark("");
+    }
     setSubmitted(false);
-  }, [open, row]);
+  }, [mode, open, row]);
 
   const parsedSheets = sheets === "" ? Number.NaN : Number(sheets);
   const exceedsAvailable =
@@ -135,25 +175,25 @@ export function FinishingCreateDialog({
         : "";
   const typeInvalid = finishingType !== "Glossy" && finishingType !== "Rough";
 
-  const details: Array<[string, unknown]> = [
-    ["Issued From", row?.issuedFrom],
-    ["Group No.", row?.groupNo],
-    ["Order Date", row?.orderDate],
-    ["Issued Date", row?.issuedDate],
-    ["Customer Name", row?.customerName],
-    ["Order No", row?.orderNo],
-    ["Order Item No", row?.orderItemNo],
-    ["Item Name", row?.itemName],
-    ["Item Sub Category", row?.itemSubCategory],
-    ["Design Code", row?.designCode],
-    ["Structure Code", row?.structureCode],
-    ["Length", row?.length],
-    ["Width", row?.width],
-    ["Thickness", row?.thickness || row?.height],
-    ["No of Sheets", availableSheets || row?.noOfSheets],
-    ["SQM", row?.sqm],
-    ["SQF", row?.sqf],
-    ["Remark", row?.remark],
+  const details: Array<{ label: string; minWidth?: number; value: unknown }> = [
+    { label: "Issued From", minWidth: 140, value: row?.issuedFrom },
+    { label: "Group No.", minWidth: 140, value: row?.groupNo },
+    { label: "Order Date", minWidth: 130, value: row?.orderDate },
+    { label: "Issued Date", minWidth: 130, value: row?.issuedDate },
+    { label: "Customer Name", minWidth: 170, value: row?.customerName },
+    { label: "Order No", minWidth: 140, value: row?.orderNo },
+    { label: "Order Item No", minWidth: 140, value: row?.orderItemNo },
+    { label: "Item Name", minWidth: 170, value: row?.itemName },
+    { label: "Item Sub Category", minWidth: 160, value: row?.itemSubCategory },
+    { label: "Design Code", minWidth: 140, value: row?.designCode },
+    { label: "Structure Code", minWidth: 140, value: row?.structureCode },
+    { label: "Length", minWidth: 110, value: row?.length },
+    { label: "Width", minWidth: 110, value: row?.width },
+    { label: "Thickness", minWidth: 110, value: row?.thickness || row?.height },
+    { label: "No of Sheets", minWidth: 140, value: availableSheets || row?.noOfSheets },
+    { label: "SQM", minWidth: 120, value: row?.sqm },
+    { label: "SQF", minWidth: 120, value: row?.sqf },
+    { label: "Remark", minWidth: 180, value: row?.remark },
   ];
 
   return (
@@ -182,7 +222,7 @@ export function FinishingCreateDialog({
           py: theme.spacing(1.5),
         })}
       >
-        Create Finishing
+        {mode === "edit" ? "Edit Finishing" : "Create Finishing"}
       </DialogTitle>
       <DialogContent
         sx={(theme) => ({
@@ -196,22 +236,46 @@ export function FinishingCreateDialog({
               <FormSectionHeader title="Issued Details" />
               <Box
                 sx={(theme) => ({
-                  display: "grid",
-                  gap: theme.spacing(2),
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(3, minmax(0, 1fr))",
-                  },
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  borderRadius: "8px",
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                  overflow: "hidden",
                 })}
               >
-                {details.map(([label, value]) => (
-                  <ReadOnlyDialogField
-                    key={label}
-                    label={label}
-                    value={displayDetail(value)}
-                  />
-                ))}
+                <Box sx={(theme) => getDialogScrollableTableSx(theme)}>
+                  <Table size="small" sx={{ minWidth: 2200, tableLayout: "auto" }}>
+                    <TableHead>
+                      <TableRow>
+                        {details.map((item) => (
+                          <TableCell
+                            key={item.label}
+                            sx={(theme) => ({
+                              ...getDialogHeaderCellSx(theme),
+                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                            })}
+                          >
+                            {item.label}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        {details.map((item) => (
+                          <TableCell
+                            key={item.label}
+                            sx={(theme) => ({
+                              ...getDialogBodyCellSx(theme),
+                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                            })}
+                          >
+                            {displayDetail(item.value)}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
               </Box>
             </Stack>
           </Box>
@@ -267,6 +331,19 @@ export function FinishingCreateDialog({
                     value={finishingType}
                   />
                 </Stack>
+                <Stack spacing={0.75} sx={{ gridColumn: "1 / -1" }}>
+                  <DialogFieldLabel>Remark</DialogFieldLabel>
+                  <TextField
+                    fullWidth
+                    minRows={2}
+                    multiline
+                    onChange={(event) => setRemark(event.target.value)}
+                    placeholder="Enter remark"
+                    size="small"
+                    value={remark}
+                    sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
               </Box>
             </Stack>
           </Box>
@@ -290,6 +367,7 @@ export function FinishingCreateDialog({
             onSave({
               finishingType: finishingType as FinishingType,
               noOfSheets: parsedSheets,
+              remark: remark.trim(),
             });
           }}
           sx={recordFormActionButtonSx}

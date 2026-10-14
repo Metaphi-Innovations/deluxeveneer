@@ -9,7 +9,7 @@ import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import { Eye, Pencil } from "lucide-react";
+import { Eye } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
   isActiveColumnFilter,
@@ -67,6 +67,7 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
     amount: String(item.amount ?? ""),
     totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
+    createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
     inventorySlug: item.inventorySlug ? String(item.inventorySlug) : "mdf",
     inventoryRecordId: item.inventoryRecordId
@@ -80,7 +81,6 @@ export function MdfTab({
   warehouseName = "Production Warehouse",
   searchValue,
   canView,
-  canEdit,
   onListQueryChange,
 }: MdfTabProps) {
   const navigate = useNavigate();
@@ -190,27 +190,8 @@ export function MdfTab({
       });
     }
 
-    if (canEdit && warehouseId) {
-      list.push({
-        id: "edit",
-        label: "Edit",
-        icon: Pencil,
-        onSelect: (row: MdfRow) =>
-          navigate(
-            getProductionInventoryRecordPath({
-              slug: "mdf",
-              id: row.inventoryRecordId || String(row.id),
-              mode: "edit",
-              warehouseId,
-              warehouseName,
-              returnTo,
-            }),
-          ),
-      });
-    }
-
     return list;
-  }, [canView, canEdit, navigate, warehouseId, warehouseName]);
+  }, [canView, navigate, warehouseId, warehouseName]);
 
   return (
     <EnterpriseDataTable
