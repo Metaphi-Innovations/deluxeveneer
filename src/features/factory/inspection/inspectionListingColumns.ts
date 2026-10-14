@@ -7,6 +7,58 @@ function isDryingInspectionSlug(slug: string) {
   return slug === "drying-inspection" || slug === "inspection";
 }
 
+function inspectionImageColumn<Row extends FactoryRecord>(): EnterpriseTableColumn<Row> {
+  return {
+    key: "inspectionImage",
+    label: "Inspection Image",
+    filterable: false,
+    renderCell: (row) => {
+      const imageUrl =
+        typeof row.inspectionImage === "string" ? row.inspectionImage.trim() : "";
+      if (!imageUrl) return "-";
+
+      return createElement(
+        "a",
+        {
+          href: imageUrl,
+          rel: "noreferrer",
+          target: "_blank",
+          title: "Open inspection image",
+          style: { display: "inline-flex", verticalAlign: "middle" },
+        },
+        createElement("img", {
+          alt:
+            typeof row.inspectionImageName === "string"
+              ? row.inspectionImageName
+              : "Inspection",
+          src: imageUrl,
+          style: {
+            border: "1px solid rgba(0, 0, 0, 0.12)",
+            borderRadius: 6,
+            height: 40,
+            objectFit: "cover",
+            width: 56,
+          },
+        }),
+      );
+    },
+  };
+}
+
+function isStatusColumn<Row extends FactoryRecord>(column: EnterpriseTableColumn<Row>) {
+  return column.label === "Status" || column.key === "status" || column.key === "qcStatus";
+}
+
+function withStickyStatus<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+  statusColumn: EnterpriseTableColumn<Row>,
+) {
+  return [
+    ...columns.filter((column) => !isStatusColumn(column) && column.key !== statusColumn.key),
+    { ...statusColumn, stickyBeforeActions: true },
+  ];
+}
+
 function insertColumnsAfter<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   afterKey: string,
@@ -49,6 +101,7 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
       { key: "passQty", label: "Pass Qty (Leaves)" },
       { key: "failQty", label: "Failed Qty (Leaves)" },
       statusColumn,
+      inspectionImageColumn<Row>(),
     ]);
   }
 
@@ -58,45 +111,7 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
     );
 
     if (slug === "sawing-inspection" && activeTab === "done") {
-      return insertColumnsAfter(columns, "cbf", [
-        {
-          key: "inspectionImage",
-          label: "Inspection Image",
-          filterable: false,
-          renderCell: (row) => {
-            const imageUrl =
-              typeof row.inspectionImage === "string"
-                ? row.inspectionImage.trim()
-                : "";
-            if (!imageUrl) return "-";
-
-            return createElement(
-              "a",
-              {
-                href: imageUrl,
-                rel: "noreferrer",
-                target: "_blank",
-                title: "Open inspection image",
-                style: { display: "inline-flex", verticalAlign: "middle" },
-              },
-              createElement("img", {
-                alt:
-                  typeof row.inspectionImageName === "string"
-                    ? row.inspectionImageName
-                    : "Inspection",
-                src: imageUrl,
-                style: {
-                  border: "1px solid rgba(0, 0, 0, 0.12)",
-                  borderRadius: 6,
-                  height: 40,
-                  objectFit: "cover",
-                  width: 56,
-                },
-              }),
-            );
-          },
-        },
-      ]);
+      return insertColumnsAfter(columns, "cbf", [inspectionImageColumn<Row>()]);
     }
 
     return columns;
@@ -108,16 +123,11 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
         ? { ...col, label: "Issued Inspection Date" }
         : col,
     );
-    const insertIndex = columns.findIndex((col) => col.key === "noOfLeaves");
-    const statusColumn: EnterpriseTableColumn<Row> = { key: "status", label: "Status" };
-    if (insertIndex >= 0) {
-      return [
-        ...columns.slice(0, insertIndex + 1),
-        statusColumn,
-        ...columns.slice(insertIndex + 1),
-      ];
-    }
-    return [...columns, statusColumn];
+    return withStickyStatus(columns, { key: "status", label: "Status" });
+  }
+
+  if (slug === "sawing-inspection") {
+    return withStickyStatus(sourceColumns, { key: "qcStatus", label: "Status" });
   }
 
   return sourceColumns;

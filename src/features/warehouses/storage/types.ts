@@ -27,11 +27,12 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "supplierName", label: "Supplier Name" },
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "logCode", label: "Log No" },
-    { key: "availableUnits", label: "Available Stock" },
+    { key: "cbm", label: "CBM" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
+    { key: "rate", label: "Rate" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -45,11 +46,13 @@ export const STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS: readonly EnterpriseTableColu
     { key: "supplierName", label: "Supplier Name" },
     { key: "issueTo", label: "Issue To" },
     { key: "logCode", label: "Log No" },
+    { key: "cbm", label: "CBM" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
+    { key: "rate", label: "Rate" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -74,9 +77,9 @@ export const STORAGE_RAW_VENEER_COLUMNS: readonly EnterpriseTableColumn<Warehous
     { key: "totalSqm", label: "Total Sq Meter" },
     { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -91,10 +94,11 @@ export const STORAGE_RAW_VENEER_HISTORY_COLUMNS: readonly EnterpriseTableColumn<
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "totalUnits", label: "Forwarded Leaves" },
     { key: "availableUnits", label: "Remaining Leaves" },
+    { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Forwarded By" },
   ];
 
@@ -117,9 +121,9 @@ export const STORAGE_SHEET_GOODS_COLUMNS: readonly EnterpriseTableColumn<Warehou
     { key: "totalSqm", label: "Total Sq Meter" },
     { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -141,9 +145,9 @@ export const STORAGE_SHEET_GOODS_HISTORY_COLUMNS: readonly EnterpriseTableColumn
     { key: "totalSqm", label: "Total Sq Meter" },
     { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Forwarded By" },
   ];
 
@@ -162,9 +166,11 @@ export const STORAGE_CONSUMABLES_COLUMNS: readonly EnterpriseTableColumn<Warehou
     { key: "unitName", label: "Unit" },
     { key: "totalUnits", label: "Received Qty" },
     { key: "availableUnits", label: "Available Qty" },
+    { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Price / Amount" },
+    { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -183,9 +189,11 @@ export const STORAGE_CONSUMABLES_HISTORY_COLUMNS: readonly EnterpriseTableColumn
     { key: "unitName", label: "Unit" },
     { key: "totalUnits", label: "Forwarded Qty" },
     { key: "availableUnits", label: "Remaining Qty" },
+    { key: "rate", label: "Rate" },
     { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
+    { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Forwarded By" },
   ];
 
@@ -199,9 +207,10 @@ export const STORAGE_EXPORT_COLUMNS = [
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
   { key: "currency", label: "Currency" },
-  { key: "amount", label: "Amount" },
+  { key: "rate", label: "Rate" },
   { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
 ] as const;
 

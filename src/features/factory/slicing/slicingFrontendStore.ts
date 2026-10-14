@@ -17,6 +17,7 @@ type SlicingFlowState = {
   hiddenDoneIds: string[];
   hiddenIssuedIds: string[];
   issuedPatches: Record<string, SlicingIssuedPatch>;
+  rejectedDoneIds: string[];
 };
 
 const emptyState = (): SlicingFlowState => ({
@@ -25,6 +26,7 @@ const emptyState = (): SlicingFlowState => ({
   hiddenDoneIds: [],
   hiddenIssuedIds: [],
   issuedPatches: {},
+  rejectedDoneIds: [],
 });
 
 let memoryState: SlicingFlowState | null = null;
@@ -62,6 +64,9 @@ function readState(): SlicingFlowState {
         parsed.issuedPatches && typeof parsed.issuedPatches === "object"
           ? parsed.issuedPatches
           : {},
+      rejectedDoneIds: Array.isArray(parsed.rejectedDoneIds)
+        ? parsed.rejectedDoneIds.map(String)
+        : [],
     };
   } catch {
     memoryState = emptyState();
@@ -173,6 +178,87 @@ export function updateSlicingDoneAvailableLeaves(
     doneAvailableLeaves[key] = nextAvailable;
   });
   writeState({ ...state, doneAvailableLeaves });
+}
+
+function slicingLeafCount(value: unknown) {
+  const parsed = Number(String(value ?? "").replace(/[^\d.]/g, ""));
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+}
+
+function slicingReceivedLeaves(row: SlicingFlowRow) {
+  return slicingLeafCount(row.receivedLeaves ?? row.noOfLeaves ?? row.noOfSheets);
+}
+
+function slicingAvailableLeaves(row: SlicingFlowRow, state: SlicingFlowState) {
+  const patched = rowAliases(row)
+    .map((key) => state.doneAvailableLeaves[key])
+    .find((value) => typeof value === "number");
+  if (typeof patched === "number") return Math.max(0, Math.floor(patched));
+  return slicingLeafCount(row.availableLeaves ?? slicingReceivedLeaves(row));
+}
+
+export function markSlicingDoneRejected(row: SlicingFlowRow) {
+  const state = readState();
+  const rejectedDoneIds = Array.from(new Set([...state.rejectedDoneIds, ...rowAliases(row)]));
+  writeState({ ...state, rejectedDoneIds });
+}
+
+export function clearSlicingDoneRejected(row: SlicingFlowRow) {
+  const state = readState();
+  const aliases = new Set(rowAliases(row));
+  writeState({
+    ...state,
+    rejectedDoneIds: state.rejectedDoneIds.filter((id) => !aliases.has(id)),
+  });
+}
+
+export function restoreSlicingDoneLeaves(sourceDoneId: string, leaves: number) {
+  if (!sourceDoneId || leaves <= 0) return;
+  const state = readState();
+  const row = state.extraDone.find((item) => String(item.id) === sourceDoneId);
+  const keys = row ? rowAliases(row) : [sourceDoneId];
+  const received = row ? slicingReceivedLeaves(row) : 0;
+  const current = keys
+    .map((key) => state.doneAvailableLeaves[key])
+    .find((value) => typeof value === "number");
+  const base = typeof current === "number" ? current : received;
+  const next = received > 0 ? Math.min(received, base + leaves) : base + leaves;
+  const doneAvailableLeaves = { ...state.doneAvailableLeaves };
+  keys.forEach((key) => {
+    doneAvailableLeaves[key] = next;
+  });
+  writeState({ ...state, doneAvailableLeaves });
+}
+
+export function getSlicingDoneEditBlockReason(
+  selected: SlicingFlowRow,
+  definitionRows: readonly SlicingFlowRow[] = [],
+) {
+  const state = readState();
+  const group = new Map<string, SlicingFlowRow>();
+  [...definitionRows, ...state.extraDone, selected].forEach((row) => {
+    if (!sameSlicingCreation(row, selected)) return;
+    group.set(String(row.id), row);
+  });
+
+  const forwarded = [...group.values()].some((row) => {
+    const received = slicingReceivedLeaves(row);
+    return received > 0 && slicingAvailableLeaves(row, state) < received;
+  });
+  const rejected = [...group.values()].some((row) =>
+    rowAliases(row).some((key) => state.rejectedDoneIds.includes(key)),
+  );
+
+  if (forwarded && rejected) {
+    return "Edit is unavailable because an item from this slicing entry was forwarded to Drying and an item was rejected.";
+  }
+  if (forwarded) {
+    return "Edit is unavailable because an item from this slicing entry was forwarded to Drying.";
+  }
+  if (rejected) {
+    return "Edit is unavailable because an item from this slicing entry was rejected.";
+  }
+  return "";
 }
 
 export function updateSlicingIssuedAvailability(

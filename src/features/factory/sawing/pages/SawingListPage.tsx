@@ -27,6 +27,7 @@ import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 import {
   listSawingFlowRows,
+  getSawingDoneEditBlockReason,
   recordSawingHistory,
   recordSawingRejection,
   revertSawingFlowRow,
@@ -306,6 +307,7 @@ export function SawingListPage() {
           onSelect: (r: any) => handleOpenRevert(r),
         });
       } else if (activeTab === "done") {
+        const editBlockReason = getSawingDoneEditBlockReason(row);
         // View, Edit, Reject Sawing, Revert, Issue for Inspection
         actions.push({
           id: "view",
@@ -319,7 +321,10 @@ export function SawingListPage() {
           id: "edit",
           label: "Edit",
           icon: Pencil,
+          disabled: Boolean(editBlockReason),
+          ...(editBlockReason ? { disabledReason: editBlockReason } : {}),
           onSelect: (r: any) => {
+            if (getSawingDoneEditBlockReason(r)) return;
             navigate(`/factory/sawing/edit/${r.id}`, { state: { record: r } });
           },
         });

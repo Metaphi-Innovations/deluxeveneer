@@ -104,6 +104,8 @@ export interface EnterpriseTableColumn<
   /** When set, overrides automatic filter-type inference. */
   filterType?: ColumnFilterType;
   renderCell?: (row: Row) => ReactNode;
+  /** Keep this column stuck to the left of the actions column while the table scrolls. */
+  stickyBeforeActions?: boolean;
 }
 
 type AuditColumnType = "created" | "updated";
@@ -126,6 +128,8 @@ export interface EnterpriseTableAction<
   icon?: LucideIcon;
   onSelect: (row: Row) => void;
   tone?: "primary" | "danger" | "default";
+  disabled?: boolean;
+  disabledReason?: string | undefined;
 }
 
 interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
@@ -792,6 +796,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   );
 
                   const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
+                  const pinBeforeActions = Boolean(column.stickyBeforeActions && hasActions);
 
                   return (
                     <TableCell
@@ -801,6 +806,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                         ...denseCellSx,
                         ...(columnMinWidth
                           ? { minWidth: columnMinWidth }
+                          : {}),
+                        ...(pinBeforeActions
+                          ? {
+                              right: actionColumnWidth,
+                              zIndex: 4,
+                              boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                            }
                           : {}),
                       }}
                     >
@@ -983,6 +995,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
 
                       {displayColumns.map((column) => {
                         const columnMinWidth = resolveColumnMinWidth(column.key, column.label);
+                        const pinBeforeActions = Boolean(column.stickyBeforeActions && hasActions);
 
                         return (
                           <TableCell
@@ -992,6 +1005,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                               ...denseCellSx,
                               ...(columnMinWidth
                                 ? { minWidth: columnMinWidth }
+                                : {}),
+                              ...(pinBeforeActions
+                                ? {
+                                    position: "sticky",
+                                    right: actionColumnWidth,
+                                    zIndex: 1,
+                                    boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                                  }
                                 : {}),
                             }}
                           >
@@ -1190,6 +1211,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               label: action.label,
               icon: action.icon,
               tone: action.tone,
+              disabled: action.disabled,
+              disabledReason: action.disabledReason,
               onSelect: () => action.onSelect(activeRow),
             }))
             : []
@@ -1541,13 +1564,20 @@ function orderEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
   columns: readonly EnterpriseDisplayTableColumn<Row>[],
 ) {
   const remarkColumns = columns.filter(isEnterpriseRemarkColumn);
-  const statusColumns = columns.filter(isEnterpriseStatusColumn);
+  const pinnedColumns = columns.filter((column) => column.stickyBeforeActions);
+  const statusColumns = columns.filter(
+    (column) => isEnterpriseStatusColumn(column) && !column.stickyBeforeActions,
+  );
   const createdColumns = columns.filter((column) => column.audit?.type === "created");
   const updatedColumns = columns.filter((column) => column.audit?.type === "updated");
   const trailingColumnKeys = new Set(
-    [...remarkColumns, ...statusColumns, ...createdColumns, ...updatedColumns].map(
-      (column) => column.key,
-    ),
+    [
+      ...remarkColumns,
+      ...statusColumns,
+      ...createdColumns,
+      ...updatedColumns,
+      ...pinnedColumns,
+    ].map((column) => column.key),
   );
 
   return [
@@ -1556,6 +1586,7 @@ function orderEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
     ...statusColumns,
     ...createdColumns,
     ...updatedColumns,
+    ...pinnedColumns,
   ];
 }
 

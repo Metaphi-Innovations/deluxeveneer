@@ -28,9 +28,7 @@ export const slicingProcessDate = {
 export const slicingCreateSourceColumns = [
       { key: "storageSrNo", keys: ["storageSrNo", "storageSerialNumber"], label: "Storage Sr No.", minWidth: 160 },
       { key: "issueDate", keys: ["issueDate", "issuedDate", "processDate", "date"], label: "Issue Date", minWidth: 130 },
-      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
-      { key: "subCategory", keys: ["subCategory", "itemSubCategory", "itemSubCategoryName"], label: "Sub Category", minWidth: 170 },
-      { key: "logNo", keys: ["logNo", "batchNo", "logCode", "batchNoCode"], label: "Log No.", minWidth: 140 },
+      { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 220 },
       { key: "length", keys: ["length"], label: "Length", minWidth: 120 },
       { key: "width", keys: ["width"], label: "Width", minWidth: 120 },
       { key: "height", keys: ["height", "thickness"], label: "Height", minWidth: 120 },
@@ -233,7 +231,7 @@ export function getSlicingCreateSubmitError(
     return "No CBM is available for Slicing.";
   }
   if (lineItems.length === 0) {
-    return "Add at least one output detail before creating slicing.";
+    return "Add at least one output detail before saving.";
   }
 
   for (const item of lineItems) {
@@ -398,7 +396,7 @@ export function saveSlicingEditProcess({
   const dateValue = formValues.slicingDate ?? formValues.processDate;
   const slicingDate =
     dateValue instanceof Date && !Number.isNaN(dateValue.getTime())
-      ? dateValue.toISOString().slice(0, 10)
+      ? `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, "0")}-${String(dateValue.getDate()).padStart(2, "0")}`
       : String(dateValue ?? originalRows[0]?.slicingDate ?? originalRows[0]?.issueDate ?? "")
           .slice(0, 10);
 

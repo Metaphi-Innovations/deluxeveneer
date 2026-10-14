@@ -44,6 +44,7 @@ export interface RawVeneerRow extends EnterpriseTableRow {
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  createdBy: string;
   updatedBy: string;
 }
 
@@ -72,6 +73,7 @@ export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = 
   { key: "amount", label: "Amount" },
   { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
 ];
 
@@ -97,6 +99,7 @@ export interface PlywoodRow extends EnterpriseTableRow {
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  createdBy: string;
   updatedBy: string;
 }
 
@@ -119,6 +122,7 @@ export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
   { key: "amount", label: "Amount" },
   { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
 ];
 
@@ -143,6 +147,7 @@ export interface MdfRow extends EnterpriseTableRow {
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  createdBy: string;
   updatedBy: string;
 }
 
@@ -164,6 +169,7 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "amount", label: "Amount" },
   { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
+  { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
 ];
 
@@ -182,6 +188,7 @@ export interface ConsumablesRow extends EnterpriseTableRow {
   remark: string;
   inventorySlug?: string;
   inventoryRecordId?: string;
+  createdBy: string;
   updatedBy: string;
 }
 
@@ -198,6 +205,7 @@ export const consumablesColumns: readonly EnterpriseTableColumn<ConsumablesRow>[
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 
@@ -235,8 +243,8 @@ export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
   { key: "cbm", label: "CBM" },
   { key: "cbf", label: "CBF" },
   { key: "remark", label: "Remark" },
-  { key: "createdBy", label: "Created" },
-  { key: "updatedBy", label: "Updated" },
+  { key: "createdBy", label: "Created By" },
+  { key: "updatedBy", label: "Updated By" },
 ];
 
 export interface SampleSheetTableRow extends EnterpriseTableRow {

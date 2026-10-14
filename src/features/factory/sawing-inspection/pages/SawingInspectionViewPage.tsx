@@ -83,6 +83,7 @@ export const SawingInspectionViewPage: React.FC = () => {
       backNav={{
         label: "Back to Sawing Inspection",
         to: `/factory/sawing-inspection?tab=${tab}`,
+        onBack: () => navigate(`/factory/sawing-inspection?tab=${tab}`),
       }}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">

@@ -122,36 +122,65 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
                       Selected item {index + 1}
                     </Typography>
                   ) : null}
-                  <Stack spacing={0.75}>
-                    <DialogFieldLabel required>No. of Leaves</DialogFieldLabel>
-                    <TextField
-                      error={invalid}
-                      fullWidth
-                      helperText={
-                        available <= 0
-                          ? "No leaves are available to issue."
-                          : invalid
-                            ? `Enter a whole number from 1 to ${available}.`
-                            : `Available leaves: ${available}`
-                      }
-                      inputProps={{ min: 1, max: available, step: 1 }}
-                      onChange={(event) =>
-                        setValues((currentValues) => ({
-                          ...currentValues,
-                          [rowId]: {
-                            ...(currentValues[rowId] ?? current),
-                            leaves: event.target.value,
+                  <Box
+                    sx={(theme) => ({
+                      display: "grid",
+                      gap: theme.spacing(1.5),
+                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                    })}
+                  >
+                    <Stack spacing={0.75}>
+                      <DialogFieldLabel>Available No of Leaves</DialogFieldLabel>
+                      <TextField
+                        fullWidth
+                        onFocus={(event) => event.target.blur()}
+                        size="small"
+                        slotProps={{
+                          htmlInput: { readOnly: true, tabIndex: -1 },
+                        }}
+                        sx={(theme) => [
+                          getCompactFieldSx(theme),
+                          {
+                            "& .MuiInputBase-root, & .MuiInputBase-input": {
+                              cursor: "default",
+                              caretColor: "transparent",
+                            },
                           },
-                        }))
-                      }
-                      size="small"
-                      sx={(theme) =>
-                        getCompactFieldSx(theme, invalid ? "error" : "default")
-                      }
-                      type="number"
-                      value={current.leaves}
-                    />
-                  </Stack>
+                        ]}
+                        value={available}
+                      />
+                    </Stack>
+                    <Stack spacing={0.75}>
+                      <DialogFieldLabel required>No. of Leaves to Issue</DialogFieldLabel>
+                      <TextField
+                        error={invalid}
+                        fullWidth
+                        helperText={
+                          available <= 0
+                            ? "No leaves are available to issue."
+                            : invalid
+                              ? `Enter a whole number from 1 to ${available}.`
+                              : ""
+                        }
+                        inputProps={{ min: 1, max: available, step: 1 }}
+                        onChange={(event) =>
+                          setValues((currentValues) => ({
+                            ...currentValues,
+                            [rowId]: {
+                              ...(currentValues[rowId] ?? current),
+                              leaves: event.target.value,
+                            },
+                          }))
+                        }
+                        size="small"
+                        sx={(theme) =>
+                          getCompactFieldSx(theme, invalid ? "error" : "default")
+                        }
+                        type="number"
+                        value={current.leaves}
+                      />
+                    </Stack>
+                  </Box>
                   <Stack spacing={0.75}>
                     <DialogFieldLabel>Remark</DialogFieldLabel>
                     <TextField

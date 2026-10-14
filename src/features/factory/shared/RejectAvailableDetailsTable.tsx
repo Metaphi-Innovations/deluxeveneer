@@ -37,6 +37,7 @@ export type RejectAvailableValues = {
   cbm?: string;
   height?: string;
   length: string;
+  noOfLeaves?: string;
   remark: string;
   sqf: string;
   sqm: string;
@@ -278,6 +279,7 @@ export function RejectAvailableDetailsTable({
   includeArea = false,
   lockMeasuredFields = false,
   onChange,
+  showLeafCount = false,
   title,
   useHeight = false,
   values,
@@ -290,6 +292,7 @@ export function RejectAvailableDetailsTable({
   includeArea?: boolean;
   lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
+  showLeafCount?: boolean;
   title?: string | undefined;
   useHeight?: boolean;
   values: RejectAvailableValues;
@@ -305,9 +308,25 @@ export function RejectAvailableDetailsTable({
         ? { ...col, key: "height" as const, label: "Height" }
         : col,
     );
-  const columnsWithArea = includeArea
-    ? insertBeforeRemark(columns, slicingAreaColumns)
+  const leafColumns = showLeafCount
+    ? (() => {
+        const thicknessIndex = columns.findIndex(
+          (column) => column.key === "thickness" || column.key === "height",
+        );
+        const next = [...columns];
+        next.splice(thicknessIndex + 1, 0, {
+          key: "noOfLeaves",
+          label: "No of Leaves",
+          minWidth: 150,
+          options: [],
+          type: "text",
+        });
+        return next;
+      })()
     : columns;
+  const columnsWithArea = includeArea
+    ? insertBeforeRemark(leafColumns, slicingAreaColumns)
+    : leafColumns;
   const tableWidth = columnsWithArea.reduce(
     (total, column) => total + column.minWidth,
     0,
@@ -396,6 +415,7 @@ export function createEmptyRejectAvailableValues(): RejectAvailableValues {
     cbm: "",
     height: "",
     length: "",
+    noOfLeaves: "",
     remark: "",
     sqf: "",
     sqm: "",
@@ -412,6 +432,13 @@ export function getNextRejectAvailableValues(
   volumeMode = false,
   useHeight = false,
 ): RejectAvailableValues {
+  if (key === "noOfLeaves") {
+    return {
+      ...current,
+      noOfLeaves: value.replace(/[^\d]/gu, ""),
+    };
+  }
+
   if (key === "amount") {
     return {
       ...current,
@@ -721,7 +748,9 @@ function renderRejectAvailableField({
       error={Boolean(issue)}
       fullWidth
       inputProps={{
-        readOnly: (lockMeasuredFields && isMeasuredField) || (isDerivedAreaField && !editableDerived),
+        readOnly:
+          (lockMeasuredFields && (isMeasuredField || column.key === "noOfLeaves")) ||
+          (isDerivedAreaField && !editableDerived),
       }}
       size="small"
       value={value}

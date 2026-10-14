@@ -119,6 +119,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "totalAmount", label: "Total Amount" },
     { key: "qcStatus", label: "QC" },
     { key: "remark", label: "Remark" },
+    { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
 

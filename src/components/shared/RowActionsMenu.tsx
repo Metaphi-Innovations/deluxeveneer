@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Plus } from "lucide-react";
-import { Box, Menu, MenuItem } from "@mui/material";
+import { Box, Menu, MenuItem, Tooltip } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import {
   ACTION_MENU_MAX_WIDTH,
@@ -19,6 +19,7 @@ export type RowActionsMenuItem = {
   icon?: LucideIcon | undefined;
   tone?: "primary" | "default" | "danger" | undefined;
   disabled?: boolean | undefined;
+  disabledReason?: string | undefined;
   onSelect: () => void;
 };
 
@@ -90,11 +91,12 @@ export function RowActionsMenu({
     >
       {resolved.map((action) => {
         const Icon = action.icon;
-        return (
+        const menuItem = (
           <MenuItem
             key={action.id}
             disabled={action.disabled}
             onClick={() => {
+              if (action.disabled) return;
               action.onSelect();
               onClose();
             }}
@@ -109,6 +111,18 @@ export function RowActionsMenu({
             </Box>
             {action.label}
           </MenuItem>
+        );
+
+        if (!action.disabled || !action.disabledReason) {
+          return menuItem;
+        }
+
+        return (
+          <Tooltip key={action.id} placement="left" title={action.disabledReason}>
+            <Box component="span" sx={{ display: "block" }}>
+              {menuItem}
+            </Box>
+          </Tooltip>
         );
       })}
     </Menu>

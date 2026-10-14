@@ -9,7 +9,8 @@ import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import { Eye, Pencil, Plus } from "lucide-react";
+import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
+import { Eye, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
   isActiveColumnFilter,
@@ -100,6 +101,7 @@ function mapWarehouseCRawVeneerRow(row: WarehouseInventoryRow): RawVeneerRow {
     amount: row.amount,
     totalAmount: row.totalAmount ?? row.amount,
     remark: row.remark,
+    createdBy: row.createdBy ?? "",
     updatedBy: row.updatedBy ?? "",
     inventorySlug: "raw-veneer",
     inventoryRecordId: row.inventoryRecordId,
@@ -127,6 +129,7 @@ function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
     amount: String(item.amount ?? ""),
     totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
+    createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
     inventorySlug: item.inventorySlug
       ? String(item.inventorySlug)
@@ -149,6 +152,7 @@ export function RawVeneerTab({
   const [marquetryIssuedRowIds, setMarquetryIssuedRowIds] = useState<string[]>(
     [],
   );
+  const [marquetryConfirmRow, setMarquetryConfirmRow] = useState<RawVeneerRow | null>(null);
   const [groupingIssueRow, setGroupingIssueRow] = useState<RawVeneerRow | null>(
     null,
   );
@@ -314,46 +318,12 @@ export function RawVeneerTab({
 
       if (canEdit && warehouseId) {
         list.push({
-          id: "edit",
-          label: "Edit",
-          icon: Pencil,
-          onSelect: (row: RawVeneerRow) =>
-            navigate(
-              getProductionInventoryRecordPath({
-                slug: "raw-veneer",
-                id: row.inventoryRecordId || String(row.id),
-                mode: "edit",
-                warehouseId,
-                warehouseName,
-                returnTo,
-              }),
-            ),
-        });
-
-        list.push({
           id: "issue-for-marquetry",
           label: "Issue for Marquetry",
           icon: Plus,
           tone: "primary",
           onSelect: (row: RawVeneerRow) => {
-            issueFactoryWork({
-              destinationProcess: "Marquetry",
-              sourceSlug: warehouseName,
-              sourceProcess: "Inventory",
-              sourceWarehouseName: warehouseName,
-              sourceRow: {
-                ...row,
-                issuedFrom: "Inventory",
-                issuedFor: "Marquetry",
-                issuedDate: new Date(),
-                warehouseName,
-              } as FactoryRecord,
-            });
-            setMarquetryIssuedRowIds((current) =>
-              current.includes(String(row.id))
-                ? current
-                : [...current, String(row.id)],
-            );
+            setMarquetryConfirmRow(row);
           },
         });
 
@@ -379,6 +349,35 @@ export function RawVeneerTab({
 
   return (
     <>
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description="Are you sure you want to issue this item for Marquetry?"
+        onClose={() => setMarquetryConfirmRow(null)}
+        onConfirm={() => {
+          if (!marquetryConfirmRow) return;
+          const row = marquetryConfirmRow;
+          setMarquetryConfirmRow(null);
+          issueFactoryWork({
+            destinationProcess: "Marquetry",
+            sourceSlug: warehouseName,
+            sourceProcess: "Inventory",
+            sourceWarehouseName: warehouseName,
+            sourceRow: {
+              ...row,
+              issuedFrom: "Inventory",
+              issuedFor: "Marquetry",
+              issuedDate: new Date(),
+              warehouseName,
+            } as FactoryRecord,
+          });
+          setMarquetryIssuedRowIds((current) =>
+            current.includes(String(row.id)) ? current : [...current, String(row.id)],
+          );
+        }}
+        open={Boolean(marquetryConfirmRow)}
+        title="Issue for Marquetry"
+      />
       <IssueForGroupingDialog
         availableLeaves={groupingIssueAvailableLeaves}
         onClose={() => setGroupingIssueRow(null)}

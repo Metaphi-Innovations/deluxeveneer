@@ -14,7 +14,7 @@ export function AddPressingPage() {
 }
 
 export function EditPressingPage() {
-  return <FactoryForm definition={pressingDefinition} mode="edit" />;
+  return <CreatePressingPage mode="edit" />;
 }
 
 export function ViewPressingPage() {

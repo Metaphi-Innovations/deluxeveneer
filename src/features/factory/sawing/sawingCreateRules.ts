@@ -353,7 +353,7 @@ const processedItemsPayload = lineItems.map((item) => {
   const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
   const amtVal = Number.parseFloat(vals.amount || "0");
   return {
-    batchNo: vals.logNo || vals.batchNo || "",
+    batchNo: vals.logNo || vals.batchNo || sawingSource?.batchNo || sawingSource?.logNo || "",
     length: sourceMeasures.sourceLength,
     width,
     thickness: t,
@@ -415,9 +415,11 @@ const sawingDate = processDateVal
 const issuedDate = sawingSource?.issueDate || sawingSource?.issuedDate || sawingDate;
 const subCategory =
   sawingSource?.subCategory || sawingSource?.itemSubCategory || "-";
+const sawingRunId = `sawing-run-${Date.now()}`;
 const newDoneItems = processedItemsPayload.map((p, idx) => ({
-  id: `done-${Date.now()}-${idx}`,
-  doneId: `done-${Date.now()}-${idx}`,
+  id: `done-${sawingRunId}-${idx}`,
+  doneId: `done-${sawingRunId}-${idx}`,
+  processRunId: sawingRunId,
   sourceIssueId: issueItemId,
   storageSrNo: sawingSource?.storageSrNo || "-",
   issueDate: issuedDate,

@@ -51,6 +51,7 @@ export interface StorageInventoryItem {
   qcRemark: string | null;
   remark: string | null;
   issueTo?: string | null;
+  createdBy?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -170,6 +171,11 @@ export function mapStorageItemToRow(
         ? (Number(item.totalSqMeter) * 10.7639).toFixed(3)
         : "",
     currency: item.currency ?? "",
+    cbm:
+      item.cbm != null && Number.isFinite(Number(item.cbm))
+        ? Number(item.cbm).toFixed(3)
+        : "",
+    rate: item.rate != null ? formatAmount(item.rate) : "",
     amount: formatAmount(item.amount),
     totalAmount: formatAmount(item.totalAmount),
     attachment: "",
@@ -205,6 +211,7 @@ export function mapStorageItemToRow(
     plywoodType: "",
     mdfType: "",
     issueTo: item.issueTo || "",
+    createdBy: item.createdBy ?? "",
     updatedBy: item.updatedBy ?? "",
   };
 }

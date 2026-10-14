@@ -824,7 +824,6 @@ const dryingAddItemFields = [
 ] as const;
 
 const slicingProcessDetailFields = [
-  ["storageSrNo", "Storage Sr No."],
   ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
   ["bundleNumber", "Bundle Number"],
@@ -839,7 +838,6 @@ const slicingProcessDetailFields = [
 ] as const;
 
 const sawingProcessDetailFields = [
-  ["logNo", "Log No."],
   ["batchNoCode", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],

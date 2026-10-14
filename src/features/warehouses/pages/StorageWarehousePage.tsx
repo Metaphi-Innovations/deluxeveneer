@@ -22,16 +22,19 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import type {
   EnterpriseTableAction,
 } from "../../../components/data-display/EnterpriseDataTable";
+import { buildWarehouseAddStockPath } from "../../inventory/shared";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import {
+  getListingToolbarButtonSx,
   getListingToolbarOutlinedButtonSx,
   portalButtonGroupGap,
   recordFormActionButtonSx,
@@ -60,7 +63,6 @@ import {
 } from "../../../query/queryClient";
 import { issueSawingFromStorageRows } from "../../factory/sawing/sawingFrontendStore";
 import { fetchGradesApi } from "../../masters/grade-master/api/gradeMasterApi";
-import type { MasterRecord } from "../../masters/shared/types";
 import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
@@ -141,7 +143,6 @@ export function StorageWarehousePage({
   const [moveTargetRows, setMoveTargetRows] = useState<WarehouseInventoryRow[]>([]);
   const [productionWarehouses, setProductionWarehouses] = useState<StorageProductionWarehouseOption[]>([]);
   const [selectedProductionWarehouseId, setSelectedProductionWarehouseId] = useState("");
-  const [gradeOptions, setGradeOptions] = useState<MasterRecord[]>([]);
   /** Per-row move qty / grade keyed by storage item id (raw veneer / plywood / MDF). */
   const [moveQuantities, setMoveQuantities] = useState<Record<string, string>>({});
   const [moveGrades, setMoveGrades] = useState<Record<string, string>>({});
@@ -151,6 +152,10 @@ export function StorageWarehousePage({
   const [isLoadingGrades, setIsLoadingGrades] = useState(false);
   const [moveDialogError, setMoveDialogError] = useState<string | null>(null);
   const [revertDialogError, setRevertDialogError] = useState<string | null>(null);
+  const [issueConfirm, setIssueConfirm] = useState<{
+    kind: "sawing" | "slicing";
+    rows: WarehouseInventoryRow[];
+  } | null>(null);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error" | "info" | "warning";
@@ -187,6 +192,7 @@ export function StorageWarehousePage({
   const warehousePermissionKey = getDynamicWarehousePermissionKey(warehouseId);
   const canView = canAccessPermission(warehousePermissionKey, "view");
   const canEdit = canAccessPermission(warehousePermissionKey, "edit");
+  const canCreate = canAccessPermission(warehousePermissionKey, "create");
 
   const panelProps = useMemo(
     () => ({
@@ -255,10 +261,6 @@ export function StorageWarehousePage({
     setMoveQuantities((prev) => ({ ...prev, [rowId]: value }));
   };
 
-  const updateMoveGrade = (rowId: string, value: string) => {
-    setMoveGrades((prev) => ({ ...prev, [rowId]: value }));
-  };
-
   const isMoveQtyInvalid = (row: WarehouseInventoryRow, rawQty: string) => {
     const qty = Number(rawQty);
     const available = getMoveRowAvailable(row);
@@ -317,7 +319,6 @@ export function StorageWarehousePage({
           (record) =>
             String(record.status ?? "Active").toLowerCase() !== "inactive",
         );
-        setGradeOptions(activeGrades);
         const defaultGradeId =
           activeGrades.length > 0 && activeGrades[0]?.id
             ? String(activeGrades[0].id)
@@ -335,7 +336,6 @@ export function StorageWarehousePage({
           formatErrorMessage(err, "Failed to load production warehouses or grades. Please try again.")
         );
         setProductionWarehouses([]);
-        setGradeOptions([]);
       } finally {
         setIsLoadingWarehouses(false);
         setIsLoadingGrades(false);
@@ -364,7 +364,7 @@ export function StorageWarehousePage({
         missingGradeRow.inwardSrNo ||
         missingGradeRow.itemName ||
         "item";
-      setMoveDialogError(`Please select a grade for ${label}.`);
+      setMoveDialogError(`A grade could not be assigned for ${label}. Please try again.`);
       return;
     }
 
@@ -542,14 +542,14 @@ export function StorageWarehousePage({
             label: "Issue for Sawing",
             icon: Plus,
             tone: "primary",
-            onSelect: (r) => void handleIssueForSawing([r]),
+            onSelect: (r) => setIssueConfirm({ kind: "sawing", rows: [r] }),
           });
           actions.push({
             id: "issue-for-slicing",
             label: "Issue for Slicing",
             icon: Plus,
             tone: "primary",
-            onSelect: (r) => void handleIssueForSlicing([r]),
+            onSelect: (r) => setIssueConfirm({ kind: "slicing", rows: [r] }),
           });
         }
 
@@ -750,6 +750,22 @@ export function StorageWarehousePage({
               flexWrap: "wrap",
             }}
           >
+            {canCreate && activeSection === "inventory" ? (
+              <Button
+                component={RouterLink}
+                to={buildWarehouseAddStockPath({
+                  inventorySlug: activeInventory,
+                  returnTo: `${warehouseRootPath}?section=inventory&inventory=${activeInventory}`,
+                  warehouseId,
+                  warehouseName,
+                })}
+                startIcon={<Plus size={15} />}
+                variant="contained"
+                sx={(theme) => getListingToolbarButtonSx(theme)}
+              >
+                Add Stock
+              </Button>
+            ) : null}
             <Button
               variant="outlined"
               startIcon={<FileOutput size={15} />}
@@ -802,7 +818,7 @@ export function StorageWarehousePage({
                   <>
                     <Button
                       variant="contained"
-                      onClick={() => void handleIssueForSawing(selectedRows)}
+                      onClick={() => setIssueConfirm({ kind: "sawing", rows: selectedRows })}
                       startIcon={<Plus size={16} />}
                       sx={bulkPrimaryButtonSx}
                     >
@@ -810,7 +826,7 @@ export function StorageWarehousePage({
                     </Button>
                     <Button
                       variant="contained"
-                      onClick={() => void handleIssueForSlicing(selectedRows)}
+                      onClick={() => setIssueConfirm({ kind: "slicing", rows: selectedRows })}
                       startIcon={<Plus size={16} />}
                       sx={bulkPrimaryButtonSx}
                     >
@@ -880,7 +896,7 @@ export function StorageWarehousePage({
             borderRadius: `${t.customTokens.radius.lg}px`,
             overflow: "hidden",
             maxHeight: "90vh",
-            height: { xs: "90vh", md: "84vh" },
+            height: "auto",
             display: "flex",
             flexDirection: "column",
           }),
@@ -934,8 +950,7 @@ export function StorageWarehousePage({
             backgroundColor: t.customTokens.surfaces.alt,
             overflowX: "hidden",
             overflowY: "auto",
-            flex: "1 1 auto",
-            minHeight: 0,
+            flex: "0 1 auto",
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -1008,8 +1023,6 @@ export function StorageWarehousePage({
 
           <Box
             sx={{
-              flex: 1,
-              minHeight: 220,
               display: "flex",
               flexDirection: "column",
               gap: 1,
@@ -1029,8 +1042,6 @@ export function StorageWarehousePage({
             <TableContainer
               sx={(t) => ({
                 ...listingTableContainerSx(t),
-                flex: 1,
-                minHeight: 0,
                 maxHeight: "min(48vh, 460px)",
                 overflow: "auto",
               })}
@@ -1055,7 +1066,6 @@ export function StorageWarehousePage({
                         label: `Remaining (${moveUnitLabel})`,
                         align: "right" as const,
                       },
-                      { label: "Grade *", align: "left" as const },
                     ].map((col) => (
                       <TableCell
                         key={col.label}
@@ -1075,7 +1085,6 @@ export function StorageWarehousePage({
                   {moveTargetRows.map((row, index) => {
                     const available = getMoveRowAvailable(row);
                     const rawQty = moveQuantities[row.id] ?? "";
-                    const selectedGrade = moveGrades[row.id] ?? "";
                     const enteredQty = Number(rawQty || 0);
                     const remaining = Math.max(
                       0,
@@ -1172,60 +1181,6 @@ export function StorageWarehousePage({
                         >
                           {remaining}
                         </TableCell>
-                        <TableCell
-                          sx={(t) => ({
-                            ...listingTableBodyCellSx(t),
-                            minWidth: 160,
-                          })}
-                        >
-                          <Select
-                            size="small"
-                            fullWidth
-                            displayEmpty
-                            value={selectedGrade}
-                            disabled={
-                              isMoving ||
-                              isLoadingGrades ||
-                              gradeOptions.length === 0
-                            }
-                            onChange={(e) =>
-                              updateMoveGrade(row.id, e.target.value)
-                            }
-                            error={!selectedGrade}
-                            sx={(t) => ({
-                              borderRadius: `${t.customTokens.radius.sm}px`,
-                              backgroundColor: t.customTokens.surfaces.surface,
-                              fontSize: t.typography.caption.fontSize,
-                              "& .MuiSelect-select": {
-                                py: 0.75,
-                              },
-                            })}
-                          >
-                            {isLoadingGrades ? (
-                              <MenuItem value="" disabled>
-                                Loading...
-                              </MenuItem>
-                            ) : gradeOptions.length === 0 ? (
-                              <MenuItem value="" disabled>
-                                No grades
-                              </MenuItem>
-                            ) : (
-                              gradeOptions.map((grade) => {
-                                const label = String(
-                                  grade.gradeName || grade.name || "Grade",
-                                );
-                                return (
-                                  <MenuItem
-                                    key={String(grade.id)}
-                                    value={String(grade.id)}
-                                  >
-                                    {label}
-                                  </MenuItem>
-                                );
-                              })
-                            )}
-                          </Select>
-                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -1310,6 +1265,33 @@ export function StorageWarehousePage({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          issueConfirm
+            ? `Are you sure you want to issue ${
+                issueConfirm.rows.length === 1
+                  ? "this item"
+                  : `${issueConfirm.rows.length} items`
+              } for ${issueConfirm.kind === "slicing" ? "Slicing" : "Sawing"}?`
+            : undefined
+        }
+        onClose={() => setIssueConfirm(null)}
+        onConfirm={() => {
+          if (!issueConfirm) return;
+          const pending = issueConfirm;
+          setIssueConfirm(null);
+          if (pending.kind === "sawing") {
+            void handleIssueForSawing(pending.rows);
+            return;
+          }
+          void handleIssueForSlicing(pending.rows);
+        }}
+        open={Boolean(issueConfirm)}
+        title={issueConfirm?.kind === "slicing" ? "Issue for Slicing" : "Issue for Sawing"}
+      />
 
       {/* Revert Dialog */}
       <Dialog

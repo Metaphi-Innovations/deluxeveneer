@@ -35,6 +35,7 @@ export interface InwardListItem {
   remark: string | null;
   status: boolean;
   sortOrder: number;
+  createdBy?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -389,6 +390,7 @@ export function mapInwardListItemToRow(
     avSqf: "",
     plywoodType: "",
     mdfType: "",
+    createdBy: item.createdBy ?? "",
     updatedBy: item.updatedBy ?? "",
   };
 }

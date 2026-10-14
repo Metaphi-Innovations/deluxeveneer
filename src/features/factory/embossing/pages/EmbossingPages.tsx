@@ -14,7 +14,7 @@ export function AddEmbossingPage() {
 }
 
 export function EditEmbossingPage() {
-  return <FactoryForm definition={embossingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={embossingDefinition} mode="edit" />;
 }
 
 export function ViewEmbossingPage() {

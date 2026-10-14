@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button, Stack, Typography } from "@mui/material";
-import { useNavigate } from "react-router";
+import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { useNavigate, useParams } from "react-router";
 
 import {
   highlightedRecordFormPrimaryButtonSx,
@@ -10,10 +10,12 @@ import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionSt
 import { getOrderLineItems, useOrderRecords } from "../../orders/shared/ordersStore";
 import { FactoryPageShell } from "../shared/FactoryPageShell";
 import {
+  applyPressingProcessResult,
   completeFactoryIssuedWork,
   factoryIssuedWorkToRow,
   getFactoryIssuedWorkForListing,
   issueFactoryWork,
+  reopenPressingIssuedWork,
   useFactoryIssuedWorkItems,
 } from "../shared/factoryIssuedWorkStore";
 import { pressingDefinition } from "../shared/factoryDefinitions";
@@ -24,6 +26,14 @@ import {
   useSampleSheetRecords,
 } from "../shared/sampleSheetIdentityStore";
 import type { FactoryRecord } from "../shared/types";
+import {
+  getPressingEditContext,
+  mergePressingBaseRows,
+  readPressingEditForm,
+  readPressingSourceSnapshot,
+  readPressingVeneerRows,
+  readPressingWorkItemId,
+} from "./pressingEdit";
 import { PressingIssuedSelection } from "./PressingIssuedSelection";
 import {
   pressingBaseStockColumns,
@@ -64,44 +74,66 @@ function rowsFromIds(rows: readonly FactoryRecord[], ids: readonly string[]) {
   });
 }
 
-export function CreatePressingPage() {
+export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edit" }) {
   const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
+  const isEdit = mode === "edit";
   const paths = getFactoryPaths("pressing");
   const orderRecords = useOrderRecords();
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
+  const editContext = useMemo(
+    () => (isEdit ? getPressingEditContext(params.id, pressingDefinition.rows) : null),
+    [factoryIssuedWorkItems, isEdit, params.id],
+  );
+  const editForm = useMemo(
+    () => (editContext ? readPressingEditForm(editContext, todayInputValue()) : null),
+    [editContext],
+  );
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [purpose, setPurpose] = useState<PressingPurpose>("");
-  const [orderNo, setOrderNo] = useState("");
-  const [orderItemNo, setOrderItemNo] = useState("");
-  const [sampleNo, setSampleNo] = useState("");
-  const [selectedVeneerIds, setSelectedVeneerIds] = useState<string[]>([]);
-  const [veneerDrafts, setVeneerDrafts] = useState<Record<string, PressingUsageDraft>>({});
-  const [baseType, setBaseType] = useState<PressingBaseMaterialType>("");
-  const [selectedBaseIds, setSelectedBaseIds] = useState<string[]>([]);
-  const [baseDrafts, setBaseDrafts] = useState<Record<string, PressingUsageDraft>>({});
-  const [processValues, setProcessValues] = useState<PressingProcessValues>({
-    cutColor: "",
-    grade: "",
-    itemSubCategory: "",
-    length: "",
-    noOfSheets: "",
-    outputItemName: "",
-    pressingDate: todayInputValue(),
-    remark: "",
-    thickness: "",
-    width: "",
-  });
-  const [rejectValues, setRejectValues] = useState<PressingRejectValues>({
-    itemName: "",
-    length: "",
-    quantity: "",
-    remark: "",
-    thickness: "",
-    type: "",
-    width: "",
-  });
+  const [purpose, setPurpose] = useState<PressingPurpose>(editForm?.purpose ?? "");
+  const [orderNo, setOrderNo] = useState(editForm?.orderNo ?? "");
+  const [orderItemNo, setOrderItemNo] = useState(editForm?.orderItemNo ?? "");
+  const [sampleNo, setSampleNo] = useState(editForm?.sampleNo ?? "");
+  const [selectedVeneerIds, setSelectedVeneerIds] = useState<string[]>(editForm?.veneerIds ?? []);
+  const [veneerDrafts, setVeneerDrafts] = useState<Record<string, PressingUsageDraft>>(
+    editForm?.veneerDrafts ?? {},
+  );
+  const [baseType, setBaseType] = useState<PressingBaseMaterialType>(editForm?.baseType ?? "");
+  const [selectedBaseIds, setSelectedBaseIds] = useState<string[]>(editForm?.baseIds ?? []);
+  const [baseDrafts, setBaseDrafts] = useState<Record<string, PressingUsageDraft>>(
+    editForm?.baseDrafts ?? {},
+  );
+  const [processValues, setProcessValues] = useState<PressingProcessValues>(
+    editForm?.processValues ?? {
+      cutColor: "",
+      grade: "",
+      itemSubCategory: "",
+      length: "",
+      noOfSheets: "",
+      outputItemName: "",
+      pressingDate: todayInputValue(),
+      remark: "",
+      thickness: "",
+      width: "",
+    },
+  );
+  const [rejectValues, setRejectValues] = useState<PressingRejectValues>(
+    editForm?.rejectValues ?? {
+      itemName: "",
+      length: "",
+      quantity: "",
+      remark: "",
+      thickness: "",
+      type: "",
+      width: "",
+    },
+  );
   const baseStock = usePressingBaseStock(baseType);
+  const baseSelectionRows = useMemo(
+    () => mergePressingBaseRows(baseStock.rows, editForm?.baseRows ?? []),
+    [baseStock.rows, editForm],
+  );
 
   const selectedOrder = orderRecords.find((order) => order.orderNo === orderNo);
   const orderActive = selectedOrder ? isPressingOrderActive(selectedOrder.status) : false;
@@ -138,34 +170,48 @@ export function CreatePressingPage() {
       return true;
     });
 
-    if (purpose === "Order") {
-      if (!orderNo || !orderItemNo || !orderActive || !selectedOrder) {
-        return [] as FactoryRecord[];
+    const issuedForPurpose =
+      purpose === "Order"
+        ? !orderNo || !orderItemNo || !orderActive || !selectedOrder
+          ? []
+          : rows
+              .filter((row) => pressingRowIssuedForOrder(row, orderNo, orderItemNo))
+              .map(mapPressingIssuedListingRow)
+        : purpose === "Sample Sheet"
+          ? sampleNo.trim()
+            ? rows
+                .filter((row) => {
+                  const rowSample = String(row.sampleNo ?? row.orderNo ?? "")
+                    .trim()
+                    .toLowerCase();
+                  return rowSample === sampleNo.trim().toLowerCase();
+                })
+                .map(mapPressingIssuedListingRow)
+            : []
+          : [];
+    const groupedRows = readPressingVeneerRows(editContext?.rows ?? []).filter((row) => {
+      if (purpose === "Order") {
+        return Boolean(orderNo && orderItemNo) && pressingRowIssuedForOrder(row, orderNo, orderItemNo);
       }
 
-      return rows
-        .filter((row) => pressingRowIssuedForOrder(row, orderNo, orderItemNo))
-        .map(mapPressingIssuedListingRow);
-    }
-
-    if (purpose === "Sample Sheet") {
-      const target = sampleNo.trim().toLowerCase();
-      if (!target) {
-        return [] as FactoryRecord[];
+      if (purpose === "Sample Sheet") {
+        const target = sampleNo.trim().toLowerCase();
+        const rowSample = String(row.sampleNo ?? row.orderNo ?? "")
+          .trim()
+          .toLowerCase();
+        return Boolean(target) && rowSample === target;
       }
 
-      return rows
-        .filter((row) => {
-          const rowSample = String(row.sampleNo ?? row.orderNo ?? "")
-            .trim()
-            .toLowerCase();
-          return rowSample === target;
-        })
-        .map(mapPressingIssuedListingRow);
-    }
+      return false;
+    });
+    const seenIds = new Set(issuedForPurpose.map((row) => String(row.id)));
 
-    return [] as FactoryRecord[];
+    return [
+      ...groupedRows.filter((row) => !seenIds.has(String(row.id))),
+      ...issuedForPurpose,
+    ];
   }, [
+    editContext,
     factoryIssuedWorkItems,
     orderActive,
     orderRecords,
@@ -177,12 +223,24 @@ export function CreatePressingPage() {
   ]);
 
   const selectedVeneerRows = rowsFromIds(issuedRows, selectedVeneerIds);
-  const selectedBaseRows = rowsFromIds(baseStock.rows, selectedBaseIds);
+  const selectedBaseRows = rowsFromIds(baseSelectionRows, selectedBaseIds);
   const detailSource = selectedVeneerRows[0] ?? issuedRows[0];
   const detailSourceId = detailSource ? String(detailSource.id) : "";
   useEffect(() => {
+    const keepsSavedOutput =
+      isEdit &&
+      Boolean(detailSourceId) &&
+      (editContext?.rows ?? []).some((row) => String(row.id) === detailSourceId);
+    if (keepsSavedOutput) {
+      return;
+    }
+
     const row = selectedVeneerRows[0] ?? issuedRows[0];
     if (!row) {
+      if (isEdit) {
+        return;
+      }
+
       setProcessValues((current) => ({
         ...current,
         cutColor: "",
@@ -210,7 +268,7 @@ export function CreatePressingPage() {
       thickness: pressingText(row.thickness),
       width: pressingText(row.width),
     }));
-  }, [detailSourceId]);
+  }, [detailSourceId, editContext, isEdit]);
   const outputSheets = Number(processValues.noOfSheets);
   const veneerUseTotal = sumPressingDraftQuantity(selectedVeneerIds, veneerDrafts);
   const baseUseTotal = sumPressingDraftQuantity(selectedBaseIds, baseDrafts);
@@ -268,10 +326,12 @@ export function CreatePressingPage() {
 
   useEffect(() => {
     setSelectedBaseIds((current) => {
-      const next = current.filter((id) => baseStock.rows.some((row) => String(row.id) === id));
+      const next = current.filter((id) =>
+        baseSelectionRows.some((row) => String(row.id) === id),
+      );
       return next.length === current.length ? current : next;
     });
-  }, [baseStock.rows]);
+  }, [baseSelectionRows]);
 
   const handleCreate = () => {
     setHasSubmitted(true);
@@ -315,29 +375,55 @@ export function CreatePressingPage() {
         : {}),
       selectedBaseMaterial: selectedBaseRows.map((row) => ({
         ...row,
+        materialType: pressingText(row.materialType) || baseType,
         sheetsToUse: baseDrafts[String(row.id)]?.qtyToUse ?? "",
         remark: baseDrafts[String(row.id)]?.remark ?? "",
       })),
       rejectDetails: rejectValues,
     };
+    const processId = editContext?.processId || `pressing-${Date.now()}`;
+    const previousIds = new Set((editContext?.rows ?? []).map((row) => String(row.id)));
+    const nextIds = new Set(selectedVeneerRows.map((row) => String(row.id)));
+
+    if (isEdit) {
+      previousIds.forEach((id) => {
+        if (nextIds.has(id)) {
+          return;
+        }
+
+        const previousRow = editContext?.rows.find((row) => String(row.id) === id);
+        const workItemId = previousRow ? readPressingWorkItemId(previousRow) : "";
+        if (workItemId) {
+          reopenPressingIssuedWork(workItemId);
+        }
+      });
+    }
 
     selectedVeneerRows.forEach((row) => {
       const draft = veneerDrafts[String(row.id)] ?? { qtyToUse: "", remark: "" };
+      const sourceSnapshot = readPressingSourceSnapshot(row);
       const resultSnapshot = {
-        ...(row as Record<string, unknown>),
+        ...sourceSnapshot,
         ...resultBase,
+        pressingProcessId: processId,
+        pressingSourceItem: sourceSnapshot,
+        processRemark: processValues.remark,
         qtyToUse: draft.qtyToUse,
         remark: draft.remark || resultBase.remark,
       };
-      const workItemId =
-        typeof row.workItemId === "string"
-          ? row.workItemId
-          : String(row.id).startsWith("factory-work-")
-            ? String(row.id)
-            : "";
+      const workItemId = readPressingWorkItemId(row);
+
+      if (workItemId && previousIds.has(String(row.id))) {
+        applyPressingProcessResult(workItemId, resultSnapshot);
+        return;
+      }
 
       if (workItemId) {
         completeFactoryIssuedWork(workItemId, resultSnapshot);
+        return;
+      }
+
+      if (isEdit && previousIds.has(String(row.id))) {
         return;
       }
 
@@ -367,7 +453,7 @@ export function CreatePressingPage() {
       });
     }
 
-    navigate(paths.list);
+    navigate(isEdit ? `${paths.list}?tab=done` : paths.list);
   };
 
   const issuedEmptyLabel =
@@ -375,16 +461,34 @@ export function CreatePressingPage() {
       ? "No issued pressing records are available for this order item."
       : "No issued pressing records are available for this sample sheet.";
   const pressingReady =
-    (purpose === "Order" && Boolean(orderNo && orderItemNo && orderActive)) ||
+    (purpose === "Order" && Boolean(orderNo && orderItemNo && (orderActive || isEdit))) ||
     (purpose === "Sample Sheet" && Boolean(sampleNo));
   const baseReady = baseType === "Plywood" || baseType === "MDF";
   const selectionReady = pressingReady && baseReady;
+  const pageTitle = isEdit ? "Edit Pressing" : "Create Pressing";
+  const listPath = isEdit ? `${paths.list}?tab=done` : paths.list;
+
+  if (isEdit && !editContext) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: "Pressing", to: listPath },
+          { label: pageTitle },
+        ]}
+        sectionGap={1}
+        title={pageTitle}
+      >
+        <Alert severity="warning">The selected Pressing record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
 
   return (
     <FactoryPageShell
       actions={
         <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <Button onClick={() => navigate(paths.list)} sx={recordFormActionButtonSx} variant="outlined">
+          <Button onClick={() => navigate(listPath)} sx={recordFormActionButtonSx} variant="outlined">
             Cancel
           </Button>
           <Button
@@ -394,17 +498,17 @@ export function CreatePressingPage() {
             sx={highlightedRecordFormPrimaryButtonSx}
             variant="contained"
           >
-            Create Pressing
+            {isEdit ? "Update Pressing" : "Create Pressing"}
           </Button>
         </Box>
       }
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
-        { label: "Pressing", to: paths.list },
-        { label: "Create Pressing" },
+        { label: "Pressing", to: listPath },
+        { label: pageTitle },
       ]}
       sectionGap={1}
-      title="Create Pressing"
+      title={pageTitle}
     >
       <PressingPurposeChoice
         allocationError={allocationError}
@@ -494,7 +598,7 @@ export function CreatePressingPage() {
             loading={baseStock.isLoading}
             onSelectedIdsChange={setSelectedBaseIds}
             placeholder={`Search ${baseType.toLowerCase()} stock...`}
-            rows={baseStock.rows}
+            rows={baseSelectionRows}
             selectedIds={selectedBaseIds}
             showError={hasSubmitted && selectedBaseRows.length === 0}
           />

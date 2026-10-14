@@ -454,6 +454,7 @@ function mapExportItem(
     amount: String(item.amount ?? ""),
     totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
+    createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
   };
   return withGroupingAvailability(row, issuedLeavesByRowId);

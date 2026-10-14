@@ -18,16 +18,20 @@ export type DryingIssuedPatch = {
 
 type DryingFlowState = {
   extraDone: DryingFlowRow[];
+  forwardedLeavesByDoneId: Record<string, number>;
   hiddenDoneIds: string[];
   hiddenIssuedIds: string[];
   issuedPatches: Record<string, DryingIssuedPatch>;
+  rejectedDone: DryingFlowRow[];
 };
 
 const emptyState = (): DryingFlowState => ({
   extraDone: [],
+  forwardedLeavesByDoneId: {},
   hiddenDoneIds: [],
   hiddenIssuedIds: [],
   issuedPatches: {},
+  rejectedDone: [],
 });
 
 let memoryState: DryingFlowState | null = null;
@@ -51,6 +55,10 @@ function readState(): DryingFlowState {
     const parsed = JSON.parse(raw) as Partial<DryingFlowState>;
     memoryState = {
       extraDone: Array.isArray(parsed.extraDone) ? parsed.extraDone : [],
+      forwardedLeavesByDoneId:
+        parsed.forwardedLeavesByDoneId && typeof parsed.forwardedLeavesByDoneId === "object"
+          ? parsed.forwardedLeavesByDoneId
+          : {},
       hiddenDoneIds: Array.isArray(parsed.hiddenDoneIds)
         ? parsed.hiddenDoneIds.map(String)
         : [],
@@ -61,6 +69,7 @@ function readState(): DryingFlowState {
         parsed.issuedPatches && typeof parsed.issuedPatches === "object"
           ? parsed.issuedPatches
           : {},
+      rejectedDone: Array.isArray(parsed.rejectedDone) ? parsed.rejectedDone : [],
     };
   } catch {
     memoryState = emptyState();
@@ -347,4 +356,167 @@ export function revertDryingDoneToIssued(row: DryingFlowRow) {
     hiddenIssuedIds,
   });
   return true;
+}
+
+function dryingText(value: unknown) {
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+
+function dryingGroupKey(row: DryingFlowRow) {
+  return (
+    dryingText(row.processRunId) ||
+    dryingText(row.sourceIssuedId) ||
+    dryingText(row.sourceIssueId) ||
+    dryingText(row.id)
+  );
+}
+
+function sameDryingEntry(candidate: DryingFlowRow, selected: DryingFlowRow) {
+  const selectedKey = dryingGroupKey(selected);
+  const candidateKey = dryingGroupKey(candidate);
+  if (selectedKey && candidateKey && selectedKey === candidateKey) return true;
+  const selectedId = dryingText(selected.id);
+  const candidateId = dryingText(candidate.id);
+  return (
+    (dryingText(candidate.sourceDoneId) !== "" && dryingText(candidate.sourceDoneId) === selectedId) ||
+    (dryingText(selected.sourceDoneId) !== "" && dryingText(selected.sourceDoneId) === candidateId)
+  );
+}
+
+export function recordDryingInspectionIssue(doneId: string, leaves: number) {
+  if (!doneId || leaves <= 0) return;
+  const state = readState();
+  const current = state.forwardedLeavesByDoneId[doneId] ?? 0;
+  writeState({
+    ...state,
+    forwardedLeavesByDoneId: {
+      ...state.forwardedLeavesByDoneId,
+      [doneId]: current + leaves,
+    },
+  });
+}
+
+export function releaseDryingInspectionIssue(doneId: string, leaves: number) {
+  if (!doneId || leaves <= 0) return;
+  const state = readState();
+  const next = Math.max(0, (state.forwardedLeavesByDoneId[doneId] ?? 0) - leaves);
+  const forwardedLeavesByDoneId = { ...state.forwardedLeavesByDoneId };
+  if (next <= 0) delete forwardedLeavesByDoneId[doneId];
+  else forwardedLeavesByDoneId[doneId] = next;
+  writeState({ ...state, forwardedLeavesByDoneId });
+}
+
+export function restoreDryingDoneLeaves(
+  sourceDoneId: string,
+  leaves: number,
+  snapshot?: DryingFlowRow,
+) {
+  if (!sourceDoneId || leaves <= 0) return;
+  const state = readState();
+  const existing = state.extraDone.find((item) => String(item.id) === sourceDoneId);
+  if (existing) {
+    const nextAvailable = dryingLeafCount(existing) + leaves;
+    const nextReceived = Math.max(
+      numericLeafCount(existing.noOfLeaves ?? existing.receivedLeaves),
+      nextAvailable,
+    );
+    const area = dryingLeafArea(existing.length, existing.width, nextAvailable);
+    writeState({
+      ...state,
+      extraDone: state.extraDone.map((item) =>
+        String(item.id) === sourceDoneId
+          ? {
+              ...item,
+              listingState: "done",
+              noOfLeaves: String(nextReceived),
+              receivedLeaves: String(nextReceived),
+              availableLeaves: String(nextAvailable),
+              sqm: area.sqm,
+              sqf: area.sqf,
+              totalSqMeter: area.sqm,
+            }
+          : item,
+      ),
+      hiddenDoneIds: state.hiddenDoneIds.filter((id) => id !== sourceDoneId),
+    });
+    return;
+  }
+
+  const source = snapshot ?? {};
+  const area = dryingLeafArea(source.length, source.width, leaves);
+  writeState({
+    ...state,
+    extraDone: [
+      {
+        ...source,
+        id: sourceDoneId,
+        listingState: "done",
+        noOfLeaves: String(leaves),
+        receivedLeaves: String(leaves),
+        availableLeaves: String(leaves),
+        sqm: area.sqm,
+        sqf: area.sqf,
+        totalSqMeter: area.sqm,
+      },
+      ...state.extraDone,
+    ],
+    hiddenDoneIds: state.hiddenDoneIds.filter((id) => id !== sourceDoneId),
+  });
+}
+
+export function markDryingDoneRejected(row: DryingFlowRow) {
+  const state = readState();
+  writeState({
+    ...state,
+    rejectedDone: [row, ...state.rejectedDone.filter((item) => String(item.id) !== String(row.id))],
+  });
+}
+
+export function clearDryingDoneRejected(rejectedId: string) {
+  const state = readState();
+  const rejected = state.rejectedDone.find((row) => String(row.id) === rejectedId);
+  if (!rejected) return;
+  const sourceDoneId = dryingText(rejected.sourceDoneId);
+  const leaves = numericLeafCount(rejected.noOfLeaves ?? rejected.availableLeaves);
+  writeState({
+    ...state,
+    rejectedDone: state.rejectedDone.filter((row) => String(row.id) !== rejectedId),
+  });
+  if (sourceDoneId && leaves > 0) {
+    restoreDryingDoneLeaves(sourceDoneId, leaves, { ...rejected, id: sourceDoneId });
+  }
+}
+
+export function findDryingDoneRow(
+  id: string,
+  definitionRows: readonly DryingFlowRow[] = [],
+) {
+  const state = readState();
+  return [...state.extraDone, ...definitionRows].find((row) => String(row.id) === id);
+}
+
+export function getDryingDoneEditBlockReason(
+  selected: DryingFlowRow,
+  definitionRows: readonly DryingFlowRow[] = [],
+) {
+  const state = readState();
+  const group = [...definitionRows, ...state.extraDone, ...state.rejectedDone, selected].filter(
+    (row) => sameDryingEntry(row, selected),
+  );
+  const forwarded = group.some((row) => {
+    const doneId = dryingText(row.sourceDoneId) || dryingText(row.id);
+    return (state.forwardedLeavesByDoneId[doneId] ?? 0) > 0;
+  });
+  const rejected = state.rejectedDone.some((row) => sameDryingEntry(row, selected));
+
+  if (forwarded && rejected) {
+    return "Edit is unavailable because an item from this drying entry was forwarded to Drying Inspection and an item was rejected.";
+  }
+  if (forwarded) {
+    return "Edit is unavailable because an item from this drying entry was forwarded to Drying Inspection.";
+  }
+  if (rejected) {
+    return "Edit is unavailable because an item from this drying entry was rejected.";
+  }
+  return "";
 }

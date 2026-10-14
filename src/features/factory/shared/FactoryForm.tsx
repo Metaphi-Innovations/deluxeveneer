@@ -37,6 +37,7 @@ import {
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
 import { FactoryPageShell } from "./FactoryPageShell";
+import { FactoryProcessCreatePage } from "./FactoryProcessCreatePage";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
   buildFactoryInitialValues,
@@ -167,8 +168,7 @@ export function FactoryForm<Row extends FactoryRecord>({
     setValues(buildFactoryInitialValues(formSections, row));
   }, [formSections, row]);
 
-  const shouldShowItemTable =
-    (mode === "view" || mode === "edit") && definition.slug !== "slicing";
+  const shouldShowItemTable = mode === "view" || mode === "edit";
   const itemTableFields = shouldShowItemTable
     ? definition.slug === "sawing"
       ? sawingItemTableFields
@@ -196,7 +196,7 @@ export function FactoryForm<Row extends FactoryRecord>({
               },
               "itemSubCategory",
             )
-          : definition.slug === "embossing"
+            : definition.slug === "embossing"
             ? insertItemDetailField(
                 factoryItemTableFields.filter(
                   (field) =>
@@ -212,7 +212,11 @@ export function FactoryForm<Row extends FactoryRecord>({
                 },
                 "itemSubCategory",
               )
-            : factoryItemTableFields
+            : definition.slug === "grouping" && mode === "edit"
+              ? factoryItemTableFields.filter(
+                  (field) => field.key !== "itemSubCategory" && field.key !== "grade",
+                )
+              : factoryItemTableFields
     : [];
   const visibleFormSections =
     shouldShowItemTable
@@ -233,9 +237,13 @@ export function FactoryForm<Row extends FactoryRecord>({
 
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
 
+  const leaveView = () => {
+    navigate(listPath);
+  };
+
   const handleBack = () => {
     if (mode === "view") {
-      navigate(listPath);
+      leaveView();
       return;
     }
 
@@ -255,6 +263,17 @@ export function FactoryForm<Row extends FactoryRecord>({
       action: () => navigate(listPath),
     });
   };
+
+  if (
+    mode === "edit" &&
+    (definition.slug === "slicing" ||
+      definition.slug === "splicing" ||
+      definition.slug === "cnc-fluting" ||
+      definition.slug === "embossing" ||
+      definition.slug === "finishing")
+  ) {
+    return <FactoryProcessCreatePage definition={definition} mode="edit" />;
+  }
 
   if ((mode === "edit" || mode === "view") && !row) {
     return (
@@ -299,7 +318,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       backNav={{
         label: `Back to ${definition.title}`,
         to: listPath,
-        onBack: handleBack,
+        onBack: mode === "view" ? leaveView : handleBack,
       }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
@@ -311,7 +330,7 @@ export function FactoryForm<Row extends FactoryRecord>({
     >
       {mode === "view" ? (
         row ? (
-          <FactoryRecordView definition={definition} onBack={handleBack} row={row} />
+          <FactoryRecordView definition={definition} onBack={leaveView} row={row} />
         ) : null
       ) : (
       <MasterSectionCard>
@@ -365,7 +384,11 @@ export function FactoryForm<Row extends FactoryRecord>({
           ))}
 
           {shouldShowItemTable && row && itemTableFields.length > 0 ? (
-            <FactoryItemTable fields={itemTableFields} row={row} />
+            <FactoryItemTable
+              fields={itemTableFields}
+              row={row}
+              wideItemName={definition.slug === "grouping"}
+            />
           ) : null}
 
           <Box
@@ -412,39 +435,43 @@ export function FactoryForm<Row extends FactoryRecord>({
       </MasterSectionCard>
       )}
 
-      <ConfirmationDialog
-        cancelLabel="Stay on Page"
-        confirmLabel="Leave"
-        description={leaveConfirmation.description}
-        onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
-        onConfirm={() => {
-          const act = leaveConfirmation.action;
-          setLeaveConfirmation((c) => ({ ...c, open: false }));
-          act();
-        }}
-        open={leaveConfirmation.open}
-        title={leaveConfirmation.title}
-        tone="default"
-      />
+      {mode === "view" ? null : (
+        <ConfirmationDialog
+          cancelLabel="Stay on Page"
+          confirmLabel="Leave"
+          description={leaveConfirmation.description}
+          onClose={() => setLeaveConfirmation((c) => ({ ...c, open: false }))}
+          onConfirm={() => {
+            const act = leaveConfirmation.action;
+            setLeaveConfirmation((c) => ({ ...c, open: false }));
+            act();
+          }}
+          open={leaveConfirmation.open}
+          title={leaveConfirmation.title}
+          tone="default"
+        />
+      )}
 
-      <ConfirmationDialog
-        cancelLabel="Cancel"
-        confirmLabel={primaryLabel}
-        description={`Are you sure you want to ${primaryLabel.toLowerCase()} this factory record?`}
-        onClose={() => setSaveConfirmationOpen(false)}
-        onConfirm={() => {
-          setSaveConfirmationOpen(false);
-          const successMsg = `${definition.title} record ${mode === "add" ? "created" : "updated"} successfully.`;
-          navigate(paths.list, {
-            state: {
-              factoryFlashMessage: successMsg,
-            },
-          });
-        }}
-        open={saveConfirmationOpen}
-        title={`Confirm ${primaryLabel}`}
-        tone="default"
-      />
+      {mode === "view" ? null : (
+        <ConfirmationDialog
+          cancelLabel="Cancel"
+          confirmLabel={primaryLabel}
+          description={`Are you sure you want to ${primaryLabel.toLowerCase()} this factory record?`}
+          onClose={() => setSaveConfirmationOpen(false)}
+          onConfirm={() => {
+            setSaveConfirmationOpen(false);
+            const successMsg = `${definition.title} record ${mode === "add" ? "created" : "updated"} successfully.`;
+            navigate(paths.list, {
+              state: {
+                factoryFlashMessage: successMsg,
+              },
+            });
+          }}
+          open={saveConfirmationOpen}
+          title={`Confirm ${primaryLabel}`}
+          tone="default"
+        />
+      )}
     </FactoryPageShell>
   );
 }
@@ -493,14 +520,15 @@ function isFactoryItemSection(section: FactoryFormSection) {
 function FactoryItemTable({
   fields,
   row,
+  wideItemName = false,
 }: {
   fields: readonly MasterFieldDefinition[];
   row: FactoryRecord;
+  wideItemName?: boolean;
 }) {
-  const tableWidth = fields.reduce(
-    (total, field) => total + getFactoryItemColumnWidth(field.label),
-    0,
-  );
+  const columnWidth = (field: MasterFieldDefinition) =>
+    wideItemName && field.key === "itemName" ? 220 : getFactoryItemColumnWidth(field.label);
+  const tableWidth = fields.reduce((total, field) => total + columnWidth(field), 0);
 
   return (
     <Box
@@ -554,7 +582,7 @@ function FactoryItemTable({
                     <TableCell
                       key={field.key}
                       sx={(theme) => ({
-                        minWidth: getFactoryItemColumnWidth(field.label),
+                        minWidth: columnWidth(field),
                         backgroundColor: theme.customTokens.neutrals[100],
                         borderBottom: `1px solid ${theme.customTokens.borders.default}`,
                         borderRight: `1px solid ${theme.customTokens.borders.divider}`,

@@ -233,6 +233,72 @@ export function listSawingFlowRows(
   return items.map(presentRow);
 }
 
+function visibleSawingRows(rows: readonly SawingFlowRow[], hidden: ReadonlySet<string>) {
+  return rows.filter((row) => !hidden.has(String(row.id)));
+}
+
+export function getSawingDoneEditBlockReason(selected: SawingFlowRow) {
+  const state = readState();
+  const hidden = new Set(state.hiddenIds);
+  const group = [
+    ...state.extraDone,
+    ...state.extraHistory,
+    ...state.extraRejected,
+    ...(sawingDefinition.rows as unknown as SawingFlowRow[]),
+  ].filter((row) => sameSawingCreation(row, selected));
+  const visible = visibleSawingRows(group, hidden);
+  const forwarded = visible.some((row) => row.listingState === "history");
+  const rejected = visible.some((row) => row.listingState === "rejected");
+
+  if (!forwarded && !rejected) return "";
+
+  if (forwarded && rejected) {
+    return "Edit is unavailable because an item from this sawing entry was forwarded to Sawing Inspection and an item was rejected.";
+  }
+
+  if (forwarded) {
+    return "Edit is unavailable because an item from this sawing entry was forwarded to Sawing Inspection.";
+  }
+
+  return "Edit is unavailable because an item from this sawing entry was rejected.";
+}
+
+export function restoreSawingDoneFromInspection(sourceDoneId: string) {
+  const id = sourceDoneId.trim();
+  if (!id) return;
+
+  const state = readState();
+  const historyMatches = state.extraHistory.filter(
+    (row) => String(row.sourceDoneId ?? "") === id || String(row.id) === id,
+  );
+  const historyIds = new Set(historyMatches.map((row) => String(row.id)));
+  const hidden = new Set(state.hiddenIds);
+  historyIds.forEach((historyId) => hidden.add(historyId));
+  hidden.delete(id);
+
+  const inExtraDone = state.extraDone.some((row) => String(row.id) === id);
+  const historyRow = historyMatches[0];
+  const extraDone =
+    inExtraDone || !historyRow
+      ? state.extraDone
+      : [
+          presentRow({
+            ...historyRow,
+            id,
+            sourceDoneId: id,
+            listingState: "done",
+          }),
+          ...state.extraDone,
+        ];
+
+  writeState({
+    ...state,
+    extraDone,
+    extraHistory: state.extraHistory.filter((row) => !historyIds.has(String(row.id))),
+    hiddenIds: Array.from(hidden),
+  });
+}
+
 export function searchSawingFlowRows(rows: readonly SawingFlowRow[], search: string) {
   const query = search.trim().toLowerCase();
   if (!query) return [...rows];
@@ -371,6 +437,7 @@ export function recordSawingHistory(rows: readonly SawingFlowRow[]) {
   const today = new Date().toISOString().slice(0, 10);
   const history = rows.map((row, index) => ({
     ...presentRow(row),
+    sourceDoneId: String(row.sourceDoneId || row.id),
     id: `saw-history-${Date.now()}-${index}`,
     listingState: "history",
     processDate: today,
@@ -386,6 +453,7 @@ export function recordSawingRejection(row: SawingFlowRow, remark: string) {
   const state = readState();
   const rejected = presentRow({
     ...row,
+    sourceDoneId: String(row.sourceDoneId || row.id),
     id: `saw-rejected-${Date.now()}`,
     listingState: "rejected",
     processDate: new Date().toISOString().slice(0, 10),

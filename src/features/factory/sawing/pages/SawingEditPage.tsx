@@ -45,6 +45,7 @@ import {
   sumSawingLineCbm,
 } from "../sawingCreateRules";
 import {
+  getSawingDoneEditBlockReason,
   getSawingEditContext,
   listSawingFlowRows,
 } from "../sawingFrontendStore";
@@ -66,7 +67,6 @@ type EditLineItem = {
 };
 
 const itemFields = [
-  { key: "logNo", label: "Log No.", readOnly: false },
   { key: "batchNoCode", label: "Batch No", readOnly: false },
   { key: "length", label: "Length", readOnly: true },
   { key: "width", label: "Width", readOnly: false },
@@ -214,6 +214,22 @@ export function SawingEditPage() {
         title="Edit Sawing"
       >
         <Alert severity="warning">The selected Sawing Done record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  const editBlockReason = getSawingDoneEditBlockReason(selectedRow);
+  if (editBlockReason) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: "Sawing", to: "/factory/sawing?tab=done" },
+          { label: "Edit" },
+        ]}
+        title="Edit Sawing"
+      >
+        <Alert severity="warning">{editBlockReason}</Alert>
       </FactoryPageShell>
     );
   }

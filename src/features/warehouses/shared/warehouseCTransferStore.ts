@@ -112,6 +112,7 @@ function buildMovedWarehouseRow(
     amount,
     totalAmount: getString(row, ["totalAmount"]) || amount,
     remark: getString(row, ["remark"]),
+    createdBy: getString(row, ["createdBy"]),
     updatedBy: getString(row, ["updatedBy"]),
     qcStatus: "QC Pass",
     status: "Available",
