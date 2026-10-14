@@ -151,10 +151,73 @@ export function MasterListingPage({
   const addButtonLabel = `Add ${entityLabel}`;
   const searchPlaceholder = "Search...";
 
+  const getRecordDisplayName = (row: MasterRecord | null): string => {
+    if (!row) return `this ${entityLabel.toLowerCase()}`;
+
+    // Priority 1: Check known module-specific name fields
+    const candidates = [
+      row.colorName,
+      row.customerName,
+      row.supplierName,
+      row.transporterName,
+      row.warehouseName,
+      row.departmentName,
+      row.unitName,
+      row.gradeName,
+      row.cutName,
+      row.currencyName,
+      row.categoryName,
+      row.subCategoryName,
+      row.itemName,
+      row.companyName,
+      row.hsnCode,
+      row.gstPercentage ? `${row.gstPercentage}%` : "",
+      row.name,
+      row.code,
+      row.title,
+      row.symbolicName,
+      row.percentage ? `${row.percentage}%` : "",
+    ];
+
+    for (const val of candidates) {
+      if (val !== undefined && val !== null && String(val).trim() !== "") {
+        return String(val).trim();
+      }
+    }
+
+    // Priority 2: Check columns in definition order for first non-id, non-status, non-audit column
+    const skippedKeys = new Set([
+      "id",
+      "status",
+      "statusLabel",
+      "isActive",
+      "srNo",
+      "createdById",
+      "updatedById",
+      "createdBy",
+      "editedBy",
+      "updatedBy",
+      "createdAt",
+      "createdDate",
+      "updatedAt",
+      "updatedDate",
+      "actions",
+    ]);
+
+    for (const col of localDefinition.columns) {
+      if (!skippedKeys.has(col.key)) {
+        const val = row[col.key];
+        if (val !== undefined && val !== null && String(val).trim() !== "") {
+          return formatMasterValue(val);
+        }
+      }
+    }
+
+    return String(row.id || entityLabel);
+  };
+
   const executeStatusChange = async (row: MasterRecord, checked: boolean) => {
-    const itemName =
-      formatMasterValue(row.name || row.itemName || row.categoryName || row.code || row.id) ||
-      entityLabel;
+    const itemName = getRecordDisplayName(row);
 
     try {
       if (onStatusChange) {
@@ -320,13 +383,7 @@ export function MasterListingPage({
         confirmLabel="Deactivate"
         description={`Are you sure you want to deactivate ${
           statusConfirmDialog.row
-            ? `"${formatMasterValue(
-                statusConfirmDialog.row.name ||
-                  statusConfirmDialog.row.itemName ||
-                  statusConfirmDialog.row.categoryName ||
-                  statusConfirmDialog.row.code ||
-                  statusConfirmDialog.row.id,
-              )}"`
+            ? `"${getRecordDisplayName(statusConfirmDialog.row)}" ${entityLabel.toLowerCase()}`
             : `this ${entityLabel.toLowerCase()}`
         }? Inactive records may not appear in active transaction lookups.`}
         onClose={() =>

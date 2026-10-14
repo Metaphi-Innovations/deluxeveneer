@@ -38,6 +38,7 @@ import {
   type InwardItemDetail,
 } from "../api/inwardApi";
 import {
+  getInwardStockLabel,
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
 } from "../inward/supportedInwardTypes";
@@ -347,15 +348,17 @@ export function ApiInwardViewForm({
     navigate(listPath, { replace: true, flushSync: true });
   };
 
+  const viewStockTitle = `View ${getInwardStockLabel(inventorySlug)}`;
+
   if (isLoading) {
     return (
       <InventoryPageShell
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "View Stock" },
+          { label: viewStockTitle },
         ]}
-        title="View Stock"
+        title={viewStockTitle}
         subtitle=" "
       >
         <MasterSectionCard>
@@ -371,9 +374,9 @@ export function ApiInwardViewForm({
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "View Stock" },
+          { label: viewStockTitle },
         ]}
-        title="View Stock"
+        title={viewStockTitle}
       >
         <MasterSectionCard>
           <Alert severity="error">
@@ -392,17 +395,17 @@ export function ApiInwardViewForm({
   return (
     <InventoryPageShell
       backNav={{
-        label: "Back to Stock",
+        label: `Back to ${getInwardStockLabel(inventorySlug)}`,
         to: listPath,
         onBack: closeForm,
       }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
-        { label: "View Stock" },
+        { label: viewStockTitle },
       ]}
       subtitle=" "
-      title="View Stock"
+      title={viewStockTitle}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
           <Button
@@ -429,110 +432,6 @@ export function ApiInwardViewForm({
       <Stack spacing={1.5}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-        <Box
-          sx={{
-            ...formSectionCardSx(theme),
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "stretch",
-            gap: 2,
-            px: 2,
-            py: 1.75,
-          }}
-        >
-          <Stack spacing={0.5} sx={{ flex: "1 1 220px", minWidth: 0 }}>
-            <Typography
-              sx={{
-                fontSize: "0.6875rem",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: theme.customTokens.text.secondary,
-              }}
-            >
-              Inward Sr No
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.2,
-                color: theme.customTokens.text.primary,
-              }}
-            >
-              {detail.inwardSrNo || "—"}
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "0.8125rem",
-                color: theme.customTokens.text.secondary,
-              }}
-            >
-              {detail.supplierName || "—"} · Invoice {detail.invoiceNo || "—"}
-            </Typography>
-          </Stack>
-
-          <SummaryMetric
-            label="Inward Date"
-            value={formatDateDisplay(detail.inwardDate)}
-          />
-          <SummaryMetric label="Currency" value={detail.currency || "—"} />
-          {!isStorageWarehouseView ? (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                gap: 0.5,
-                minWidth: 140,
-              }}
-            >
-              <Typography
-                sx={{
-                  fontSize: "0.6875rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                QC Status
-              </Typography>
-              <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
-                <Chip
-                  label={`${qcCounts.passCount} Pass`}
-                  size="small"
-                  variant="outlined"
-                  color="success"
-                  sx={{
-                    height: 22,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    "& .MuiChip-label": { px: 0.85 },
-                  }}
-                />
-                <Chip
-                  label={`${qcCounts.failCount} Fail`}
-                  size="small"
-                  variant="outlined"
-                  color="error"
-                  sx={{
-                    height: 22,
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    "& .MuiChip-label": { px: 0.85 },
-                  }}
-                />
-              </Stack>
-            </Box>
-          ) : null}
-          <SummaryMetric
-            emphasize
-            label="Total"
-            value={formatMoney(invoiceSummary.total)}
-          />
-        </Box>
 
         <Box sx={formSectionCardSx(theme)}>
           <Stack spacing={1.25}>
@@ -827,52 +726,6 @@ export function ApiInwardViewForm({
   );
 }
 
-function SummaryMetric({
-  emphasize = false,
-  label,
-  value,
-}: {
-  emphasize?: boolean;
-  label: string;
-  value: string;
-}) {
-  const theme = useTheme();
-
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: 0.35,
-        minWidth: emphasize ? 140 : 110,
-      }}
-    >
-      <Typography
-        sx={{
-          fontSize: "0.6875rem",
-          fontWeight: 600,
-          letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          color: theme.customTokens.text.secondary,
-        }}
-      >
-        {label}
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: emphasize ? "1.125rem" : "0.9375rem",
-          fontWeight: emphasize ? 700 : 600,
-          fontVariantNumeric: "tabular-nums",
-          color: theme.customTokens.text.primary,
-          lineHeight: 1.25,
-        }}
-      >
-        {value}
-      </Typography>
-    </Box>
-  );
-}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   const theme = useTheme();
