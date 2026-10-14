@@ -14,7 +14,7 @@ export function AddFinishingPage() {
 }
 
 export function EditFinishingPage() {
-  return <FactoryForm definition={finishingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={finishingDefinition} mode="edit" />;
 }
 
 export function ViewFinishingPage() {

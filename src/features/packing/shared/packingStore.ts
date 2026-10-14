@@ -621,15 +621,18 @@ export function syncOrderFulfillmentStatus(orderNo: string) {
 
   const hasIssued = related.some((record) => record.packingState === "issued");
   const hasDone = related.some((record) => record.packingState === "done");
-  const allDispatched = related.every(
+  const anyDispatched = related.some((record) => record.packingState === "dispatched");
+  const allDispatched = related.length > 0 && related.every(
     (record) => record.packingState === "dispatched",
   );
 
   let nextStatus: string | null = null;
-  if (hasIssued) {
-    nextStatus = "Packing Scheduled";
-  } else if (hasDone || allDispatched) {
-    nextStatus = "Ready for Dispatch";
+  if (allDispatched) {
+    nextStatus = "Completed";
+  } else if (anyDispatched) {
+    nextStatus = "Partially Dispatched";
+  } else if (hasDone || hasIssued) {
+    nextStatus = "In Production";
   }
 
   if (!nextStatus || normalizeStatus(order.status) === normalizeStatus(nextStatus)) {
@@ -641,30 +644,20 @@ export function syncOrderFulfillmentStatus(orderNo: string) {
 
 export function isRawOrderPackingEligible(order: OrderRecord) {
   const status = normalizeStatus(order.status);
-  if (status === "draft" || status === "cancelled") {
+  if (status === "cancelled" || status === "completed") {
     return false;
   }
 
-  if (getOrderVariantFromType(order.orderType) !== "raw") {
-    return false;
-  }
-
-  return (
-    status === "confirmed" ||
-    status === "in production" ||
-    status === "packing scheduled" ||
-    status === "ready for dispatch"
-  );
+  return true;
 }
 
 export function isFinishedOrderPackingEligible(order: OrderRecord) {
-  const variant = getOrderVariantFromType(order.orderType);
-  if (variant === null || variant === "raw") {
+  const status = normalizeStatus(order.status);
+  if (status === "cancelled" || status === "completed") {
     return false;
   }
 
-  const status = normalizeStatus(order.status);
-  return status === "packing scheduled" || status === "ready for dispatch";
+  return true;
 }
 
 export function isOrderItemPackingEligible(order: OrderRecord) {

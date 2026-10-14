@@ -14,7 +14,7 @@ export function AddSplicingPage() {
 }
 
 export function EditSplicingPage() {
-  return <FactoryForm definition={splicingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={splicingDefinition} mode="edit" />;
 }
 
 export function ViewSplicingPage() {

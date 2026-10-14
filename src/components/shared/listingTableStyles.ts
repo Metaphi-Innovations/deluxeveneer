@@ -235,27 +235,35 @@ export function listingPaginationIconButtonSx(theme: Theme) {
 
 export function listingPageNumberButtonSx(theme: Theme, isActive: boolean) {
   return {
-    minWidth: 32,
-    width: 32,
-    height: 32,
-    p: 0,
-    borderRadius: "50%",
-    border: "none",
+    minWidth: 30,
+    height: 30,
+    px: 1,
+    py: 0,
+    borderRadius: `${theme.customTokens.radius.sm}px`,
+    border: `1px solid ${
+      isActive
+        ? theme.customTokens.brand.primary
+        : theme.customTokens.borders.default
+    }`,
     backgroundColor: isActive
-      ? (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.15)" : "#E5E7EB")
-      : "transparent",
+      ? theme.customTokens.brand.primary
+      : theme.customTokens.surfaces.surface,
     color: isActive
-      ? theme.palette.text.primary
+      ? theme.customTokens.text.inverse
       : theme.customTokens.text.secondary,
     fontSize: portalTypography.helper.fontSize,
-    fontWeight: isActive ? 700 : 500,
+    fontWeight: isActive ? 600 : 500,
     textTransform: "none" as const,
     boxShadow: "none",
     "&:hover": {
       boxShadow: "none",
+      borderColor: theme.customTokens.brand.primary,
       backgroundColor: isActive
-        ? (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.22)" : "#D1D5DB")
-        : (theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "#F3F4F6"),
+        ? theme.customTokens.brand.secondary
+        : theme.customTokens.surfaces.alt,
+      color: isActive
+        ? theme.customTokens.text.inverse
+        : theme.customTokens.brand.primary,
     },
   };
 }

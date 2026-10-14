@@ -161,7 +161,7 @@ export function QuickAddUnitModal({
               </Typography>
               <TextField
                 fullWidth
-                placeholder="e.g. PCS, MTR"
+                placeholder="PCS, MTR"
                 value={symbolicName}
                 onChange={(e) => setSymbolicName(e.target.value)}
                 sx={(theme) => ({

@@ -61,6 +61,7 @@ function mapApiItem(item: ProductionInventoryItem): ConsumablesRow {
     amount: String(item.amount ?? ""),
     totalAmount: String(item.totalAmount ?? item.amount ?? ""),
     remark: String(item.remark ?? ""),
+    createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
     inventorySlug: item.inventorySlug
       ? String(item.inventorySlug)

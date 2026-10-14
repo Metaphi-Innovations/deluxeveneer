@@ -95,26 +95,18 @@ function FieldLabel({ children }: { children: string }) {
   );
 }
 
-function ReadOnlyDetailField({ label, value }: { label: string; value: unknown }) {
-  return (
-    <Stack spacing={0.75}>
-      <FieldLabel>{label}</FieldLabel>
-      <TextField
-        fullWidth
-        value={displayValue(value)}
-        slotProps={{ input: { readOnly: true } }}
-        sx={(theme) => getCompactFieldSx(theme, "readOnly")}
-      />
-    </Stack>
-  );
-}
-
 export function DryingCreateDialog({
+  minimumLeaves = 1,
+  mode = "create",
+  maximumLeaves,
   onClose,
   onSave,
   open,
   row,
 }: {
+  minimumLeaves?: number;
+  mode?: "create" | "edit";
+  maximumLeaves?: number;
   onClose: () => void;
   onSave: (entry: { driedLeaves: number; dryingDate: string; remark: string }) => void;
   open: boolean;
@@ -125,40 +117,33 @@ export function DryingCreateDialog({
   const [dryingDate, setDryingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const availableLeaves = dryingLeafCount(row);
+  const availableLeaves = maximumLeaves ?? dryingLeafCount(row);
 
   useEffect(() => {
     if (!open) return;
-    setLeaves("");
-    setDryingDate(new Date().toISOString().slice(0, 10));
-    setRemark("");
+    const nextAvailable = maximumLeaves ?? dryingLeafCount(row);
+    setLeaves(
+      mode === "edit"
+        ? String(dryingReceivedLeafCount(row) || "")
+        : String(nextAvailable || ""),
+    );
+    setDryingDate(
+      mode === "edit"
+        ? String(row?.dryingDate || row?.issueDate || new Date().toISOString().slice(0, 10)).slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
+    );
+    setRemark(mode === "edit" ? String(row?.remark || "") : "");
     setSubmitted(false);
-  }, [open, row]);
+  }, [maximumLeaves, mode, open, row]);
 
   const driedLeaves = Number(leaves);
   const invalid =
     leaves.trim() === "" ||
     !Number.isInteger(driedLeaves) ||
-    driedLeaves <= 0 ||
+    driedLeaves < minimumLeaves ||
     driedLeaves > availableLeaves;
   const dateMissing = dryingDate.trim() === "";
   const previewArea = dryingLeafArea(row?.length, row?.width, !invalid ? driedLeaves : 0);
-
-  const slicingFields: Array<[string, unknown]> = [
-    ["Storage Sr No.", row?.storageSrNo ?? row?.id],
-    ["Issue Date", row?.issueDate],
-    ["Item Name", row?.itemName],
-    ["Sub Category", row?.subCategory ?? row?.itemSubCategory],
-    ["Log Code", row?.logCode || row?.logNo || row?.batchNo],
-    ["Bundle Number", row?.bundleNumber],
-    ["Pallet No", row?.palletNo],
-    ["Length", row?.length],
-    ["Width", row?.width],
-    ["Thickness", row?.thickness || row?.height],
-    ["Received No of Leaves", dryingReceivedLeafCount(row) || "-"],
-    ["Available No of Leaves", availableLeaves || "-"],
-    ["Total Sq Meter", row?.totalSqMeter ?? row?.sqm],
-  ];
 
   const itemColumns: Array<{ key: string; label: string; minWidth: number; value?: string }> = [
     { key: "itemName", label: "Item Name", minWidth: 170, value: displayValue(row?.itemName) },
@@ -218,7 +203,7 @@ export function DryingCreateDialog({
           py: dialogTheme.spacing(1.5),
         })}
       >
-        Create Drying
+        {mode === "edit" ? "Edit Drying" : "Create Drying"}
       </DialogTitle>
       <DialogContent
         sx={(dialogTheme) => ({
@@ -227,30 +212,6 @@ export function DryingCreateDialog({
         })}
       >
         <Stack spacing={2}>
-          <Box sx={(dialogTheme) => formSectionCardSx(dialogTheme)}>
-            <Stack sx={(dialogTheme) => ({ gap: dialogTheme.spacing(1.5) })}>
-              <FormSectionHeader title="Slicing Details" />
-              <Box
-                sx={(dialogTheme) => ({
-                  display: "grid",
-                  gap: dialogTheme.spacing(2),
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(3, minmax(0, 1fr))",
-                  },
-                })}
-              >
-                {slicingFields.map(([label, value]) => (
-                  <ReadOnlyDetailField key={label} label={label} value={value} />
-                ))}
-                <Box sx={{ gridColumn: "1 / -1" }}>
-                  <ReadOnlyDetailField label="Remark" value={row?.remark} />
-                </Box>
-              </Box>
-            </Stack>
-          </Box>
-
           <Box sx={{ maxWidth: 280 }}>
             <Stack spacing={0.75}>
               <FieldLabel>Drying Date *</FieldLabel>
@@ -292,10 +253,12 @@ export function DryingCreateDialog({
                             sx={{
                               ...transactionTableHeaderCellSx(theme, column.minWidth),
                               borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                              ...(column.key === "noOfLeaves"
+                                ? { width: 160, minWidth: 160, maxWidth: 160 }
+                                : {}),
                             }}
                           >
                             {column.label}
-                            {column.key === "noOfLeaves" ? " *" : ""}
                           </TableCell>
                         ))}
                       </TableRow>
@@ -308,20 +271,30 @@ export function DryingCreateDialog({
                             sx={{
                               ...transactionTableBodyCellSx(theme),
                               borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                              ...(column.key === "noOfLeaves"
+                                ? { width: 160, minWidth: 160, maxWidth: 160 }
+                                : {}),
                             }}
                           >
                             {column.key === "noOfLeaves" ? (
                               <TextField
-                                autoFocus
                                 error={submitted && invalid}
-                                fullWidth
-                                placeholder="Leaves"
+                                onFocus={(event) => event.target.blur()}
                                 size="small"
+                                slotProps={{ htmlInput: { readOnly: true, tabIndex: -1 } }}
                                 value={leaves}
-                                onChange={(event) =>
-                                  setLeaves(event.target.value.replace(/[^\d]/g, ""))
-                                }
-                                sx={getCompactFieldSx(theme, submitted && invalid ? "error" : "default")}
+                                sx={{
+                                  ...getCompactFieldSx(
+                                    theme,
+                                    submitted && invalid ? "error" : "readOnly",
+                                  ),
+                                  width: 140,
+                                  maxWidth: 140,
+                                  "& .MuiInputBase-root, & .MuiInputBase-input": {
+                                    cursor: "default",
+                                    caretColor: "transparent",
+                                  },
+                                }}
                               />
                             ) : (
                               <Typography
@@ -350,7 +323,8 @@ export function DryingCreateDialog({
                     fontSize: dialogTheme.typography.caption.fontSize,
                   })}
                 >
-                  Enter a whole number of leaves up to {availableLeaves}.
+                  Enter a whole number of leaves
+                  {minimumLeaves > 1 ? ` from ${minimumLeaves}` : ""} up to {availableLeaves}.
                 </Typography>
               ) : null}
             </Stack>
@@ -393,7 +367,7 @@ export function DryingCreateDialog({
           sx={recordFormActionButtonSx}
           variant="contained"
         >
-          Save
+          {mode === "edit" ? "Update" : "Save"}
         </Button>
       </DialogActions>
     </Dialog>

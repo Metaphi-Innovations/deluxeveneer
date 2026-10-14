@@ -1,3 +1,26 @@
+function readWholeLeafCount(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!/^\d+$/u.test(text)) return 0;
+  const parsed = Number(text);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+export function readSplicingReferenceLeaves(
+  sourceRow: Record<string, unknown> | undefined,
+) {
+  if (!sourceRow) return 0;
+  for (const key of [
+    "availableNoOfLeaves",
+    "receivedNoOfLeaves",
+    "noOfLeaves",
+    "issuedLeafCount",
+  ]) {
+    const leaves = readWholeLeafCount(sourceRow[key]);
+    if (leaves > 0) return leaves;
+  }
+  return 0;
+}
+
 export const splicingProcessDate = {
   key: "splicingDate",
   label: "Splicing Date",

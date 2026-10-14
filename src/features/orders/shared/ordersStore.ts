@@ -40,6 +40,8 @@ export interface OrderLineItem {
   baseWidth: string;
   baseThickness: string;
   amount: string;
+  designCode?: string;
+  structuredCode?: string;
   remark: string;
 }
 
@@ -156,6 +158,7 @@ export const orderModuleConfig: OrderModuleConfig = {
 export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
   [
     { key: "orderDate", label: "Order Date", filterable: true },
+    { key: "deliveryDate", label: "Required Delivery Date", filterable: true },
     { key: "customerName", label: "Customer Name", filterable: true },
     { key: "orderNo", label: "Order No", filterable: true },
     { key: "orderItemNumber", label: "Order Item No", filterable: true },
@@ -163,6 +166,7 @@ export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] 
     { key: "itemName", label: "Item Name", filterable: true },
     { key: "quantitySheets", label: "No of Sheets", filterable: true },
     { key: "priority", label: "Priority", filterable: true },
+    { key: "status", label: "Order Status", filterable: true },
     { key: "dispatchQuantity", label: "Dispatch Quantity", filterable: true },
     { key: "issuedQuantity", label: "Issued Quantity", filterable: true },
     { key: "remark", label: "Remark" },
@@ -203,12 +207,12 @@ const salesCoordinatorOptions = [
   "Vikram Mehta",
 ] as const;
 
-const statusOptions = [
+export const statusOptions = [
   "Draft",
   "Confirmed",
   "In Production",
-  "Packing Scheduled",
-  "Ready for Dispatch",
+  "Partially Dispatched",
+  "Completed",
   "Cancelled",
 ] as const;
 
@@ -229,6 +233,12 @@ export function getOrderFormFields(): readonly MasterFieldDefinition[] {
       required: true,
     },
     {
+      key: "deliveryDate",
+      label: "Required Delivery Date",
+      type: "date",
+      required: true,
+    },
+    {
       key: "customerName",
       label: "Customer Name",
       type: "select",
@@ -239,6 +249,12 @@ export function getOrderFormFields(): readonly MasterFieldDefinition[] {
       label: "Priority",
       type: "select",
       options: [...priorityOptions],
+    },
+    {
+      key: "status",
+      label: "Order Status",
+      type: "select",
+      options: [...statusOptions],
     },
     {
       key: "remark",
@@ -259,11 +275,11 @@ export function getCreateOrderFormFields(
     .map((field) =>
       field.key === "orderType"
         ? {
-            ...field,
-            options: [orderTypeLabel],
-            placeholder: orderTypeLabel,
-            readOnly: true,
-          }
+          ...field,
+          options: [orderTypeLabel],
+          placeholder: orderTypeLabel,
+          readOnly: true,
+        }
         : field,
     );
 }
@@ -378,8 +394,79 @@ export function getOrderCreateVariant(
   );
 }
 
+const ORDERS_STORAGE_KEY = "deluxe_orders_records_v1";
+const ORDER_ITEMS_STORAGE_KEY = "deluxe_orders_line_items_v1";
+
+function getBrowserStorage(): Storage | null {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return null;
+  }
+  return window.localStorage;
+}
+
+function loadPersistedOrders(): { records: OrderRecord[]; lineItemsById: Map<string, OrderLineItem[]> } {
+  const seed = createInitialOrderState();
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return seed;
+  }
+
+  try {
+    const rawRecords = storage.getItem(ORDERS_STORAGE_KEY);
+    const rawItems = storage.getItem(ORDER_ITEMS_STORAGE_KEY);
+
+    if (!rawRecords) {
+      return seed;
+    }
+
+    const parsedRecords = JSON.parse(rawRecords) as Array<Record<string, unknown>>;
+    const records: OrderRecord[] = parsedRecords.map((r) => ({
+      ...(r as unknown as OrderRecord),
+      orderDate: r.orderDate ? new Date(String(r.orderDate)) : new Date(),
+      deliveryDate: r.deliveryDate ? new Date(String(r.deliveryDate)) : new Date(),
+      createdDate: r.createdDate ? new Date(String(r.createdDate)) : new Date(),
+      updatedDate: r.updatedDate ? new Date(String(r.updatedDate)) : new Date(),
+    }));
+
+    const lineItemsById = new Map<string, OrderLineItem[]>();
+    if (rawItems) {
+      const parsedItems = JSON.parse(rawItems) as Record<string, OrderLineItem[]>;
+      Object.entries(parsedItems).forEach(([orderId, items]) => {
+        lineItemsById.set(orderId, items);
+      });
+    }
+
+    // Merge any seed line items if missing from storage
+    seed.lineItemsById.forEach((items, key) => {
+      if (!lineItemsById.has(key)) {
+        lineItemsById.set(key, items);
+      }
+    });
+
+    return { records, lineItemsById };
+  } catch {
+    return seed;
+  }
+}
+
+function persistOrders(records: OrderRecord[], lineItemsById: Map<string, OrderLineItem[]>) {
+  const storage = getBrowserStorage();
+  if (!storage) return;
+
+  try {
+    storage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(records));
+    const itemsObj: Record<string, OrderLineItem[]> = {};
+    lineItemsById.forEach((val, key) => {
+      itemsObj[key] = val;
+    });
+    storage.setItem(ORDER_ITEMS_STORAGE_KEY, JSON.stringify(itemsObj));
+  } catch {
+    // Ignore storage quota or disabled storage errors
+  }
+}
+
 const orderListeners = new Set<() => void>();
-const initialOrderState = createInitialOrderState();
+const initialOrderState = loadPersistedOrders();
 let orderRecords = initialOrderState.records;
 const orderLineItemsById = initialOrderState.lineItemsById;
 
@@ -446,10 +533,10 @@ export function createOrderRecord(order: Partial<OrderDraft>) {
         order.deliveryDate instanceof Date
           ? order.deliveryDate
           : new Date(
-              timestamp.getFullYear(),
-              timestamp.getMonth(),
-              timestamp.getDate() + 12,
-            ),
+            timestamp.getFullYear(),
+            timestamp.getMonth(),
+            timestamp.getDate() + 12,
+          ),
       salesCoordinator,
       createdBy: salesCoordinator,
       updatedBy: salesCoordinator,
@@ -480,17 +567,17 @@ export function updateOrderRecord(
   orderRecords = orderRecords.map((record) =>
     record.id === recordId
       ? applyOrderLineItemSummary(
-          {
-            ...record,
-            ...sanitizeOrderDraft(updates),
-            updatedBy: normalizeString(
-              updates.salesCoordinator,
-              record.salesCoordinator || record.updatedBy,
-            ),
-            updatedDate: timestamp,
-          },
-          nextLineItems,
-        )
+        {
+          ...record,
+          ...sanitizeOrderDraft(updates),
+          updatedBy: normalizeString(
+            updates.salesCoordinator,
+            record.salesCoordinator || record.updatedBy,
+          ),
+          updatedDate: timestamp,
+        },
+        nextLineItems,
+      )
       : record,
   );
 
@@ -504,11 +591,11 @@ export function cancelOrderRecord(recordId: string) {
   orderRecords = orderRecords.map((record) =>
     record.id === recordId
       ? {
-          ...record,
-          status: "Cancelled",
-          updatedBy: "Order Desk",
-          updatedDate: timestamp,
-        }
+        ...record,
+        status: "Cancelled",
+        updatedBy: "Order Desk",
+        updatedDate: timestamp,
+      }
       : record,
   );
 
@@ -537,6 +624,7 @@ function getOrdersSnapshot() {
 }
 
 function emitOrdersChange() {
+  persistOrders(orderRecords, orderLineItemsById);
   orderListeners.forEach((listener) => listener());
 }
 
@@ -633,16 +721,16 @@ function applyOrderLineItemSummary(
     sqm:
       totalOrderSqm > 0
         ? totalOrderSqm.toLocaleString("en-US", {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3,
-          })
+          minimumFractionDigits: 3,
+          maximumFractionDigits: 3,
+        })
         : firstItem.sqm,
     totalSqm:
       totalSqm > 0
         ? totalSqm.toLocaleString("en-US", {
-            minimumFractionDigits: 3,
-            maximumFractionDigits: 3,
-          })
+          minimumFractionDigits: 3,
+          maximumFractionDigits: 3,
+        })
         : firstItem.totalSqm,
     remark: firstItem.remark,
     amount:
@@ -817,8 +905,8 @@ function createInitialOrderState() {
       {
         id: `order-${variant}-${index + 1}`,
         orderNo: `ORD-${isFinished ? "FIN" : "RAW"}-${String(202600 + index + 1).padStart(6, "0")}`,
-      orderDate,
-      customerName: pickValue(customerNames, index),
+        orderDate,
+        customerName: pickValue(customerNames, index),
         orderType: isFinished ? "Finished Order" : "Raw Order",
         priority: index % 3 === 0 ? "Urgent" : "Standard",
         productCategory: firstItem.productCategory,
@@ -834,13 +922,13 @@ function createInitialOrderState() {
         totalSqm: firstItem.totalSqm,
         amount: firstItem.amount,
         remark: firstItem.remark,
-      deliveryDate,
-      salesCoordinator,
-      createdBy: salesCoordinator,
-      updatedBy: index % 3 === 0 ? "Order Desk" : salesCoordinator,
-      createdDate,
-      updatedDate,
-      status: pickValue(statusOptions, index),
+        deliveryDate,
+        salesCoordinator,
+        createdBy: salesCoordinator,
+        updatedBy: index % 3 === 0 ? "Order Desk" : salesCoordinator,
+        createdDate,
+        updatedDate,
+        status: pickValue(statusOptions, index),
       },
       lineItems,
     );
@@ -849,8 +937,8 @@ function createInitialOrderState() {
     lineItemsById.set(record.id, lineItems);
   };
 
-  Array.from({ length: 2 }, (_, index) => createSeedOrder("raw", index));
-  Array.from({ length: 2 }, (_, index) => createSeedOrder("finished", index));
+  Array.from({ length: 6 }, (_, index) => createSeedOrder("raw", index));
+  Array.from({ length: 6 }, (_, index) => createSeedOrder("finished", index));
 
   return { records, lineItemsById };
 }

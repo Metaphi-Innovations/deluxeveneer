@@ -35,6 +35,7 @@ export interface InwardListItem {
   remark: string | null;
   status: boolean;
   sortOrder: number;
+  createdBy?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -72,6 +73,8 @@ export interface CreateInwardItemPayload {
   inwardItemCode?: string | null;
   factoryCode?: string | null;
   supplierItemName?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
   unitId?: string | null;
   unitName?: string | null;
   quantity?: number | null;
@@ -133,6 +136,8 @@ export interface InwardItemDetail {
   inwardItemCode?: string | null;
   factoryCode?: string | null;
   supplierItemName?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
   unitId?: string | null;
   unitName?: string | null;
   quantity?: number | null;
@@ -385,6 +390,7 @@ export function mapInwardListItemToRow(
     avSqf: "",
     plywoodType: "",
     mdfType: "",
+    createdBy: item.createdBy ?? "",
     updatedBy: item.updatedBy ?? "",
   };
 }

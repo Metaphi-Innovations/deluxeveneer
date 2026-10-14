@@ -14,7 +14,7 @@ export function AddGroupingPage() {
 }
 
 export function EditGroupingPage() {
-  return <FactoryForm definition={groupingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={groupingDefinition} mode="edit" />;
 }
 
 export function ViewGroupingPage() {

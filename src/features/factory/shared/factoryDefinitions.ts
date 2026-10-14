@@ -824,7 +824,6 @@ const dryingAddItemFields = [
 ] as const;
 
 const slicingProcessDetailFields = [
-  ["storageSrNo", "Storage Sr No."],
   ["issueDate", "Issue Date"],
   ["itemName", "Item Name"],
   ["bundleNumber", "Bundle Number"],
@@ -839,7 +838,6 @@ const slicingProcessDetailFields = [
 ] as const;
 
 const sawingProcessDetailFields = [
-  ["logNo", "Log No."],
   ["batchNoCode", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
@@ -855,7 +853,7 @@ const slicingDerivedAreaKeys = new Set(["sqm", "sqf"]);
 function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
   return [
     createSection(
-      "Process Details",
+      "Output Details",
       fields(slicingProcessDetailFields, rows).map((fieldDefinition) =>
         slicingDerivedAreaKeys.has(fieldDefinition.key)
           ? { ...fieldDefinition, readOnly: true }
@@ -868,9 +866,11 @@ function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
 function buildSawingFormSections(rows: readonly FactoryRecord[]) {
   return [
     createSection(
-      "Process Details",
+      "Output Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
-        fieldDefinition.key === "cbm" || fieldDefinition.key === "cbf"
+        fieldDefinition.key === "length" ||
+        fieldDefinition.key === "cbm" ||
+        fieldDefinition.key === "cbf"
           ? { ...fieldDefinition, readOnly: true }
           : fieldDefinition,
       ),
@@ -980,13 +980,10 @@ const flutingCreateFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["issuedNoOfSheets", "No of Sheets"],
-  ["issuedSqm", "SQM"],
-  ["issuedSqf", "SQF"],
+  ["sqm", "SQM"],
+  ["sqf", "SQF"],
   ["issueRemark", "Remark"],
   ["cncDate", "Fluting Date"],
-  ["outputNoOfSheets", "No of Sheets"],
-  ["outputSqm", "SQM"],
-  ["outputSqf", "SQF"],
   ["remark", "Remark"],
 ] as const;
 
@@ -1002,14 +999,10 @@ const embossingCreateFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["issuedNoOfSheets", "No of Sheets"],
-  ["issuedSqm", "SQM"],
-  ["issuedSqf", "SQF"],
+  ["sqm", "SQM"],
+  ["sqf", "SQF"],
   ["issueRemark", "Remark"],
   ["cncDate", "Embossing Date"],
-  ["outputNoOfSheets", "No of Sheets"],
-  ["outputSqm", "SQM"],
-  ["outputSqf", "SQF"],
-  ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const;
 

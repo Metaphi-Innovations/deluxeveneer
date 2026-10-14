@@ -14,7 +14,7 @@ export function AddSlicingPage() {
 }
 
 export function EditSlicingPage() {
-  return <FactoryForm definition={slicingDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={slicingDefinition} mode="edit" />;
 }
 
 export function ViewSlicingPage() {

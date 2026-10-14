@@ -28,6 +28,7 @@ export interface ProductionInventoryItem {
   amount: string | number;
   totalAmount?: string | number | undefined;
   remark?: string | undefined;
+  createdBy?: string | null | undefined;
   updatedBy?: string | null | undefined;
   inventorySlug?: string | undefined;
   inventoryRecordId?: string | undefined;

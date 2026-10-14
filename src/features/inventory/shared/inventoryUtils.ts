@@ -90,6 +90,22 @@ export function buildInventoryInitialValues(
   }, {});
 }
 
+export function buildWarehouseAddStockPath(input: {
+  inventorySlug: string;
+  returnTo: string;
+  warehouseId: string;
+  warehouseName: string;
+}) {
+  const url = new URL(
+    `/inventory/${input.inventorySlug}/add`,
+    window.location.origin,
+  );
+  url.searchParams.set("warehouseId", input.warehouseId);
+  url.searchParams.set("warehouseName", input.warehouseName);
+  url.searchParams.set("returnTo", input.returnTo);
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}
+
 export function getInventoryPaths(
   slug: string,
   tab: InventoryProcessTab = "issued",

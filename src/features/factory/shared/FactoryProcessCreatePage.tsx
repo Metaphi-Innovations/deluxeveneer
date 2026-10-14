@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Theme } from "@mui/material/styles";
 import {
+  Alert,
   Box,
   Button,
   IconButton,
@@ -16,9 +17,10 @@ import {
   useTheme,
 } from "@mui/material";
 import { Eye, Pencil, Plus, Save, Trash2, Upload, X } from "lucide-react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import {
@@ -47,10 +49,13 @@ import {
   useFactoryProcessRunTotals,
 } from "./factoryProcessRunStore";
 import {
+  applyMarquetryProcessResult,
   completeFactoryIssuedWork,
   factoryIssuedWorkToRow,
+  getFactoryIssuedWorkById,
   getFactoryIssuedWorkForListing,
   issueFactoryWork,
+  reopenMarquetryIssuedWork,
   useFactoryIssuedWorkItems,
 } from "./factoryIssuedWorkStore";
 import { orderCncFlutingCreateFields } from "../cnc-fluting/cncFlutingCreateRules";
@@ -58,10 +63,13 @@ import { dryingCreateLineItemFields, dryingCreateSourceColumns } from "../drying
 import { orderEmbossingCreateFields } from "../embossing/embossingCreateRules";
 import {
   applyGroupingCreateSnapshot,
+  getGroupingLeafLimitMessage,
   groupingCreateSourceColumns,
   groupingHiddenSourceKeys,
   orderGroupingCreateFields,
   prependGroupingGroupNoField,
+  readGroupingReferenceLeaves,
+  sumGroupingOutputLeaves,
 } from "../grouping/groupingCreateRules";
 import {
   isMarquetryOrderDetailsInvalid,
@@ -73,20 +81,45 @@ import {
   applySawingVolumeCalculation,
   buildSawingAvailableValues,
   calculateSawingVolumeValues,
+  getSawingAvailableCbmIssue,
+  getSawingCreateSubmitError,
+  getSawingProcessDetailError,
+  lockSawingProcessDetailValues,
+  readSawingSourceMeasures,
+  SAWING_CBM_EPSILON,
   saveSawingCreateProcess,
+  sumSawingLineCbm,
 } from "../sawing/sawingCreateRules";
 import {
   buildSlicingAvailableValues,
+  calculateTotalSlicingConsumption,
+  getSlicingCreateSubmitError,
   saveSlicingCreateProcess,
+  saveSlicingEditProcess,
+  SLICING_CBM_EPSILON,
   slicingCreateSourceColumns,
-  slicingSliceFitsStock,
+  validateSlicingRow,
 } from "../slicing/slicingCreateRules";
-import { splicingCreateSourceColumns } from "../splicing/splicingCreateRules";
 import {
-  calculateSlicingRemainder,
-  formatSlicingDecimal,
+  getSlicingDoneEditBlockReason,
+  getSlicingEditContext,
+  listSlicingDoneRows,
+} from "../slicing/slicingFrontendStore";
+import {
+  applySlicingDerivedAreas,
+  slicingStockCbm,
 } from "./slicingAreaCalculation";
+import {
+  readSplicingReferenceLeaves,
+  splicingCreateSourceColumns,
+} from "../splicing/splicingCreateRules";
 import { processDateBySlug } from "./factoryCreateProcessDates";
+import {
+  getMappedOutputEditContext,
+  isMappedOutputSlug,
+  readMappedOutputDate,
+  saveMappedOutputProcess,
+} from "./mappedOutputProcess";
 import {
   buildFactorySourceAllocationKey,
   computeProcessEntryBalance,
@@ -111,6 +144,7 @@ import {
   resolveRejectAvailableAreaLimits,
 } from "./RejectAvailableDetailsTable";
 import { marquetryDefinition, pressingDefinition } from "./factoryDefinitions";
+import { getIssuedGroupedSheetsTotal } from "./groupedStockIssueStore";
 import { allocateNextGroupNo, getExistingGroupNo, peekNextGroupNo } from "./groupNoStore";
 import {
   buildFactoryInitialValues,
@@ -130,6 +164,12 @@ import {
   type MarquetrySelectedDraft,
 } from "../marquetry/MarquetrySelectedItems";
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
+import {
+  getMarquetryEditContext,
+  readMarquetryDrafts,
+  readMarquetryOrderDetails,
+  readMarquetryWorkItemId,
+} from "../marquetry/marquetryEdit";
 import { PressingIssuedSelection } from "../pressing/PressingIssuedSelection";
 import { pressingCreateIssuedColumns } from "../pressing/pressingCreateIssuedColumns";
 import {
@@ -152,6 +192,8 @@ import {
 import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
   getOrderLineItems,
+  getOrderRecordByOrderNo,
+  updateOrderRecord,
   useOrderRecords,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
@@ -162,8 +204,10 @@ type FactoryCreateLocationState = {
   groupedStockIssueId?: string;
   issueDate?: Date | string | null;
   issueSheets?: number | string;
+  record?: SourceRow;
   sampleNo?: string;
   issuedFromSample?: boolean;
+  tab?: string;
   workItemId?: string;
   sourceRow?: SourceRow;
   sourceRows?: SourceRow[];
@@ -268,25 +312,175 @@ const fieldValueAliases: Record<string, readonly string[]> = {
   ...commonFactoryItemFieldAliases,
 };
 
+function leafValuesForLimit(slug: string, values: Record<string, string>) {
+  if (slug !== "splicing") return values;
+  const leaves = values.noOfLeaves?.trim() ?? "";
+  if (/^\d+$/u.test(leaves) && Number(leaves) > 0) return values;
+  return { ...values, noOfLeaves: values.noOfSheets ?? "" };
+}
+
+function slicingDoneRowToLineValues(
+  row: Record<string, unknown>,
+  sourceRow: Record<string, unknown>,
+) {
+  const read = (value: unknown) =>
+    value === undefined || value === null ? "" : String(value).trim();
+
+  return applySlicingDerivedAreas({
+    issueDate: read(row.issueDate || row.slicingDate || sourceRow.issueDate),
+    itemName: read(row.itemName || sourceRow.itemName),
+    bundleNumber: read(row.bundleNumber || sourceRow.bundleNumber),
+    palletNo: read(row.palletNo || sourceRow.palletNo),
+    length: read(row.length || sourceRow.length),
+    width: read(row.width || sourceRow.width),
+    thickness: read(row.thickness || row.height),
+    noOfLeaves: read(row.noOfLeaves || row.receivedLeaves || row.noOfSheets),
+    sqm: read(row.sqm || row.totalSqMeter),
+    sqf: read(row.sqf),
+    remark: read(row.remark),
+  });
+}
+
+function splicingDoneRowToLineValues(
+  row: Record<string, unknown>,
+  fields: readonly { key: string }[],
+) {
+  const nested = row.values;
+  const output =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : row;
+
+  return fields.reduce<Record<string, string>>((values, field) => {
+    const raw = output[field.key] ?? row[field.key];
+    values[field.key] =
+      raw instanceof Date && !Number.isNaN(raw.getTime())
+        ? `${raw.getFullYear()}-${String(raw.getMonth() + 1).padStart(2, "0")}-${String(raw.getDate()).padStart(2, "0")}`
+        : raw === undefined || raw === null
+          ? ""
+          : String(raw).trim();
+    return values;
+  }, {});
+}
+
+function parseProcessDate(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+
+  const text = String(value ?? "").slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(text);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
 export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   definition,
+  mode = "create",
 }: {
   definition: FactoryDefinition<Row>;
+  mode?: "create" | "edit";
 }) {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams<{ id: string }>();
   const paths = getFactoryPaths(definition.slug);
-  const nextRowId = useRef(1);
   const locationState = location.state as FactoryCreateLocationState | null;
+  const isSlicingEdit = mode === "edit" && definition.slug === "slicing";
+  const isSplicingEdit = mode === "edit" && definition.slug === "splicing";
+  const isGroupingEdit = mode === "edit" && definition.slug === "grouping";
+  const isMarquetryEdit = mode === "edit" && definition.slug === "marquetry";
+  const isMappedOutputEdit = mode === "edit" && isMappedOutputSlug(definition.slug);
+  const isProcessEdit =
+    isSlicingEdit || isSplicingEdit || isGroupingEdit || isMarquetryEdit || isMappedOutputEdit;
+  const groupingEditRow = useMemo(() => {
+    if (!isGroupingEdit) return undefined;
+    const passedRecord = locationState?.record;
+    if (passedRecord && String(passedRecord.id) === params.id) {
+      return passedRecord as Row;
+    }
+    const workItem = params.id ? getFactoryIssuedWorkById(params.id) : null;
+    if (workItem) {
+      return factoryIssuedWorkToRow(workItem) as Row;
+    }
+    return definition.rows.find((row) => String(row.id) === params.id);
+  }, [definition.rows, isGroupingEdit, locationState?.record, params.id]);
+  const groupingEditBlockReason = useMemo(() => {
+    if (!isGroupingEdit || !groupingEditRow) return "";
+    const issuedCount = getIssuedGroupedSheetsTotal(String(groupingEditRow.id));
+    if (issuedCount > 0) {
+      return "Edit is unavailable because sheets from this grouping have already been issued.";
+    }
+    return "";
+  }, [groupingEditRow, isGroupingEdit]);
+  const splicingEditRow = useMemo(() => {
+    if (!isSplicingEdit) return undefined;
+    const passedRecord = locationState?.record;
+    if (passedRecord && String(passedRecord.id) === params.id) {
+      return passedRecord as Row;
+    }
+    const workItem = params.id ? getFactoryIssuedWorkById(params.id) : null;
+    if (workItem) {
+      return factoryIssuedWorkToRow(workItem) as Row;
+    }
+    return definition.rows.find((row) => String(row.id) === params.id);
+  }, [definition.rows, isSplicingEdit, locationState?.record, params.id]);
+  const slicingEditContext = useMemo(() => {
+    if (!isSlicingEdit) return null;
+    const rows = definition.rows as readonly Record<string, any>[];
+    const passedRecord = locationState?.record as Record<string, any> | undefined;
+    const selected =
+      listSlicingDoneRows(rows).find((row) => String(row.id) === params.id) ??
+      (passedRecord && String(passedRecord.id) === params.id ? passedRecord : undefined) ??
+      rows.find((row) => String(row.id) === params.id);
+    if (!selected) return null;
+    return {
+      blockReason: getSlicingDoneEditBlockReason(selected, rows),
+      selected,
+      ...getSlicingEditContext(selected, rows),
+    };
+  }, [definition.rows, isSlicingEdit, locationState?.record, params.id]);
+  const pageLabel = isProcessEdit ? `Edit ${definition.title}` : `Create ${definition.title}`;
+  const listPath = isProcessEdit
+    ? `${paths.list}?tab=${locationState?.tab || "done"}`
+    : paths.list;
+  const nextRowId = useRef(1);
   const orderRecords = useOrderRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const sampleSheetRecords = useSampleSheetRecords();
+  const marquetryEditContext = useMemo(() => {
+    if (!isMarquetryEdit) return null;
+    return getMarquetryEditContext(params.id, definition.rows);
+  }, [definition.rows, factoryIssuedWorkItems, isMarquetryEdit, params.id]);
+  const mappedOutputEditContext = useMemo(() => {
+    if (!isMappedOutputEdit) return null;
+    return getMappedOutputEditContext(
+      definition.slug,
+      params.id,
+      definition.rows,
+      locationState?.record,
+    );
+  }, [
+    definition.rows,
+    definition.slug,
+    factoryIssuedWorkItems,
+    isMappedOutputEdit,
+    locationState?.record,
+    params.id,
+  ]);
   const usesOrderSelection = definition.slug === "marquetry";
-  const sourceRow =
-    (locationState?.sourceRow as Row | undefined) ??
-    (locationState?.sourceRows?.[0] as Row | undefined) ??
-    (definition.rows[0] as Row | undefined);
+  const sourceRow = isSlicingEdit
+    ? (slicingEditContext?.sourceRow as Row | undefined)
+    : isSplicingEdit
+      ? splicingEditRow
+      : isGroupingEdit
+        ? groupingEditRow
+      : isMappedOutputEdit
+        ? (mappedOutputEditContext?.sourceRow as Row | undefined)
+    : (locationState?.sourceRow as Row | undefined) ??
+      (locationState?.sourceRows?.[0] as Row | undefined) ??
+      (definition.rows[0] as Row | undefined);
   const allFields = useMemo(
     () => flattenFactorySections(definition.formSections),
     [definition.formSections],
@@ -314,8 +508,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     [definition.slug, sourceRow],
   );
   const lineItemColumns = useMemo(
-    () => lineItemFields.map((field) => mapFieldToColumn(field)),
-    [lineItemFields],
+    () => lineItemFields.map((field) => mapFieldToColumn(field, definition.slug)),
+    [definition.slug, lineItemFields],
   );
   const lineItemsTableWidth = useMemo(
     () => lineItemColumns.reduce((total, column) => total + column.minWidth, 0),
@@ -333,6 +527,66 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
       if (resolvedGroupNo) {
         initial.groupNo = resolvedGroupNo;
+      }
+
+      if (isSlicingEdit && slicingEditContext) {
+        const existingDate = parseProcessDate(
+          slicingEditContext.rows[0]?.slicingDate || slicingEditContext.rows[0]?.issueDate,
+        );
+        if (existingDate) {
+          initial.slicingDate = existingDate;
+          initial.processDate = existingDate;
+        }
+      }
+
+      if (isSplicingEdit && splicingEditRow) {
+        const existingDate = parseProcessDate(
+          splicingEditRow.splicingDate ||
+            splicingEditRow.processDate ||
+            splicingEditRow.issueDate ||
+            splicingEditRow.issuedDate,
+        );
+        if (existingDate) {
+          initial.splicingDate = existingDate;
+          initial.processDate = existingDate;
+        }
+      }
+
+      if (isGroupingEdit && groupingEditRow) {
+        const existingDate = parseProcessDate(
+          groupingEditRow.groupingDate ||
+            groupingEditRow.processDate ||
+            groupingEditRow.issueDate ||
+            groupingEditRow.issuedDate,
+        );
+        if (existingDate) {
+          initial.groupingDate = existingDate;
+          initial.processDate = existingDate;
+        }
+      }
+
+      if (isMarquetryEdit && marquetryEditContext) {
+        const existingDate = parseProcessDate(
+          marquetryEditContext.rows[0]?.groupingDate ||
+            marquetryEditContext.rows[0]?.marquetryDate ||
+            marquetryEditContext.rows[0]?.processDate,
+        );
+        if (existingDate) {
+          initial.groupingDate = existingDate;
+          initial.marquetryDate = existingDate;
+          initial.processDate = existingDate;
+        }
+      }
+
+      if (isMappedOutputEdit && mappedOutputEditContext) {
+        const existingDate = parseProcessDate(
+          readMappedOutputDate(mappedOutputEditContext.rows[0]),
+        );
+        if (existingDate) {
+          const dateKey = processDateBySlug[definition.slug]?.key ?? "processDate";
+          initial[dateKey] = existingDate;
+          initial.processDate = existingDate;
+        }
       }
 
       return initial;
@@ -353,13 +607,187 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [resolvedGroupNo]);
 
   const [draftValues, setDraftValues] = useState<Record<string, string>>(() =>
-    buildDefaultLineItemValues(lineItemFields, sourceRow),
+    definition.slug === "sawing"
+      ? lockSawingProcessDetailValues(
+          {
+            ...buildDefaultLineItemValues(lineItemFields, sourceRow),
+            thickness: "",
+            cbm: "",
+            cbf: "",
+          },
+          sourceRow as Record<string, unknown> | undefined,
+        )
+      : definition.slug === "slicing"
+        ? buildDefaultSlicingLineItemValues(lineItemFields, sourceRow)
+      : buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
-  const [lineItems, setLineItems] = useState<LineItemRecord[]>([]);
-  const [selectedMarquetryIds, setSelectedMarquetryIds] = useState<string[]>([]);
+  const [lineItems, setLineItems] = useState<LineItemRecord[]>(() => {
+    if (isSlicingEdit && slicingEditContext) {
+      return slicingEditContext.rows.map((row) => ({
+        id: String(row.id),
+        values: slicingDoneRowToLineValues(row, slicingEditContext.sourceRow),
+      }));
+    }
+    if (isSplicingEdit && splicingEditRow) {
+      return [
+        {
+          id: String(splicingEditRow.id),
+          values: splicingDoneRowToLineValues(
+            splicingEditRow as Record<string, unknown>,
+            lineItemFields,
+          ),
+        },
+      ];
+    }
+    if (isGroupingEdit && groupingEditRow) {
+      return [
+        {
+          id: String(groupingEditRow.id),
+          values: splicingDoneRowToLineValues(
+            groupingEditRow as Record<string, unknown>,
+            lineItemFields,
+          ),
+        },
+      ];
+    }
+    if (isMappedOutputEdit && mappedOutputEditContext) {
+      return mappedOutputEditContext.rows.map((row) => ({
+        id: String(row.id),
+        values: splicingDoneRowToLineValues(
+          row as Record<string, unknown>,
+          lineItemFields,
+        ),
+      }));
+    }
+    return [];
+  });
+  const slicingEditHydrated = useRef(!isSlicingEdit || Boolean(slicingEditContext));
+  const splicingEditHydrated = useRef(!isSplicingEdit || Boolean(splicingEditRow));
+  const groupingEditHydrated = useRef(!isGroupingEdit || Boolean(groupingEditRow));
+  const mappedOutputEditHydrated = useRef(
+    !isMappedOutputEdit || Boolean(mappedOutputEditContext),
+  );
+
+  useEffect(() => {
+    if (!isSlicingEdit || !slicingEditContext || slicingEditHydrated.current) {
+      return;
+    }
+
+    slicingEditHydrated.current = true;
+    const existingDate = parseProcessDate(
+      slicingEditContext.rows[0]?.slicingDate || slicingEditContext.rows[0]?.issueDate,
+    );
+    if (existingDate) {
+      setFormValues((current) => ({
+        ...current,
+        processDate: existingDate,
+        slicingDate: existingDate,
+      }));
+    }
+    setLineItems(
+      slicingEditContext.rows.map((row) => ({
+        id: String(row.id),
+        values: slicingDoneRowToLineValues(row, slicingEditContext.sourceRow),
+      })),
+    );
+  }, [isSlicingEdit, slicingEditContext]);
+
+  useEffect(() => {
+    if (!isSplicingEdit || !splicingEditRow || splicingEditHydrated.current) {
+      return;
+    }
+
+    splicingEditHydrated.current = true;
+    const existingDate = parseProcessDate(
+      splicingEditRow.splicingDate ||
+        splicingEditRow.processDate ||
+        splicingEditRow.issueDate ||
+        splicingEditRow.issuedDate,
+    );
+    if (existingDate) {
+      setFormValues((current) => ({
+        ...current,
+        processDate: existingDate,
+        splicingDate: existingDate,
+      }));
+    }
+    setLineItems([
+      {
+        id: String(splicingEditRow.id),
+        values: splicingDoneRowToLineValues(
+          splicingEditRow as Record<string, unknown>,
+          lineItemFields,
+        ),
+      },
+    ]);
+  }, [isSplicingEdit, lineItemFields, splicingEditRow]);
+
+  useEffect(() => {
+    if (!isGroupingEdit || !groupingEditRow || groupingEditHydrated.current) {
+      return;
+    }
+
+    groupingEditHydrated.current = true;
+    const existingDate = parseProcessDate(
+      groupingEditRow.groupingDate ||
+        groupingEditRow.processDate ||
+        groupingEditRow.issueDate ||
+        groupingEditRow.issuedDate,
+    );
+    if (existingDate) {
+      setFormValues((current) => ({
+        ...current,
+        processDate: existingDate,
+        groupingDate: existingDate,
+      }));
+    }
+    setLineItems([
+      {
+        id: String(groupingEditRow.id),
+        values: splicingDoneRowToLineValues(
+          groupingEditRow as Record<string, unknown>,
+          lineItemFields,
+        ),
+      },
+    ]);
+  }, [groupingEditRow, isGroupingEdit, lineItemFields]);
+
+  useEffect(() => {
+    if (!isMappedOutputEdit || !mappedOutputEditContext || mappedOutputEditHydrated.current) {
+      return;
+    }
+
+    mappedOutputEditHydrated.current = true;
+    const existingDate = parseProcessDate(
+      readMappedOutputDate(mappedOutputEditContext.rows[0]),
+    );
+    if (existingDate) {
+      const dateKey = processDateBySlug[definition.slug]?.key ?? "processDate";
+      setFormValues((current) => ({
+        ...current,
+        processDate: existingDate,
+        [dateKey]: existingDate,
+      }));
+    }
+    setLineItems(
+      mappedOutputEditContext.rows.map((row) => ({
+        id: String(row.id),
+        values: splicingDoneRowToLineValues(
+          row as Record<string, unknown>,
+          lineItemFields,
+        ),
+      })),
+    );
+  }, [definition.slug, isMappedOutputEdit, lineItemFields, mappedOutputEditContext]);
+
+  const [selectedMarquetryIds, setSelectedMarquetryIds] = useState<string[]>(() =>
+    marquetryEditContext?.rows.map((row) => String(row.id)) ?? [],
+  );
   const [marquetryDrafts, setMarquetryDrafts] = useState<
     Record<string, MarquetrySelectedDraft>
-  >({});
+  >(() =>
+    marquetryEditContext ? readMarquetryDrafts(marquetryEditContext.rows) : {},
+  );
   const marquetryIssuedRows = useMemo(() => {
     if (definition.slug !== "marquetry") {
       return [] as Row[];
@@ -372,9 +800,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       marquetryDefinition.rows as readonly Row[],
       "issued",
     );
+    const groupedRows = (marquetryEditContext?.rows ?? []) as Row[];
     const seen = new Set<string>();
 
-    return [...issuedWorkRows, ...localIssuedRows]
+    return [...groupedRows, ...issuedWorkRows, ...localIssuedRows]
       .filter((row) => {
         const id = String(row.id);
         if (seen.has(id)) {
@@ -388,7 +817,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           withMarquetryIssuedFrom(normalizeFactorySourceColumns(row, "marquetry")),
         ),
       );
-  }, [definition.slug, factoryIssuedWorkItems]);
+  }, [definition.slug, factoryIssuedWorkItems, marquetryEditContext]);
   const selectedMarquetryRows = useMemo(
     () =>
       selectedMarquetryIds.flatMap((id) => {
@@ -508,6 +937,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [visiblePressingIssuedRows]);
   const [marquetryOrderDetails, setMarquetryOrderDetails] =
     useState<MarquetryOrderDetailsValue>(() => {
+      if (marquetryEditContext) {
+        return readMarquetryOrderDetails(marquetryEditContext.rows[0]);
+      }
+
       const sourceOrderNo =
         typeof locationState?.sourceRow?.orderNo === "string"
           ? locationState.sourceRow.orderNo
@@ -594,39 +1027,89 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   });
   const [rejectAvailableSubmitAttempted, setRejectAvailableSubmitAttempted] =
     useState(false);
+  const slicingAvailableLineItems = useMemo(() => {
+    if (definition.slug !== "slicing") return lineItems;
+
+    const projected = editingRowId
+      ? lineItems.map((item) =>
+          item.id === editingRowId
+            ? { ...item, values: applySlicingDerivedAreas(editingValues) }
+            : item,
+        )
+      : lineItems;
+    const draftHasProcessValues = Boolean(
+      draftValues.thickness?.trim() ||
+        draftValues.height?.trim() ||
+        draftValues.noOfLeaves?.trim() ||
+        draftValues.noOfSheets?.trim(),
+    );
+
+    return !editingRowId && draftHasProcessValues
+      ? [
+          ...projected,
+          {
+            id: "slicing-current-draft",
+            values: applySlicingDerivedAreas(draftValues),
+          },
+        ]
+      : projected;
+  }, [definition.slug, draftValues, editingRowId, editingValues, lineItems]);
 
   useEffect(() => {
     if (definition.slug !== "sawing" && definition.slug !== "slicing") return;
     const source = sourceRow as Record<string, unknown> | undefined;
     setRejectAvailableValues((current) => ({
       ...(definition.slug === "slicing"
-        ? buildSlicingAvailableValues(source, lineItems)
+        ? buildSlicingAvailableValues(source, slicingAvailableLineItems)
         : buildSawingAvailableValues(source, lineItems)),
       remark: current.remark,
     }));
-  }, [definition.slug, lineItems, sourceRow]);
+  }, [definition.slug, lineItems, slicingAvailableLineItems, sourceRow]);
 
   useEffect(() => {
     if (definition.slug !== "sawing") return;
+    const source = sourceRow as Record<string, unknown> | undefined;
     setDraftValues((current) => {
-      const next = calculateSawingVolumeValues(current);
-      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      const next = lockSawingProcessDetailValues(current, source);
+      if (
+        next.length === current.length &&
+        next.width === current.width &&
+        next.cbm === current.cbm &&
+        next.cbf === current.cbf
+      ) {
+        return current;
+      }
       return next;
     });
     setEditingValues((current) => {
-      const next = calculateSawingVolumeValues(current);
-      if (next.cbm === current.cbm && next.cbf === current.cbf) return current;
+      const next = lockSawingProcessDetailValues(current, source);
+      if (
+        next.length === current.length &&
+        next.width === current.width &&
+        next.cbm === current.cbm &&
+        next.cbf === current.cbf
+      ) {
+        return current;
+      }
       return next;
     });
-  }, [definition.slug, draftValues, editingValues]);
+  }, [definition.slug, draftValues, editingValues, sourceRow]);
 
   useEffect(() => {
     if (definition.slug !== "sawing") return;
     setLineItems((current) => {
       let changed = false;
       const next = current.map((item) => {
-        const values = calculateSawingVolumeValues(item.values);
-        if (values.cbm === item.values.cbm && values.cbf === item.values.cbf) {
+        const values = lockSawingProcessDetailValues(
+          item.values,
+          sourceRow as Record<string, unknown> | undefined,
+        );
+        if (
+          values.length === item.values.length &&
+          values.width === item.values.width &&
+          values.cbm === item.values.cbm &&
+          values.cbf === item.values.cbf
+        ) {
           return item;
         }
         changed = true;
@@ -679,6 +1162,92 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       }),
     [currentProcessedQuantity, originalQuantity, runTotals.processed],
   );
+  const [sawingSubmitError, setSawingSubmitError] = useState("");
+  const [slicingSubmitError, setSlicingSubmitError] = useState("");
+  const sawingSource = useMemo(
+    () =>
+      definition.slug === "sawing"
+        ? readSawingSourceMeasures(sourceRow as Record<string, unknown> | undefined)
+        : null,
+    [definition.slug, sourceRow],
+  );
+  const sawingProcessedCbm = useMemo(
+    () => (sawingSource ? sumSawingLineCbm(lineItems, sawingSource) : 0),
+    [lineItems, sawingSource],
+  );
+  const sawingStockUnavailable = Boolean(
+    sawingSource && sawingSource.sourceAvailableCbm <= SAWING_CBM_EPSILON,
+  );
+  const slicingSource = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? (sourceRow as Record<string, unknown> | undefined)
+        : undefined,
+    [definition.slug, sourceRow],
+  );
+  const slicingConsumedCbm = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? calculateTotalSlicingConsumption(lineItems)
+        : 0,
+    [definition.slug, lineItems],
+  );
+  const slicingStockUnavailable = Boolean(
+    definition.slug === "slicing" &&
+      slicingStockCbm(slicingSource) <= SLICING_CBM_EPSILON,
+  );
+  const slicingRemainingCbm =
+    definition.slug === "slicing"
+      ? Math.max(0, slicingStockCbm(slicingSource) - slicingConsumedCbm)
+      : 0;
+  const slicingFullyConsumed =
+    definition.slug === "slicing" &&
+    lineItems.length > 0 &&
+    slicingRemainingCbm <= SLICING_CBM_EPSILON;
+  const slicingDraftValidation = useMemo(
+    () =>
+      definition.slug === "slicing"
+        ? validateSlicingRow({
+            otherConsumedCbm: slicingConsumedCbm,
+            sourceRow: slicingSource,
+            values: draftValues,
+          })
+        : { fieldErrors: {}, maximumLeaves: 0, message: "" },
+    [definition.slug, draftValues, slicingConsumedCbm, slicingSource],
+  );
+  const slicingEditValidation = useMemo(
+    () =>
+      definition.slug === "slicing" && editingRowId
+        ? validateSlicingRow({
+            otherConsumedCbm: calculateTotalSlicingConsumption(
+              lineItems.filter((row) => row.id !== editingRowId),
+            ),
+            sourceRow: slicingSource,
+            values: editingValues,
+          })
+        : { fieldErrors: {}, maximumLeaves: 0, message: "" },
+    [definition.slug, editingRowId, editingValues, lineItems, slicingSource],
+  );
+  const sawingDraftError = useMemo(() => {
+    if (!sawingSource) return "";
+    return getSawingProcessDetailError({
+      otherProcessedCbm: sawingProcessedCbm,
+      source: sawingSource,
+      values: draftValues,
+    });
+  }, [draftValues, sawingProcessedCbm, sawingSource]);
+  const sawingEditError = useMemo(() => {
+    if (!sawingSource || !editingRowId) return "";
+    const otherProcessedCbm = sumSawingLineCbm(
+      lineItems.filter((row) => row.id !== editingRowId),
+      sawingSource,
+    );
+    return getSawingProcessDetailError({
+      otherProcessedCbm,
+      source: sawingSource,
+      values: editingValues,
+    });
+  }, [editingRowId, editingValues, lineItems, sawingSource]);
   const quantityOverflowError = getProcessQuantityOverflowError({
     originalQuantity,
     previouslyProcessed: runTotals.processed,
@@ -691,10 +1260,62 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       ),
     [sourceRow],
   );
-  const rejectAvailableValidationErrors = getRejectAvailableValidationErrors(
-    rejectAvailableValues,
-    rejectAvailableAreaLimits,
-  );
+  const rejectAvailableValidationErrors = {
+    ...(definition.slug === "slicing"
+      ? {}
+      : getRejectAvailableValidationErrors(
+          rejectAvailableValues,
+          rejectAvailableAreaLimits,
+        )),
+    ...getSawingAvailableCbmIssue(
+      definition.slug,
+      rejectAvailableValues.cbm,
+      sawingSource,
+      sawingProcessedCbm,
+    ),
+  };
+  const usesReferenceLeafLimit =
+    definition.slug === "grouping" || definition.slug === "splicing";
+  const groupingReferenceLeaves = usesReferenceLeafLimit
+    ? definition.slug === "splicing"
+      ? readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+      : readGroupingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+    : 0;
+  const groupingOutputLeaves = usesReferenceLeafLimit
+    ? sumGroupingOutputLeaves(
+        lineItems.map((item) => ({
+          values: leafValuesForLimit(
+            definition.slug,
+            item.id === editingRowId ? editingValues : item.values,
+          ),
+        })),
+      ) +
+      sumGroupingOutputLeaves([
+        { values: leafValuesForLimit(definition.slug, draftValues) },
+      ])
+    : 0;
+  const groupingAvailableLeaves = usesReferenceLeafLimit
+    ? sumGroupingOutputLeaves([
+        { values: { noOfLeaves: rejectAvailableValues.noOfLeaves ?? "" } },
+      ])
+    : 0;
+  const groupingLeafLimitMessage = usesReferenceLeafLimit
+    ? getGroupingLeafLimitMessage({
+        availableLeaves: groupingAvailableLeaves,
+        outputLeaves: groupingOutputLeaves,
+        referenceLeaves: groupingReferenceLeaves,
+      })
+    : "";
+  const groupingOutputLeafInvalid =
+    groupingLeafLimitMessage !== "" &&
+    (groupingOutputLeaves > groupingReferenceLeaves ||
+      (groupingOutputLeaves > 0 &&
+        groupingOutputLeaves + groupingAvailableLeaves > groupingReferenceLeaves));
+  const groupingAvailableLeafInvalid =
+    groupingLeafLimitMessage !== "" &&
+    (groupingAvailableLeaves > groupingReferenceLeaves ||
+      (groupingAvailableLeaves > 0 &&
+        groupingOutputLeaves + groupingAvailableLeaves > groupingReferenceLeaves));
   const draftProjectedOverflow = useMemo(() => {
     if (!quantityConfig || originalQuantity <= 0 || allValuesEmpty(draftValues)) {
       return "";
@@ -732,20 +1353,46 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
-    if (definition.slug === "slicing" && !slicingSliceFitsStock(draftValues, sourceRow, lineItems)) {
+    if (definition.slug === "slicing") {
+      const validation = validateSlicingRow({
+        committing: true,
+        otherConsumedCbm: slicingConsumedCbm,
+        sourceRow: slicingSource,
+        values: draftValues,
+      });
+      if (validation.message) {
+        setDraftSubmitAttempted(true);
+        setSlicingSubmitError(validation.message);
+        return;
+      }
+    }
+
+    if (usesReferenceLeafLimit && groupingLeafLimitMessage) {
       setDraftSubmitAttempted(true);
       return;
     }
 
     if (definition.slug === "sawing") {
-      const draftCbm = Number.parseFloat(draftValues.cbm || "0") || 0;
-      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
-      const currentlyUsedCbm = lineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
-      const remainingCbm = Math.max(0, initialRecCbm - currentlyUsedCbm);
-
-      if (initialRecCbm > 0 && draftCbm > remainingCbm + 0.00001) {
-        alert(`Process CBM (${draftCbm.toFixed(4)}) cannot exceed available received CBM (${remainingCbm.toFixed(4)} CBM).`);
+      if (!sawingSource || sawingStockUnavailable) {
         setDraftSubmitAttempted(true);
+        setSawingSubmitError("No CBM is available for Sawing.");
+        return;
+      }
+
+      const lockedDraft = lockSawingProcessDetailValues(
+        draftValues,
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      const availabilityError = getSawingProcessDetailError({
+        committing: true,
+        otherProcessedCbm: sawingProcessedCbm,
+        source: sawingSource,
+        values: lockedDraft,
+      });
+      if (availabilityError) {
+        setDraftValues(lockedDraft);
+        setDraftSubmitAttempted(true);
+        setSawingSubmitError(availabilityError);
         return;
       }
     }
@@ -766,6 +1413,15 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return;
     }
 
+    const valuesToAdd =
+      definition.slug === "sawing"
+        ? lockSawingProcessDetailValues(
+            draftValues,
+            sourceRow as Record<string, unknown> | undefined,
+          )
+        : definition.slug === "slicing"
+          ? applySlicingDerivedAreas(draftValues)
+        : draftValues;
     const nextId = `${definition.slug}-line-item-${nextRowId.current}`;
     nextRowId.current += 1;
 
@@ -773,21 +1429,43 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       ...lineItems,
       {
         id: nextId,
-        values: { ...draftValues },
+        values: { ...valuesToAdd },
       },
     ];
     setLineItems(nextLineItems);
+    setSawingSubmitError("");
+    setSlicingSubmitError("");
 
-    if (definition.slug === "sawing") {
-      const initialRecCbm = Number.parseFloat(draftValues.receivedCbm || String(sourceRow?.cbm || 0)) || 0;
-      const newTotalUsedCbm = nextLineItems.reduce((acc, it) => acc + (Number.parseFloat(it.values.cbm || "0") || 0), 0);
-      const newRemainingCbm = Math.max(0, initialRecCbm - newTotalUsedCbm);
-
-      const clearedValues = createEmptyLineItemValues(lineItemFields);
-      clearedValues.logNo = draftValues.logNo || "";
-      clearedValues.receivedCbm = initialRecCbm ? initialRecCbm.toFixed(4).replace(/\.?0+$/u, "") : "";
-      clearedValues.availableCbm = newRemainingCbm.toFixed(4).replace(/\.?0+$/u, "");
+    if (definition.slug === "sawing" && sawingSource) {
+      const clearedValues = lockSawingProcessDetailValues(
+        {
+          ...createEmptyLineItemValues(lineItemFields),
+          logNo: valuesToAdd.logNo || "",
+          batchNoCode: valuesToAdd.batchNoCode || "",
+          thickness: "",
+        },
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      clearedValues.cbm = "";
+      clearedValues.cbf = "";
       setDraftValues(clearedValues);
+    } else if (definition.slug === "slicing") {
+      setDraftValues(buildDefaultSlicingLineItemValues(lineItemFields, sourceRow));
+    } else if (definition.slug === "splicing" || definition.slug === "grouping") {
+      const nextValues = buildDefaultLineItemValues(lineItemFields, sourceRow);
+      const usedLeaves =
+        sumGroupingOutputLeaves(
+          nextLineItems.map((item) => ({
+            values: leafValuesForLimit(definition.slug, item.values),
+          })),
+        ) + groupingAvailableLeaves;
+      const remainingLeaves = Math.max(0, groupingReferenceLeaves - usedLeaves);
+      const remainingText = remainingLeaves > 0 ? String(remainingLeaves) : "";
+      nextValues.noOfLeaves = remainingText;
+      if (definition.slug === "splicing") {
+        nextValues.noOfSheets = remainingText;
+      }
+      setDraftValues(nextValues);
     } else {
       setDraftValues(buildDefaultLineItemValues(lineItemFields, sourceRow));
     }
@@ -796,6 +1474,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
   const handleDeleteLineItem = (rowId: string) => {
     setLineItems((current) => current.filter((row) => row.id !== rowId));
+    setSawingSubmitError("");
+    setSlicingSubmitError("");
 
     if (editingRowId === rowId) {
       setEditingRowId(null);
@@ -835,20 +1515,82 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       currentProcessed: otherItemsProcessed + editedQty,
     });
 
-    if (overflow) {
+    if (overflow || (usesReferenceLeafLimit && groupingLeafLimitMessage)) {
       setEditingSubmitAttempted(true);
       return;
     }
 
-    if (
-      definition.slug === "slicing" &&
-      !slicingSliceFitsStock(
+    if (definition.slug === "slicing") {
+      const validation = validateSlicingRow({
+        committing: true,
+        otherConsumedCbm: calculateTotalSlicingConsumption(
+          lineItems.filter((row) => row.id !== rowId),
+        ),
+        sourceRow: slicingSource,
+        values: editingValues,
+      });
+      if (validation.message) {
+        setEditingSubmitAttempted(true);
+        setSlicingSubmitError(validation.message);
+        return;
+      }
+
+      const calculatedEdit = applySlicingDerivedAreas(editingValues);
+      setLineItems((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? { ...row, values: { ...calculatedEdit } }
+            : row,
+        ),
+      );
+      setEditingRowId(null);
+      setEditingValues(createEmptyLineItemValues(lineItemFields));
+      setEditingSubmitAttempted(false);
+      setSlicingSubmitError("");
+      return;
+    }
+
+    if (definition.slug === "sawing") {
+      if (!sawingSource || sawingStockUnavailable) {
+        setEditingSubmitAttempted(true);
+        setSawingSubmitError("No CBM is available for Sawing.");
+        return;
+      }
+
+      const lockedEdit = lockSawingProcessDetailValues(
         editingValues,
-        sourceRow,
-        lineItems.filter((row) => row.id !== rowId),
-      )
-    ) {
-      setEditingSubmitAttempted(true);
+        sourceRow as Record<string, unknown> | undefined,
+      );
+      const availabilityError = getSawingProcessDetailError({
+        committing: true,
+        otherProcessedCbm: sumSawingLineCbm(
+          lineItems.filter((row) => row.id !== rowId),
+          sawingSource,
+        ),
+        source: sawingSource,
+        values: lockedEdit,
+      });
+      if (availabilityError) {
+        setEditingValues(lockedEdit);
+        setEditingSubmitAttempted(true);
+        setSawingSubmitError(availabilityError);
+        return;
+      }
+
+      setLineItems((current) =>
+        current.map((row) =>
+          row.id === rowId
+            ? {
+              ...row,
+              values: { ...lockedEdit },
+            }
+            : row,
+        ),
+      );
+      setEditingRowId(null);
+      setEditingValues(createEmptyLineItemValues(lineItemFields));
+      setEditingSubmitAttempted(false);
+      setSawingSubmitError("");
       return;
     }
 
@@ -867,31 +1609,269 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setEditingSubmitAttempted(false);
   };
 
-  const handleBack = () => navigate(paths.list);
-  const handleCancel = () => navigate(paths.list);
-
   const pressingOrderItemOptions = useMemo(() => {
     const order = orderRecords.find((entry) => entry.orderNo === pressingOrderNo);
     if (!order) {
       return [] as string[];
     }
 
-    return getOrderLineItems(order.id).map((_, index) => String(index + 1));
+    return getOrderLineItems(order.id).map((_, index) =>
+      `OI-${String(index + 1).padStart(3, "0")}`,
+    );
   }, [orderRecords, pressingOrderNo]);
+
+  const [leaveConfirmation, setLeaveConfirmation] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    action: () => void;
+  }>({
+    open: false,
+    title: "",
+    description: "",
+    action: () => {},
+  });
+
+  const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
+
+  const handleBack = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: isProcessEdit ? "Discard Changes?" : "Discard Process Creation?",
+      description: isProcessEdit
+        ? "Are you sure you want to go back? Any unsaved changes will be lost."
+        : "Are you sure you want to go back? Any unsaved output details will be lost.",
+      action: () => navigate(listPath),
+    });
+  };
+
+  const handleCancel = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: isProcessEdit ? "Cancel Edit?" : "Cancel Process Creation?",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => navigate(listPath),
+    });
+  };
+
+  const executeSaveProcess = async () => {
+    const workItemId =
+      locationState?.workItemId ||
+      (typeof sourceRow?.workItemId === "string"
+        ? sourceRow.workItemId
+        : undefined);
+
+    const sampleNo =
+      locationState?.sampleNo ||
+      (typeof sourceRow?.sampleNo === "string"
+        ? sourceRow.sampleNo
+        : undefined);
+
+    if (sampleNo) {
+      markSampleProcessDone(sampleNo, definition.slug);
+    }
+
+    if (definition.slug === "sawing") {
+      saveSawingCreateProcess({
+        formValues,
+        lineItems,
+        locationState: locationState as Record<string, any> | null,
+        navigate,
+        rejectAvailableValues,
+        sourceRow: sourceRow as Record<string, any> | undefined,
+        workItemId,
+      });
+      return;
+    }
+
+    if (definition.slug === "slicing") {
+      persistSlicingProcess();
+      return;
+    }
+
+    navigate(listPath);
+  };
+
+  const persistSlicingProcess = () => {
+    if (isSlicingEdit && slicingEditContext) {
+      saveSlicingEditProcess({
+        formValues,
+        lineItems,
+        navigate,
+        originalRows: slicingEditContext.rows,
+        sourceRow: slicingEditContext.sourceRow,
+      });
+      return;
+    }
+
+    const workItemId =
+      locationState?.workItemId ||
+      (typeof sourceRow?.workItemId === "string" ? sourceRow.workItemId : undefined);
+    saveSlicingCreateProcess({
+      formValues,
+      lineItems,
+      navigate,
+      rejectAvailableValues,
+      sourceRow: sourceRow as Record<string, unknown> | undefined,
+      workItemId,
+    });
+  };
+
+  if (isSlicingEdit && slicingEditContext?.blockReason) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">{slicingEditContext.blockReason}</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isSlicingEdit && !slicingEditContext) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">The selected Slicing record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isMarquetryEdit && !marquetryEditContext) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">The selected Marquetry record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isSplicingEdit && !splicingEditRow) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">The selected Splicing record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isGroupingEdit && groupingEditBlockReason) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">{groupingEditBlockReason}</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isGroupingEdit && !groupingEditRow) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">The selected Grouping record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isMappedOutputEdit && !mappedOutputEditContext) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">
+          The selected {definition.title} record was not found.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
 
   return (
     <FactoryPageShell
       backNav={{
         label: `Back to ${definition.title}`,
-        to: paths.list,
+        to: listPath,
         onBack: handleBack,
       }}
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
-        { label: definition.title, to: paths.list },
-        { label: `Create ${definition.title}` },
+        { label: definition.title, to: listPath },
+        { label: pageLabel },
       ]}
-      title={`Create ${definition.title}`}
+      title={pageLabel}
     >
       <Stack
         sx={(currentTheme) => ({
@@ -973,7 +1953,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             gap: currentTheme.spacing(1.5),
           })}
         >
-          <FactoryCreateSectionTitle title="Process Details" />
+          <FactoryCreateSectionTitle title="Output Details" />
           {definition.slug === "marquetry" ? (
             <MarquetryIssuedSelection
               columns={marquetrySelectionColumns}
@@ -1014,7 +1994,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       >
                         <ColumnLabel
                           label={column.label}
-                          required={isLineItemColumnRequired(column)}
+                          required={
+                            isLineItemColumnRequired(column) ||
+                            (definition.slug === "slicing" &&
+                              (column.key === "thickness" ||
+                                column.key === "height" ||
+                                column.key === "noOfLeaves"))
+                          }
                         />
                       </TableCell>
                     ))}
@@ -1026,7 +2012,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                         {renderEditableField({
                           column,
-                          onChange: (value) =>
+                          onChange: (value) => {
+                            if (definition.slug === "slicing") {
+                              setSlicingSubmitError("");
+                            }
                             setDraftValues((current) =>
                               applySawingVolumeCalculation(
                                 definition.slug,
@@ -1037,12 +2026,26 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   definition.slug,
                                 ),
                               ),
-                            ),
+                            );
+                          },
                           theme,
                           value: draftValues[column.key] ?? "",
                           errorText: draftSubmitAttempted
-                            ? getFieldValidationError(column, draftValues)
+                            ? definition.slug === "slicing"
+                              ? slicingDraftValidation.fieldErrors[column.key] ||
+                                getFieldValidationError(column, draftValues)
+                              : getFieldValidationError(column, draftValues)
                             : "",
+                          invalid:
+                            (usesReferenceLeafLimit &&
+                              (column.key === "noOfLeaves" ||
+                                (definition.slug === "splicing" && column.key === "noOfSheets")) &&
+                              groupingOutputLeafInvalid) ||
+                            (definition.slug === "sawing" &&
+                              (column.key === "cbm" || column.key === "width") &&
+                              sawingDraftError.includes("CBM")) ||
+                            (definition.slug === "slicing" &&
+                              Boolean(slicingDraftValidation.fieldErrors[column.key])),
                         })}
                       </TableCell>
                     ))}
@@ -1061,7 +2064,56 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               flexWrap: "wrap",
             }}
           >
-            {draftSubmitAttempted && draftProjectedOverflow ? (
+            {(definition.slug === "sawing" &&
+              (sawingStockUnavailable ||
+                sawingSubmitError ||
+                sawingDraftError)) ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  flex: "1 1 220px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "normal",
+                })}
+              >
+                {sawingStockUnavailable
+                  ? "No CBM is available for Sawing."
+                  : sawingSubmitError || sawingDraftError}
+              </Typography>
+            ) : definition.slug === "slicing" &&
+              (slicingStockUnavailable ||
+                slicingSubmitError ||
+                slicingDraftValidation.message) ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  flex: "1 1 220px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "normal",
+                })}
+              >
+                {slicingStockUnavailable
+                  ? "No CBM is available for Slicing."
+                  : slicingSubmitError || slicingDraftValidation.message}
+              </Typography>
+            ) : usesReferenceLeafLimit && groupingOutputLeafInvalid ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  flex: "1 1 220px",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  minWidth: 0,
+                  whiteSpace: "normal",
+                })}
+              >
+                {groupingLeafLimitMessage}
+              </Typography>
+            ) : draftSubmitAttempted && draftProjectedOverflow ? (
               <Typography
                 sx={(currentTheme) => ({
                   color: currentTheme.palette.error.main,
@@ -1075,6 +2127,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             ) : null}
             <Button
               disableElevation
+              disabled={
+                sawingStockUnavailable ||
+                slicingStockUnavailable ||
+                slicingFullyConsumed
+              }
               onClick={handleAddLineItem}
               startIcon={<Plus size={15} strokeWidth={2} />}
               sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
@@ -1140,7 +2197,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                         >
                           <ColumnLabel
                             label={column.label}
-                            required={isLineItemColumnRequired(column)}
+                            required={
+                              isLineItemColumnRequired(column) ||
+                              (definition.slug === "slicing" &&
+                                (column.key === "thickness" ||
+                                  column.key === "height" ||
+                                  column.key === "noOfLeaves"))
+                            }
                           />
                         </TableCell>
                       ))}
@@ -1167,7 +2230,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                               {isEditing
                                 ? renderEditableField({
                                   column,
-                                  onChange: (value) =>
+                                  onChange: (value) => {
+                                    if (definition.slug === "slicing") {
+                                      setSlicingSubmitError("");
+                                    }
                                     setEditingValues((current) =>
                                       applySawingVolumeCalculation(
                                         definition.slug,
@@ -1178,15 +2244,27 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                           definition.slug,
                                         ),
                                       ),
-                                    ),
+                                    );
+                                  },
                                   theme,
                                   value: editingValues[column.key] ?? "",
                                   errorText: editingSubmitAttempted
-                                    ? getFieldValidationError(
-                                      column,
-                                      editingValues,
-                                    )
+                                    ? definition.slug === "slicing"
+                                      ? slicingEditValidation.fieldErrors[column.key] ||
+                                        getFieldValidationError(column, editingValues)
+                                      : getFieldValidationError(column, editingValues)
                                     : "",
+                                  invalid:
+                                    (usesReferenceLeafLimit &&
+                                      (column.key === "noOfLeaves" ||
+                                        (definition.slug === "splicing" &&
+                                          column.key === "noOfSheets")) &&
+                                      groupingOutputLeafInvalid) ||
+                                    (definition.slug === "sawing" &&
+                                      (column.key === "cbm" || column.key === "width") &&
+                                      sawingEditError.includes("CBM")) ||
+                                    (definition.slug === "slicing" &&
+                                      Boolean(slicingEditValidation.fieldErrors[column.key])),
                                 })
                                 : renderReadOnlyCell(row.values[column.key] ?? "", theme)}
                             </TableCell>
@@ -1227,6 +2305,29 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   </TableBody>
                 </Table>
               </Box>
+            {definition.slug === "sawing" && sawingEditError.includes("CBM") ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  whiteSpace: "normal",
+                })}
+              >
+                {sawingEditError}
+              </Typography>
+            ) : definition.slug === "slicing" && slicingEditValidation.message ? (
+              <Typography
+                sx={(currentTheme) => ({
+                  color: currentTheme.palette.error.main,
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  whiteSpace: "normal",
+                })}
+              >
+                {slicingEditValidation.message}
+              </Typography>
+            ) : null}
             </Box>
           </Stack>
         ) : null}
@@ -1240,29 +2341,41 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 : undefined
             }
             volumeMode={definition.slug === "sawing" || definition.slug === "slicing"}
-            useHeight={definition.slug === "sawing"}
+            useHeight={definition.slug === "sawing" || definition.slug === "slicing"}
             editableDerived={definition.slug === "sawing"}
+            lockMeasuredFields={definition.slug === "slicing"}
             hideAmount={
               definition.slug === "sawing" ||
               definition.slug === "slicing" ||
               definition.slug === "pressing" ||
               definition.slug === "finishing"
             }
-            fieldIssues={getVisibleRejectAvailableValidationIssues(
-              rejectAvailableValidationErrors,
-              rejectAvailableSubmitAttempted,
-            )}
-            onChange={(key, value) =>
+            showLeafCount={usesReferenceLeafLimit}
+            fieldIssues={{
+              ...getVisibleRejectAvailableValidationIssues(
+                rejectAvailableValidationErrors,
+                rejectAvailableSubmitAttempted,
+              ),
+              ...(groupingAvailableLeafInvalid
+                ? {
+                    noOfLeaves: {
+                      message: groupingLeafLimitMessage,
+                      severity: "error" as const,
+                    },
+                  }
+                : {}),
+            }}
+            onChange={(key, value) => {
               setRejectAvailableValues((current) =>
                 getNextRejectAvailableValues(
                   current,
                   key,
                   value,
                   definition.slug === "sawing" || definition.slug === "slicing",
-                  definition.slug === "sawing",
+                  definition.slug === "sawing" || definition.slug === "slicing",
                 ),
-              )
-            }
+              );
+            }}
             values={rejectAvailableValues}
           />
         ) : null}
@@ -1288,6 +2401,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             type="button"
             variant="contained"
             disableElevation
+            disabled={sawingStockUnavailable || slicingStockUnavailable}
             sx={{
               ...highlightedRecordFormPrimaryButtonSx,
               backgroundColor: (t) => t.palette.primary.main,
@@ -1301,6 +2415,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             onClick={async () => {
               setHasSubmitted(true);
               const draftHasValues = !allValuesEmpty(draftValues);
+              const slicingDraftHasValues =
+                definition.slug === "slicing" &&
+                Boolean(
+                  draftValues.thickness?.trim() ||
+                    draftValues.height?.trim() ||
+                    draftValues.noOfLeaves?.trim() ||
+                    draftValues.noOfSheets?.trim(),
+                );
               const draftErrors = getLineItemValidationErrors(
                 lineItemColumns,
                 draftValues,
@@ -1324,12 +2446,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   : definition.slug === "pressing"
                     ? selectedPressingRows.length === 0
                   : lineItems.length === 0 ||
-                    (draftHasValues && hasValidationErrors(draftErrors)) ||
+                    ((definition.slug === "slicing"
+                      ? slicingDraftHasValues
+                      : draftHasValues) && hasValidationErrors(draftErrors)) ||
                     Boolean(editingRowId && hasValidationErrors(editingErrors));
-              const quantityInvalid = Boolean(quantityOverflowError);
-              const rejectAvailableInvalid = hasRejectAvailableValidationErrors(
-                rejectAvailableValidationErrors,
-              );
+              const quantityInvalid = !isSplicingEdit && Boolean(quantityOverflowError);
+              const rejectAvailableInvalid =
+                hasRejectAvailableValidationErrors(rejectAvailableValidationErrors) ||
+                Boolean(groupingLeafLimitMessage);
               const orderDetailsInvalid =
                 usesOrderSelection &&
                 isMarquetryOrderDetailsInvalid(marquetryOrderDetails);
@@ -1340,9 +2464,70 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     (!pressingOrderNo || !pressingOrderItemNo)) ||
                   (pressingPurpose === "Sample Sheet" && !pressingSampleNo));
 
-              if (lineItemsInvalid) {
-                setDraftSubmitAttempted(lineItems.length === 0 || draftHasValues);
+              const sawingRowsForSubmit =
+                definition.slug === "sawing" && sawingSource
+                  ? lineItems.map((row) =>
+                      row.id === editingRowId
+                        ? {
+                            ...row,
+                            values: lockSawingProcessDetailValues(
+                              editingValues,
+                              sourceRow as Record<string, unknown> | undefined,
+                            ),
+                          }
+                        : row,
+                    )
+                  : lineItems;
+              const sawingValidationError =
+                definition.slug === "sawing" && sawingSource
+                  ? getSawingCreateSubmitError(sawingSource, sawingRowsForSubmit) ||
+                    (draftValues.thickness?.trim()
+                      ? getSawingProcessDetailError({
+                          committing: true,
+                          otherProcessedCbm: sumSawingLineCbm(
+                            sawingRowsForSubmit,
+                            sawingSource,
+                          ),
+                          source: sawingSource,
+                          values: draftValues,
+                        })
+                      : "")
+                  : "";
+              const slicingPendingDraftError =
+                definition.slug === "slicing" && slicingDraftHasValues
+                  ? validateSlicingRow({
+                      committing: true,
+                      otherConsumedCbm: slicingConsumedCbm,
+                      sourceRow: slicingSource,
+                      values: draftValues,
+                    }).message
+                  : "";
+              const slicingValidationError =
+                definition.slug === "slicing"
+                  ? slicingPendingDraftError ||
+                    (editingRowId
+                      ? "Save or cancel the edited Process Detail row before saving."
+                      : getSlicingCreateSubmitError(
+                          slicingSource,
+                          lineItems,
+                          rejectAvailableValues,
+                        ))
+                  : "";
+
+              if (lineItemsInvalid || sawingValidationError || slicingValidationError) {
+                setDraftSubmitAttempted(
+                  lineItems.length === 0 ||
+                    draftHasValues ||
+                    Boolean(sawingValidationError) ||
+                    Boolean(slicingValidationError),
+                );
                 setEditingSubmitAttempted(Boolean(editingRowId));
+                if (sawingValidationError) {
+                  setSawingSubmitError(sawingValidationError);
+                }
+                if (slicingValidationError) {
+                  setSlicingSubmitError(slicingValidationError);
+                }
               }
 
               if (rejectAvailableInvalid) {
@@ -1352,6 +2537,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               if (
                 hasRequiredFieldErrors(metadataFields, formValues) ||
                 lineItemsInvalid ||
+                Boolean(sawingValidationError) ||
+                Boolean(slicingValidationError) ||
                 quantityInvalid ||
                 rejectAvailableInvalid ||
                 orderDetailsInvalid ||
@@ -1360,7 +2547,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 return;
               }
 
-              if (quantityConfig && originalQuantity > 0) {
+              if (!isProcessEdit && quantityConfig && originalQuantity > 0) {
                 appendFactoryProcessRun({
                   stageSlug: definition.slug,
                   sourceKey: sourceAllocationKey,
@@ -1371,7 +2558,92 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 });
               }
 
+              if (isSplicingEdit && splicingEditRow) {
+                const workItemId =
+                  (typeof splicingEditRow.workItemId === "string" &&
+                    splicingEditRow.workItemId) ||
+                  (String(splicingEditRow.id).startsWith("factory-work-")
+                    ? String(splicingEditRow.id)
+                    : "");
+                const primaryLine = lineItems[0];
+                if (workItemId) {
+                  completeFactoryIssuedWork(workItemId, {
+                    ...(splicingEditRow as Record<string, unknown>),
+                    ...formValues,
+                    ...(primaryLine?.values ?? {}),
+                    listingState: "done",
+                  });
+                }
+                navigate(listPath);
+                return;
+              }
+
+              if (isMappedOutputSlug(definition.slug)) {
+                const mappedWorkItemId =
+                  locationState?.workItemId ||
+                  (typeof sourceRow?.workItemId === "string"
+                    ? sourceRow.workItemId
+                    : undefined);
+                const mappedSampleNo =
+                  locationState?.sampleNo ||
+                  (typeof sourceRow?.sampleNo === "string" ? sourceRow.sampleNo : undefined);
+
+                if (!isMappedOutputEdit && mappedSampleNo) {
+                  markSampleProcessDone(mappedSampleNo, definition.slug);
+                }
+
+                saveMappedOutputProcess({
+                  formValues,
+                  isEdit: isMappedOutputEdit,
+                  lineItems,
+                  listPath: isMappedOutputEdit ? listPath : `${paths.list}?tab=done`,
+                  navigate,
+                  originalRows: mappedOutputEditContext?.rows ?? [],
+                  slug: definition.slug,
+                  sourceRow,
+                  title: definition.title,
+                  workItemId: mappedWorkItemId,
+                });
+                return;
+              }
+
               if (definition.slug === "grouping") {
+                if (isGroupingEdit && groupingEditRow) {
+                  const workItemId =
+                    (typeof groupingEditRow.workItemId === "string" &&
+                      groupingEditRow.workItemId) ||
+                    (String(groupingEditRow.id).startsWith("factory-work-")
+                      ? String(groupingEditRow.id)
+                      : "");
+                  const primaryLine = lineItems[0];
+                  const existingGroupNo =
+                    getExistingGroupNo(groupingEditRow as Record<string, unknown>) ||
+                    (typeof groupingEditRow.groupNo === "string" ? groupingEditRow.groupNo : "");
+                  const updatedSnapshot: Record<string, unknown> = {
+                    ...(groupingEditRow as Record<string, unknown>),
+                    ...formValues,
+                    ...(primaryLine?.values ?? {}),
+                    ...(existingGroupNo ? { groupNo: existingGroupNo } : {}),
+                    listingState: "done",
+                  };
+                  if (workItemId) {
+                    completeFactoryIssuedWork(workItemId, updatedSnapshot);
+                  } else {
+                    const issued = issueFactoryWork({
+                      destinationProcess: "Grouping",
+                      sourceProcess: "Grouping",
+                      sourceRow: {
+                        ...(updatedSnapshot as FactoryRecord),
+                        id: String(groupingEditRow.id),
+                      },
+                      sourceSlug: "grouping",
+                    });
+                    completeFactoryIssuedWork(issued.id, updatedSnapshot);
+                  }
+                  navigate(listPath);
+                  return;
+                }
+
                 const groupingWorkItemId =
                   locationState?.workItemId ||
                   (typeof sourceRow?.workItemId === "string"
@@ -1418,9 +2690,25 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               }
 
               if (definition.slug === "marquetry") {
+                const processId =
+                  marquetryEditContext?.processId || `marquetry-${Date.now()}`;
+                const previousIds = new Set(
+                  (marquetryEditContext?.rows ?? []).map((row) => String(row.id)),
+                );
+                const nextIds = new Set(
+                  selectedMarquetryRows.map((row) => String(row.id)),
+                );
+
+                if (isMarquetryEdit) {
+                  previousIds.forEach((id) => {
+                    if (!nextIds.has(id)) {
+                      reopenMarquetryIssuedWork(id);
+                    }
+                  });
+                }
+
                 selectedMarquetryRows.forEach((row) => {
-                  const selectedWorkItemId =
-                    typeof row.workItemId === "string" ? row.workItemId : "";
+                  const selectedWorkItemId = readMarquetryWorkItemId(row);
                   if (!selectedWorkItemId) {
                     return;
                   }
@@ -1433,7 +2721,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     row.width,
                     draft.leavesUsed,
                   );
-                  completeFactoryIssuedWork(selectedWorkItemId, {
+                  applyMarquetryProcessResult(selectedWorkItemId, {
                     ...(row as Record<string, unknown>),
                     ...formValues,
                     ...(usesOrderSelection ? marquetryOrderDetails : {}),
@@ -1442,9 +2730,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     sqfUsed: usedArea.sqf,
                     sqmUsed: usedArea.sqm,
                     listingState: "done",
+                    marquetryProcessId: processId,
                   });
                 });
-                navigate(paths.list);
+                navigate(isMarquetryEdit ? listPath : paths.list);
                 return;
               }
 
@@ -1496,6 +2785,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   });
                   completeFactoryIssuedWork(issued.id, resultSnapshot);
                 });
+
+                if (pressingOrder && pressingPurpose === "Order") {
+                  if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                    updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                  }
+                }
+
                 navigate(paths.list);
                 return;
               }
@@ -1564,6 +2860,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     resultSnapshot.width = pressingLine.width;
                     resultSnapshot.thickness = pressingLine.thickness;
                     resultSnapshot.noOfSheets = pressingLine.quantitySheets;
+
+                    if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                      updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                    }
                   }
                 }
 
@@ -1578,7 +2878,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   ? sourceRow.sampleNo
                   : undefined);
 
-              if (sampleNo) {
+              if (!isProcessEdit && sampleNo) {
                 markSampleProcessDone(sampleNo, definition.slug);
               }
 
@@ -1596,24 +2896,32 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               }
 
               if (definition.slug === "slicing") {
-                saveSlicingCreateProcess({
-                  formValues,
-                  lineItems,
-                  navigate,
-                  rejectAvailableValues,
-                  sourceRow: sourceRow as Record<string, unknown> | undefined,
-                  workItemId,
-                });
+                persistSlicingProcess();
                 return;
               }
 
-              navigate(paths.list);
+              navigate(listPath);
             }}
           >
-            Save Process
+            {isProcessEdit ? "Update" : "Save Process"}
           </Button>
         </Box>
       </Stack>
+
+      <ConfirmationDialog
+        cancelLabel="Stay on Page"
+        confirmLabel="Leave"
+        description={leaveConfirmation.description}
+        onClose={() => setLeaveConfirmation((current) => ({ ...current, open: false }))}
+        onConfirm={() => {
+          const action = leaveConfirmation.action;
+          setLeaveConfirmation((current) => ({ ...current, open: false }));
+          action();
+        }}
+        open={leaveConfirmation.open}
+        title={leaveConfirmation.title}
+        tone="default"
+      />
     </FactoryPageShell>
   );
 }
@@ -1766,13 +3074,7 @@ function buildSourceOverviewItems(
   const items: Array<{ label: string; value: string }> = [];
 
   columns.forEach((column) => {
-    const rawValue =
-      column.key === "availableSqm"
-        ? formatSlicingDecimal(
-          calculateSlicingRemainder(sourceRow as Record<string, unknown> | undefined, []).sqm,
-          3,
-        )
-        : getSourceValue(sourceRow, column.keys);
+    const rawValue = getSourceValue(sourceRow, column.keys);
     let value = formatSourceValue(rawValue);
 
     if (!value || value.trim() === "") {
@@ -1838,7 +3140,7 @@ function buildLineItemFields(
 
     if (slug === "slicing" || slug === "drying") {
       const processExcludedKeys = new Set([
-        "itemName",
+        ...(slug === "drying" ? ["itemName"] : []),
         "itemSubCategory",
         "ratePerSqf",
         "amount",
@@ -1846,6 +3148,9 @@ function buildLineItemFields(
       if (slug === "slicing") {
         processExcludedKeys.add("subCategory");
         processExcludedKeys.add("logCode");
+        processExcludedKeys.add("logNo");
+        processExcludedKeys.add("grade");
+        processExcludedKeys.add("storageSrNo");
         processExcludedKeys.add("createdBy");
         processExcludedKeys.add("createdAt");
         processExcludedKeys.add("updatedBy");
@@ -1862,6 +3167,9 @@ function buildLineItemFields(
         "palletNumber",
         "ratePerSqf",
         "amount",
+        "itemSubCategory",
+        "subCategory",
+        "grade",
       ]);
       return ordered.filter((field) => !processExcludedKeys.has(field.key));
     }
@@ -1870,6 +3178,7 @@ function buildLineItemFields(
       slug === "splicing" ||
       slug === "pressing" ||
       slug === "cnc-fluting" ||
+      slug === "embossing" ||
       slug === "finishing"
     ) {
       const processExcludedKeys = new Set(["ratePerSqf", "amount", "consumedAmount"]);
@@ -1972,6 +3281,23 @@ function buildDefaultLineItemValues(
       return typeof value === "string" ? value : "";
     }),
   );
+}
+
+function buildDefaultSlicingLineItemValues(
+  fields: readonly MasterFieldDefinition[],
+  sourceRow?: SourceRow,
+) {
+  return applySlicingDerivedAreas({
+    ...buildDefaultLineItemValues(fields, sourceRow),
+    height: "",
+    thickness: "",
+    noOfLeaves: "",
+    noOfSheets: "",
+    cbm: "",
+    cbf: "",
+    sqm: "",
+    sqf: "",
+  });
 }
 
 
@@ -2104,12 +3430,17 @@ function formatSourceValue(value: unknown) {
   return "";
 }
 
-function mapFieldToColumn(field: MasterFieldDefinition): LineItemColumnDefinition {
+function mapFieldToColumn(
+  field: MasterFieldDefinition,
+  slug?: string,
+): LineItemColumnDefinition {
   return {
     key: field.key,
     label: field.label,
     minWidth:
-      field.key === "groupPhoto"
+      field.key === "itemName" && (slug === "grouping" || slug === "slicing")
+        ? 220
+        : field.key === "groupPhoto"
         ? 260
         : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
     placeholder: field.placeholder ?? getDefaultPlaceholder(field),
@@ -2131,16 +3462,19 @@ function getDefaultPlaceholder(field: MasterFieldDefinition) {
 function renderEditableField({
   column,
   errorText,
+  invalid = false,
   onChange,
   theme,
   value,
 }: {
   column: LineItemColumnDefinition;
   errorText?: string;
+  invalid?: boolean;
   onChange: (value: string) => void;
   theme: Theme;
   value: string;
 }) {
+  const hasError = Boolean(errorText) || invalid;
   if (column.readOnly) {
     return renderReadOnlyCell(value, theme);
   }
@@ -2151,7 +3485,7 @@ function renderEditableField({
         helperText={errorText}
         onChange={onChange}
         options={column.options ?? []}
-        state={errorText ? "error" : "default"}
+        state={hasError ? "error" : "default"}
         value={value}
       />
     );
@@ -2160,7 +3494,7 @@ function renderEditableField({
   if (column.type === "file") {
     return (
       <TextField
-        error={Boolean(errorText)}
+        error={hasError}
         fullWidth
         helperText={errorText}
         placeholder={column.placeholder}
@@ -2232,14 +3566,14 @@ function renderEditableField({
           },
         }}
         value={value}
-        sx={getCompactFieldSx(theme, errorText ? "error" : "default")}
+        sx={getCompactFieldSx(theme, hasError ? "error" : "default")}
       />
     );
   }
 
   return (
     <TextField
-      error={Boolean(errorText)}
+      error={hasError}
       fullWidth
       helperText={errorText}
       size="small"
@@ -2253,7 +3587,7 @@ function renderEditableField({
         event.preventDefault();
         onChange(getNextMeasurementValue(value, event.deltaY));
       }}
-      sx={getCompactFieldSx(theme, errorText ? "error" : "default")}
+      sx={getCompactFieldSx(theme, hasError ? "error" : "default")}
     />
   );
 }
@@ -2288,12 +3622,11 @@ function getDecimalPlaces(value: string) {
   const decimalPart = value.split(".")[1];
   return decimalPart ? decimalPart.length : 0;
 }
-
-function renderReadOnlyCell(value: string, theme: Theme) {
+function renderReadOnlyCell(value: string, theme: Theme, invalid = false) {
   return (
     <Typography
       variant="body2"
-      color="text.primary"
+      color={invalid ? "error" : "text.primary"}
       sx={{
         minHeight: theme.spacing(4.5),
         display: "flex",

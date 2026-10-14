@@ -7,6 +7,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
@@ -36,6 +37,7 @@ export type RejectAvailableValues = {
   cbm?: string;
   height?: string;
   length: string;
+  noOfLeaves?: string;
   remark: string;
   sqf: string;
   sqm: string;
@@ -275,7 +277,9 @@ export function RejectAvailableDetailsTable({
   fieldIssues,
   hideAmount,
   includeArea = false,
+  lockMeasuredFields = false,
   onChange,
+  showLeafCount = false,
   title,
   useHeight = false,
   values,
@@ -286,7 +290,9 @@ export function RejectAvailableDetailsTable({
   fieldIssues: RejectAvailableValidationIssues;
   hideAmount?: boolean;
   includeArea?: boolean;
+  lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
+  showLeafCount?: boolean;
   title?: string | undefined;
   useHeight?: boolean;
   values: RejectAvailableValues;
@@ -302,13 +308,37 @@ export function RejectAvailableDetailsTable({
         ? { ...col, key: "height" as const, label: "Height" }
         : col,
     );
-  const columnsWithArea = includeArea
-    ? insertBeforeRemark(columns, slicingAreaColumns)
+  const leafColumns = showLeafCount
+    ? (() => {
+        const thicknessIndex = columns.findIndex(
+          (column) => column.key === "thickness" || column.key === "height",
+        );
+        const next = [...columns];
+        next.splice(thicknessIndex + 1, 0, {
+          key: "noOfLeaves",
+          label: "No of Leaves",
+          minWidth: 150,
+          options: [],
+          type: "text",
+        });
+        return next;
+      })()
     : columns;
+  const columnsWithArea = includeArea
+    ? insertBeforeRemark(leafColumns, slicingAreaColumns)
+    : leafColumns;
   const tableWidth = columnsWithArea.reduce(
     (total, column) => total + column.minWidth,
     0,
   );
+  const issueMessages = [
+    ...new Set(
+      columnsWithArea.flatMap((column) => {
+        const message = fieldIssues[column.key]?.message;
+        return message ? [message] : [];
+      }),
+    ),
+  ];
 
   return (
     <Stack
@@ -348,6 +378,7 @@ export function RejectAvailableDetailsTable({
                       column,
                       disabled: column.key === "type" && Boolean(disabledType),
                       editableDerived,
+                      lockMeasuredFields,
                       issue: fieldIssues[column.key],
                       onChange,
                       theme,
@@ -360,6 +391,19 @@ export function RejectAvailableDetailsTable({
           </Table>
         </Box>
       </Box>
+      {issueMessages.map((message) => (
+        <Typography
+          key={message}
+          sx={(currentTheme) => ({
+            color: currentTheme.palette.error.main,
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            whiteSpace: "normal",
+          })}
+        >
+          {message}
+        </Typography>
+      ))}
     </Stack>
   );
 }
@@ -371,6 +415,7 @@ export function createEmptyRejectAvailableValues(): RejectAvailableValues {
     cbm: "",
     height: "",
     length: "",
+    noOfLeaves: "",
     remark: "",
     sqf: "",
     sqm: "",
@@ -387,6 +432,13 @@ export function getNextRejectAvailableValues(
   volumeMode = false,
   useHeight = false,
 ): RejectAvailableValues {
+  if (key === "noOfLeaves") {
+    return {
+      ...current,
+      noOfLeaves: value.replace(/[^\d]/gu, ""),
+    };
+  }
+
   if (key === "amount") {
     return {
       ...current,
@@ -402,7 +454,10 @@ export function getNextRejectAvailableValues(
     if (!volumeMode) {
       return current;
     }
-    const nextValue = sanitizeDecimalValue(value, key === "cbm" ? 6 : 4);
+    const nextValue = sanitizeDecimalValue(
+      value,
+      key === "cbf" ? (useHeight ? 3 : 4) : useHeight ? 3 : 6,
+    );
     if (key === "cbf") {
       return { ...current, cbf: nextValue };
     }
@@ -641,6 +696,7 @@ function renderRejectAvailableField({
   disabled,
   editableDerived = false,
   issue,
+  lockMeasuredFields = false,
   onChange,
   theme,
   value,
@@ -649,14 +705,21 @@ function renderRejectAvailableField({
   disabled?: boolean;
   editableDerived?: boolean;
   issue: RejectAvailableValidationIssue | undefined;
+  lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   theme: Theme;
   value: string;
 }) {
-  const helperText = issue?.message ?? "";
   const isError = issue?.severity === "error";
   const isWarning = issue?.severity === "warning";
   const isDerivedAreaField = derivedAreaFieldKeys.has(column.key);
+  const isMeasuredField =
+    column.key === "length" ||
+    column.key === "width" ||
+    column.key === "height" ||
+    column.key === "thickness" ||
+    column.key === "cbm" ||
+    column.key === "cbf";
 
   if (column.type === "select") {
     if (disabled) {
@@ -684,8 +747,11 @@ function renderRejectAvailableField({
     <TextField
       error={Boolean(issue)}
       fullWidth
-      helperText={helperText}
-      inputProps={{ readOnly: isDerivedAreaField && !editableDerived }}
+      inputProps={{
+        readOnly:
+          (lockMeasuredFields && (isMeasuredField || column.key === "noOfLeaves")) ||
+          (isDerivedAreaField && !editableDerived),
+      }}
       size="small"
       value={value}
       onChange={(event) => onChange(column.key, event.target.value)}

@@ -975,7 +975,15 @@ function ItemQcTable({
                     ...listingTableHeaderCellSx(theme),
                     whiteSpace: "nowrap",
                     ...(label === "Actions"
-                      ? { textAlign: "center", width: 56 }
+                      ? {
+                          position: "sticky",
+                          right: 0,
+                          zIndex: 5,
+                          textAlign: "center",
+                          width: 72,
+                          minWidth: 72,
+                          boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                        }
                       : null),
                   })}
                 >
@@ -1224,8 +1232,17 @@ function ItemQcTable({
                   <TableCell
                     sx={(theme) => ({
                       ...listingTableBodyCellSx(theme),
-                      width: 56,
+                      position: "sticky",
+                      right: 0,
+                      zIndex: 1,
+                      width: 72,
+                      minWidth: 72,
                       textAlign: "center",
+                      backgroundColor: theme.customTokens.surfaces.surface,
+                      boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                      ".MuiTableRow-hover:hover &": {
+                        backgroundColor: theme.customTokens.surfaces.alt,
+                      },
                     })}
                   >
                     <Box
@@ -1419,41 +1436,14 @@ export function InwardQcConfirmDialog({
               >
                 Stock Quantity Breakdown ({quantityUnit})
               </Typography>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
-                <Box
-                  sx={{
-                    width: { xs: "100%", sm: "33%" },
-                    p: "8.5px 14px",
-                    borderRadius: "4px",
-                    border: (theme) => `1px solid ${theme.customTokens.borders.default}`,
-                    backgroundColor: "transparent",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <Typography
-                    sx={(theme) => ({
-                      fontSize: "0.6875rem",
-                      fontWeight: 600,
-                      color: theme.customTokens.text.secondary,
-                      lineHeight: 1.2,
-                    })}
-                  >
-                    Total {quantityUnit}
-                  </Typography>
-                  <Typography
-                    sx={{
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      lineHeight: 1.3,
-                      mt: 0.25,
-                    }}
-                  >
-                    {numTotal}
-                  </Typography>
-                </Box>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="flex-start">
+                <TextField
+                  label={`Total ${quantityUnit}`}
+                  value={numTotal}
+                  size="small"
+                  slotProps={{ input: { readOnly: true } }}
+                  sx={{ width: { xs: "100%", sm: "33%" } }}
+                />
                 <TextField
                   label={`Passed ${quantityUnit}`}
                   type="number"

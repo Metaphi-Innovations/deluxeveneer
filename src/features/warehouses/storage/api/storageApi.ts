@@ -22,6 +22,9 @@ export interface StorageInventoryItem {
   itemName: string;
   inwardItemCode?: string | null;
   factoryCode?: string | null;
+  specification?: string | null;
+  brandName?: string | null;
+  unitName?: string | null;
   itemCategoryId: string | null;
   itemCategoryName: string | null;
   itemSubCategoryId: string | null;
@@ -48,6 +51,7 @@ export interface StorageInventoryItem {
   qcRemark: string | null;
   remark: string | null;
   issueTo?: string | null;
+  createdBy?: string | null;
   updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -111,8 +115,12 @@ export function mapStorageItemToRow(
     inwardItemCode: item.inwardItemCode ?? "",
     itemName: item.itemName ?? "",
     factoryCode: item.factoryCode ?? "",
+    hsnCode: item.hsnCode ?? "",
     subCategory: item.itemSubCategoryName ?? "",
-    unitName: "",
+    specification: item.specification ?? "",
+    brandName: item.brandName ?? "",
+    batchNo: item.batchNo ?? "",
+    unitName: item.unitName ?? "",
     color: "",
     palletNo: item.palletNo ?? "",
     length: item.length != null ? `${item.length} m` : "",
@@ -163,6 +171,11 @@ export function mapStorageItemToRow(
         ? (Number(item.totalSqMeter) * 10.7639).toFixed(3)
         : "",
     currency: item.currency ?? "",
+    cbm:
+      item.cbm != null && Number.isFinite(Number(item.cbm))
+        ? Number(item.cbm).toFixed(3)
+        : "",
+    rate: item.rate != null ? formatAmount(item.rate) : "",
     amount: formatAmount(item.amount),
     totalAmount: formatAmount(item.totalAmount),
     attachment: "",
@@ -198,6 +211,7 @@ export function mapStorageItemToRow(
     plywoodType: "",
     mdfType: "",
     issueTo: item.issueTo || "",
+    createdBy: item.createdBy ?? "",
     updatedBy: item.updatedBy ?? "",
   };
 }

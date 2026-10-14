@@ -14,13 +14,12 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { ChevronLeft, Save } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ContentLoader } from "../../../../components/feedback/ContentLoader";
 import { InventoryPageShell } from "../../../inventory/shared/InventoryPageShell";
 import { MasterSectionCard } from "../../../masters/shared";
-import { canAccessPermission } from "../../../permissions";
 import {
   recordFormActionButtonSx,
   recordViewActionButtonSx,
@@ -29,7 +28,6 @@ import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
-import { getDynamicWarehousePermissionKey } from "../../../shared/warehousePermission";
 import {
   fetchProductionInventoryById,
   updateProductionInventoryApi,
@@ -76,7 +74,6 @@ export function ProductionInventoryRecordPage({
   listPath,
   inventorySlug,
   mode,
-  editPath,
 }: ProductionInventoryRecordPageProps) {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -99,11 +96,6 @@ export function ProductionInventoryRecordPage({
   const resolvedWarehouseRootPath = resolvedWarehouseId
     ? `/warehouses/${resolvedWarehouseId}`
     : warehouseRootPath;
-  const permissionKey = getDynamicWarehousePermissionKey(resolvedWarehouseId);
-  const canEdit = resolvedWarehouseId
-    ? canAccessPermission(permissionKey, "edit")
-    : false;
-
   useEffect(() => {
     let ignore = false;
     async function load() {
@@ -253,16 +245,6 @@ export function ProductionInventoryRecordPage({
       >
         Back
       </Button>
-      {mode === "view" && canEdit && editPath ? (
-        <Button
-          variant="contained"
-          startIcon={<Pencil size={16} />}
-          onClick={() => navigate(editPath)}
-          sx={recordViewActionButtonSx}
-        >
-          Edit
-        </Button>
-      ) : null}
       {mode === "edit" ? (
         <Button
           variant="contained"

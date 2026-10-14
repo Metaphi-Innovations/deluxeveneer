@@ -127,7 +127,7 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
             fontSize: "0.8125rem",
           })}
         >
-          Select issued marquetry records above to add process details.
+          Select issued marquetry records above to add output details.
         </Typography>
       ) : (
         <Box sx={(theme) => listingTableContainerSx(theme)}>

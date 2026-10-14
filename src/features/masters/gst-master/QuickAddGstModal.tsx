@@ -134,7 +134,7 @@ export function QuickAddGstModal({
               <TextField
                 autoFocus
                 fullWidth
-                placeholder="e.g. 18"
+                placeholder="18"
                 value={gstPercentage}
                 onChange={(e) => setGstPercentage(e.target.value)}
                 sx={(theme) => ({

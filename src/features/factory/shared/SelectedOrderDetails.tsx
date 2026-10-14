@@ -1,11 +1,15 @@
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Table, TableBody, TableCell, TableHead, TableRow } from "@mui/material";
 
-import { formFieldLabelSx } from "../../shared/formSectionStyles";
 import {
   getOrderLineItems,
   type OrderLineItem,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
+import {
+  getDialogBodyCellSx,
+  getDialogHeaderCellSx,
+  getDialogScrollableTableSx,
+} from "./listing/factoryListingParts";
 
 function detailText(value: unknown) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -84,35 +88,29 @@ export function SelectedOrderDetails({
   }
 
   return (
-    <Box
-      sx={(theme) => ({
-        display: "grid",
-        gap: theme.spacing(1.5),
-        gridColumn: "1 / -1",
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "repeat(2, minmax(0, 1fr))",
-          md: "repeat(4, minmax(0, 1fr))",
-        },
-        pt: 0.5,
-      })}
-    >
-      {items.map((item) => (
-        <Stack key={item.label} spacing={0.5} sx={{ minWidth: 0 }}>
-          <Typography sx={(theme) => formFieldLabelSx(theme)}>{item.label}</Typography>
-          <Typography
-            sx={(theme) => ({
-              color: theme.customTokens.text.primary,
-              fontSize: "14px",
-              fontWeight: 400,
-              lineHeight: 1.45,
-              wordBreak: "break-word",
-            })}
-          >
-            {item.value}
-          </Typography>
-        </Stack>
-      ))}
+    <Box sx={{ minWidth: 0 }}>
+      <Box sx={getDialogScrollableTableSx}>
+        <Table size="small" sx={{ minWidth: "100%" }}>
+          <TableHead>
+            <TableRow>
+              {items.map((item) => (
+                <TableCell key={item.label} sx={getDialogHeaderCellSx}>
+                  {item.label}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              {items.map((item) => (
+                <TableCell key={item.label} sx={getDialogBodyCellSx}>
+                  {item.value}
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableBody>
+        </Table>
+      </Box>
     </Box>
   );
 }

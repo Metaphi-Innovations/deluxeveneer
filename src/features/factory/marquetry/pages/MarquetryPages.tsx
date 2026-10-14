@@ -14,7 +14,7 @@ export function AddMarquetryPage() {
 }
 
 export function EditMarquetryPage() {
-  return <FactoryForm definition={marquetryDefinition} mode="edit" />;
+  return <FactoryProcessCreatePage definition={marquetryDefinition} mode="edit" />;
 }
 
 export function ViewMarquetryPage() {

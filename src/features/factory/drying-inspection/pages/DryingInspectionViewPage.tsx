@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useLocation, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Box,
   Chip,
@@ -18,6 +18,7 @@ import { getFactoryIssuedWorkById, factoryIssuedWorkToRow } from "../../shared/f
 
 export const DryingInspectionViewPage: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
 
@@ -38,6 +39,11 @@ export const DryingInspectionViewPage: React.FC = () => {
       : record?.listingState === "history" || record?.listingState === "failed"
         ? "history"
         : "issued");
+  const listPath = `${
+    location.pathname.startsWith("/factory/inspection/")
+      ? "/factory/inspection"
+      : "/factory/drying-inspection"
+  }?tab=${tab}`;
 
   const isDone = tab === "done";
   const isHistory = tab === "history";
@@ -51,6 +57,8 @@ export const DryingInspectionViewPage: React.FC = () => {
     record.inspectionEventStatus !== "-"
       ? record.inspectionEventStatus
       : "Inspection History";
+  const inspectionImage =
+    typeof record?.inspectionImage === "string" ? record.inspectionImage.trim() : "";
 
   const sourceOverviewItems = useMemo(() => {
     if (!record) return [];
@@ -74,7 +82,8 @@ export const DryingInspectionViewPage: React.FC = () => {
       subtitle="View details for this inspection record"
       backNav={{
         label: "Back to Drying Inspection",
-        to: `/factory/drying-inspection?tab=${tab}`,
+        to: listPath,
+        onBack: () => navigate(listPath),
       }}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -216,6 +225,47 @@ export const DryingInspectionViewPage: React.FC = () => {
             )}
           </Stack>
         </Box>
+
+        {(isDone || isHistory) && inspectionImage ? (
+          <Box sx={(t) => formSectionCardSx(t)}>
+            <Stack spacing={1.5}>
+              <FormSectionHeader title="Inspection Image" />
+              <Box
+                component="a"
+                href={inspectionImage}
+                rel="noreferrer"
+                target="_blank"
+                title="Open inspection image"
+                sx={{
+                  alignSelf: "flex-start",
+                  display: "block",
+                  maxWidth: "100%",
+                  textDecoration: "none",
+                }}
+              >
+                <Box
+                  alt={record?.inspectionImageName || "Inspection attachment"}
+                  component="img"
+                  src={inspectionImage}
+                  sx={{
+                    backgroundColor: theme.customTokens.surfaces.alt,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
+                    borderRadius: "8px",
+                    display: "block",
+                    maxHeight: 420,
+                    maxWidth: "100%",
+                    objectFit: "contain",
+                  }}
+                />
+              </Box>
+              {record?.inspectionImageName ? (
+                <Typography color="text.secondary" variant="caption">
+                  {record.inspectionImageName}
+                </Typography>
+              ) : null}
+            </Stack>
+          </Box>
+        ) : null}
       </Stack>
     </FactoryPageShell>
   );
