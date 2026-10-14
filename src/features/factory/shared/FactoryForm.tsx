@@ -216,12 +216,7 @@ export function FactoryForm<Row extends FactoryRecord>({
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
 
   const handleBack = () => {
-    setLeaveConfirmation({
-      open: true,
-      title: "Leave Form",
-      description: "Are you sure you want to go back? Any unsaved changes will be lost.",
-      action: () => navigate(paths.list),
-    });
+    navigate(paths.list);
   };
 
   const handleCancel = () => {

@@ -111,7 +111,7 @@ const unifiedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
 const unifiedEntryRows: readonly EntryRowConfig[] = [
   { keys: ["productCategory", "salesItemName", "itemName"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(150px, 1.1fr) minmax(200px, 1.5fr) minmax(220px, 1.8fr)" } },
   { keys: ["length", "width", "thickness", "quantitySheets", "sqm", "totalSqm", "ratePerSqf", "amount"], template: { xs: "1fr 1fr", sm: "repeat(4, minmax(120px, 1fr))", md: "repeat(8, minmax(105px, 1fr))" } },
-  { keys: ["baseType", "baseName", "baseLength", "baseWidth", "baseThickness", "remark"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(130px, 1fr) minmax(180px, 1.5fr) repeat(3, minmax(110px, 0.8fr)) minmax(200px, 1.5fr)" } },
+  { keys: ["baseType", "baseName", "baseLength", "baseWidth", "baseThickness", "designCode", "structuredCode", "remark"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(120px, 1fr) minmax(170px, 1.4fr) repeat(3, minmax(100px, 0.8fr)) minmax(130px, 1fr) minmax(130px, 1fr) minmax(180px, 1.4fr)" } },
 ];
 
 const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
@@ -264,6 +264,20 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
     controlWidth: 130,
     minWidth: 120,
     numeric: true,
+    type: "text",
+  },
+  {
+    key: "designCode",
+    label: "Design Code",
+    controlWidth: 160,
+    minWidth: 140,
+    type: "text",
+  },
+  {
+    key: "structuredCode",
+    label: "Structured Code",
+    controlWidth: 170,
+    minWidth: 150,
     type: "text",
   },
   {
@@ -1196,6 +1210,8 @@ const rawListingHeaders = [
   { label: "SQF", minWidth: 90, align: "right" as const },
   { label: "Rate/SQF", minWidth: 100, align: "right" as const },
   { label: "Amount", minWidth: 110, align: "right" as const },
+  { label: "Design Code", minWidth: 120, align: "left" as const },
+  { label: "Structured Code", minWidth: 130, align: "left" as const },
 ];
 
 const unifiedListingHeaders = [
@@ -1365,6 +1381,16 @@ function getRawListingValues(row: OrderLineItem, index: number) {
       value: row.amount,
       align: "right" as const,
       emphasize: true,
+    },
+    {
+      label: "Design Code",
+      value: row.designCode ?? "",
+      align: "left" as const,
+    },
+    {
+      label: "Structured Code",
+      value: row.structuredCode ?? "",
+      align: "left" as const,
     },
   ];
 }

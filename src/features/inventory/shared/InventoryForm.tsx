@@ -265,25 +265,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
   };
 
   const handleBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: `Are you sure you want to go back to the ${definition.title} list?`,
-        action: () => {
-          navigate(listPath, { replace: true, flushSync: true });
-        },
-      });
-    } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          navigate(listPath, { replace: true, flushSync: true });
-        },
-      });
-    }
+    navigate(listPath, { replace: true, flushSync: true });
   };
 
   const baseFields =

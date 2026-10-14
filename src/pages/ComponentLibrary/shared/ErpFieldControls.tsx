@@ -15,7 +15,7 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import {
   getSelectClosedValueSx,
@@ -720,7 +720,29 @@ export function ErpSelectField({
               input: {
                 readOnly: state === "readOnly",
                 endAdornment: (
-                  <InputAdornment position="end">
+                  <InputAdornment position="end" sx={{ gap: 0.25 }}>
+                    {value.trim() && state !== "disabled" && state !== "readOnly" ? (
+                      <IconButton
+                        aria-label="Clear selection"
+                        edge="end"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onChange("");
+                          setSearchText("");
+                        }}
+                        size="small"
+                        sx={{
+                          p: 0.25,
+                          color: theme.palette.text.secondary,
+                          "&:hover": {
+                            color: theme.palette.text.primary,
+                            backgroundColor: "rgba(0, 0, 0, 0.04)",
+                          },
+                        }}
+                      >
+                        <X size={size === "dense" ? 13 : 14} strokeWidth={2} />
+                      </IconButton>
+                    ) : null}
                     <ChevronDown
                       color={
                         state === "disabled" || state === "readOnly"
@@ -825,8 +847,29 @@ export function ErpSelectField({
                 display: "inline-flex",
                 flexShrink: 0,
                 alignItems: "center",
+                gap: 0.5,
               }}
             >
+              {value.trim() && state !== "disabled" && state !== "readOnly" ? (
+                <IconButton
+                  aria-label="Clear selection"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onChange("");
+                  }}
+                  size="small"
+                  sx={{
+                    p: 0.25,
+                    color: theme.palette.text.secondary,
+                    "&:hover": {
+                      color: theme.palette.text.primary,
+                      backgroundColor: "rgba(0, 0, 0, 0.04)",
+                    },
+                  }}
+                >
+                  <X size={size === "dense" ? 13 : 14} strokeWidth={2} />
+                </IconButton>
+              ) : null}
               <ChevronDown
                 color={
                   state === "disabled" || state === "readOnly"

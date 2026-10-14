@@ -153,6 +153,8 @@ import {
 import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
   getOrderLineItems,
+  getOrderRecordByOrderNo,
+  updateOrderRecord,
   useOrderRecords,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
@@ -894,12 +896,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
 
   const handleBack = () => {
-    setLeaveConfirmation({
-      open: true,
-      title: "Discard Process Creation?",
-      description: "Are you sure you want to go back? Any unsaved process details will be lost.",
-      action: () => navigate(paths.list),
-    });
+    navigate(paths.list);
   };
 
   const handleCancel = () => {
@@ -1573,6 +1570,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   });
                   completeFactoryIssuedWork(issued.id, resultSnapshot);
                 });
+
+                if (pressingOrder && pressingPurpose === "Order") {
+                  if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                    updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                  }
+                }
+
                 navigate(paths.list);
                 return;
               }
@@ -1641,6 +1645,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     resultSnapshot.width = pressingLine.width;
                     resultSnapshot.thickness = pressingLine.thickness;
                     resultSnapshot.noOfSheets = pressingLine.quantitySheets;
+
+                    if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                      updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                    }
                   }
                 }
 
