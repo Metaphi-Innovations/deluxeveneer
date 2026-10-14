@@ -253,14 +253,16 @@ function InventoryFormContent<Row extends InventoryRecord>({
     action: () => undefined,
   });
 
+  const navigateToList = () => {
+    navigate(listPath, { replace: true, flushSync: true });
+  };
+
   const closeInventoryForm = () => {
     setLeaveConfirmation({
       open: true,
       title: "Cancel Changes",
       description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
+      action: navigateToList,
     });
   };
 
@@ -905,7 +907,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                               additionalCharges,
                             });
                             await createInwardApi(payload);
-                            closeInventoryForm();
+                            navigateToList();
                           } catch (error) {
                             setSaveError(
                               error instanceof Error
@@ -928,7 +930,7 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         }
                       }
 
-                      closeInventoryForm();
+                      navigateToList();
                     })();
                   }}
                 >

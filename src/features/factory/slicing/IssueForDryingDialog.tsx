@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -13,7 +14,10 @@ import {
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
-import { formSectionCardSx } from "../../shared/formSectionStyles";
+import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../shared/formSectionStyles";
 import {
   DialogFieldLabel,
   inspectionDialogPaperSx,
@@ -35,6 +39,13 @@ function availableLeafCount(row: FactoryRecord) {
       0,
   );
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+function formatDimensionNumber(val: unknown): string {
+  if (val === null || val === undefined || val === "") return "-";
+  const num = Number(val);
+  if (!Number.isFinite(num)) return String(val);
+  return Number(num.toFixed(3)).toString();
 }
 
 export function IssueForDryingDialog<Row extends FactoryRecord>({
@@ -85,26 +96,60 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
   return (
     <Dialog
       fullWidth
-      maxWidth="sm"
+      maxWidth="lg"
       onClose={onClose}
       open={open}
-      slotProps={{ paper: { sx: inspectionDialogPaperSx } }}
+      slotProps={{
+        paper: {
+          sx: (theme) => ({
+            ...inspectionDialogPaperSx(theme),
+            maxWidth: { xs: "96%", sm: 900, md: 1040 },
+            maxHeight: "90vh",
+            display: "flex",
+            flexDirection: "column",
+          }),
+        },
+      }}
     >
       <DialogTitle
         sx={(theme) => ({
           borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-          fontSize: theme.typography.h3.fontSize,
-          fontWeight: 700,
-          px: theme.spacing(2),
+          px: theme.spacing(2.5),
           py: theme.spacing(1.5),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         })}
       >
-        Issue for Drying
+        <Typography
+          sx={(theme) => ({
+            fontSize: theme.typography.h3.fontSize,
+            fontWeight: 700,
+            color: theme.customTokens.text.primary,
+          })}
+        >
+          Issue for Drying
+        </Typography>
+        <Chip
+          label={`${entries.length} item${entries.length === 1 ? "" : "s"} selected`}
+          size="small"
+          sx={(theme) => ({
+            height: 24,
+            fontWeight: 600,
+            fontSize: "11px",
+            color: theme.customTokens.brand.primary,
+            backgroundColor: theme.customTokens.surfaces.alt,
+            borderColor: theme.customTokens.borders.default,
+            borderWidth: "1px",
+            borderStyle: "solid",
+          })}
+        />
       </DialogTitle>
       <DialogContent
         sx={(theme) => ({
-          px: theme.spacing(2),
+          px: theme.spacing(2.5),
           py: `${theme.spacing(2)} !important`,
+          overflowY: "auto",
         })}
       >
         <Stack spacing={2}>
@@ -114,23 +159,111 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
             const invalid =
               !Number.isInteger(leaves) || leaves <= 0 || leaves > available;
 
+            const storageSrNo = String(
+              row.storageSrNo ?? row.itemCode ?? `Item #${index + 1}`,
+            );
+            const logNo = String(row.logNo ?? row.logCode ?? row.batchNo ?? "");
+            const bundleNo = String(row.bundleNumber ?? row.bundleNo ?? "");
+            const palletNo = String(row.palletNo ?? "");
+            const dimensions = row.length
+              ? `${formatDimensionNumber(row.length)} × ${formatDimensionNumber(row.width)}${
+                  row.thickness !== undefined && row.thickness !== null
+                    ? ` × ${formatDimensionNumber(row.thickness)}`
+                    : ""
+                }`
+              : "";
+
             return (
-              <Box key={rowId} sx={(theme) => formSectionCardSx(theme)}>
+              <Box
+                key={rowId}
+                sx={(theme) => ({
+                  ...formSectionCardSx(theme),
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                })}
+              >
                 <Stack spacing={1.5}>
-                  {entries.length > 1 ? (
-                    <Typography color="text.secondary" variant="caption">
-                      Selected item {index + 1}
-                    </Typography>
-                  ) : null}
+                  <FormSectionHeader
+                    title={`Item ${index + 1}: ${storageSrNo}`}
+                    endAdornment={
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        {logNo ? (
+                          <Chip
+                            label={`Log: ${logNo}`}
+                            size="small"
+                            sx={(theme) => ({
+                              height: 18,
+                              fontSize: "10px",
+                              fontWeight: 500,
+                              color: theme.customTokens.text.secondary,
+                              backgroundColor: theme.customTokens.surfaces.alt,
+                              border: `1px solid ${theme.customTokens.borders.default}`,
+                              "& .MuiChip-label": { px: 0.75 },
+                            })}
+                          />
+                        ) : null}
+                        {bundleNo ? (
+                          <Chip
+                            label={`Bundle: ${bundleNo}`}
+                            size="small"
+                            sx={(theme) => ({
+                              height: 18,
+                              fontSize: "10px",
+                              fontWeight: 500,
+                              color: theme.customTokens.text.secondary,
+                              backgroundColor: theme.customTokens.surfaces.alt,
+                              border: `1px solid ${theme.customTokens.borders.default}`,
+                              "& .MuiChip-label": { px: 0.75 },
+                            })}
+                          />
+                        ) : null}
+                        {palletNo ? (
+                          <Chip
+                            label={`Pallet: ${palletNo}`}
+                            size="small"
+                            sx={(theme) => ({
+                              height: 18,
+                              fontSize: "10px",
+                              fontWeight: 500,
+                              color: theme.customTokens.text.secondary,
+                              backgroundColor: theme.customTokens.surfaces.alt,
+                              border: `1px solid ${theme.customTokens.borders.default}`,
+                              "& .MuiChip-label": { px: 0.75 },
+                            })}
+                          />
+                        ) : null}
+                        {dimensions ? (
+                          <Chip
+                            label={`Dim: ${dimensions}`}
+                            size="small"
+                            sx={(theme) => ({
+                              height: 18,
+                              fontSize: "10px",
+                              fontWeight: 500,
+                              color: theme.customTokens.text.secondary,
+                              backgroundColor: theme.customTokens.surfaces.alt,
+                              border: `1px solid ${theme.customTokens.borders.default}`,
+                              "& .MuiChip-label": { px: 0.75 },
+                            })}
+                          />
+                        ) : null}
+                      </Stack>
+                    }
+                  />
+
                   <Box
                     sx={(theme) => ({
                       display: "grid",
-                      gap: theme.spacing(1.5),
-                      gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                      gap: theme.spacing(2),
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "160px 180px 1fr",
+                      },
+                      alignItems: "flex-start",
+                      pt: 0.5,
                     })}
                   >
                     <Stack spacing={0.75}>
-                      <DialogFieldLabel>Available No of Leaves</DialogFieldLabel>
+                      <DialogFieldLabel>Available Leaves</DialogFieldLabel>
                       <TextField
                         fullWidth
                         onFocus={(event) => event.target.blur()}
@@ -141,25 +274,30 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
                         sx={(theme) => [
                           getCompactFieldSx(theme),
                           {
-                            "& .MuiInputBase-root, & .MuiInputBase-input": {
+                            "& .MuiInputBase-root": {
+                              backgroundColor: theme.customTokens.surfaces.alt,
+                            },
+                            "& .MuiInputBase-input": {
                               cursor: "default",
                               caretColor: "transparent",
+                              fontWeight: 600,
                             },
                           },
                         ]}
                         value={available}
                       />
                     </Stack>
+
                     <Stack spacing={0.75}>
-                      <DialogFieldLabel required>No. of Leaves to Issue</DialogFieldLabel>
+                      <DialogFieldLabel required>Leaves to Issue</DialogFieldLabel>
                       <TextField
                         error={invalid}
                         fullWidth
                         helperText={
                           available <= 0
-                            ? "No leaves are available to issue."
+                            ? "No leaves available."
                             : invalid
-                              ? `Enter a whole number from 1 to ${available}.`
+                              ? `Whole number 1 to ${available}.`
                               : ""
                         }
                         inputProps={{ min: 1, max: available, step: 1 }}
@@ -180,28 +318,27 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
                         value={current.leaves}
                       />
                     </Stack>
+
+                    <Stack spacing={0.75}>
+                      <DialogFieldLabel>Remark</DialogFieldLabel>
+                      <TextField
+                        fullWidth
+                        onChange={(event) =>
+                          setValues((currentValues) => ({
+                            ...currentValues,
+                            [rowId]: {
+                              ...(currentValues[rowId] ?? current),
+                              remark: event.target.value,
+                            },
+                          }))
+                        }
+                        placeholder="Enter remark (optional)"
+                        size="small"
+                        sx={(theme) => getCompactFieldSx(theme)}
+                        value={current.remark}
+                      />
+                    </Stack>
                   </Box>
-                  <Stack spacing={0.75}>
-                    <DialogFieldLabel>Remark</DialogFieldLabel>
-                    <TextField
-                      fullWidth
-                      minRows={2}
-                      multiline
-                      onChange={(event) =>
-                        setValues((currentValues) => ({
-                          ...currentValues,
-                          [rowId]: {
-                            ...(currentValues[rowId] ?? current),
-                            remark: event.target.value,
-                          },
-                        }))
-                      }
-                      placeholder="Enter remark"
-                      size="small"
-                      sx={(theme) => getCompactFieldSx(theme)}
-                      value={current.remark}
-                    />
-                  </Stack>
                 </Stack>
               </Box>
             );
@@ -212,8 +349,9 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
         sx={(theme) => ({
           borderTop: `1px solid ${theme.customTokens.borders.default}`,
           gap: theme.spacing(1),
-          px: theme.spacing(2),
+          px: theme.spacing(2.5),
           py: theme.spacing(1.5),
+          backgroundColor: theme.customTokens.surfaces.surface,
         })}
       >
         <Button onClick={onClose} sx={recordFormActionButtonSx} variant="outlined">

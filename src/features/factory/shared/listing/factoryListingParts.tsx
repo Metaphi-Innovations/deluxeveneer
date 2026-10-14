@@ -1184,7 +1184,7 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
 
   const issueSheetsMessage = hasIssueSheetsError
     ? exceedsAvailableSheets
-      ? "Issue sheets cannot exceed available sheets."
+      ? `Issue quantity cannot exceed ${availableSheetsNumber} available.`
       : "Enter a valid whole number."
     : "";
 
@@ -1225,6 +1225,7 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
                   gridTemplateColumns: {
                     xs: "1fr",
                     sm: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(3, minmax(0, 1fr))",
                   },
                 })}
               >
@@ -1241,8 +1242,13 @@ export function GroupingSampleIssueDialog<Row extends FactoryRecord>({
                   />
                 </Stack>
 
+                <ReadOnlyDialogField
+                  label="Available No of Leaves"
+                  value={String(availableSheetsNumber)}
+                />
+
                 <Stack spacing={0.75}>
-                  <DialogFieldLabel>Issue Quantity / No. of Leaves</DialogFieldLabel>
+                  <DialogFieldLabel required>Issue Quantity / No. of Leaves</DialogFieldLabel>
                   <TextField
                     autoFocus
                     error={hasIssueSheetsError}

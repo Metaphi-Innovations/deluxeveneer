@@ -296,6 +296,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
   const [dryingEditRow, setDryingEditRow] = useState<Row | null>(null);
   const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
+  const [finishingEditRow, setFinishingEditRow] = useState<Row | null>(null);
   const [splicingPressingIssueRow, setSplicingPressingIssueRow] =
     useState<Row | null>(null);
   const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
@@ -970,6 +971,14 @@ export function FactoryListing<Row extends FactoryRecord>({
     }
 
     if (definition.slug === "finishing" && activeTab === "done") {
+      const finishingRowActions = rowActions.map((action) =>
+        action.id === "edit"
+          ? {
+              ...action,
+              onSelect: (selectedRow: Row) => setFinishingEditRow(selectedRow),
+            }
+          : action,
+      );
       const buildFinishingActions = buildFinishingDoneRowActions<Row>({
         canCreate,
         canEdit,
@@ -981,7 +990,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
         onView: (selectedRow) => navigate(paths.view(selectedRow.id)),
         rejectDoneAction,
-        rowActions,
+        rowActions: finishingRowActions,
       });
       return (row) => confirmIssueActions(buildFinishingActions(row));
     }
@@ -1011,6 +1020,7 @@ export function FactoryListing<Row extends FactoryRecord>({
             submitted: false,
           }),
         onView: (selectedRow) => navigate(paths.view(selectedRow.id)),
+        rowActions,
       });
     }
 
@@ -1905,6 +1915,40 @@ export function FactoryListing<Row extends FactoryRecord>({
 
           setFinishingCreateRow(null);
           setActiveTab("done");
+        }}
+      />
+
+      <FinishingCreateDialog
+        mode="edit"
+        open={Boolean(finishingEditRow)}
+        row={finishingEditRow}
+        onClose={() => setFinishingEditRow(null)}
+        onSave={(entry) => {
+          if (!finishingEditRow) return;
+
+          const snapshot = buildFinishingDoneSnapshot(finishingEditRow, entry);
+          const workItemId =
+            typeof finishingEditRow.workItemId === "string"
+              ? finishingEditRow.workItemId
+              : finishingEditRow.id.startsWith("factory-work-")
+                ? finishingEditRow.id
+                : "";
+
+          if (workItemId) {
+            updateFactoryIssuedWorkSnapshot(workItemId, snapshot);
+          }
+
+          setListingRows((current) =>
+            current.map((item) =>
+              item.id === finishingEditRow.id ? ({ ...item, ...snapshot } as Row) : item,
+            ),
+          );
+
+          setFinishingEditRow(null);
+          setToastNotification({
+            message: "Finishing item updated successfully.",
+            severity: "success",
+          });
         }}
       />
 

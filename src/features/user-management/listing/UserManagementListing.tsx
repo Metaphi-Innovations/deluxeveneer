@@ -79,7 +79,7 @@ import { useUserList } from "../hooks/useUserList";
 import { getUserDisplayName } from "../hooks/userRowDisplay";
 import { invalidateUsers } from "../../../query/queryClient";
 
-const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100, 200] as const;
+const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100] as const;
 
 type ColumnFilterKey =
   | "user"
@@ -155,6 +155,8 @@ export function UserManagementListing() {
     row: null,
     checked: false,
   });
+  const [goToPageInput, setGoToPageInput] = useState("1");
+  const [goToPageError, setGoToPageError] = useState("");
 
   useEffect(() => {
     const flashMessage = (
@@ -256,7 +258,10 @@ export function UserManagementListing() {
       ? filteredRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
       : filteredRows
     : [];
-  const visiblePaginationPages = getVisiblePaginationPages(effectiveTotalPages);
+  const visiblePaginationPages = getVisiblePaginationPages(
+    safePage,
+    effectiveTotalPages,
+  );
   const rangeStart = effectiveTotalCount === 0 ? 0 : pageStartIndex + 1;
   const rangeEnd = Math.min(pageStartIndex + currentPageRows.length, effectiveTotalCount);
 
@@ -264,6 +269,32 @@ export function UserManagementListing() {
     activeActionRowId === null
       ? undefined
       : rows.find((row) => row.id === activeActionRowId);
+  useEffect(() => {
+    setGoToPageInput(String(safePage));
+    setGoToPageError("");
+  }, [safePage]);
+
+  const handleGoToPageSubmit = () => {
+    const trimmed = goToPageInput.trim();
+    if (!trimmed) {
+      setGoToPageError(`Enter a page number between 1 and ${effectiveTotalPages}.`);
+      return;
+    }
+
+    if (!/^\d+$/.test(trimmed)) {
+      setGoToPageError(`Enter a page number between 1 and ${effectiveTotalPages}.`);
+      return;
+    }
+
+    const targetPage = Number(trimmed);
+    if (!Number.isInteger(targetPage) || targetPage < 1 || targetPage > effectiveTotalPages) {
+      setGoToPageError(`Enter a page number between 1 and ${effectiveTotalPages}.`);
+      return;
+    }
+
+    setGoToPageError("");
+    setPage(targetPage);
+  };
 
   const handleClosePasswordDialog = () => {
     if (isChangingPassword) {
@@ -1069,7 +1100,7 @@ export function UserManagementListing() {
               </Select>
             </Stack>
 
-            <Stack direction="row" alignItems="center" spacing={0.5}>
+            <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
               <IconButton
                 size="small"
                 disabled={safePage <= 1}
@@ -1081,12 +1112,12 @@ export function UserManagementListing() {
               </IconButton>
 
               {visiblePaginationPages.map((pageItem, index) =>
-                pageItem === "ellipsis" ? (
+                typeof pageItem === "string" && pageItem.startsWith("ellipsis") ? (
                   <Typography
-                    key={`ellipsis-${index}`}
+                    key={`ellipsis-${pageItem}-${index}`}
                     variant="caption"
                     color="text.secondary"
-                    sx={{ px: 0.5 }}
+                    sx={{ px: 0.5, userSelect: "none" }}
                   >
                     …
                   </Typography>
@@ -1094,8 +1125,8 @@ export function UserManagementListing() {
                   <Button
                     key={pageItem}
                     size="small"
-                    onClick={() => setPage(pageItem)}
-                    sx={pageNumberButtonSx(theme, pageItem === safePage)}
+                    onClick={() => setPage(Number(pageItem))}
+                    sx={pageNumberButtonSx(theme, Number(pageItem) === safePage)}
                   >
                     {pageItem}
                   </Button>
@@ -1104,15 +1135,120 @@ export function UserManagementListing() {
 
               <IconButton
                 size="small"
-                disabled={safePage >= totalPages}
+                disabled={safePage >= effectiveTotalPages}
                 onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
+                  setPage((current) => Math.min(effectiveTotalPages, current + 1))
                 }
                 aria-label="Next page"
                 sx={paginationIconButtonSx(theme)}
               >
                 <ChevronRight size={16} />
               </IconButton>
+            </Stack>
+
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={0.75}
+              sx={{ position: "relative" }}
+            >
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: "12px", whiteSpace: "nowrap" }}
+              >
+                Go to
+              </Typography>
+
+              <TextField
+                size="small"
+                value={goToPageInput}
+                onChange={(event) => {
+                  setGoToPageInput(event.target.value);
+                  if (goToPageError) setGoToPageError("");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleGoToPageSubmit();
+                  }
+                }}
+                error={Boolean(goToPageError)}
+                inputProps={{
+                  inputMode: "numeric",
+                  pattern: "[0-9]*",
+                  "aria-label": "Go to page",
+                }}
+                sx={{
+                  width: 52,
+                  "& .MuiOutlinedInput-root": {
+                    height: 30,
+                    borderRadius: `${theme.customTokens.radius.sm}px`,
+                    fontSize: "12px",
+                    backgroundColor: theme.customTokens.surfaces.surface,
+                  },
+                  "& .MuiOutlinedInput-input": {
+                    p: "4px 6px",
+                    textAlign: "center",
+                  },
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: goToPageError
+                      ? theme.palette.error.main
+                      : theme.customTokens.borders.default,
+                  },
+                  "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: goToPageError
+                      ? theme.palette.error.main
+                      : theme.customTokens.borders.hover,
+                  },
+                  "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: goToPageError
+                      ? theme.palette.error.main
+                      : theme.customTokens.borders.focus,
+                  },
+                }}
+              />
+
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleGoToPageSubmit}
+                sx={{
+                  minWidth: 36,
+                  height: 30,
+                  px: 1,
+                  py: 0,
+                  borderRadius: `${theme.customTokens.radius.sm}px`,
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  textTransform: "none",
+                  borderColor: theme.customTokens.borders.default,
+                  color: theme.customTokens.brand.primary,
+                  "&:hover": {
+                    borderColor: theme.customTokens.brand.primary,
+                    backgroundColor: theme.customTokens.surfaces.alt,
+                  },
+                }}
+              >
+                Go
+              </Button>
+
+              {goToPageError ? (
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{
+                    position: "absolute",
+                    bottom: -18,
+                    right: 0,
+                    fontSize: "11px",
+                    whiteSpace: "nowrap",
+                    zIndex: 2,
+                  }}
+                >
+                  {goToPageError}
+                </Typography>
+              ) : null}
             </Stack>
           </Stack>
         </Box>
@@ -1646,14 +1782,49 @@ function getUserInitials(name: string) {
     .join("");
 }
 
-function getVisiblePaginationPages(totalPages: number) {
+function getVisiblePaginationPages(
+  currentPage: number,
+  totalPages: number,
+): Array<number | "ellipsis-left" | "ellipsis-right" | "ellipsis"> {
+  // If totalPages <= 5: show all page numbers normally, NO ellipsis.
   if (totalPages <= 5) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
 
+  // If totalPages > 5:
+  // For currentPage in the initial 5-page window (1 to 5):
+  // Render: < 1 2 3 4 5 ... totalPages >
+  if (currentPage <= 5) {
+    return [1, 2, 3, 4, 5, "ellipsis-right", totalPages];
+  }
+
+  // Near the end: when current page is within the final 5-page window (totalPages - 4 to totalPages):
+  // Render: < 1 ... (totalPages - 4) (totalPages - 3) (totalPages - 2) (totalPages - 1) totalPages >
+  if (currentPage >= totalPages - 4) {
+    return [
+      1,
+      "ellipsis-left",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+
+  // Once current page moves beyond the initial 5-page window (e.g. currentPage = 6, 10, 50...):
+  // 5-page window around current page: [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2]
+  // Render: < 1 ... (currentPage - 2) (currentPage - 1) [currentPage] (currentPage + 1) (currentPage + 2) ... totalPages >
+  // e.g. currentPage = 6 => < 1 ... 4 5 [6] 7 8 ... 154 >
   return [
-    ...Array.from({ length: 5 }, (_, index) => index + 1),
-    "ellipsis" as const,
+    1,
+    "ellipsis-left",
+    currentPage - 2,
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    currentPage + 2,
+    "ellipsis-right",
     totalPages,
   ];
 }

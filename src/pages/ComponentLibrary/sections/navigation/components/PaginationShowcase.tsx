@@ -15,7 +15,7 @@ import {
 import { NavigationShowcaseCard } from "./NavigationShowcaseCard";
 import { NavigationTokenBadge } from "./NavigationTokenBadge";
 
-const rowsPerPageOptions = [10, 25, 50, 75, 100, 200] as const;
+const rowsPerPageOptions = [10, 25, 50, 75, 100] as const;
 const totalRecords = 128;
 
 export function PaginationShowcase() {

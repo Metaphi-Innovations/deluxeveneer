@@ -144,6 +144,7 @@ import {
   resolveRejectAvailableAreaLimits,
 } from "./RejectAvailableDetailsTable";
 import { marquetryDefinition, pressingDefinition } from "./factoryDefinitions";
+import { getIssuedGroupedSheetsTotal } from "./groupedStockIssueStore";
 import { allocateNextGroupNo, getExistingGroupNo, peekNextGroupNo } from "./groupNoStore";
 import {
   buildFactoryInitialValues,
@@ -388,10 +389,31 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const locationState = location.state as FactoryCreateLocationState | null;
   const isSlicingEdit = mode === "edit" && definition.slug === "slicing";
   const isSplicingEdit = mode === "edit" && definition.slug === "splicing";
+  const isGroupingEdit = mode === "edit" && definition.slug === "grouping";
   const isMarquetryEdit = mode === "edit" && definition.slug === "marquetry";
   const isMappedOutputEdit = mode === "edit" && isMappedOutputSlug(definition.slug);
   const isProcessEdit =
-    isSlicingEdit || isSplicingEdit || isMarquetryEdit || isMappedOutputEdit;
+    isSlicingEdit || isSplicingEdit || isGroupingEdit || isMarquetryEdit || isMappedOutputEdit;
+  const groupingEditRow = useMemo(() => {
+    if (!isGroupingEdit) return undefined;
+    const passedRecord = locationState?.record;
+    if (passedRecord && String(passedRecord.id) === params.id) {
+      return passedRecord as Row;
+    }
+    const workItem = params.id ? getFactoryIssuedWorkById(params.id) : null;
+    if (workItem) {
+      return factoryIssuedWorkToRow(workItem) as Row;
+    }
+    return definition.rows.find((row) => String(row.id) === params.id);
+  }, [definition.rows, isGroupingEdit, locationState?.record, params.id]);
+  const groupingEditBlockReason = useMemo(() => {
+    if (!isGroupingEdit || !groupingEditRow) return "";
+    const issuedCount = getIssuedGroupedSheetsTotal(String(groupingEditRow.id));
+    if (issuedCount > 0) {
+      return "Edit is unavailable because sheets from this grouping have already been issued.";
+    }
+    return "";
+  }, [groupingEditRow, isGroupingEdit]);
   const splicingEditRow = useMemo(() => {
     if (!isSplicingEdit) return undefined;
     const passedRecord = locationState?.record;
@@ -452,6 +474,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     ? (slicingEditContext?.sourceRow as Row | undefined)
     : isSplicingEdit
       ? splicingEditRow
+      : isGroupingEdit
+        ? groupingEditRow
       : isMappedOutputEdit
         ? (mappedOutputEditContext?.sourceRow as Row | undefined)
     : (locationState?.sourceRow as Row | undefined) ??
@@ -524,6 +548,19 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         );
         if (existingDate) {
           initial.splicingDate = existingDate;
+          initial.processDate = existingDate;
+        }
+      }
+
+      if (isGroupingEdit && groupingEditRow) {
+        const existingDate = parseProcessDate(
+          groupingEditRow.groupingDate ||
+            groupingEditRow.processDate ||
+            groupingEditRow.issueDate ||
+            groupingEditRow.issuedDate,
+        );
+        if (existingDate) {
+          initial.groupingDate = existingDate;
           initial.processDate = existingDate;
         }
       }
@@ -602,6 +639,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         },
       ];
     }
+    if (isGroupingEdit && groupingEditRow) {
+      return [
+        {
+          id: String(groupingEditRow.id),
+          values: splicingDoneRowToLineValues(
+            groupingEditRow as Record<string, unknown>,
+            lineItemFields,
+          ),
+        },
+      ];
+    }
     if (isMappedOutputEdit && mappedOutputEditContext) {
       return mappedOutputEditContext.rows.map((row) => ({
         id: String(row.id),
@@ -615,6 +663,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   });
   const slicingEditHydrated = useRef(!isSlicingEdit || Boolean(slicingEditContext));
   const splicingEditHydrated = useRef(!isSplicingEdit || Boolean(splicingEditRow));
+  const groupingEditHydrated = useRef(!isGroupingEdit || Boolean(groupingEditRow));
   const mappedOutputEditHydrated = useRef(
     !isMappedOutputEdit || Boolean(mappedOutputEditContext),
   );
@@ -672,6 +721,36 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       },
     ]);
   }, [isSplicingEdit, lineItemFields, splicingEditRow]);
+
+  useEffect(() => {
+    if (!isGroupingEdit || !groupingEditRow || groupingEditHydrated.current) {
+      return;
+    }
+
+    groupingEditHydrated.current = true;
+    const existingDate = parseProcessDate(
+      groupingEditRow.groupingDate ||
+        groupingEditRow.processDate ||
+        groupingEditRow.issueDate ||
+        groupingEditRow.issuedDate,
+    );
+    if (existingDate) {
+      setFormValues((current) => ({
+        ...current,
+        processDate: existingDate,
+        groupingDate: existingDate,
+      }));
+    }
+    setLineItems([
+      {
+        id: String(groupingEditRow.id),
+        values: splicingDoneRowToLineValues(
+          groupingEditRow as Record<string, unknown>,
+          lineItemFields,
+        ),
+      },
+    ]);
+  }, [groupingEditRow, isGroupingEdit, lineItemFields]);
 
   useEffect(() => {
     if (!isMappedOutputEdit || !mappedOutputEditContext || mappedOutputEditHydrated.current) {
@@ -1718,6 +1797,46 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     );
   }
 
+  if (isGroupingEdit && groupingEditBlockReason) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">{groupingEditBlockReason}</Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (isGroupingEdit && !groupingEditRow) {
+    return (
+      <FactoryPageShell
+        backNav={{
+          label: `Back to ${definition.title}`,
+          to: listPath,
+          onBack: () => navigate(listPath),
+        }}
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="warning">The selected Grouping record was not found.</Alert>
+      </FactoryPageShell>
+    );
+  }
+
   if (isMappedOutputEdit && !mappedOutputEditContext) {
     return (
       <FactoryPageShell
@@ -2489,6 +2608,42 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               }
 
               if (definition.slug === "grouping") {
+                if (isGroupingEdit && groupingEditRow) {
+                  const workItemId =
+                    (typeof groupingEditRow.workItemId === "string" &&
+                      groupingEditRow.workItemId) ||
+                    (String(groupingEditRow.id).startsWith("factory-work-")
+                      ? String(groupingEditRow.id)
+                      : "");
+                  const primaryLine = lineItems[0];
+                  const existingGroupNo =
+                    getExistingGroupNo(groupingEditRow as Record<string, unknown>) ||
+                    (typeof groupingEditRow.groupNo === "string" ? groupingEditRow.groupNo : "");
+                  const updatedSnapshot: Record<string, unknown> = {
+                    ...(groupingEditRow as Record<string, unknown>),
+                    ...formValues,
+                    ...(primaryLine?.values ?? {}),
+                    ...(existingGroupNo ? { groupNo: existingGroupNo } : {}),
+                    listingState: "done",
+                  };
+                  if (workItemId) {
+                    completeFactoryIssuedWork(workItemId, updatedSnapshot);
+                  } else {
+                    const issued = issueFactoryWork({
+                      destinationProcess: "Grouping",
+                      sourceProcess: "Grouping",
+                      sourceRow: {
+                        ...(updatedSnapshot as FactoryRecord),
+                        id: String(groupingEditRow.id),
+                      },
+                      sourceSlug: "grouping",
+                    });
+                    completeFactoryIssuedWork(issued.id, updatedSnapshot);
+                  }
+                  navigate(listPath);
+                  return;
+                }
+
                 const groupingWorkItemId =
                   locationState?.workItemId ||
                   (typeof sourceRow?.workItemId === "string"

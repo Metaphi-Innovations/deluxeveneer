@@ -29,7 +29,6 @@ import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessT
 import type {
   EnterpriseTableAction,
 } from "../../../components/data-display/EnterpriseDataTable";
-import { buildWarehouseAddStockPath } from "../../inventory/shared";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
@@ -750,22 +749,6 @@ export function StorageWarehousePage({
               flexWrap: "wrap",
             }}
           >
-            {canCreate && activeSection === "inventory" ? (
-              <Button
-                component={RouterLink}
-                to={buildWarehouseAddStockPath({
-                  inventorySlug: activeInventory,
-                  returnTo: `${warehouseRootPath}?section=inventory&inventory=${activeInventory}`,
-                  warehouseId,
-                  warehouseName,
-                })}
-                startIcon={<Plus size={15} />}
-                variant="contained"
-                sx={(theme) => getListingToolbarButtonSx(theme)}
-              >
-                Add Stock
-              </Button>
-            ) : null}
             <Button
               variant="outlined"
               startIcon={<FileOutput size={15} />}

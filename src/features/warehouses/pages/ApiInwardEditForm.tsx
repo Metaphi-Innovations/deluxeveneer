@@ -274,14 +274,16 @@ export function ApiInwardEditForm({
     action: () => undefined,
   });
 
+  const navigateToList = () => {
+    navigate(listPath, { replace: true, flushSync: true });
+  };
+
   const closeForm = () => {
     setLeaveConfirmation({
       open: true,
       title: "Cancel Changes",
       description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
+      action: navigateToList,
     });
   };
 
@@ -375,7 +377,7 @@ export function ApiInwardEditForm({
       });
 
       void invalidateWarehouseInward();
-      closeForm();
+      navigateToList();
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to save inward.",
