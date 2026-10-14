@@ -1938,12 +1938,6 @@ export function FactoryListing<Row extends FactoryRecord>({
             updateFactoryIssuedWorkSnapshot(workItemId, snapshot);
           }
 
-          setListingRows((current) =>
-            current.map((item) =>
-              item.id === finishingEditRow.id ? ({ ...item, ...snapshot } as Row) : item,
-            ),
-          );
-
           setFinishingEditRow(null);
           setToastNotification({
             message: "Finishing item updated successfully.",
