@@ -28,6 +28,7 @@ import {
   ordersModuleConfig,
   type OrderModuleConfig,
 } from "../shared/ordersStore";
+import { OrderStatusChip } from "../shared/OrderStatusChip";
 import { OrderViewDetailsDialog } from "./OrderViewDetailsDialog";
 
 type OrderListingLocationState = {
@@ -150,8 +151,12 @@ export function OrdersListingPage({
     });
   };
 
-  const listingColumns =
-    orderListingColumns as readonly EnterpriseTableColumn<OrderListingRow>[];
+  const listingColumns = (orderListingColumns as readonly EnterpriseTableColumn<OrderListingRow>[]).map(
+    (col) =>
+      col.key === "status"
+        ? { ...col, renderCell: (row: OrderListingRow) => <OrderStatusChip status={String(row.status ?? "")} /> }
+        : col,
+  );
 
   return (
     <MasterPageShell

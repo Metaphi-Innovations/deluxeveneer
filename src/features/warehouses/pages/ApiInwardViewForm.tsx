@@ -344,14 +344,7 @@ export function ApiInwardViewForm({
   });
 
   const closeForm = () => {
-    setLeaveConfirmation({
-      open: true,
-      title: "Leave Page",
-      description: "Are you sure you want to go back to the warehouse stock list?",
-      action: () => {
-        navigate(listPath, { replace: true, flushSync: true });
-      },
-    });
+    navigate(listPath, { replace: true, flushSync: true });
   };
 
   if (isLoading) {

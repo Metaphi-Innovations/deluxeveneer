@@ -191,6 +191,8 @@ import {
 import type { FactoryDefinition, FactoryRecord } from "./types";
 import {
   getOrderLineItems,
+  getOrderRecordByOrderNo,
+  updateOrderRecord,
   useOrderRecords,
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
@@ -2628,6 +2630,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   });
                   completeFactoryIssuedWork(issued.id, resultSnapshot);
                 });
+
+                if (pressingOrder && pressingPurpose === "Order") {
+                  if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                    updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                  }
+                }
+
                 navigate(paths.list);
                 return;
               }
@@ -2696,6 +2705,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     resultSnapshot.width = pressingLine.width;
                     resultSnapshot.thickness = pressingLine.thickness;
                     resultSnapshot.noOfSheets = pressingLine.quantitySheets;
+
+                    if (pressingOrder.status === "Draft" || pressingOrder.status === "Confirmed") {
+                      updateOrderRecord(pressingOrder.id, { status: "In Production" });
+                    }
                   }
                 }
 

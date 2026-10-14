@@ -143,7 +143,24 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
         const nextRecord = await fetchCustomerMasterDetail(params.id);
         if (!ignore) {
           setRecord(nextRecord);
-          setAddresses(parseCustomerAddresses(nextRecord.customerAddresses));
+          const primaryAddr: CustomerAddress = {
+            address: typeof nextRecord.address === "string" ? nextRecord.address : "",
+            pincode: typeof nextRecord.pincode === "string" ? nextRecord.pincode : "",
+            country: typeof nextRecord.country === "string" ? nextRecord.country : "",
+            state: typeof nextRecord.state === "string" ? nextRecord.state : "",
+            city: typeof nextRecord.city === "string" ? nextRecord.city : "",
+          };
+          const additional = parseCustomerAddresses(nextRecord.customerAddresses);
+          // If primary address has any data or there are additional addresses, show them unified with primary at top
+          if (
+            primaryAddr.address ||
+            primaryAddr.pincode ||
+            additional.length > 0
+          ) {
+            setAddresses([primaryAddr, ...additional]);
+          } else {
+            setAddresses([]);
+          }
         }
       } catch (error) {
         if (!ignore) {
@@ -201,24 +218,8 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
   return (
     <MasterFormPage
       additionalValues={{
-        customerAddresses: JSON.stringify(addresses),
+        customerAddresses: JSON.stringify(addresses.slice(1)),
       }}
-      afterFields={
-        <CustomerAddressesSection
-          addresses={addresses}
-          onAdd={() =>
-            setAddresses((current) => [...current, { ...EMPTY_ADDRESS }])
-          }
-          onChange={handleAddressChange}
-          onPatch={handleAddressPatch}
-          onRemove={(index) =>
-            setAddresses((current) =>
-              current.filter((_, itemIndex) => itemIndex !== index),
-            )
-          }
-          readOnly={mode === "view"}
-        />
-      }
       beforeSave={() =>
         addresses.every(
           (address) => !address.pincode || /^\d{1,6}$/.test(address.pincode),
@@ -231,20 +232,91 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
       {...(record ? { record } : {})}
       renderFields={({ definition: formDefinition, values, onChange, readOnly, showRequiredErrors }) => {
         const line1Keys = ["customerType", "customerName", "companyName", "email", "phoneNumber", "dob"];
-        const line2Keys = ["address", "pincode", "country", "state", "city"];
         const line3Keys = ["gstNo", "gstUpload", "panNo", "panUpload", "remark"];
 
         const line1Fields = line1Keys
           .map((key) => formDefinition.fields.find((f) => f.key === key))
           .filter(Boolean) as typeof formDefinition.fields;
 
-        const line2Fields = line2Keys
-          .map((key) => formDefinition.fields.find((f) => f.key === key))
-          .filter(Boolean) as typeof formDefinition.fields;
-
         const line3Fields = line3Keys
           .map((key) => formDefinition.fields.find((f) => f.key === key))
           .filter(Boolean) as typeof formDefinition.fields;
+
+        // Effective address list: addresses from state, or default from initial form values
+        const effectiveAddresses: CustomerAddress[] =
+          addresses.length > 0
+            ? addresses
+            : [
+                {
+                  address: typeof values.address === "string" ? values.address : "",
+                  pincode: typeof values.pincode === "string" ? values.pincode : "",
+                  country: typeof values.country === "string" ? values.country : "",
+                  state: typeof values.state === "string" ? values.state : "",
+                  city: typeof values.city === "string" ? values.city : "",
+                },
+              ];
+
+        const syncPrimaryToForm = (addr: CustomerAddress) => {
+          onChange("address", addr.address);
+          onChange("pincode", addr.pincode);
+          onChange("country", addr.country);
+          onChange("state", addr.state);
+          onChange("city", addr.city);
+        };
+
+        const handleItemChange = (
+          index: number,
+          key: keyof CustomerAddress,
+          val: string,
+        ) => {
+          if (addresses.length === 0) {
+            setAddresses(effectiveAddresses);
+          }
+          handleAddressChange(index, key, val);
+          if (index === 0) {
+            onChange(key, val);
+            if (key === "country") {
+              onChange("state", "");
+              onChange("city", "");
+            } else if (key === "state") {
+              onChange("city", "");
+            }
+          }
+        };
+
+        const handleItemPatch = (index: number, patch: Partial<CustomerAddress>) => {
+          if (addresses.length === 0) {
+            setAddresses(effectiveAddresses);
+          }
+          handleAddressPatch(index, patch);
+          if (index === 0) {
+            Object.entries(patch).forEach(([k, v]) => {
+              onChange(k, v ?? "");
+            });
+          }
+        };
+
+        // When user chooses an address to make primary: move it to the top (index 0) so primary is always at top!
+        const handleMakePrimary = (index: number) => {
+          if (index === 0) return;
+          const chosen = effectiveAddresses[index];
+          if (!chosen) return;
+
+          const updatedList = [
+            chosen,
+            ...effectiveAddresses.filter((_, i) => i !== index),
+          ];
+          setAddresses(updatedList);
+          syncPrimaryToForm(chosen);
+        };
+
+        const handleRemove = (index: number) => {
+          const updatedList = effectiveAddresses.filter((_, i) => i !== index);
+          setAddresses(updatedList);
+          if (index === 0 && updatedList[0]) {
+            syncPrimaryToForm(updatedList[0]);
+          }
+        };
 
         return (
           <Stack spacing={1.5} sx={{ width: "100%" }}>
@@ -297,44 +369,7 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
               />
             </Box>
 
-            {/* Line 2: Address, Pincode, Country, State, City (5 items) */}
-            <Box
-              sx={{
-                width: "100%",
-                overflowX: "auto",
-                "& > div": {
-                  display: "grid !important",
-                  width: "100%",
-                  minWidth: { xs: 0, lg: 960 },
-                  gridTemplateColumns: {
-                    xs: "1fr !important",
-                    sm: "repeat(2, minmax(0, 1fr)) !important",
-                    md: "repeat(3, minmax(0, 1fr)) !important",
-                    lg: "repeat(5, minmax(0, 1fr)) !important",
-                  },
-                  columnGap: "12px !important",
-                  rowGap: "12px !important",
-                  alignItems: "start !important",
-                },
-              }}
-            >
-              <MasterFormFields
-                compact
-                definition={{
-                  ...formDefinition,
-                  fields: line2Fields,
-                  gridColumns: 5,
-                }}
-                onChange={onChange}
-                presentation={mode === "view" ? "details" : "form"}
-                readOnly={readOnly}
-                showRequiredErrors={showRequiredErrors}
-                values={values}
-                variant="masters"
-              />
-            </Box>
-
-            {/* Line 3: GSTIN, GSTIN Upload, PAN, PAN Upload, Remark (5 items) */}
+            {/* Line 2: GSTIN, GSTIN Upload, PAN, PAN Upload, Remark (5 items) */}
             <Box
               sx={{
                 width: "100%",
@@ -370,14 +405,55 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                 variant="masters"
               />
             </Box>
+
+            {/* Address Management Section */}
+            <CustomerAddressesSection
+              addresses={effectiveAddresses}
+              primaryIndex={0}
+              onMakePrimary={handleMakePrimary}
+              onAdd={() =>
+                setAddresses((current) => [
+                  ...(current.length > 0 ? current : effectiveAddresses),
+                  { ...EMPTY_ADDRESS },
+                ])
+              }
+              onChange={handleItemChange}
+              onPatch={handleItemPatch}
+              onRemove={handleRemove}
+              readOnly={readOnly}
+            />
           </Stack>
         );
       }}
       onSave={async ({ mode: saveMode, row, values }) => {
+        const effectiveList =
+          addresses.length > 0
+            ? addresses
+            : [
+                {
+                  address: typeof values.address === "string" ? values.address : "",
+                  pincode: typeof values.pincode === "string" ? values.pincode : "",
+                  country: typeof values.country === "string" ? values.country : "",
+                  state: typeof values.state === "string" ? values.state : "",
+                  city: typeof values.city === "string" ? values.city : "",
+                },
+              ];
+        const primaryAddr = effectiveList[0];
+        const additionalAddrs = effectiveList.slice(1);
+
+        const updatedValues = {
+          ...values,
+          address: primaryAddr?.address || "",
+          pincode: primaryAddr?.pincode || "",
+          country: primaryAddr?.country || "",
+          state: primaryAddr?.state || "",
+          city: primaryAddr?.city || "",
+        };
+
         if (saveMode === "edit" && row?.id) {
-          await updateCustomerMasterRecord(row.id, values, addresses);
+          await updateCustomerMasterRecord(row.id, updatedValues, additionalAddrs);
         } else {
-          await createCustomerMasterRecord(values, addresses);
+          await createCustomerMasterRecord(updatedValues, additionalAddrs);
         }
         void invalidateMaster("customer");
       }}
@@ -387,6 +463,8 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
 
 export function CustomerAddressesSection({
   addresses,
+  primaryIndex,
+  onMakePrimary,
   onAdd,
   onChange,
   onPatch,
@@ -394,6 +472,8 @@ export function CustomerAddressesSection({
   readOnly,
 }: {
   addresses: CustomerAddress[];
+  primaryIndex: number;
+  onMakePrimary: (index: number) => void;
   onAdd: () => void;
   onChange: (index: number, key: keyof CustomerAddress, value: string) => void;
   onPatch: (index: number, patch: Partial<CustomerAddress>) => void;
@@ -406,7 +486,7 @@ export function CustomerAddressesSection({
   );
   const [cityOptions, setCityOptions] = useState<Record<string, string[]>>({});
   const [toastMessage, setToastMessage] = useState("");
-  const pincodeLookupRequestRef = useRef<Record<number, number>>({});
+  const pincodeLookupRequestRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -463,11 +543,21 @@ export function CustomerAddressesSection({
     };
   }, [addresses]);
 
+  const firstAddress = addresses[0];
+  const isFirstAddressComplete = isCustomerAddressComplete(firstAddress);
   const canAddAddress =
-    addresses.length === 0 ||
-    isCustomerAddressComplete(addresses[addresses.length - 1]);
+    isFirstAddressComplete &&
+    (addresses.length === 1 ||
+      isCustomerAddressComplete(addresses[addresses.length - 1]));
 
   const handleAddAddress = () => {
+    if (!isFirstAddressComplete) {
+      setToastMessage(
+        "Please fill in Address 1 completely before adding another address.",
+      );
+      return;
+    }
+
     if (!canAddAddress) {
       setToastMessage(
         "Please complete the current address before adding another.",
@@ -482,8 +572,8 @@ export function CustomerAddressesSection({
     const pincode = rawValue.replace(/\D/g, "").slice(0, 6);
     onChange(index, "pincode", pincode);
 
-    const nextRequestId = (pincodeLookupRequestRef.current[index] ?? 0) + 1;
-    pincodeLookupRequestRef.current[index] = nextRequestId;
+    const nextRequestId = (pincodeLookupRequestRef.current[`addr-${index}`] ?? 0) + 1;
+    pincodeLookupRequestRef.current[`addr-${index}`] = nextRequestId;
 
     if (!/^\d{6}$/.test(pincode)) {
       return;
@@ -491,7 +581,7 @@ export function CustomerAddressesSection({
 
     void resolveLocationByPincode(pincode).then((location) => {
       if (
-        pincodeLookupRequestRef.current[index] !== nextRequestId ||
+        pincodeLookupRequestRef.current[`addr-${index}`] !== nextRequestId ||
         !location
       ) {
         return;
@@ -519,13 +609,14 @@ export function CustomerAddressesSection({
         alignItems="center"
         justifyContent="space-between"
         spacing={1}
-        sx={{ mb: addresses.length > 0 ? 1.25 : 0 }}
+        sx={{ mb: 1.5 }}
       >
         <Typography sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
-          Additional Addresses
+          Customer Addresses
         </Typography>
         {!readOnly ? (
           <Button
+            disabled={!canAddAddress}
             onClick={handleAddAddress}
             size="small"
             startIcon={<Plus size={15} strokeWidth={2.5} />}
@@ -543,6 +634,11 @@ export function CustomerAddressesSection({
               "&:hover": {
                 backgroundColor: theme.customTokens.brand.primaryScale[800],
                 boxShadow: "0 2px 6px rgba(116, 22, 22, 0.3)",
+              },
+              "&.Mui-disabled": {
+                opacity: 0.5,
+                backgroundColor: theme.palette.action.disabledBackground,
+                color: theme.palette.action.disabled,
               },
             })}
           >
@@ -567,15 +663,19 @@ export function CustomerAddressesSection({
         </Alert>
       </Snackbar>
 
-      {addresses.length === 0 ? null : (
-        <Stack spacing={1.25}>
-          {addresses.map((address, index) => (
+      <Stack spacing={1.25}>
+        {addresses.map((address, index) => {
+          const isPrimary = index === primaryIndex;
+          return (
             <Box
               key={`customer-address-${index}`}
               sx={(theme) => ({
-                border: `1px solid ${theme.customTokens.borders.divider}`,
+                border: isPrimary
+                  ? `1px solid ${theme.customTokens.brand.primaryScale[300] || theme.customTokens.borders.divider}`
+                  : `1px solid ${theme.customTokens.borders.divider}`,
                 borderRadius: "6px",
                 p: 1.25,
+                backgroundColor: isPrimary ? "rgba(116, 22, 22, 0.02)" : "transparent",
               })}
             >
               <Stack
@@ -584,10 +684,53 @@ export function CustomerAddressesSection({
                 justifyContent="space-between"
                 sx={{ mb: 1 }}
               >
-                <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>
-                  Address {index + 1}
-                </Typography>
-                {!readOnly ? (
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Typography sx={{ fontSize: "0.8125rem", fontWeight: isPrimary ? 700 : 600 }}>
+                    Address {index + 1}
+                  </Typography>
+                  {isPrimary ? (
+                    <Box
+                      component="span"
+                      sx={(theme) => ({
+                        display: "inline-flex",
+                        alignItems: "center",
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: "12px",
+                        backgroundColor: theme.customTokens.brand.primary,
+                        color: "#FFFFFF",
+                      })}
+                    >
+                      Primary Address
+                    </Box>
+                  ) : !readOnly ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => onMakePrimary(index)}
+                      sx={(theme) => ({
+                        fontSize: "0.6875rem",
+                        py: 0.1,
+                        px: 0.9,
+                        minHeight: 22,
+                        textTransform: "none",
+                        borderColor: theme.customTokens.borders.default,
+                        color: theme.customTokens.text.primary,
+                        borderRadius: "12px",
+                        "&:hover": {
+                          borderColor: theme.customTokens.brand.primary,
+                          color: theme.customTokens.brand.primary,
+                          backgroundColor: "rgba(116, 22, 22, 0.04)",
+                        },
+                      })}
+                    >
+                      Set as Primary
+                    </Button>
+                  ) : null}
+                </Stack>
+                {!readOnly && addresses.length > 1 ? (
                   <IconButton
                     aria-label={`Remove address ${index + 1}`}
                     onClick={() => onRemove(index)}
@@ -661,9 +804,9 @@ export function CustomerAddressesSection({
                 />
               </Box>
             </Box>
-          ))}
-        </Stack>
-      )}
+          );
+        })}
+      </Stack>
     </Box>
   );
 }

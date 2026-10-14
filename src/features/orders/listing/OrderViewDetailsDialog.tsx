@@ -2,7 +2,6 @@ import React from "react";
 import {
   Box,
   Button,
-  Chip,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -30,6 +29,7 @@ import {
   type OrderLineItem,
   type OrderRecord,
 } from "../shared/ordersStore";
+import { OrderStatusChip } from "../shared/OrderStatusChip";
 
 type DetailColumn<TRow> = {
   getValue: (row: TRow) => unknown;
@@ -38,42 +38,6 @@ type DetailColumn<TRow> = {
   renderCell?: (row: TRow) => React.ReactNode;
 };
 
-// Color map for all 6 order statuses
-const ORDER_STATUS_COLORS: Record<
-  string,
-  { bg: string; color: string; border: string }
-> = {
-  Draft:                { bg: "#e8eaf6", color: "#283593", border: "#9fa8da" },
-  Confirmed:            { bg: "#e3f2fd", color: "#0d47a1", border: "#90caf9" },
-  "In Production":      { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
-  "Partially Dispatched": { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1" },
-  Completed:            { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
-  Cancelled:            { bg: "#fafafa", color: "#616161", border: "#bdbdbd" },
-};
-
-function StatusChip({ status }: { status: string }) {
-  const palette = ORDER_STATUS_COLORS[status] ?? {
-    bg: "#f5f5f5",
-    color: "#333",
-    border: "#ccc",
-  };
-  return (
-    <Chip
-      label={status}
-      size="small"
-      sx={{
-        backgroundColor: palette.bg,
-        border: `1px solid ${palette.border}`,
-        borderRadius: "6px",
-        color: palette.color,
-        fontWeight: 600,
-        fontSize: "0.72rem",
-        height: 22,
-        letterSpacing: "0.02em",
-      }}
-    />
-  );
-}
 
 const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
   { label: "Order No", minWidth: 140, getValue: (row) => row.orderNo },
@@ -86,7 +50,7 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
     label: "Order Status",
     minWidth: 170,
     getValue: (row) => row.status,
-    renderCell: (row) => <StatusChip status={String(row.status ?? "")} />,
+    renderCell: (row) => <OrderStatusChip status={String(row.status ?? "")} />,
   },
   { label: "Remark", minWidth: 220, getValue: (row) => row.remark },
   { label: "Created Date", minWidth: 130, getValue: (row) => row.createdDate },
@@ -134,6 +98,8 @@ const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "SQF", minWidth: 90, getValue: (row) => row.totalSqm },
   { label: "Rate/SQF", minWidth: 100, getValue: (row) => row.ratePerSqf },
   { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
+  { label: "Design Code", minWidth: 120, getValue: (row) => row.designCode },
+  { label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode },
   { label: "Remark", minWidth: 180, getValue: (row) => row.remark },
 ];
 
@@ -427,10 +393,13 @@ function getDetailTableScrollSx(theme: Theme) {
 }
 
 function getItemDetailColumns(variant: OrderCreateVariant | null) {
-  if (variant === "order") {
-    return orderItemDetailColumns;
+  if (variant === "finished") {
+    return finishedItemDetailColumns;
   }
-  return variant === "finished" ? finishedItemDetailColumns : rawItemDetailColumns;
+  if (variant === "raw") {
+    return rawItemDetailColumns;
+  }
+  return orderItemDetailColumns;
 }
 
 function formatDialogValue(value: unknown) {

@@ -167,25 +167,7 @@ export function MasterFormPage({
   };
 
   const handleBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: `Are you sure you want to go back to the ${localDefinition.title} list?`,
-        action: () => {
-          navigate(paths.list);
-        },
-      });
-    } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          navigate(cancelPath, { replace: true });
-        },
-      });
-    }
+    navigate(cancelPath, { replace: true });
   };
 
   useEffect(() => {

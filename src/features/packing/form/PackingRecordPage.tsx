@@ -321,32 +321,10 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   }
 
   const handleRequestBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: "Are you sure you want to go back to the packing list?",
-        action: () => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate(paths.list);
-          }
-        },
-      });
+    if (window.history.length > 1) {
+      navigate(-1);
     } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate(paths.list);
-          }
-        },
-      });
+      navigate(paths.list);
     }
   };
 
@@ -470,20 +448,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
             {mode === "view" ? (
               <>
                 <Button
-                  onClick={() =>
-                    setLeaveConfirmation({
-                      open: true,
-                      title: "Leave Page",
-                      description: "Are you sure you want to go back to the packing list?",
-                      action: () => {
-                        if (window.history.length > 1) {
-                          navigate(-1);
-                        } else {
-                          navigate(paths.list);
-                        }
-                      },
-                    })
-                  }
+                  onClick={handleRequestBack}
                   startIcon={<ChevronLeft size={16} />}
                   sx={recordViewActionButtonSx}
                   variant="outlined"

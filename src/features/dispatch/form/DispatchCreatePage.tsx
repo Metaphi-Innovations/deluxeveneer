@@ -329,32 +329,10 @@ export function DispatchCreatePage({
   }
 
   const handleRequestBack = () => {
-    if (mode === "view") {
-      setLeaveConfirmation({
-        open: true,
-        title: "Leave Page",
-        description: "Are you sure you want to go back to the dispatch list?",
-        action: () => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate("/dispatch");
-          }
-        },
-      });
+    if (window.history.length > 1) {
+      navigate(-1);
     } else {
-      setLeaveConfirmation({
-        open: true,
-        title: "Discard Changes",
-        description: "Are you sure you want to leave? Any unsaved changes will be discarded.",
-        action: () => {
-          if (window.history.length > 1) {
-            navigate(-1);
-          } else {
-            navigate("/dispatch");
-          }
-        },
-      });
+      navigate("/dispatch");
     }
   };
 
@@ -586,20 +564,7 @@ export function DispatchCreatePage({
             {mode === "view" ? (
               <>
                 <Button
-                  onClick={() =>
-                    setLeaveConfirmation({
-                      open: true,
-                      title: "Leave Page",
-                      description: "Are you sure you want to go back to the dispatch list?",
-                      action: () => {
-                        if (window.history.length > 1) {
-                          navigate(-1);
-                        } else {
-                          navigate("/dispatch");
-                        }
-                      },
-                    })
-                  }
+                  onClick={handleRequestBack}
                   startIcon={<ChevronLeft size={16} />}
                   sx={recordViewActionButtonSx}
                   variant="outlined"

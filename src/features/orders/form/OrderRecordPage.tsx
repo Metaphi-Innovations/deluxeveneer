@@ -1060,9 +1060,9 @@ function getDetailHeaderCellSx(
     lineHeight: 1.35,
     ...(allowWrap
       ? {
-          whiteSpace: "normal",
-          overflowWrap: "anywhere",
-        }
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+      }
       : {}),
   } as const;
 }
@@ -1074,9 +1074,9 @@ function getDetailBodyCellSx(theme: Theme, allowWrap = false) {
     color: theme.palette.text.primary,
     ...(allowWrap
       ? {
-          whiteSpace: "normal",
-          overflowWrap: "anywhere",
-        }
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
+      }
       : {}),
   } as const;
 }

@@ -31,7 +31,7 @@ export function OrderStatusChip({ status }: { status: string }) {
       sx={{
         backgroundColor: palette.bg,
         border: `1px solid ${palette.border}`,
-        borderRadius: "6px",
+        borderRadius: "999px",
         color: palette.color,
         fontWeight: 600,
         fontSize: "0.72rem",
