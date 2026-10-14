@@ -271,19 +271,17 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
                         slotProps={{
                           htmlInput: { readOnly: true, tabIndex: -1 },
                         }}
-                        sx={(theme) => [
-                          getCompactFieldSx(theme),
-                          {
-                            "& .MuiInputBase-root": {
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                            },
-                            "& .MuiInputBase-input": {
-                              cursor: "default",
-                              caretColor: "transparent",
-                              fontWeight: 600,
-                            },
+                        sx={(theme) => ({
+                          ...getCompactFieldSx(theme),
+                          "& .MuiInputBase-root": {
+                            backgroundColor: theme.customTokens.surfaces.alt,
                           },
-                        ]}
+                          "& .MuiInputBase-input": {
+                            cursor: "default",
+                            caretColor: "transparent",
+                            fontWeight: 600,
+                          },
+                        })}
                         value={available}
                       />
                     </Stack>
