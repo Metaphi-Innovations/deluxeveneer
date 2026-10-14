@@ -693,15 +693,31 @@ export function ErpSelectField({
                 setAnchorEl(event.currentTarget);
               }
 
-              setSearchText(event.target.value);
+              const nextText = event.target.value;
+              setSearchText(nextText);
+
+              // If the text no longer matches the previously selected value, clear the selection
+              if (value && nextText !== value) {
+                onChange("");
+              }
             }}
             onClick={(event) => {
+              const wasOpen = open;
               openSelectMenu(event.currentTarget);
+              if (!wasOpen) {
+                const target = event.currentTarget.querySelector("input") || (event.currentTarget as HTMLInputElement);
+                if (target && "select" in target) {
+                  (target as HTMLInputElement).select();
+                }
+              }
             }}
             onFocus={(event) => {
               if (!open) {
                 openSelectMenu(event.currentTarget);
-                event.currentTarget.select();
+                const target = event.currentTarget.querySelector("input") || (event.currentTarget as HTMLInputElement);
+                if (target && "select" in target) {
+                  (target as HTMLInputElement).select();
+                }
               }
             }}
             onKeyDown={(event) => {
@@ -997,7 +1013,8 @@ function getVisibleSelectOptions({
     : options;
   const visibleOptions = source.slice(0, limit);
 
-  if (value && options.includes(value) && !visibleOptions.includes(value)) {
+  // Only prioritize/preserve the selected value if the user hasn't typed a different search query
+  if (!effectiveQuery && value && options.includes(value) && !visibleOptions.includes(value)) {
     return [value, ...visibleOptions.slice(0, Math.max(limit - 1, 0))];
   }
 

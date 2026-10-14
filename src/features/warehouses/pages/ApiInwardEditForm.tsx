@@ -34,6 +34,7 @@ import { invalidateWarehouseInward } from "../../../query/queryClient";
 import { buildCreateInwardPayload } from "../api/buildCreateInwardPayload";
 import { resolveInwardAttachmentUrl } from "../api/resolveInwardAttachment";
 import {
+  getInwardStockLabel,
   slugFromInventoryTypeLabel,
   type ApiSupportedInwardSlug,
 } from "../inward/supportedInwardTypes";
@@ -381,15 +382,17 @@ export function ApiInwardEditForm({
     }
   };
 
+  const editStockTitle = `Edit ${getInwardStockLabel(inventorySlug)}`;
+
   if (isLoading) {
     return (
       <InventoryPageShell
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <ContentLoader label="Loading inward record..." minHeight={220} />
@@ -404,9 +407,9 @@ export function ApiInwardEditForm({
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <Alert severity="error">
@@ -433,9 +436,9 @@ export function ApiInwardEditForm({
         breadcrumbs={[
           { label: "Warehouses" },
           { label: warehouseName, to: warehouseRootPath },
-          { label: "Edit Stock" },
+          { label: editStockTitle },
         ]}
-        title="Edit Stock"
+        title={editStockTitle}
       >
         <MasterSectionCard>
           <Alert severity="info">
@@ -454,17 +457,17 @@ export function ApiInwardEditForm({
   return (
     <InventoryPageShell
       backNav={{
-        label: "Back to Stock",
+        label: `Back to ${getInwardStockLabel(inventorySlug)}`,
         to: listPath,
         onBack: handleBack,
       }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
-        { label: "Edit Stock" },
+        { label: editStockTitle },
       ]}
       subtitle=" "
-      title="Edit Stock"
+      title={editStockTitle}
     >
       <MasterSectionCard>
         <Box

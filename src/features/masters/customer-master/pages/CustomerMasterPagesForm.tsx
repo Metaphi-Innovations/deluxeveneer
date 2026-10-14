@@ -95,6 +95,7 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
     "Silver",
   ]);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [primaryIndex, setPrimaryIndex] = useState<number>(0);
 
   const definition = useMemo(
     () => ({
@@ -256,6 +257,11 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                 },
               ];
 
+        const effectivePrimaryIndex =
+          primaryIndex >= 0 && primaryIndex < effectiveAddresses.length
+            ? primaryIndex
+            : 0;
+
         const syncPrimaryToForm = (addr: CustomerAddress) => {
           onChange("address", addr.address);
           onChange("pincode", addr.pincode);
@@ -273,7 +279,7 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
             setAddresses(effectiveAddresses);
           }
           handleAddressChange(index, key, val);
-          if (index === 0) {
+          if (index === effectivePrimaryIndex) {
             onChange(key, val);
             if (key === "country") {
               onChange("state", "");
@@ -289,32 +295,34 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
             setAddresses(effectiveAddresses);
           }
           handleAddressPatch(index, patch);
-          if (index === 0) {
+          if (index === effectivePrimaryIndex) {
             Object.entries(patch).forEach(([k, v]) => {
               onChange(k, v ?? "");
             });
           }
         };
 
-        // When user chooses an address to make primary: move it to the top (index 0) so primary is always at top!
+        // When user clicks 'Set as Primary': keep the address row in its place, just set primaryIndex
         const handleMakePrimary = (index: number) => {
-          if (index === 0) return;
+          if (index === effectivePrimaryIndex) return;
           const chosen = effectiveAddresses[index];
           if (!chosen) return;
 
-          const updatedList = [
-            chosen,
-            ...effectiveAddresses.filter((_, i) => i !== index),
-          ];
-          setAddresses(updatedList);
+          setPrimaryIndex(index);
           syncPrimaryToForm(chosen);
         };
 
         const handleRemove = (index: number) => {
           const updatedList = effectiveAddresses.filter((_, i) => i !== index);
           setAddresses(updatedList);
-          if (index === 0 && updatedList[0]) {
-            syncPrimaryToForm(updatedList[0]);
+
+          if (index === effectivePrimaryIndex) {
+            setPrimaryIndex(0);
+            if (updatedList[0]) {
+              syncPrimaryToForm(updatedList[0]);
+            }
+          } else if (index < effectivePrimaryIndex) {
+            setPrimaryIndex((current) => Math.max(0, current - 1));
           }
         };
 
@@ -409,7 +417,7 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
             {/* Address Management Section */}
             <CustomerAddressesSection
               addresses={effectiveAddresses}
-              primaryIndex={0}
+              primaryIndex={effectivePrimaryIndex}
               onMakePrimary={handleMakePrimary}
               onAdd={() =>
                 setAddresses((current) => [
@@ -438,8 +446,12 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                   city: typeof values.city === "string" ? values.city : "",
                 },
               ];
-        const primaryAddr = effectiveList[0];
-        const additionalAddrs = effectiveList.slice(1);
+        const effectivePrimaryIndex =
+          primaryIndex >= 0 && primaryIndex < effectiveList.length
+            ? primaryIndex
+            : 0;
+        const primaryAddr = effectiveList[effectivePrimaryIndex];
+        const additionalAddrs = effectiveList.filter((_, i) => i !== effectivePrimaryIndex);
 
         const updatedValues = {
           ...values,

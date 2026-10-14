@@ -49,3 +49,19 @@ export function slugFromInventoryTypeLabel(
   }
   return "veneer-blocks";
 }
+
+export const INWARD_STOCK_LABELS: Record<ApiSupportedInwardSlug, string> = {
+  "veneer-blocks": "Veneer Block Stock",
+  "raw-veneer": "Raw Veneer Stock",
+  plywood: "Plywood Stock",
+  mdf: "MDF Stock",
+  consumables: "Consumables Stock",
+};
+
+export function getInwardStockLabel(slug: string | null | undefined): string {
+  if (!slug) return "Stock";
+  if (isApiSupportedInwardSlug(slug)) {
+    return INWARD_STOCK_LABELS[slug];
+  }
+  return "Stock";
+}
