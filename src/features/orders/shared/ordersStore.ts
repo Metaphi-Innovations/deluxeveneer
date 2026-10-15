@@ -211,7 +211,9 @@ export const statusOptions = [
   "Draft",
   "Confirmed",
   "In Production",
+  "Packed",
   "Partially Dispatched",
+  "Dispatched",
   "Completed",
   "Cancelled",
 ] as const;

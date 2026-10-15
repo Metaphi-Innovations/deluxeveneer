@@ -578,6 +578,65 @@ export function createDispatchEntry(
   }
 
   const timestamp = new Date();
+  const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+  const dispatchQtyNum = payload.dispatchTotalQuantity !== undefined
+    ? (parseInt(payload.dispatchTotalQuantity, 10) || totalSheetsNum)
+    : totalSheetsNum;
+
+  // If partial quantity dispatched (0 < dispatchQtyNum < totalSheetsNum)
+  if (dispatchQtyNum > 0 && dispatchQtyNum < totalSheetsNum) {
+    const remainingSheets = totalSheetsNum - dispatchQtyNum;
+    const sqmPerSheet = (parseFloat(record.sqm) || 0) / (totalSheetsNum || 1);
+    const sqfPerSheet = (parseFloat(record.sqf) || 0) / (totalSheetsNum || 1);
+    const amountPerSheet = (parseFloat(record.amount) || 0) / (totalSheetsNum || 1);
+
+    const dispatchedRecord: PackingRecord = {
+      ...applyDispatchDone(
+        {
+          ...record,
+          id: `${record.id}-disp-${Date.now()}`,
+          noOfSheets: String(dispatchQtyNum),
+          sqm: (sqmPerSheet * dispatchQtyNum).toFixed(3),
+          sqf: (sqfPerSheet * dispatchQtyNum).toFixed(3),
+          amount: (amountPerSheet * dispatchQtyNum).toFixed(2),
+        },
+        {
+          ...(payload.dispatchDate !== undefined ? { dispatchDate: payload.dispatchDate } : {}),
+          ...(payload.dispatchTransporter !== undefined ? { dispatchTransporter: payload.dispatchTransporter } : {}),
+          ...(payload.dispatchTransportMode !== undefined ? { dispatchTransportMode: payload.dispatchTransportMode } : {}),
+          ...(payload.remark !== undefined ? { remark: payload.remark } : {}),
+        },
+        timestamp,
+      ),
+      customerName: normalizeString(payload.customerName, record.customerName),
+      orderType: normalizeString(payload.orderType, record.orderType),
+      productCategory: normalizeString(payload.productCategory, record.productCategory),
+      dispatchBuyerAddress: normalizeString(payload.dispatchBuyerAddress, record.dispatchBuyerAddress ?? ""),
+      dispatchSellerAddress: normalizeString(payload.dispatchSellerAddress, record.dispatchSellerAddress ?? ""),
+      dispatchTransactionType: normalizeString(payload.dispatchTransactionType, record.dispatchTransactionType ?? ""),
+      dispatchTotalQuantity: String(dispatchQtyNum),
+      dispatchTotalSqf: (sqfPerSheet * dispatchQtyNum).toFixed(3),
+      dispatchGrandTotal: normalizeString(payload.dispatchGrandTotal, (amountPerSheet * dispatchQtyNum * 1.18).toFixed(2)),
+    };
+
+    updatePackingRecords((records) => [
+      dispatchedRecord,
+      ...records.map((entry) => {
+        if (entry.id !== recordId) return entry;
+        return {
+          ...entry,
+          noOfSheets: String(remainingSheets),
+          sqm: (sqmPerSheet * remainingSheets).toFixed(3),
+          sqf: (sqfPerSheet * remainingSheets).toFixed(3),
+          amount: (amountPerSheet * remainingSheets).toFixed(2),
+          updatedDate: timestamp,
+        };
+      }),
+    ]);
+
+    syncOrderFulfillmentStatus(record.orderNo);
+    return;
+  }
 
   updatePackingRecords((records) =>
     records.map((entry) => {
@@ -662,19 +721,24 @@ export function syncOrderFulfillmentStatus(orderNo: string) {
     return;
   }
 
-  const hasIssued = related.some((record) => record.packingState === "issued");
-  const hasDone = related.some((record) => record.packingState === "done");
   const anyDispatched = related.some((record) => record.packingState === "dispatched");
   const allDispatched = related.length > 0 && related.every(
     (record) => record.packingState === "dispatched",
   );
+  const allPackedDone = related.length > 0 && related.every(
+    (record) => record.packingState === "done" || record.packingState === "dispatched",
+  );
+  const anyDone = related.some((record) => record.packingState === "done");
+  const anyIssued = related.some((record) => record.packingState === "issued");
 
   let nextStatus: string | null = null;
   if (allDispatched) {
-    nextStatus = "Completed";
+    nextStatus = "Dispatched";
   } else if (anyDispatched) {
     nextStatus = "Partially Dispatched";
-  } else if (hasDone || hasIssued) {
+  } else if (allPackedDone && anyDone) {
+    nextStatus = "Packed";
+  } else if (anyIssued || anyDone) {
     nextStatus = "In Production";
   }
 

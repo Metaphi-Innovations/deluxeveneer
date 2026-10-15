@@ -40,17 +40,24 @@ export function useOrderList({
     setActiveTab("order");
   }, [moduleConfig, requestedTab]);
 
-  const listingRows = useMemo(
-    () =>
-      rows
-        .flatMap((row) => buildOrderListingRows(row))
-        .sort((a, b) => {
-          const dateA = new Date(a.orderDate || a.updatedDate || a.createdDate || 0).getTime();
-          const dateB = new Date(b.orderDate || b.updatedDate || b.createdDate || 0).getTime();
-          return dateB - dateA;
-        }),
-    [rows],
-  );
+  const listingRows = useMemo(() => {
+    // Deduplicate by order id / orderNo so there is strictly 1 row per order
+    const uniqueOrders = new Map<string, OrderRecord>();
+    rows.forEach((row) => {
+      const key = (row.orderNo || row.id).trim().toLowerCase();
+      if (!uniqueOrders.has(key)) {
+        uniqueOrders.set(key, row);
+      }
+    });
+
+    return Array.from(uniqueOrders.values())
+      .flatMap((row) => buildOrderListingRows(row))
+      .sort((a, b) => {
+        const dateA = new Date(a.orderDate || a.updatedDate || a.createdDate || 0).getTime();
+        const dateB = new Date(b.orderDate || b.updatedDate || b.createdDate || 0).getTime();
+        return dateB - dateA;
+      });
+  }, [rows]);
 
   const filteredRows = useMemo(() => {
     return listingRows.filter((row) => {
@@ -94,7 +101,7 @@ function buildOrderListingRows(record: OrderRecord): OrderListingRow[] {
         ...record,
         dispatchQuantity: record.quantitySheets,
         issuedQuantity: record.quantitySheets,
-        id: `${record.id}:item-1`,
+        id: record.id,
         orderId: record.id,
         orderItemNumber: "1",
         orderLineItemId: "",
@@ -103,18 +110,34 @@ function buildOrderListingRows(record: OrderRecord): OrderListingRow[] {
     ];
   }
 
-  return lineItems.map((lineItem, index) => ({
-    ...record,
-    ...getOrderLineItemListingValues(lineItem),
-    id: `${record.id}:${lineItem.id || `item-${index + 1}`}`,
-    orderId: record.id,
-    orderItemNumber: String(index + 1),
-    orderLineItemId: lineItem.id,
-    rawMaterial:
-      lineItem.productCategory === "Finished"
-        ? lineItem.finishedType
-        : lineItem.productCategory || lineItem.finishedType || record.productCategory,
-  }));
+  // When order has line items, list exactly 1 row for the order representing total quantity and details
+  const totalSheets = lineItems.reduce((sum, item) => sum + (parseInt(item.quantitySheets, 10) || 0), 0);
+  const displaySheets = totalSheets > 0 ? String(totalSheets) : record.quantitySheets;
+  const firstItem = lineItems[0]!;
+  const isMultiItem = lineItems.length > 1;
+  const itemNames = Array.from(new Set(lineItems.map((item) => item.itemName || item.salesItemName).filter(Boolean)));
+  const displayItemName = isMultiItem
+    ? `${firstItem.itemName || firstItem.salesItemName} (+${lineItems.length - 1} more)`
+    : (firstItem.itemName || firstItem.salesItemName || record.itemName);
+
+  return [
+    {
+      ...record,
+      ...getOrderLineItemListingValues(firstItem),
+      itemName: displayItemName,
+      quantitySheets: displaySheets,
+      dispatchQuantity: displaySheets,
+      issuedQuantity: displaySheets,
+      id: record.id,
+      orderId: record.id,
+      orderItemNumber: isMultiItem ? `${lineItems.length} Items` : "1",
+      orderLineItemId: firstItem.id,
+      rawMaterial:
+        firstItem.productCategory === "Finished"
+          ? firstItem.finishedType
+          : firstItem.productCategory || firstItem.finishedType || record.productCategory,
+    },
+  ];
 }
 
 function getOrderLineItemListingValues(lineItem: OrderLineItem) {
