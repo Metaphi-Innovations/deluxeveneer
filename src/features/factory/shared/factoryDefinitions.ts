@@ -828,6 +828,7 @@ const slicingProcessDetailFields = [
   ["itemName", "Item Name"],
   ["bundleNumber", "Bundle Number"],
   ["palletNo", "Pallet No"],
+  ["color", "Color"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -855,7 +856,8 @@ function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Output Details",
       fields(slicingProcessDetailFields, rows).map((fieldDefinition) =>
-        slicingDerivedAreaKeys.has(fieldDefinition.key)
+        slicingDerivedAreaKeys.has(fieldDefinition.key) ||
+        fieldDefinition.key === "itemName"
           ? { ...fieldDefinition, readOnly: true }
           : fieldDefinition,
       ),

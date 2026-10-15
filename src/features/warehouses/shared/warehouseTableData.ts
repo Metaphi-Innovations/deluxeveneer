@@ -57,6 +57,7 @@ export type WarehouseInventoryRow = {
   totalUnits: string;
   availableUnits: string;
   totalSqm: string;
+  receivedSqm?: string;
   totalSqf: string;
   availableSqm: string;
   availableSqf: string;

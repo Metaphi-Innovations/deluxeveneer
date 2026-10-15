@@ -297,8 +297,16 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingEditRow, setDryingEditRow] = useState<Row | null>(null);
   const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
   const [finishingEditRow, setFinishingEditRow] = useState<Row | null>(null);
-  const [splicingPressingIssueRow, setSplicingPressingIssueRow] =
-    useState<Row | null>(null);
+  const [splicingPressingIssueRows, setSplicingPressingIssueRows] =
+    useState<Row[]>([]);
+  const [marquetryPressingIssueRows, setMarquetryPressingIssueRows] =
+    useState<Row[]>([]);
+  const [flutingFinishingIssueRows, setFlutingFinishingIssueRows] =
+    useState<Row[]>([]);
+  const [embossingFinishingIssueRows, setEmbossingFinishingIssueRows] =
+    useState<Row[]>([]);
+  const [finishingPackingIssueRows, setFinishingPackingIssueRows] =
+    useState<Row[]>([]);
   const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
   const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
   const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
@@ -308,7 +316,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
     Record<string, { issuedLeaves: number; availableLeaves: number; status: "Pending" | "Partially Done" | "Done" }>
   >({});
-  const [warehouseBMoveRow, setWarehouseBMoveRow] = useState<Row | null>(null);
+  const [warehouseBMoveRows, setWarehouseBMoveRows] = useState<Row[]>([]);
   const [dryingInspectionQtyEditRow, setDryingInspectionQtyEditRow] = useState<Row | null>(null);
   const [inspectionTrackingMap, setInspectionTrackingMap] = useState<
     Record<string, { passQty: number; failQty: number; availableLeaves: number; status: "Pending" | "Partially Pending" | "Done" }>
@@ -332,8 +340,24 @@ export function FactoryListing<Row extends FactoryRecord>({
     definition.slug === "finishing";
   const isDryingDoneTab = definition.slug === "drying" && activeTab === "done";
   const isSlicingDoneTab = definition.slug === "slicing" && activeTab === "done";
+  const isSplicingDoneTab = definition.slug === "splicing" && activeTab === "done";
+  const isMarquetryDoneTab = definition.slug === "marquetry" && activeTab === "done";
+  const isFlutingDoneTab = definition.slug === "cnc-fluting" && activeTab === "done";
+  const isEmbossingDoneTab = definition.slug === "embossing" && activeTab === "done";
+  const isFinishingDoneTab = definition.slug === "finishing" && activeTab === "done";
+  const isDryingInspectionDoneTab =
+    isDryingInspectionModule && activeTab === "done";
   const isSawingInspectionDoneTab = definition.slug === "sawing-inspection" && activeTab === "done";
-  const isSelectableTab = isSlicingDoneTab || isSawingInspectionDoneTab;
+  const isSelectableTab =
+    isDryingDoneTab ||
+    isSlicingDoneTab ||
+    isSplicingDoneTab ||
+    isMarquetryDoneTab ||
+    isFlutingDoneTab ||
+    isEmbossingDoneTab ||
+    isFinishingDoneTab ||
+    isDryingInspectionDoneTab ||
+    isSawingInspectionDoneTab;
   const [selectedListingRows, setSelectedListingRows] = useState<Row[]>([]);
   const isGroupingDoneTab = isGroupingModule && activeTab === "done";
   const shouldUsePressingIssuedForLabels =
@@ -673,7 +697,8 @@ export function FactoryListing<Row extends FactoryRecord>({
           activeTab !== "rejected" &&
           !(
             activeTab === "history" &&
-            (definition.slug === "slicing" ||
+            (definition.slug === "drying" ||
+              definition.slug === "slicing" ||
               definition.slug === "grouping" ||
               definition.slug === "splicing" ||
               definition.slug === "marquetry" ||
@@ -945,7 +970,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         canView,
         isSawingInspection,
         ...(isSawingInspection ? {} : { onEdit: setDryingInspectionQtyEditRow }),
-        onMoveToWarehouseB: setWarehouseBMoveRow,
+        onMoveToWarehouseB: (selectedRow) => setWarehouseBMoveRows([selectedRow]),
         onMoveToWarehouseC: (selectedRow) => {
           setSawingWarehouseMoveRows([selectedRow]);
         },
@@ -1034,7 +1059,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         label: "Issue to Pressing",
         icon: Plus,
         tone: "primary",
-        onSelect: (selectedRow) => setSplicingPressingIssueRow(selectedRow),
+        onSelect: (selectedRow) => setSplicingPressingIssueRows([selectedRow]),
       };
       const withIssueToPressing = (
         actions: readonly EnterpriseTableAction<Row>[],
@@ -1382,7 +1407,10 @@ export function FactoryListing<Row extends FactoryRecord>({
         ]}
         processTabs={
           <ModuleProcessTabs
-            onChange={(value) => setActiveTab(value as ListingTab)}
+            onChange={(value) => {
+              setSelectedListingRows([]);
+              setActiveTab(value as ListingTab);
+            }}
             tabs={tabs}
             value={activeTab}
           />
@@ -1433,6 +1461,20 @@ export function FactoryListing<Row extends FactoryRecord>({
                     Issue for Drying
                   </Button>
                 ) : null}
+                {isDryingDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setConfirmIssueInspectionOpen(true)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Inspection ({selectedListingRows.length})
+                  </Button>
+                ) : null}
                 {isSawingInspectionDoneTab && (canCreate || canEdit) ? (
                   <Button
                     variant="contained"
@@ -1447,6 +1489,90 @@ export function FactoryListing<Row extends FactoryRecord>({
                     }}
                   >
                     Move to Warehouse C ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isDryingInspectionDoneTab && (canCreate || canEdit) ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setWarehouseBMoveRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Move to Warehouse B ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isSplicingDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setSplicingPressingIssueRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Pressing ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isMarquetryDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setMarquetryPressingIssueRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Pressing ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isFlutingDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setFlutingFinishingIssueRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Finishing ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isEmbossingDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setEmbossingFinishingIssueRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Finishing ({selectedListingRows.length})
+                  </Button>
+                ) : null}
+                {isFinishingDoneTab && canCreate ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<CheckCircle2 size={16} />}
+                    onClick={() => setFinishingPackingIssueRows(selectedListingRows)}
+                    sx={{
+                      backgroundColor: "primary.main",
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Issue to Packing ({selectedListingRows.length})
                   </Button>
                 ) : null}
               </Stack>
@@ -1526,37 +1652,57 @@ export function FactoryListing<Row extends FactoryRecord>({
       />
 
       <MoveToWarehouseBDialog
-        onClose={() => setWarehouseBMoveRow(null)}
+        itemCount={warehouseBMoveRows.length}
+        onClose={() => setWarehouseBMoveRows([])}
         onConfirm={(warehouse) => {
-          if (!warehouseBMoveRow) return;
-          const movedRow = warehouseBMoveRow;
-          moveFactoryRowToWarehouseB({
-            ...(movedRow as unknown as Record<string, unknown>),
-            storageWarehouseId: warehouse.id,
-            storageWarehouseName: warehouse.name,
-            warehouseName: warehouse.name,
-          });
-          setWarehouseBTransferredIds((current) =>
-            current.includes(movedRow.id) ? current : [...current, movedRow.id],
+          if (warehouseBMoveRows.length === 0) return;
+          const previouslyTransferredIds = new Set(warehouseBTransferredIds);
+          const rowsToRecord = warehouseBMoveRows.filter(
+            (row) => !previouslyTransferredIds.has(row.id),
           );
-          if (!warehouseBTransferredIds.includes(movedRow.id)) {
+
+          warehouseBMoveRows.forEach((movedRow) => {
+            moveFactoryRowToWarehouseB({
+              ...(movedRow as unknown as Record<string, unknown>),
+              storageWarehouseId: warehouse.id,
+              storageWarehouseName: warehouse.name,
+              warehouseName: warehouse.name,
+            });
+          });
+          setWarehouseBTransferredIds((current) => [
+            ...new Set([...current, ...warehouseBMoveRows.map((row) => row.id)]),
+          ]);
+          if (rowsToRecord.length > 0) {
+            const movedAt = Date.now();
+            const issueDate = new Date().toISOString().slice(0, 10);
             setDryingInspectionEventRows((current) => [
-              {
-                ...movedRow,
-                id: `drying-insp-history-move-${Date.now()}-${movedRow.id}`,
-                listingState: "history",
-                inspectionEventStatus: "Transferred to Warehouse B",
-                warehouseBStatus: "Transferred to Warehouse B",
-                passQty: formatInspectionLeafQty(movedRow.passQty),
-                failQty: formatInspectionLeafQty(movedRow.failQty),
-                issueDate: new Date().toISOString().slice(0, 10),
-              } as Row,
+              ...rowsToRecord.map(
+                (movedRow, index) =>
+                  ({
+                    ...movedRow,
+                    id: `drying-insp-history-move-${movedAt}-${index}-${movedRow.id}`,
+                    listingState: "history",
+                    inspectionEventStatus: "Transferred to Warehouse B",
+                    warehouseBStatus: "Transferred to Warehouse B",
+                    passQty: formatInspectionLeafQty(movedRow.passQty),
+                    failQty: formatInspectionLeafQty(movedRow.failQty),
+                    issueDate,
+                  }) as Row,
+              ),
               ...current,
             ]);
           }
-          setWarehouseBMoveRow(null);
+          const movedIds = new Set(warehouseBMoveRows.map((row) => row.id));
+          setSelectedListingRows((current) =>
+            current.filter((row) => !movedIds.has(row.id)),
+          );
+          setToastNotification({
+            message: `Moved ${warehouseBMoveRows.length} item(s) to ${warehouse.name} successfully.`,
+            severity: "success",
+          });
+          setWarehouseBMoveRows([]);
         }}
-        row={warehouseBMoveRow}
+        row={warehouseBMoveRows[0] ?? null}
       />
 
       <EditDryingInspectionQtyDialog
@@ -2224,20 +2370,169 @@ export function FactoryListing<Row extends FactoryRecord>({
       <ConfirmationDialog
         cancelLabel="Cancel"
         confirmLabel="Issue"
-        description="Are you sure you want to issue this item to Pressing?"
-        onClose={() => setSplicingPressingIssueRow(null)}
+        description={
+          splicingPressingIssueRows.length === 1
+            ? "Are you sure you want to issue this item to Pressing?"
+            : `Are you sure you want to issue ${splicingPressingIssueRows.length} items to Pressing?`
+        }
+        onClose={() => setSplicingPressingIssueRows([])}
         onConfirm={() => {
-          if (splicingPressingIssueRow) {
+          splicingPressingIssueRows.forEach((row) => {
             issueToNextFactoryProcess({
               destinationProcess: "Pressing",
-              row: splicingPressingIssueRow,
+              row,
               sourceSlug: "splicing",
             });
+          });
+          const issuedIds = new Set(
+            splicingPressingIssueRows.map((row) => row.id),
+          );
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
+          if (splicingPressingIssueRows.length > 0) {
+            setToastNotification({
+              message: `Issued ${splicingPressingIssueRows.length} item(s) to Pressing successfully.`,
+              severity: "success",
+            });
           }
-          setSplicingPressingIssueRow(null);
+          setSplicingPressingIssueRows([]);
         }}
-        open={Boolean(splicingPressingIssueRow)}
+        open={splicingPressingIssueRows.length > 0}
         title="Issue to Pressing"
+        tone="default"
+      />
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          marquetryPressingIssueRows.length === 1
+            ? "Are you sure you want to issue this item to Pressing?"
+            : `Are you sure you want to issue ${marquetryPressingIssueRows.length} items to Pressing?`
+        }
+        onClose={() => setMarquetryPressingIssueRows([])}
+        onConfirm={() => {
+          marquetryPressingIssueRows.forEach((row) => {
+            issueToNextFactoryProcess({
+              destinationProcess: "Pressing",
+              row,
+              sourceSlug: "marquetry",
+            });
+          });
+          const issuedIds = new Set(
+            marquetryPressingIssueRows.map((row) => row.id),
+          );
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
+          if (marquetryPressingIssueRows.length > 0) {
+            setToastNotification({
+              message: `Issued ${marquetryPressingIssueRows.length} item(s) to Pressing successfully.`,
+              severity: "success",
+            });
+          }
+          setMarquetryPressingIssueRows([]);
+        }}
+        open={marquetryPressingIssueRows.length > 0}
+        title="Issue to Pressing"
+        tone="default"
+      />
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          flutingFinishingIssueRows.length === 1
+            ? "Are you sure you want to issue this item to Finishing?"
+            : `Are you sure you want to issue ${flutingFinishingIssueRows.length} items to Finishing?`
+        }
+        onClose={() => setFlutingFinishingIssueRows([])}
+        onConfirm={() => {
+          flutingFinishingIssueRows.forEach((row) => {
+            issueToNextFactoryProcess({
+              destinationProcess: "Finishing",
+              row,
+              sourceSlug: "cnc-fluting",
+            });
+          });
+          const issuedIds = new Set(
+            flutingFinishingIssueRows.map((row) => row.id),
+          );
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
+          if (flutingFinishingIssueRows.length > 0) {
+            setToastNotification({
+              message: `Issued ${flutingFinishingIssueRows.length} item(s) to Finishing successfully.`,
+              severity: "success",
+            });
+          }
+          setFlutingFinishingIssueRows([]);
+        }}
+        open={flutingFinishingIssueRows.length > 0}
+        title="Issue to Finishing"
+        tone="default"
+      />
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          embossingFinishingIssueRows.length === 1
+            ? "Are you sure you want to issue this item to Finishing?"
+            : `Are you sure you want to issue ${embossingFinishingIssueRows.length} items to Finishing?`
+        }
+        onClose={() => setEmbossingFinishingIssueRows([])}
+        onConfirm={() => {
+          embossingFinishingIssueRows.forEach((row) => {
+            issueToNextFactoryProcess({
+              destinationProcess: "Finishing",
+              row,
+              sourceSlug: "embossing",
+            });
+          });
+          const issuedIds = new Set(
+            embossingFinishingIssueRows.map((row) => row.id),
+          );
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
+          if (embossingFinishingIssueRows.length > 0) {
+            setToastNotification({
+              message: `Issued ${embossingFinishingIssueRows.length} item(s) to Finishing successfully.`,
+              severity: "success",
+            });
+          }
+          setEmbossingFinishingIssueRows([]);
+        }}
+        open={embossingFinishingIssueRows.length > 0}
+        title="Issue to Finishing"
+        tone="default"
+      />
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description={
+          finishingPackingIssueRows.length === 1
+            ? "Are you sure you want to issue this item to Packing?"
+            : `Are you sure you want to issue ${finishingPackingIssueRows.length} selected items to Packing? Sample items will be skipped.`
+        }
+        onClose={() => setFinishingPackingIssueRows([])}
+        onConfirm={() => {
+          const eligibleRows = finishingPackingIssueRows.filter(
+            (row) => !isSampleFactoryRow(row),
+          );
+          eligibleRows.forEach((row) => issueFinishingToPacking(row));
+          setSelectedListingRows([]);
+          setToastNotification({
+            message:
+              eligibleRows.length > 0
+                ? `Issued ${eligibleRows.length} item(s) to Packing successfully.`
+                : "No selected items are eligible to issue to Packing.",
+            severity: eligibleRows.length > 0 ? "success" : "warning",
+          });
+          setFinishingPackingIssueRows([]);
+        }}
+        open={finishingPackingIssueRows.length > 0}
+        title="Issue to Packing"
         tone="default"
       />
 
@@ -2446,25 +2741,113 @@ export function FactoryListing<Row extends FactoryRecord>({
         description="Are you sure you want to issue the selected item(s) for inspection?"
         onClose={() => setConfirmIssueInspectionOpen(false)}
         onConfirm={() => {
-          const count = selectedListingRows.length;
-          selectedListingRows.forEach((selectedRow) => {
+          let issuedCount = 0;
+          const inspectionDateVal = new Date().toISOString().slice(0, 10);
+
+          selectedListingRows.forEach((selectedRow, index) => {
+            const rowId = String(selectedRow.id);
+            const patchedLeaves = dryingDoneLeafPatches[rowId];
+            const trackedLeaves = dryingIssueStateMap[rowId]?.availableLeaves;
+            const newlyIssued = Math.max(
+              0,
+              Math.floor(
+                patchedLeaves !== undefined
+                  ? patchedLeaves
+                  : trackedLeaves !== undefined
+                    ? trackedLeaves
+                    : dryingLeafCount(selectedRow),
+              ),
+            );
+            if (newlyIssued <= 0) return;
+
+            issuedCount += 1;
+            const prevIssued = dryingIssueStateMap[rowId]?.issuedLeaves ?? 0;
+            const totalIssued = prevIssued + newlyIssued;
+            const issuedArea = dryingLeafArea(
+              selectedRow.length,
+              selectedRow.width,
+              newlyIssued,
+            );
+            const remainingArea = dryingLeafArea(
+              selectedRow.length,
+              selectedRow.width,
+              0,
+            );
+
             issueFactoryWork({
-              destinationProcess: "Inspection",
+              destinationProcess: "Drying Inspection",
               sourceSlug: definition.slug,
               sourceProcess: "Drying",
               sourceWarehouseName: getFactoryString(selectedRow.warehouseName),
-              sourceRow: selectedRow,
+              sourceRow: {
+                ...selectedRow,
+                issuedLeaves: String(newlyIssued),
+                noOfLeaves: String(newlyIssued),
+                totalLeaves: String(newlyIssued),
+                availableLeaves: String(newlyIssued),
+                noOfSheets: String(newlyIssued),
+                totalSqMeter: issuedArea.sqm,
+                sqm: issuedArea.sqm,
+                sqf: issuedArea.sqf,
+                issuedDate: inspectionDateVal,
+                issueDate: inspectionDateVal,
+              },
             });
+
+            recordDryingInspectionIssue(rowId, newlyIssued);
+            const updatedInStore = adjustDryingDoneLeaves(
+              rowId,
+              0,
+              remainingArea,
+              {
+                issueForInspection: String(totalIssued),
+                status: "Done",
+              },
+            );
+            if (!updatedInStore) {
+              setDryingDoneLeafPatches((current) => ({
+                ...current,
+                [rowId]: 0,
+              }));
+              setDryingDoneRemovedIds((current) =>
+                current.includes(rowId) ? current : [...current, rowId],
+              );
+            }
+
+            setDryingIssueStateMap((current) => ({
+              ...current,
+              [rowId]: {
+                issuedLeaves: totalIssued,
+                availableLeaves: 0,
+                status: "Done",
+              },
+            }));
+
+            setDryingInspectionHistoryRows((current) => [
+              {
+                ...selectedRow,
+                id: `drying-history-${Date.now()}-${index}`,
+                listingState: "history",
+                issueDate: inspectionDateVal,
+                noOfLeaves: String(newlyIssued),
+                availableLeaves: String(newlyIssued),
+                issueForInspection: String(newlyIssued),
+                sqm: issuedArea.sqm,
+                sqf: issuedArea.sqf,
+                totalSqMeter: issuedArea.sqm,
+                status: "Issued",
+              } as Row,
+              ...current,
+            ]);
           });
-          setRevertedRowIds((current) => [
-            ...current,
-            ...selectedListingRows.map((row) => row.id),
-          ]);
           setSelectedListingRows([]);
           setConfirmIssueInspectionOpen(false);
           setToastNotification({
-            message: `Issued ${count} item(s) for inspection successfully.`,
-            severity: "success",
+            message:
+              issuedCount > 0
+                ? `Issued ${issuedCount} item(s) to Drying Inspection successfully.`
+                : "No selected items have leaves available to issue.",
+            severity: issuedCount > 0 ? "success" : "warning",
           });
         }}
         open={confirmIssueInspectionOpen}

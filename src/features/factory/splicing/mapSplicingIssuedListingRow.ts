@@ -1,3 +1,4 @@
+import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import type { FactoryIssuedWorkRecord } from "../shared/factoryIssuedWorkStore";
 import type { FactoryRecord } from "../shared/types";
 
@@ -47,9 +48,12 @@ export function mapSplicingIssuedListingRow<Row extends FactoryRecord>(
     return total + issuedLeaves;
   }, 0);
 
+  const available = Math.max(0, received - issuedOut);
+
   return {
     ...row,
     receivedNoOfLeaves: String(received),
-    availableNoOfLeaves: String(Math.max(0, received - issuedOut)),
+    availableNoOfLeaves: String(available),
+    ...availableFactoryMeasures(row, received, available),
   };
 }

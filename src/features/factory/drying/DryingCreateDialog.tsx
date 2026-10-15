@@ -7,28 +7,17 @@ import {
   DialogContent,
   DialogTitle,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
-import { useTheme } from "@mui/material/styles";
 
 import { ErpDatePickerField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { FormSectionHeader } from "../../shared/FormSectionHeader";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
-import {
-  transactionTableBodyCellSx,
-  transactionTableHeaderCellSx,
-} from "../../shared/listingTableStyles";
 import type { FactoryRecord } from "../shared/types";
 import {
-  dryingLeafArea,
   dryingLeafCount,
   dryingReceivedLeafCount,
 } from "./dryingFrontendStore";
@@ -45,40 +34,6 @@ function dateToIso(value: Date | null) {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function displayValue(value: unknown) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).format(value);
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value.toFixed(3).replace(/\.?0+$/u, "");
-  }
-
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return "-";
-    if (/^-?\d+(\.\d+)?$/u.test(trimmed)) {
-      const numeric = Number(trimmed);
-      if (Number.isFinite(numeric)) return numeric.toFixed(3).replace(/\.?0+$/u, "");
-    }
-    const parsed = new Date(trimmed);
-    if (!Number.isNaN(parsed.getTime()) && /^\d{4}-\d{2}-\d{2}/u.test(trimmed)) {
-      return new Intl.DateTimeFormat("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(parsed);
-    }
-    return trimmed;
-  }
-
-  return "-";
 }
 
 function FieldLabel({ children }: { children: string }) {
@@ -112,7 +67,6 @@ export function DryingCreateDialog({
   open: boolean;
   row: FactoryRecord | null;
 }) {
-  const theme = useTheme();
   const [leaves, setLeaves] = useState("");
   const [dryingDate, setDryingDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [remark, setRemark] = useState("");
@@ -121,11 +75,10 @@ export function DryingCreateDialog({
 
   useEffect(() => {
     if (!open) return;
-    const nextAvailable = maximumLeaves ?? dryingLeafCount(row);
     setLeaves(
       mode === "edit"
         ? String(dryingReceivedLeafCount(row) || "")
-        : String(nextAvailable || ""),
+        : "",
     );
     setDryingDate(
       mode === "edit"
@@ -143,44 +96,11 @@ export function DryingCreateDialog({
     driedLeaves < minimumLeaves ||
     driedLeaves > availableLeaves;
   const dateMissing = dryingDate.trim() === "";
-  const previewArea = dryingLeafArea(row?.length, row?.width, !invalid ? driedLeaves : 0);
-
-  const itemColumns: Array<{ key: string; label: string; minWidth: number; value?: string }> = [
-    { key: "itemName", label: "Item Name", minWidth: 170, value: displayValue(row?.itemName) },
-    {
-      key: "subCategory",
-      label: "Sub Category",
-      minWidth: 160,
-      value: displayValue(row?.subCategory ?? row?.itemSubCategory),
-    },
-    {
-      key: "logCode",
-      label: "Log Code",
-      minWidth: 140,
-      value: displayValue(row?.logCode || row?.logNo || row?.batchNo),
-    },
-    { key: "bundleNumber", label: "Bundle Number", minWidth: 140, value: displayValue(row?.bundleNumber) },
-    { key: "palletNo", label: "Pallet No", minWidth: 120, value: displayValue(row?.palletNo) },
-    { key: "color", label: "Color", minWidth: 110, value: displayValue(row?.color) },
-    { key: "grade", label: "Grade", minWidth: 110, value: displayValue(row?.grade) },
-    { key: "length", label: "Length", minWidth: 110, value: displayValue(row?.length) },
-    { key: "width", label: "Width", minWidth: 110, value: displayValue(row?.width) },
-    {
-      key: "thickness",
-      label: "Thickness",
-      minWidth: 120,
-      value: displayValue(row?.thickness || row?.height),
-    },
-    { key: "noOfLeaves", label: "No of Leaves", minWidth: 150 },
-    { key: "sqm", label: "SQM", minWidth: 120, value: !invalid ? previewArea.sqm : "-" },
-    { key: "sqf", label: "SQF", minWidth: 120, value: !invalid ? previewArea.sqf : "-" },
-    { key: "remark", label: "Remark", minWidth: 180, value: displayValue(row?.remark) },
-  ];
 
   return (
     <Dialog
       fullWidth
-      maxWidth="lg"
+      maxWidth="md"
       onClose={onClose}
       open={open}
       slotProps={{
@@ -227,122 +147,83 @@ export function DryingCreateDialog({
 
           <Box sx={(dialogTheme) => formSectionCardSx(dialogTheme)}>
             <Stack spacing={1.5}>
-              <FormSectionHeader title="Item Details" />
+              <FormSectionHeader title="Drying Details" />
               <Box
-                sx={{
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  borderRadius: "8px",
-                  backgroundColor: theme.customTokens.surfaces.surface,
-                  overflow: "hidden",
-                }}
+                sx={(dialogTheme) => ({
+                  display: "grid",
+                  gap: dialogTheme.spacing(2),
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "repeat(3, minmax(0, 1fr))",
+                  },
+                  alignItems: "flex-start",
+                })}
               >
-                <Box
-                  sx={{
-                    overflowX: "auto",
-                    overflowY: "hidden",
-                    scrollbarWidth: "thin",
-                    scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
-                  }}
-                >
-                  <Table size="medium" sx={{ minWidth: 1900, tableLayout: "auto" }}>
-                    <TableHead>
-                      <TableRow>
-                        {itemColumns.map((column) => (
-                          <TableCell
-                            key={column.key}
-                            sx={{
-                              ...transactionTableHeaderCellSx(theme, column.minWidth),
-                              borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                              ...(column.key === "noOfLeaves"
-                                ? { width: 160, minWidth: 160, maxWidth: 160 }
-                                : {}),
-                            }}
-                          >
-                            {column.label}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      <TableRow>
-                        {itemColumns.map((column) => (
-                          <TableCell
-                            key={column.key}
-                            sx={{
-                              ...transactionTableBodyCellSx(theme),
-                              borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                              ...(column.key === "noOfLeaves"
-                                ? { width: 160, minWidth: 160, maxWidth: 160 }
-                                : {}),
-                            }}
-                          >
-                            {column.key === "noOfLeaves" ? (
-                              <TextField
-                                error={submitted && invalid}
-                                onFocus={(event) => event.target.blur()}
-                                size="small"
-                                slotProps={{ htmlInput: { readOnly: true, tabIndex: -1 } }}
-                                value={leaves}
-                                sx={{
-                                  ...getCompactFieldSx(
-                                    theme,
-                                    submitted && invalid ? "error" : "readOnly",
-                                  ),
-                                  width: 140,
-                                  maxWidth: 140,
-                                  "& .MuiInputBase-root, & .MuiInputBase-input": {
-                                    cursor: "default",
-                                    caretColor: "transparent",
-                                  },
-                                }}
-                              />
-                            ) : (
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  minHeight: theme.spacing(4.5),
-                                  display: "flex",
-                                  alignItems: "center",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {column.value}
-                              </Typography>
-                            )}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </Box>
-              </Box>
-              {submitted && invalid ? (
-                <Typography
-                  sx={(dialogTheme) => ({
-                    color: dialogTheme.palette.error.main,
-                    fontSize: dialogTheme.typography.caption.fontSize,
-                  })}
-                >
-                  Enter a whole number of leaves
-                  {minimumLeaves > 1 ? ` from ${minimumLeaves}` : ""} up to {availableLeaves}.
-                </Typography>
-              ) : null}
-            </Stack>
-          </Box>
+                <Stack spacing={0.75}>
+                  <FieldLabel>Available No. of Leaves</FieldLabel>
+                  <TextField
+                    fullWidth
+                    onFocus={(event) => event.target.blur()}
+                    size="small"
+                    slotProps={{ htmlInput: { readOnly: true, tabIndex: -1 } }}
+                    value={availableLeaves}
+                    sx={(fieldTheme) => ({
+                      ...getCompactFieldSx(fieldTheme, "readOnly"),
+                      "& .MuiInputBase-root, & .MuiInputBase-input": {
+                        cursor: "default",
+                        caretColor: "transparent",
+                      },
+                    })}
+                  />
+                </Stack>
 
-          <Box sx={(dialogTheme) => formSectionCardSx(dialogTheme)}>
-            <Stack sx={(dialogTheme) => ({ gap: dialogTheme.spacing(1.5) })}>
-              <FormSectionHeader title="Remark" />
-              <TextField
-                  fullWidth
-                  minRows={2}
-                  multiline
-                  onChange={(event) => setRemark(event.target.value)}
-                  placeholder="Enter drying remark"
-                  size="small"
-                  value={remark}
-                  sx={(fieldTheme) => getCompactFieldSx(fieldTheme, "default")}
-                />
+                <Stack spacing={0.75}>
+                  <FieldLabel>Leaves to Issue for Drying *</FieldLabel>
+                  <TextField
+                    autoFocus={mode === "create"}
+                    error={submitted && invalid}
+                    fullWidth
+                    helperText={
+                      submitted && invalid
+                        ? `Enter a whole number${
+                            minimumLeaves > 1 ? ` from ${minimumLeaves}` : " greater than 0"
+                          } up to ${availableLeaves}.`
+                        : " "
+                    }
+                    onChange={(event) =>
+                      setLeaves(event.target.value.replace(/[^\d]/gu, ""))
+                    }
+                    placeholder="Enter leaves to issue"
+                    size="small"
+                    slotProps={{
+                      htmlInput: {
+                        inputMode: "numeric",
+                        min: minimumLeaves,
+                        max: availableLeaves,
+                      },
+                    }}
+                    value={leaves}
+                    sx={(fieldTheme) =>
+                      getCompactFieldSx(
+                        fieldTheme,
+                        submitted && invalid ? "error" : "default",
+                      )
+                    }
+                  />
+                </Stack>
+
+                <Stack spacing={0.75}>
+                  <FieldLabel>Remark</FieldLabel>
+                  <TextField
+                    fullWidth
+                    onChange={(event) => setRemark(event.target.value)}
+                    placeholder="Enter drying remark"
+                    size="small"
+                    value={remark}
+                    sx={(fieldTheme) => getCompactFieldSx(fieldTheme, "default")}
+                  />
+                </Stack>
+              </Box>
             </Stack>
           </Box>
         </Stack>

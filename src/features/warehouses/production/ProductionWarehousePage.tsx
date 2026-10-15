@@ -6,7 +6,10 @@ import { useSearchParams } from "react-router";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
-import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
+import {
+  getListingToolbarButtonSx,
+  getListingToolbarOutlinedButtonSx,
+} from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
@@ -316,11 +319,7 @@ export function ProductionWarehousePage({
                 variant="contained"
                 startIcon={<Plus size={15} />}
                 onClick={handleOpenIssueOrderDialog}
-                sx={(theme) => ({
-                  ...getListingToolbarOutlinedButtonSx(theme),
-                  backgroundColor: theme.palette.primary.main,
-                  color: theme.palette.primary.contrastText,
-                })}
+                sx={(theme) => getListingToolbarButtonSx(theme)}
               >
                 Issue Order
               </Button>

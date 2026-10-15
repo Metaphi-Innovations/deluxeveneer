@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { SQM_TO_SQF } from "../../shared/numberFormat";
+import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import {
   calculateSlicingSqmValue,
   formatSlicingDecimal,
@@ -162,8 +163,13 @@ export function applyDryingListingRows<Row extends DryingFlowRow>(
     return rows
       .map((row) => {
         const patch = findPatch(row, state.issuedPatches);
-        const available = patchAvailableLeaves(patch) ?? dryingReceivedLeafCount(row);
-        return { ...row, availableLeaves: String(available) } as Row;
+        const received = dryingReceivedLeafCount(row);
+        const available = patchAvailableLeaves(patch) ?? received;
+        return {
+          ...row,
+          availableLeaves: String(available),
+          ...availableFactoryMeasures(row, received, available),
+        } as Row;
       })
       .filter((row) => {
         if (isHiddenIssued(row, state.hiddenIssuedIds)) return false;

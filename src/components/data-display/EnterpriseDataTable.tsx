@@ -463,15 +463,15 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       ? sortedRows
       : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(safePage, totalPages);
-  const currentPageIds = currentPageRows.map((row) => row.id);
-  const allCurrentPageSelected =
+  const selectableRowIds = sortedRows.map((row) => row.id);
+  const allRowsSelected =
     selectable &&
-    currentPageIds.length > 0 &&
-    currentPageIds.every((rowId) => selectedRowIds.includes(rowId));
-  const someCurrentPageSelected =
+    selectableRowIds.length > 0 &&
+    selectableRowIds.every((rowId) => selectedRowIds.includes(rowId));
+  const someRowsSelected =
     selectable &&
-    currentPageIds.some((rowId) => selectedRowIds.includes(rowId)) &&
-    !allCurrentPageSelected;
+    selectedRowIds.some((rowId) => selectableRowIds.includes(rowId)) &&
+    !allRowsSelected;
   const rangeStart = totalCount === 0 ? 0 : pageStartIndex + 1;
   const rangeEnd = hidePagination
     ? totalCount
@@ -655,14 +655,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       return;
     }
 
-    if (allCurrentPageSelected || someCurrentPageSelected) {
-      commitSelectedRowIds(
-        selectedRowIds.filter((rowId) => !currentPageIds.includes(rowId)),
-      );
+    if (allRowsSelected) {
+      const listedIds = new Set(selectableRowIds);
+      commitSelectedRowIds(selectedRowIds.filter((rowId) => !listedIds.has(rowId)));
       return;
     }
 
-    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...currentPageIds])));
+    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...selectableRowIds])));
   };
 
   const handleOpenActionMenu = (
@@ -798,8 +797,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       }}
                     >
                       <Checkbox
-                        checked={Boolean(allCurrentPageSelected)}
-                        indeterminate={Boolean(someCurrentPageSelected)}
+                        checked={Boolean(allRowsSelected)}
+                        indeterminate={Boolean(someRowsSelected)}
                         onChange={handleTogglePageSelection}
                         size="small"
                         sx={headerCheckboxSx(theme)}

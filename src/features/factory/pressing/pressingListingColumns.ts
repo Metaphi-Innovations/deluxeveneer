@@ -5,6 +5,7 @@ const pressingHiddenKeys = new Set([
   "amount",
   "consumedAmount",
   "issuedFrom",
+  "issuedFor",
   "rate",
   "ratePerSqf",
   "warehouseName",
@@ -13,5 +14,16 @@ const pressingHiddenKeys = new Set([
 export function applyPressingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
 ): readonly EnterpriseTableColumn<Row>[] {
-  return columns.filter((column) => !pressingHiddenKeys.has(column.key));
+  const visibleColumns = columns.filter(
+    (column) => !pressingHiddenKeys.has(column.key),
+  );
+
+  if (visibleColumns.some((column) => column.key === "storageSrNo")) {
+    return visibleColumns;
+  }
+
+  return [
+    { key: "storageSrNo", label: "Storage Sr No." },
+    ...visibleColumns,
+  ];
 }

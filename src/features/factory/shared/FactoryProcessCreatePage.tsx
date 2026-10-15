@@ -94,6 +94,7 @@ import {
   buildSlicingAvailableValues,
   calculateTotalSlicingConsumption,
   getSlicingCreateSubmitError,
+  orderSlicingCreateFields,
   saveSlicingCreateProcess,
   saveSlicingEditProcess,
   SLICING_CBM_EPSILON,
@@ -331,6 +332,7 @@ function slicingDoneRowToLineValues(
     itemName: read(row.itemName || sourceRow.itemName),
     bundleNumber: read(row.bundleNumber || sourceRow.bundleNumber),
     palletNo: read(row.palletNo || sourceRow.palletNo),
+    color: read(row.color || row.colour || sourceRow.color || sourceRow.colour),
     length: read(row.length || sourceRow.length),
     width: read(row.width || sourceRow.width),
     thickness: read(row.thickness || row.height),
@@ -3229,6 +3231,10 @@ function orderProcessSpecificFields(
 
   if (slug === "grouping") {
     return orderGroupingCreateFields(fields);
+  }
+
+  if (slug === "slicing") {
+    return orderSlicingCreateFields(fields);
   }
 
   return [...fields];

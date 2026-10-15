@@ -271,7 +271,7 @@ export function getCreateOrderFormFields(
   const orderTypeLabel = getOrderVariantLabel(variant);
 
   return getOrderFormFields()
-    .filter((field) => field.key !== "orderNo")
+    .filter((field) => field.key !== "orderNo" && field.key !== "status")
     .map((field) =>
       field.key === "orderType"
         ? {
