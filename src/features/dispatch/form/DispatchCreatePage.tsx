@@ -26,7 +26,10 @@ import {
   MasterSectionCard,
 } from "../../masters/shared";
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
-import { getTransporterMasterOptions } from "../../masters/shared/masterDefinitions";
+import {
+  getTransporterMasterOptions,
+  refreshTransporterMasterCache,
+} from "../../masters/shared/masterDefinitions";
 import {
   createDispatchEntry,
   packingOrderTypeOptions,
@@ -276,6 +279,19 @@ export function DispatchCreatePage({
       ),
     [packingListRecords],
   );
+  const [transporterOptions, setTransporterOptions] = useState<string[]>(() =>
+    getTransporterMasterOptions(),
+  );
+
+  useEffect(() => {
+    setTransporterOptions(getTransporterMasterOptions());
+    void refreshTransporterMasterCache()
+      .then(() => {
+        setTransporterOptions(getTransporterMasterOptions());
+      })
+      .catch(() => {});
+  }, []);
+
   const dispatchItemRows = useMemo(
     () => loadedRecords.map((record, index) => mapDispatchItemRow(record, index)),
     [loadedRecords],
@@ -518,7 +534,7 @@ export function DispatchCreatePage({
               disabled={readOnly}
               error={false}
               label="Transporter"
-              options={getTransporterMasterOptions()}
+              options={transporterOptions}
               value={values.transporter}
               onChange={(nextValue) =>
                 setValues((current) => ({ ...current, transporter: nextValue }))
@@ -636,11 +652,15 @@ export function DispatchCreatePage({
                         ? "Dispatch created successfully."
                         : "Dispatch updated successfully.";
 
-                    navigate("/dispatch", {
-                      state: {
-                        dispatchFlashMessage: successMsg,
-                      },
-                    });
+                    if (window.history.length > 1) {
+                      navigate(-1);
+                    } else {
+                      navigate("/dispatch", {
+                        state: {
+                          dispatchFlashMessage: successMsg,
+                        },
+                      });
+                    }
                   }}
                   startIcon={<Save size={16} />}
                   sx={recordFormActionButtonSx}

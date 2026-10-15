@@ -126,8 +126,51 @@ export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingR
     { key: "updatedBy", label: "Updated By" },
   ];
 
+const PACKING_STORAGE_KEY = "deluxe_packing_records_v1";
+
+function getBrowserStorage(): Storage | null {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return null;
+  }
+  return window.localStorage;
+}
+
+function loadPersistedPackingRecords(): PackingRecord[] {
+  const seed = createPackingRecords();
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return seed;
+  }
+  try {
+    const raw = storage.getItem(PACKING_STORAGE_KEY);
+    if (!raw) {
+      return seed;
+    }
+    const parsed = JSON.parse(raw) as Array<Record<string, unknown>>;
+    return parsed.map((r) => ({
+      ...(r as unknown as PackingRecord),
+      packingDate: r.packingDate ? new Date(String(r.packingDate)) : null,
+      dispatchDate: r.dispatchDate ? new Date(String(r.dispatchDate)) : null,
+      createdDate: r.createdDate ? new Date(String(r.createdDate)) : new Date(),
+      updatedDate: r.updatedDate ? new Date(String(r.updatedDate)) : new Date(),
+    }));
+  } catch {
+    return seed;
+  }
+}
+
+function persistPackingRecords(records: PackingRecord[]) {
+  const storage = getBrowserStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(PACKING_STORAGE_KEY, JSON.stringify(records));
+  } catch {
+    // Ignore quota errors
+  }
+}
+
 const packingListeners = new Set<() => void>();
-let packingRecords = createPackingRecords();
+let packingRecords = loadPersistedPackingRecords();
 let packingIdSequence = getInitialPackingIdSequence(packingRecords);
 
 export function usePackingRecords() {
@@ -753,6 +796,7 @@ function updatePackingRecords(
   updater: (records: PackingRecord[]) => PackingRecord[],
 ) {
   packingRecords = updater(packingRecords);
+  persistPackingRecords(packingRecords);
   packingListeners.forEach((listener) => listener());
 }
 

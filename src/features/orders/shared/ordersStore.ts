@@ -672,6 +672,8 @@ function normalizeLineItems(
       baseLength: normalizeString(item.baseLength, ""),
       baseWidth: normalizeString(item.baseWidth, ""),
       baseThickness: normalizeString(item.baseThickness, ""),
+      designCode: normalizeString(item.designCode, ""),
+      structuredCode: normalizeString(item.structuredCode, ""),
       amount: calculateAmountFromSqf(totalSqf, ratePerSqf, item.amount),
       remark: normalizeString(item.remark, ""),
     };

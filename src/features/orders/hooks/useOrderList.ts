@@ -13,12 +13,14 @@ import {
 export type OrderListingTab = OrderCreateVariant;
 
 export type OrderListingRow = OrderRecord & {
+  designCode?: string | undefined;
   dispatchQuantity: string;
   issuedQuantity: string;
   orderId: string;
   orderItemNumber: string;
   orderLineItemId: string;
   rawMaterial: string;
+  structuredCode?: string | undefined;
 };
 
 export function useOrderList({
@@ -118,6 +120,7 @@ function buildOrderListingRows(record: OrderRecord): OrderListingRow[] {
 function getOrderLineItemListingValues(lineItem: OrderLineItem) {
   return {
     amount: lineItem.amount,
+    designCode: lineItem.designCode,
     dispatchQuantity: lineItem.quantitySheets,
     grade: lineItem.grade,
     issuedQuantity: lineItem.quantitySheets,
@@ -128,6 +131,7 @@ function getOrderLineItemListingValues(lineItem: OrderLineItem) {
     remark: lineItem.remark,
     series: lineItem.series,
     sqm: lineItem.sqm,
+    structuredCode: lineItem.structuredCode,
     subCategory: lineItem.subCategory,
     thickness: lineItem.thickness,
     totalSqm: lineItem.totalSqm,

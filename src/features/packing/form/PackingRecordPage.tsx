@@ -89,6 +89,7 @@ interface PackingSourceRow extends EnterpriseTableRow {
   orderType: string;
   productCategory: string;
   finishedType: string;
+  salesItemName: string;
   itemName: string;
   groupNo: string;
   length: string;
@@ -97,23 +98,56 @@ interface PackingSourceRow extends EnterpriseTableRow {
   noOfSheets: string;
   sqm: string;
   sqf: string;
+  ratePerSqf: string;
   amount: string;
+  baseType: string;
+  baseName: string;
+  baseLength: string;
+  baseWidth: string;
+  baseThickness: string;
+  designCode: string;
+  structuredCode: string;
+  remark: string;
 }
 
 const packingSourceColumns: readonly EnterpriseTableColumn<PackingSourceRow>[] =
   [
-    { key: "orderNo", label: "Order No" },
     { key: "orderItemNo", label: "Order Item No" },
     { key: "productCategory", label: "Product Type" },
+    { key: "salesItemName", label: "Sales Item Name" },
     { key: "itemName", label: "Item Name" },
-    { key: "groupNo", label: "Group No" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
-    { key: "noOfSheets", label: "No of Sheets" },
+    { key: "noOfSheets", label: "Sheets" },
     { key: "sqm", label: "SQM" },
     { key: "sqf", label: "SQF" },
+    { key: "ratePerSqf", label: "Rate/SQF" },
     { key: "amount", label: "Amount" },
+    { key: "baseType", label: "Base Type" },
+    { key: "baseName", label: "Base Name" },
+    { key: "baseLength", label: "Base Length" },
+    { key: "baseWidth", label: "Base Width" },
+    { key: "baseThickness", label: "Base Thickness" },
+    { key: "designCode", label: "Design Code" },
+    { key: "structuredCode", label: "Structured Code" },
+    { key: "remark", label: "Remark" },
+  ];
+
+const selectedOrderDetailColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
+  [
+    { key: "orderNo", label: "Order No" },
+    { key: "orderDate", label: "Order Date" },
+    { key: "deliveryDate", label: "Required Delivery Date" },
+    { key: "customerName", label: "Customer Name" },
+    { key: "orderType", label: "Order Type" },
+    { key: "priority", label: "Priority" },
+    { key: "status", label: "Order Status" },
+    { key: "remark", label: "Remark" },
+    { key: "createdDate", label: "Created Date" },
+    { key: "updatedDate", label: "Updated Date" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
   ];
 
 const packingItemDetailColumns: readonly {
@@ -199,24 +233,18 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
 
   const selectedCustomerName =
     typeof values.customerName === "string" ? values.customerName.trim() : "";
-  const selectedOrderType =
-    typeof values.orderType === "string" ? values.orderType.trim() : "";
   const selectedOrderNo =
     typeof values.orderNo === "string" ? values.orderNo.trim() : "";
+  const selectedOrderRecord = useMemo(
+    () => orderRecords.find((ord) => ord.orderNo.trim().toLowerCase() === selectedOrderNo.toLowerCase()),
+    [orderRecords, selectedOrderNo],
+  );
   const orderNoOptions = useMemo(
     () =>
       uniqueStringValues(
-        packingSourceRows
-          .filter((row) => {
-            if (!matchesPackingOrderType(row.orderType, selectedOrderType)) {
-              return false;
-            }
-
-            return true;
-          })
-          .map((row) => row.orderNo),
+        packingSourceRows.map((row) => row.orderNo),
       ),
-    [packingSourceRows, selectedOrderType],
+    [packingSourceRows],
   );
   const createPackingFields = useMemo<readonly MasterFieldDefinition[]>(
     () =>
@@ -235,7 +263,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   const showOrderSourceTable =
     mode === "add" &&
     !record &&
-    selectedOrderType.length > 0 &&
     selectedOrderNo.length > 0;
   const filteredSourceRows = useMemo(() => {
     if (!showOrderSourceTable) {
@@ -243,10 +270,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     }
 
     return packingSourceRows.filter((row) => {
-      if (!matchesPackingOrderType(row.orderType, selectedOrderType)) {
-        return false;
-      }
-
       if (selectedOrderNo && row.orderNo !== selectedOrderNo) {
         return false;
       }
@@ -256,7 +279,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   }, [
     packingSourceRows,
     selectedOrderNo,
-    selectedOrderType,
     showOrderSourceTable,
   ]);
   const selectedSourceRows = useMemo(
@@ -373,15 +395,9 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                     [key]: value,
                   };
 
-                  if (key === "orderType") {
-                    nextValues.orderNo = "";
-                  }
-
                   if (key === "orderNo" && typeof value === "string") {
                     const selectedOrder = packingSourceRows.find(
-                      (row) =>
-                        row.orderNo === value &&
-                        matchesPackingOrderType(row.orderType, selectedOrderType),
+                      (row) => row.orderNo === value,
                     );
 
                     if (selectedOrder) {
@@ -420,20 +436,31 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
             <PackingItemDetailsTable record={record} />
           ) : null}
 
-          {showOrderSourceTable ? (
-            <EnterpriseDataTable
-              columns={packingSourceColumns}
-              defaultRowsPerPage={10}
-              emptyStateLabel="No packing-eligible order items match. Finished items require factory completion before packing."
-              hidePagination
-              maxBodyHeight={420}
-              onSelectionChange={(selectedRows) =>
-                setSelectedSourceRowIds(selectedRows.map((row) => row.id))
-              }
-              rows={filteredSourceRows}
-              selectable
-              selectionResetKey={`${selectedOrderType}-${selectedOrderNo}`}
-            />
+          {showOrderSourceTable && selectedOrderRecord ? (
+            <Stack spacing={1.5} sx={{ mt: 1 }}>
+              <FormSectionHeader title="Order Details" />
+              <EnterpriseDataTable
+                columns={selectedOrderDetailColumns}
+                defaultRowsPerPage={5}
+                hidePagination
+                rows={[selectedOrderRecord]}
+              />
+
+              <FormSectionHeader title="Order Items" />
+              <EnterpriseDataTable
+                columns={packingSourceColumns}
+                defaultRowsPerPage={10}
+                emptyStateLabel="No packing-eligible order items match."
+                hidePagination
+                maxBodyHeight={420}
+                onSelectionChange={(selectedRows) =>
+                  setSelectedSourceRowIds(selectedRows.map((row) => row.id))
+                }
+                rows={filteredSourceRows}
+                selectable
+                selectionResetKey={selectedOrderNo}
+              />
+            </Stack>
           ) : null}
 
           <Box
@@ -565,12 +592,15 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                           });
                         });
                       } else {
+                        const fallbackRow = packingSourceRows.find(
+                          (row) => row.orderNo === selectedOrderNo,
+                        );
                         createPackingEntry(undefined, {
                           completeImmediately: false,
                           packingDate,
                           remark,
-                          customerName: selectedCustomerName,
-                          orderType: selectedOrderType,
+                          customerName: selectedCustomerName || fallbackRow?.customerName || "",
+                          orderType: fallbackRow?.orderType || "Raw",
                           orderNo: selectedOrderNo,
                           ...(typeof values.preparedBy === "string"
                             ? { preparedBy: values.preparedBy }
@@ -592,11 +622,15 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                       ? "Packing record updated successfully."
                       : "Packing record added to queue successfully.";
 
-                    navigate(paths.list, {
-                      state: {
-                        packingFlashMessage: successMsg,
-                      },
-                    });
+                    if (window.history.length > 1) {
+                      navigate(-1);
+                    } else {
+                      navigate(paths.list, {
+                        state: {
+                          packingFlashMessage: successMsg,
+                        },
+                      });
+                    }
                   }}
                   startIcon={mode === "add" ? undefined : <Save size={15} strokeWidth={2} />}
                   sx={(theme) =>
@@ -745,13 +779,6 @@ function buildCreatePackingFields({
       type: "select",
     },
     {
-      key: "orderType",
-      label: "Order Type",
-      options: [...packingOrderTypeOptions],
-      required: true,
-      type: "select",
-    },
-    {
       key: "orderNo",
       label: "Order No",
       options: [...orderNoOptions],
@@ -864,15 +891,8 @@ function buildPackingSourceRows(
   );
 
   return orderRecords.flatMap<PackingSourceRow>((record) => {
-    const variant = getOrderVariantFromType(record.orderType);
-    const eligible =
-      variant === "raw"
-        ? isRawOrderPackingEligible(record)
-        : variant === "finished"
-          ? isFinishedOrderPackingEligible(record)
-          : false;
-
-    if (!eligible) {
+    const status = (record.status || "").trim().toLowerCase();
+    if (status === "cancelled" || status === "completed") {
       return [];
     }
 
@@ -885,6 +905,7 @@ function buildPackingSourceRows(
             id: `${record.id}-line-1`,
             productCategory: record.productCategory,
             finishedType: record.productCategory,
+            salesItemName: "",
             itemName: record.itemName,
             subCategory: record.subCategory,
             series: record.series,
@@ -895,7 +916,16 @@ function buildPackingSourceRows(
             quantitySheets: record.quantitySheets,
             sqm: record.sqm,
             totalSqm: record.totalSqm,
+            ratePerSqf: "",
             amount: record.amount,
+            baseType: "",
+            baseName: "",
+            baseLength: "",
+            baseWidth: "",
+            baseThickness: "",
+            designCode: "",
+            structuredCode: "",
+            remark: record.remark,
           },
         ];
 
@@ -917,6 +947,7 @@ function buildPackingSourceRows(
           orderType: normalizePackingOrderType(record.orderType),
           productCategory: getPackingSourceProductCategory(record, item, index),
           finishedType: item.finishedType ?? "",
+          salesItemName: item.salesItemName || "-",
           itemName: item.itemName,
           groupNo: item.series || "-",
           length: item.length,
@@ -925,7 +956,16 @@ function buildPackingSourceRows(
           noOfSheets: item.quantitySheets,
           sqm: item.sqm,
           sqf: item.totalSqm,
+          ratePerSqf: item.ratePerSqf || "-",
           amount: item.amount,
+          baseType: item.baseType || "-",
+          baseName: item.baseName || "-",
+          baseLength: item.baseLength || "-",
+          baseWidth: item.baseWidth || "-",
+          baseThickness: item.baseThickness || "-",
+          designCode: item.designCode || "-",
+          structuredCode: item.structuredCode || "-",
+          remark: item.remark || "-",
         },
       ];
     });

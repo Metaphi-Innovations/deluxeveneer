@@ -129,6 +129,8 @@ const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
   { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
   { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
+  { label: "Design Code", minWidth: 130, getValue: (row) => row.designCode },
+  { label: "Structured Code", minWidth: 140, getValue: (row) => row.structuredCode },
   { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
   { label: "Remark", minWidth: 200, getValue: (row) => row.remark },
 ];
