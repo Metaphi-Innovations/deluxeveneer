@@ -81,6 +81,7 @@ interface DispatchFormState {
 
 interface DispatchItemRow {
   id: string;
+  recordId: string;
   srNo: string;
   orderNo: string;
   salesItemName: string;
@@ -92,6 +93,9 @@ interface DispatchItemRow {
   length: string;
   width: string;
   thickness: string;
+  totalQuantity: string;
+  dispatchQuantity: string;
+  remainingQuantity: string;
   noOfSheets: string;
   sqm: string;
   rate: string;
@@ -131,6 +135,9 @@ const itemTableColumns: readonly {
     { key: "length", label: "Length", minWidth: 110 },
     { key: "width", label: "Width", minWidth: 110 },
     { key: "thickness", label: "Thickness", minWidth: 120 },
+    { key: "totalQuantity", label: "Total Qty", minWidth: 110 },
+    { key: "dispatchQuantity", label: "Dispatch Qty", minWidth: 130 },
+    { key: "remainingQuantity", label: "Remaining Qty", minWidth: 130 },
     { key: "sqm", label: "SQM", minWidth: 110 },
     { key: "rate", label: "Rate", minWidth: 120 },
     { key: "itemAmount", label: "Item Amount", minWidth: 140 },
@@ -213,6 +220,7 @@ export function DispatchCreatePage({
   const [loadedRecords, setLoadedRecords] = useState<readonly PackingRecord[]>(
     () => (sourceRecord ? [sourceRecord] : []),
   );
+  const [dispatchQuantityMap, setDispatchQuantityMap] = useState<Record<string, number>>({});
   const [leaveConfirmation, setLeaveConfirmation] = useState<{
     open: boolean;
     title: string;
@@ -293,8 +301,16 @@ export function DispatchCreatePage({
   }, []);
 
   const dispatchItemRows = useMemo(
-    () => loadedRecords.map((record, index) => mapDispatchItemRow(record, index)),
-    [loadedRecords],
+    () =>
+      loadedRecords.map((record, index) => {
+        const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+        const currentDispatchQty =
+          typeof dispatchQuantityMap[record.id] === "number"
+            ? dispatchQuantityMap[record.id]!
+            : totalSheetsNum;
+        return mapDispatchItemRow(record, index, currentDispatchQty);
+      }),
+    [dispatchQuantityMap, loadedRecords],
   );
   const dispatchSummaryRow = useMemo(
     () => buildSummaryRow(dispatchItemRows),
@@ -306,6 +322,12 @@ export function DispatchCreatePage({
     const nextValues = buildDispatchInitialValues(sourceRecord);
     setValues(nextValues);
     setLoadedRecords(sourceRecord ? [sourceRecord] : []);
+    if (sourceRecord) {
+      const total = parseInt(sourceRecord.noOfSheets, 10) || 0;
+      setDispatchQuantityMap({ [sourceRecord.id]: total });
+    } else {
+      setDispatchQuantityMap({});
+    }
   }, [sourceRecord]);
 
   if ((mode === "edit" || mode === "view") && !sourceRecord) {
@@ -472,6 +494,11 @@ export function DispatchCreatePage({
                           ),
                         );
                         setLoadedRecords(selectedRecords);
+                        const initialQtyMap: Record<string, number> = {};
+                        selectedRecords.forEach((record) => {
+                          initialQtyMap[record.id] = parseInt(record.noOfSheets, 10) || 0;
+                        });
+                        setDispatchQuantityMap(initialQtyMap);
                       }}
                       sx={loadButtonSx}
                       variant="contained"
@@ -564,7 +591,16 @@ export function DispatchCreatePage({
 
           {hasLoadedItems ? (
             <>
-              <DispatchItemsTable rows={dispatchItemRows} />
+              <DispatchItemsTable
+                readOnly={readOnly}
+                rows={dispatchItemRows}
+                onQuantityChange={(recordId, nextQty) => {
+                  setDispatchQuantityMap((prev) => ({
+                    ...prev,
+                    [recordId]: nextQty,
+                  }));
+                }}
+              />
               <DispatchSummaryTable row={dispatchSummaryRow} />
             </>
           ) : null}
@@ -627,15 +663,33 @@ export function DispatchCreatePage({
                   type="button"
                   onClick={() => {
                     loadedRecords.forEach((record) => {
-                      const itemAmount = parseAmount(record.amount);
+                      const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+                      const dispatchQty =
+                        dispatchQuantityMap[record.id] !== undefined
+                          ? dispatchQuantityMap[record.id]!
+                          : totalSheetsNum;
+
+                      // Skip items with 0 dispatch quantity
+                      if (dispatchQty <= 0) {
+                        return;
+                      }
+
+                      const originalAmount = parseAmount(record.amount);
+                      const itemAmount = totalSheetsNum > 0
+                        ? (originalAmount / totalSheetsNum) * dispatchQty
+                        : originalAmount;
                       const grandTotal = itemAmount * 1.18;
+                      const originalSqf = parseAmount(record.sqf);
+                      const dispatchSqf = totalSheetsNum > 0
+                        ? ((originalSqf / totalSheetsNum) * dispatchQty).toFixed(3)
+                        : record.sqf;
 
                       createDispatchEntry(record.id, {
                         customerName: values.customerName,
                         dispatchDate: values.dispatchDate,
                         dispatchGrandTotal: formatAmount(grandTotal),
-                        dispatchTotalQuantity: record.noOfSheets,
-                        dispatchTotalSqf: record.sqf,
+                        dispatchTotalQuantity: String(dispatchQty),
+                        dispatchTotalSqf: dispatchSqf,
                         dispatchBuyerAddress: values.buyerAddress,
                         dispatchSellerAddress: values.sellerAddress,
                         dispatchTransactionType: values.transactionType,
@@ -983,7 +1037,15 @@ function LabeledField({
   );
 }
 
-function DispatchItemsTable({ rows }: { rows: readonly DispatchItemRow[] }) {
+function DispatchItemsTable({
+  readOnly,
+  rows,
+  onQuantityChange,
+}: {
+  readOnly?: boolean;
+  rows: readonly DispatchItemRow[];
+  onQuantityChange?: (recordId: string, quantity: number) => void;
+}) {
   return (
     <TableContainer sx={tableContainerSx}>
       <Table sx={{ minWidth: 3000 }}>
@@ -1003,11 +1065,46 @@ function DispatchItemsTable({ rows }: { rows: readonly DispatchItemRow[] }) {
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id}>
-              {itemTableColumns.map((column) => (
-                <TableCell key={column.key} sx={(theme) => getBodyCellSx(theme)}>
-                  {row[column.key]}
-                </TableCell>
-              ))}
+              {itemTableColumns.map((column) => {
+                if (column.key === "dispatchQuantity" && !readOnly && onQuantityChange) {
+                  const maxQty = parseInt(row.totalQuantity, 10) || 0;
+                  const currentQty = parseInt(row.dispatchQuantity, 10) || 0;
+                  return (
+                    <TableCell key={column.key} sx={(theme) => getBodyCellSx(theme)}>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={currentQty}
+                        inputProps={{ min: 0, max: maxQty }}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          const safeVal = Number.isNaN(val) ? 0 : Math.min(Math.max(0, val), maxQty);
+                          onQuantityChange(row.recordId, safeVal);
+                        }}
+                        sx={(theme) => ({
+                          width: 100,
+                          "& .MuiOutlinedInput-root": {
+                            height: 28,
+                            minHeight: 28,
+                            borderRadius: `${theme.customTokens.radius.md}px`,
+                            fontSize: "0.8125rem",
+                          },
+                          "& .MuiInputBase-input": {
+                            py: 0.25,
+                            textAlign: "center",
+                          },
+                        })}
+                      />
+                    </TableCell>
+                  );
+                }
+
+                return (
+                  <TableCell key={column.key} sx={(theme) => getBodyCellSx(theme)}>
+                    {row[column.key]}
+                  </TableCell>
+                );
+              })}
             </TableRow>
           ))}
         </TableBody>
@@ -1084,15 +1181,24 @@ function buildDispatchInitialValues(
 function mapDispatchItemRow(
   record: PackingRecord,
   index: number,
+  dispatchQty: number,
 ): DispatchItemRow {
-  const amount = parseAmount(record.amount);
-  const sqm = parseAmount(record.sqm);
-  const rate = sqm > 0 ? amount / sqm : 0;
-  const gstAmount = amount * 0.18;
-  const finalAmount = amount + gstAmount;
+  const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+  const originalAmount = parseAmount(record.amount);
+  const originalSqm = parseAmount(record.sqm);
+  const sqmPerSheet = totalSheetsNum > 0 ? originalSqm / totalSheetsNum : 0;
+  const amountPerSheet = totalSheetsNum > 0 ? originalAmount / totalSheetsNum : 0;
+
+  const currentSqm = sqmPerSheet * dispatchQty;
+  const currentAmount = amountPerSheet * dispatchQty;
+  const rate = currentSqm > 0 ? currentAmount / currentSqm : (originalSqm > 0 ? originalAmount / originalSqm : 0);
+  const gstAmount = currentAmount * 0.18;
+  const finalAmount = currentAmount + gstAmount;
+  const remainingQty = Math.max(0, totalSheetsNum - dispatchQty);
 
   return {
     id: `${record.id}-dispatch-item`,
+    recordId: record.id,
     srNo: String(index + 1),
     orderNo: record.orderNo,
     salesItemName: record.itemName,
@@ -1104,12 +1210,15 @@ function mapDispatchItemRow(
     length: record.length,
     width: record.width,
     thickness: record.thickness,
-    noOfSheets: record.noOfSheets,
-    sqm: record.sqm,
+    totalQuantity: String(totalSheetsNum),
+    dispatchQuantity: String(dispatchQty),
+    remainingQuantity: String(remainingQty),
+    noOfSheets: String(dispatchQty),
+    sqm: formatPlainNumber(currentSqm, 3),
     rate: formatAmount(rate),
-    itemAmount: formatAmount(amount),
+    itemAmount: formatAmount(currentAmount),
     discountPercent: "0",
-    itemAmountWithDiscount: formatAmount(amount),
+    itemAmountWithDiscount: formatAmount(currentAmount),
     gstPercent: "18",
     gstAmount: formatAmount(gstAmount),
     igstAmount: "0.00",
