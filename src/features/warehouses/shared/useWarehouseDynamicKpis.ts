@@ -1,14 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDownLeft, ArrowUpRight, Boxes, Layers } from "lucide-react";
-import { queryKeys } from "../../../query/queryKeys";
 import {
-  exportInwardsApi,
-  fetchInwardById,
+  fetchInwardKpisApi,
   getInwardInventoryTypeFromSlug,
 } from "../api/inwardApi";
-import { exportStorageInventoryApi } from "../storage/api/storageApi";
-import { exportProductionInventoryApi } from "../production/api/productionWarehouseApi";
+import { fetchStorageKpisApi } from "../storage/api/storageApi";
+import { fetchProductionKpisApi } from "../production/api/productionWarehouseApi";
 import {
   getFactoryIssuedWorkItems,
   useFactoryIssuedWorkItems,
@@ -23,7 +21,6 @@ function isToday(dateStrOrObj: string | Date | null | undefined): boolean {
   
   if (typeof dateStrOrObj === "string") {
     const trimmed = dateStrOrObj.trim();
-    // If it's a date-only string like "YYYY-MM-DD", parse components directly to avoid UTC shift
     const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed);
     if (match && match[1] && match[2] && match[3]) {
       const year = parseInt(match[1], 10);
@@ -70,6 +67,8 @@ function formatDecimal(n: number, decimals = 3): string {
  * - Inward Warehouse
  * - Storage Warehouse
  * - Production Warehouse
+ *
+ * Uses exactly ONE combined KPI API request per warehouse page and material context.
  */
 export function useWarehouseDynamicKpis({
   warehouseType,
@@ -78,341 +77,176 @@ export function useWarehouseDynamicKpis({
 }: {
   warehouseType: "inward" | "storage" | "production";
   warehouseId: string;
-  tab: string; // veneer-blocks, raw-veneer, plywood, mdf, etc.
+  tab: string; // veneer-blocks, raw-veneer, plywood, mdf, consumables, sawing
 }): {
   cards: WarehouseKpiCardData[];
   isLoading: boolean;
 } {
-  // Always listen to local sync external stores if production or storage issues occur
+  // Always listen to local sync external stores if production or storage issues occur in client flow
   useFactoryIssuedWorkItems();
   const movedRows = useWarehouseCMovedRows();
   const sawingFlowState = useSawingFlowState();
 
   const isVeneerBlock = tab === "veneer-blocks";
-  const isSheetGood = tab === "raw-veneer" || tab === "plywood" || tab === "mdf";
+  const isSheetGood = tab === "raw-veneer" || tab === "plywood" || tab === "mdf" || tab === "consumables";
   const isSawing = tab === "sawing";
-
-  // 1. INWARD WAREHOUSE
   const inwardInventoryType = getInwardInventoryTypeFromSlug(tab);
-  const inwardQuery = useQuery({
-    queryKey: [...queryKeys.warehouse.inward.all, "kpis-export", warehouseId, tab],
-    enabled: warehouseType === "inward" && Boolean(warehouseId) && Boolean(inwardInventoryType),
-    queryFn: async () => {
-      const headers = await exportInwardsApi({
-        warehouseId,
-        inventoryType: inwardInventoryType!,
-      });
 
-      // To calculate accurate total logs/cbm or leaves/sqm, fetch line items for inward headers
-      const detailPromises = headers.map((h) =>
-        fetchInwardById(h.id).catch(() => null)
-      );
-      const details = await Promise.all(detailPromises);
-      return details.filter((d): d is NonNullable<typeof d> => d !== null);
+  const isEnabled = Boolean(warehouseId) && (
+    (warehouseType === "inward" && Boolean(inwardInventoryType)) ||
+    (warehouseType === "storage" && Boolean(tab)) ||
+    (warehouseType === "production" && (isSheetGood || isSawing))
+  );
+
+  // Single combined KPI query per warehouse page / material tab
+  const kpiQuery = useQuery({
+    queryKey: ["warehouse-kpis", warehouseType, warehouseId, tab],
+    enabled: isEnabled,
+    queryFn: async () => {
+      if (warehouseType === "inward" && inwardInventoryType) {
+        return await fetchInwardKpisApi({
+          warehouseId,
+          inventoryType: inwardInventoryType,
+        });
+      }
+      if (warehouseType === "storage") {
+        return await fetchStorageKpisApi({
+          warehouseId,
+          tab,
+        });
+      }
+      if (warehouseType === "production") {
+        return await fetchProductionKpisApi({
+          warehouseId,
+          tab,
+        });
+      }
+      return null;
     },
     staleTime: 1000 * 60,
   });
 
-  // 2. STORAGE WAREHOUSE
-  const storageInventoryQuery = useQuery({
-    queryKey: [...queryKeys.warehouse.storage.all, "kpis-inventory", warehouseId, tab],
-    enabled: warehouseType === "storage" && Boolean(warehouseId),
-    queryFn: () =>
-      exportStorageInventoryApi(tab, {
-        warehouseId,
-        section: "inventory",
-      }),
-    staleTime: 1000 * 60,
-  });
-
-  const storageHistoryQuery = useQuery({
-    queryKey: [...queryKeys.warehouse.storage.all, "kpis-history", warehouseId, tab],
-    enabled: warehouseType === "storage" && Boolean(warehouseId),
-    queryFn: () =>
-      exportStorageInventoryApi(tab, {
-        warehouseId,
-        section: "history",
-      }),
-    staleTime: 1000 * 60,
-  });
-
-  // 3. PRODUCTION WAREHOUSE
-  const isSupportedProductionTab =
-    tab === "raw-veneer" || tab === "plywood" || tab === "mdf" || tab === "consumables";
-  const productionQuery = useQuery({
-    queryKey: ["warehouse-production", "kpis-inventory", warehouseId, tab],
-    enabled: warehouseType === "production" && Boolean(warehouseId) && isSupportedProductionTab,
-    queryFn: () =>
-      exportProductionInventoryApi({
-        warehouseId,
-        tab: tab as "raw-veneer" | "plywood" | "mdf" | "consumables",
-      }),
-    staleTime: 1000 * 60,
-  });
-
   const cards = useMemo<WarehouseKpiCardData[]>(() => {
-    // Check supported tabs
     if (!isVeneerBlock && !isSheetGood && !isSawing) {
       return [];
     }
 
+    // 1. INWARD WAREHOUSE
     if (warehouseType === "inward") {
-      const details = inwardQuery.data ?? [];
-      let totalLogs = 0;
-      let totalCbm = 0;
-      let totalLeaves = 0;
-      let totalSqm = 0;
+      const data = kpiQuery.data as {
+        totalStock: { count: number; secondary: number };
+        receivedToday: { count: number; secondary: number };
+        outToday: { count: number; secondary: number };
+      } | null;
 
-      let receivedTodayLogs = 0;
-      let receivedTodayCbm = 0;
-      let receivedTodayLeaves = 0;
-      let receivedTodaySqm = 0;
-
-      let outTodayLogs = 0;
-      let outTodayCbm = 0;
-      let outTodayLeaves = 0;
-      let outTodaySqm = 0;
-
-      for (const inward of details) {
-        const headerToday = isToday(inward.inwardDate);
-        const headerUpdatedToday = isToday(inward.updatedAt);
-
-        for (const item of inward.items || []) {
-          const cbm = parseNum(item.cbm);
-          const leaves =
-            item.availableStock != null
-              ? parseNum(item.availableStock)
-              : tab === "raw-veneer"
-              ? parseNum(item.noOfLeaves)
-              : parseNum(item.sheets);
-          const receivedLeaves =
-            tab === "raw-veneer" ? parseNum(item.noOfLeaves) : parseNum(item.sheets);
-          const sqm = parseNum(item.totalSqMeter);
-
-          if (isVeneerBlock) {
-            totalLogs += 1;
-            totalCbm += cbm;
-
-            if (headerToday) {
-              receivedTodayLogs += 1;
-              receivedTodayCbm += cbm;
-            }
-
-            // QC passed lines move to storage (or if qcLocked, forwarded out)
-            const isQcPassed = (item.qcStatus ?? "").toUpperCase() === "PASS";
-            if (isQcPassed && (headerUpdatedToday || isToday(inward.updatedAt))) {
-              outTodayLogs += 1;
-              outTodayCbm += cbm;
-            }
-          } else {
-            totalLeaves += leaves;
-            totalSqm += sqm;
-
-            if (headerToday) {
-              receivedTodayLeaves += receivedLeaves;
-              receivedTodaySqm += sqm;
-            }
-
-            // Transferred out through QC Pass / storage movement
-            const isQcPassed = (item.qcStatus ?? "").toUpperCase() === "PASS";
-            if (isQcPassed && (headerUpdatedToday || isToday(inward.updatedAt))) {
-              outTodayLeaves += parseNum(item.qcPassQuantity ?? receivedLeaves);
-              outTodaySqm += sqm;
-            }
-          }
-        }
-      }
+      const totalStock = data?.totalStock ?? { count: 0, secondary: 0 };
+      const receivedToday = data?.receivedToday ?? { count: 0, secondary: 0 };
+      const outToday = data?.outToday ?? { count: 0, secondary: 0 };
 
       if (isVeneerBlock) {
         return [
           {
             id: "total-logs-cbm",
             label: "Total Logs / CBM",
-            value: `${formatInt(totalLogs)} Logs`,
-            secondaryValue: `/ ${formatDecimal(totalCbm, 3)} CBM`,
+            value: `${formatInt(totalStock.count)} Logs`,
+            secondaryValue: `/ ${formatDecimal(totalStock.secondary, 3)} CBM`,
             icon: Boxes,
             colorScheme: "primary",
           },
           {
             id: "total-received-today",
             label: "Total Received Today",
-            value: `${formatInt(receivedTodayLogs)} Logs`,
-            secondaryValue: `/ ${formatDecimal(receivedTodayCbm, 3)} CBM`,
+            value: `${formatInt(receivedToday.count)} Logs`,
+            secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 3)} CBM`,
             icon: ArrowDownLeft,
             colorScheme: "success",
           },
           {
             id: "total-out-today",
             label: "Total Out Today",
-            value: `${formatInt(outTodayLogs)} Logs`,
-            secondaryValue: `/ ${formatDecimal(outTodayCbm, 3)} CBM`,
+            value: `${formatInt(outToday.count)} Logs`,
+            secondaryValue: `/ ${formatDecimal(outToday.secondary, 3)} CBM`,
             icon: ArrowUpRight,
             colorScheme: "warning",
           },
         ];
       }
 
+      const unitName = tab === "raw-veneer" ? "Leaves" : tab === "consumables" ? "Qty" : "Sheets";
       return [
         {
           id: "total-leaves-sqm",
           label: "Total Leaves / SQM",
-          value: `${formatInt(totalLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(totalSqm, 2)} SQM`,
+          value: `${formatInt(totalStock.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(totalStock.secondary, 2)} SQM`,
           icon: Layers,
           colorScheme: "primary",
         },
         {
           id: "total-received-today",
           label: "Total Received Today",
-          value: `${formatInt(receivedTodayLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(receivedTodaySqm, 2)} SQM`,
+          value: `${formatInt(receivedToday.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 2)} SQM`,
           icon: ArrowDownLeft,
           colorScheme: "success",
         },
         {
           id: "total-out-today",
           label: "Total Out Today",
-          value: `${formatInt(outTodayLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(outTodaySqm, 2)} SQM`,
+          value: `${formatInt(outToday.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(outToday.secondary, 2)} SQM`,
           icon: ArrowUpRight,
           colorScheme: "warning",
         },
       ];
     }
 
+    // 2. STORAGE WAREHOUSE
     if (warehouseType === "storage") {
-      const inventoryItems = storageInventoryQuery.data ?? [];
-      const historyItems = storageHistoryQuery.data ?? [];
+      const data = kpiQuery.data as {
+        totalStock: { count: number; secondary: number };
+        receivedToday: { count: number; secondary: number };
+        outToday?: { count: number; secondary: number };
+        issueSawing?: { count: number; secondary: number };
+        issueSlicing?: { count: number; secondary: number };
+      } | null;
 
-      const issuedToSawingIds = new Set(
-        sawingFlowState.extraIssued.map((r) => String(r.sourceStorageId || "")).filter(Boolean)
-      );
+      const totalStock = { ...(data?.totalStock ?? { count: 0, secondary: 0 }) };
+      const receivedToday = { ...(data?.receivedToday ?? { count: 0, secondary: 0 }) };
 
-      let totalLogs = 0;
-      let totalCbm = 0;
-      let totalLeaves = 0;
-      let totalSqm = 0;
-
-      let receivedTodayLogs = 0;
-      let receivedTodayCbm = 0;
-      let receivedTodayLeaves = 0;
-      let receivedTodaySqm = 0;
-
-      for (const item of inventoryItems) {
-        // If this item was issued to sawing via frontend flow, skip it from available inventory
-        if (isVeneerBlock && issuedToSawingIds.has(String(item.id))) {
-          continue;
-        }
-
-        const cbm = parseNum(item.cbm);
-        const leaves =
-          item.availableQuantity != null
-            ? parseNum(item.availableQuantity)
-            : tab === "raw-veneer"
-            ? parseNum(item.noOfLeaves)
-            : parseNum(item.sheets);
-        const sqm =
-          item.availableSqm != null
-            ? parseNum(item.availableSqm)
-            : parseNum(item.totalSqMeter);
-
-        if (isVeneerBlock) {
-          totalLogs += 1;
-          totalCbm += cbm;
-
-          if (isToday(item.createdAt) || isToday(item.inwardDate)) {
-            receivedTodayLogs += 1;
-            receivedTodayCbm += cbm;
-          }
-        } else {
-          totalLeaves += leaves;
-          totalSqm += sqm;
-
-          if (isToday(item.createdAt) || isToday(item.inwardDate)) {
-            receivedTodayLeaves +=
-              item.receivedQuantity != null
-                ? parseNum(item.receivedQuantity)
-                : leaves;
-            receivedTodaySqm +=
-              item.receivedSqm != null
-                ? parseNum(item.receivedSqm)
-                : sqm;
-          }
-        }
-      }
-
-      // Out today: items issued, transferred to production, or sawed/sliced today
-      let outTodayLogs = 0;
-      let outTodayCbm = 0;
-      let sawingLogs = 0;
-      let sawingCbm = 0;
-      let slicingLogs = 0;
-      let slicingCbm = 0;
-      let outTodayLeaves = 0;
-      let outTodaySqm = 0;
-
-      const recordedSawingStorageIds = new Set<string>();
-
-      for (const hist of historyItems) {
-        if (isToday(hist.createdAt) || isToday(hist.updatedAt)) {
-          if (isVeneerBlock) {
-            const histCbm = parseNum(hist.cbm);
-            outTodayLogs += 1;
-            outTodayCbm += histCbm;
-
-            const issueTarget = (hist.issueTo || hist.remark || "").toLowerCase();
-            if (issueTarget.includes("slicing")) {
-              slicingLogs += 1;
-              slicingCbm += histCbm;
-            } else {
-              // Defaults to sawing if issued to sawing or production
-              sawingLogs += 1;
-              sawingCbm += histCbm;
-              if (hist.id) recordedSawingStorageIds.add(String(hist.id));
-            }
-          } else {
-            const forwardedQty =
-              hist.receivedQuantity != null
-                ? parseNum(hist.receivedQuantity)
-                : tab === "raw-veneer"
-                ? parseNum(hist.noOfLeaves)
-                : parseNum(hist.sheets);
-            outTodayLeaves += forwardedQty;
-            outTodaySqm += parseNum(hist.receivedSqm ?? hist.totalSqMeter);
-          }
-        }
-      }
-
-      // Also include frontend-issued sawing items that were issued today
       if (isVeneerBlock) {
+        let sawingLogs = data?.issueSawing?.count ?? 0;
+        let sawingCbm = data?.issueSawing?.secondary ?? 0;
+        const slicingLogs = data?.issueSlicing?.count ?? 0;
+        const slicingCbm = data?.issueSlicing?.secondary ?? 0;
+
+        // Overlay frontend-issued sawing items that were issued today
         for (const item of sawingFlowState.extraIssued) {
           const itemIssueDate = (item.issueDate || item.issuedDate) as string | Date | null | undefined;
-          const storageId = String(item.sourceStorageId || item.id);
-          if (isToday(itemIssueDate) && !recordedSawingStorageIds.has(storageId)) {
+          if (isToday(itemIssueDate)) {
             const cbm = parseNum(item.cbm ?? item.receivedCbm);
             sawingLogs += 1;
             sawingCbm += cbm;
-            outTodayLogs += 1;
-            outTodayCbm += cbm;
+            // Also deduct from available stock count if frontend issued
+            totalStock.count = Math.max(0, totalStock.count - 1);
+            totalStock.secondary = Math.max(0, totalStock.secondary - cbm);
           }
         }
-      }
 
-      if (isVeneerBlock) {
         return [
           {
             id: "total-logs-cbm",
             label: "Total Logs / CBM",
-            value: `${formatInt(totalLogs)} Logs`,
-            secondaryValue: `/ ${formatDecimal(totalCbm, 3)} CBM`,
+            value: `${formatInt(totalStock.count)} Logs`,
+            secondaryValue: `/ ${formatDecimal(totalStock.secondary, 3)} CBM`,
             icon: Boxes,
             colorScheme: "primary",
           },
           {
             id: "total-received-today",
             label: "Total Received Today",
-            value: `${formatInt(receivedTodayLogs)} Logs`,
-            secondaryValue: `/ ${formatDecimal(receivedTodayCbm, 3)} CBM`,
+            value: `${formatInt(receivedToday.count)} Logs`,
+            secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 3)} CBM`,
             icon: ArrowDownLeft,
             colorScheme: "success",
           },
@@ -435,75 +269,59 @@ export function useWarehouseDynamicKpis({
         ];
       }
 
+      const outToday = data?.outToday ?? { count: 0, secondary: 0 };
+      const unitName = tab === "raw-veneer" ? "Leaves" : tab === "consumables" ? "Qty" : "Sheets";
+
       return [
         {
           id: "total-leaves-sqm",
           label: "Total Leaves / SQM",
-          value: `${formatInt(totalLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(totalSqm, 2)} SQM`,
+          value: `${formatInt(totalStock.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(totalStock.secondary, 2)} SQM`,
           icon: Layers,
           colorScheme: "primary",
         },
         {
           id: "total-received-today",
           label: "Total Received Today",
-          value: `${formatInt(receivedTodayLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(receivedTodaySqm, 2)} SQM`,
+          value: `${formatInt(receivedToday.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 2)} SQM`,
           icon: ArrowDownLeft,
           colorScheme: "success",
         },
         {
           id: "total-out-today",
           label: "Total Out Today",
-          value: `${formatInt(outTodayLeaves)} ${tab === "raw-veneer" ? "Leaves" : "Sheets"}`,
-          secondaryValue: `/ ${formatDecimal(outTodaySqm, 2)} SQM`,
+          value: `${formatInt(outToday.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(outToday.secondary, 2)} SQM`,
           icon: ArrowUpRight,
           colorScheme: "warning",
         },
       ];
     }
 
+    // 3. PRODUCTION WAREHOUSE
     if (warehouseType === "production") {
-      const items = productionQuery.data ?? [];
-      const issuedWork = getFactoryIssuedWorkItems();
+      const data = kpiQuery.data as {
+        totalStock: { count: number; secondary: number };
+        receivedToday: { count: number; secondary: number };
+        outToday?: { count: number; secondary: number };
+        issueMarquetry?: { count: number; secondary: number };
+        issueGrouping?: { count: number; secondary: number };
+        sawingIn?: { count: number; secondary: number };
+        sawingIssued?: { count: number; secondary: number };
+      } | null;
 
-      let totalLeaves = 0;
-      let totalSqm = 0;
-      let receivedTodayLeaves = 0;
-      let receivedTodaySqm = 0;
-      let outTodayLeaves = 0;
-      let outTodaySqm = 0;
+      const issuedWork = getFactoryIssuedWorkItems();
 
       let marquetryLeaves = 0;
       let marquetrySqm = 0;
       let groupingLeaves = 0;
       let groupingSqm = 0;
+      let outTodayLeaves = 0;
+      let outTodaySqm = 0;
 
-      for (const item of items) {
-        const leaves =
-          item.availableQuantity != null
-            ? parseNum(item.availableQuantity)
-            : tab === "raw-veneer"
-            ? parseNum(item.noOfLeaves)
-            : parseNum(item.noOfSheets ?? item.totalNoOfSheets);
-        const receivedLeaves =
-          item.receivedQuantity != null
-            ? parseNum(item.receivedQuantity)
-            : tab === "raw-veneer"
-            ? parseNum(item.noOfLeaves)
-            : parseNum(item.noOfSheets ?? item.totalNoOfSheets);
-        const sqm = parseNum(item.sqm ?? item.totalSqm);
-
-        totalLeaves += leaves;
-        totalSqm += sqm;
-
-        if (isToday(item.inwardDate as string) || isToday(item.createdAt as string)) {
-          receivedTodayLeaves += receivedLeaves;
-          receivedTodaySqm += sqm;
-        }
-      }
-
-      // Factory work / grouping issues out today
+      // Realtime factory work / grouping / marquetry issues out today
       for (const work of issuedWork) {
         if (isToday(work.createdAt)) {
           const snapshot = work.sourceSnapshot || {};
@@ -533,21 +351,24 @@ export function useWarehouseDynamicKpis({
         }
       }
 
+      const totalStock = data?.totalStock ?? { count: 0, secondary: 0 };
+      const receivedToday = data?.receivedToday ?? { count: 0, secondary: 0 };
+
       if (tab === "raw-veneer") {
         return [
           {
             id: "total-leaves-sqm",
             label: "Total Leaves / SQM",
-            value: `${formatInt(totalLeaves)} Leaves`,
-            secondaryValue: `/ ${formatDecimal(totalSqm, 2)} SQM`,
+            value: `${formatInt(totalStock.count)} Leaves`,
+            secondaryValue: `/ ${formatDecimal(totalStock.secondary, 2)} SQM`,
             icon: Layers,
             colorScheme: "primary",
           },
           {
             id: "total-received-today",
             label: "Total Received Today",
-            value: `${formatInt(receivedTodayLeaves)} Leaves`,
-            secondaryValue: `/ ${formatDecimal(receivedTodaySqm, 2)} SQM`,
+            value: `${formatInt(receivedToday.count)} Leaves`,
+            secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 2)} SQM`,
             icon: ArrowDownLeft,
             colorScheme: "success",
           },
@@ -571,9 +392,6 @@ export function useWarehouseDynamicKpis({
       }
 
       if (tab === "sawing") {
-        // Sawing items in production warehouse:
-        // 1. Items moved to Warehouse C (from inspection pass)
-        // 2. Items issued to Sawing flow (from storage warehouse or initial sawing)
         const sawingMoved = movedRows.filter(
           (row) =>
             String((row as any).inventorySlug ?? "").toLowerCase() === "sawing"
@@ -589,9 +407,11 @@ export function useWarehouseDynamicKpis({
           totalInCbm += parseNum(r.cbm ?? r.receivedCbm ?? r.availableCbm);
         }
 
-        // Total Issued Count:
-        // Counts items that have been processed/completed and issued out from Sawing
-        // (in extraDone, extraHistory, or tracked in factory issuedWork where source is sawing)
+        if (totalInCount === 0 && data?.sawingIn?.count) {
+          totalInCount = data.sawingIn.count;
+          totalInCbm = data.sawingIn.secondary;
+        }
+
         const uniqueIssuedIds = new Set<string>();
         let totalIssuedCount = 0;
         let totalIssuedLeaves = 0;
@@ -635,6 +455,11 @@ export function useWarehouseDynamicKpis({
           }
         }
 
+        if (totalIssuedCount === 0 && data?.sawingIssued?.count) {
+          totalIssuedCount = data.sawingIssued.count;
+          totalIssuedLeaves = data.sawingIssued.secondary;
+        }
+
         return [
           {
             id: "total-in-count",
@@ -655,27 +480,28 @@ export function useWarehouseDynamicKpis({
         ];
       }
 
+      const unitName = tab === "consumables" ? "Qty" : "Sheets";
       return [
         {
           id: "total-leaves-sqm",
           label: "Total Leaves / SQM",
-          value: `${formatInt(totalLeaves)} Sheets`,
-          secondaryValue: `/ ${formatDecimal(totalSqm, 2)} SQM`,
+          value: `${formatInt(totalStock.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(totalStock.secondary, 2)} SQM`,
           icon: Layers,
           colorScheme: "primary",
         },
         {
           id: "total-received-today",
           label: "Total Received Today",
-          value: `${formatInt(receivedTodayLeaves)} Sheets`,
-          secondaryValue: `/ ${formatDecimal(receivedTodaySqm, 2)} SQM`,
+          value: `${formatInt(receivedToday.count)} ${unitName}`,
+          secondaryValue: `/ ${formatDecimal(receivedToday.secondary, 2)} SQM`,
           icon: ArrowDownLeft,
           colorScheme: "success",
         },
         {
           id: "total-out-today",
           label: "Total Out Today",
-          value: `${formatInt(outTodayLeaves)} Sheets`,
+          value: `${formatInt(outTodayLeaves)} ${unitName}`,
           secondaryValue: `/ ${formatDecimal(outTodaySqm, 2)} SQM`,
           icon: ArrowUpRight,
           colorScheme: "warning",
@@ -690,20 +516,10 @@ export function useWarehouseDynamicKpis({
     isVeneerBlock,
     tab,
     warehouseType,
-    inwardQuery.data,
-    storageInventoryQuery.data,
-    storageHistoryQuery.data,
-    productionQuery.data,
+    kpiQuery.data,
     movedRows,
     sawingFlowState,
   ]);
 
-  const isLoading =
-    warehouseType === "inward"
-      ? inwardQuery.isLoading
-      : warehouseType === "storage"
-      ? storageInventoryQuery.isLoading || storageHistoryQuery.isLoading
-      : productionQuery.isLoading;
-
-  return { cards, isLoading };
+  return { cards, isLoading: kpiQuery.isLoading };
 }

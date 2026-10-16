@@ -74,7 +74,9 @@ export function DynamicWarehousePage() {
     };
   }, [warehouseId]);
 
-  if (!isLoading && !errorMessage && (warehouseType === "Inward" || warehouseType === "INWARD")) {
+  const normalizedType = warehouseType.trim().toLowerCase();
+
+  if (!isLoading && !errorMessage && normalizedType === "inward") {
     return (
       <InwardWarehousePage
         warehouseId={warehouseId}
@@ -84,7 +86,7 @@ export function DynamicWarehousePage() {
     );
   }
 
-  if (!isLoading && !errorMessage && warehouseType === "Storage") {
+  if (!isLoading && !errorMessage && normalizedType === "storage") {
     return (
       <StorageWarehousePage
         warehouseId={warehouseId}
@@ -94,7 +96,7 @@ export function DynamicWarehousePage() {
     );
   }
 
-  if (!isLoading && !errorMessage && (warehouseType === "Production" || warehouseType === "PRODUCTION")) {
+  if (!isLoading && !errorMessage && normalizedType === "production") {
     return (
       <ProductionWarehousePage
         warehouseId={warehouseId}

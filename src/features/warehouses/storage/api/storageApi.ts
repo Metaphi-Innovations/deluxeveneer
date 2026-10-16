@@ -368,3 +368,27 @@ export async function moveStorageItemToProductionApi(
     body: data,
   });
 }
+
+export interface StorageKpiData {
+  totalStock: { count: number; secondary: number };
+  receivedToday: { count: number; secondary: number };
+  outToday?: { count: number; secondary: number };
+  issueSawing?: { count: number; secondary: number };
+  issueSlicing?: { count: number; secondary: number };
+}
+
+export async function fetchStorageKpisApi(params: {
+  warehouseId: string;
+  tab: string;
+}): Promise<StorageKpiData> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("tab", params.tab);
+
+  const response = await apiRequest<ApiResponse<StorageKpiData>>(
+    `${BASE_PATH}/kpi?${query.toString()}`,
+    { method: "GET" }
+  );
+
+  return response.data;
+}
