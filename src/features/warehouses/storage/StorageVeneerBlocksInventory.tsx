@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Alert, Stack } from "@mui/material";
 import {
@@ -22,6 +22,7 @@ import {
 } from "./types";
 import { queryKeys } from "../../../query/queryKeys";
 import { useDebouncedValue } from "../../../query/useDebouncedValue";
+import { useSawingFlowState } from "../../factory/sawing/sawingFrontendStore";
 
 function toApiColumnFilters(
   columnFilters: Partial<Record<string, ColumnFilterValue>>
@@ -93,10 +94,59 @@ export function StorageVeneerBlocksInventory({
         ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
       }),
   });
-  const rows = (listQuery.data?.items ?? []).map((item) =>
-    mapStorageItemToRow(item, "veneer-blocks"),
-  );
-  const totalCount = listQuery.data?.pagination.total ?? 0;
+  const sawingFlowState = useSawingFlowState();
+
+  const { rows, totalCount } = useMemo(() => {
+    const rawRows = (listQuery.data?.items ?? []).map((item) =>
+      mapStorageItemToRow(item, "veneer-blocks"),
+    );
+
+    const issuedToSawingStorageIds = new Set(
+      sawingFlowState.extraIssued.map((r) => String(r.sourceStorageId || "")).filter(Boolean)
+    );
+
+    if (section === "inventory") {
+      const filtered = rawRows.filter((r) => !issuedToSawingStorageIds.has(String(r.id)));
+      const rawTotal = listQuery.data?.pagination.total ?? 0;
+      return {
+        rows: filtered,
+        totalCount: Math.max(0, rawTotal - issuedToSawingStorageIds.size),
+      };
+    }
+
+    // In history: if backend doesn't yet have the frontend sawing issues, append them to history
+    const existingHistIds = new Set(rawRows.map((r) => String(r.id)));
+    const sawingHistRows: WarehouseInventoryRow[] = sawingFlowState.extraIssued
+      .filter((r) => !existingHistIds.has(String(r.sourceStorageId || r.id)))
+      .map((r) => ({
+        id: String(r.sourceStorageId || r.id),
+        storageSrNo: String(r.storageSrNo || "-"),
+        inwardSrNo: String(r.inwardSrNo || "-"),
+        inwardDate: (r.issueDate || r.issuedDate || new Date().toISOString().slice(0, 10)) as any,
+        invoiceNo: "-",
+        supplierName: "-",
+        inwardItemCode: "-",
+        itemName: String(r.itemName || "Veneer Block"),
+        factoryCode: "-",
+        logCode: String(r.batchNo || r.logCode || "-"),
+        cbm: String(r.cbm || r.receivedCbm || "0"),
+        currency: "INR",
+        rate: "-",
+        totalAmount: "-",
+        issueTo: "Sawing",
+        qcStatus: "Pass",
+        remark: String(r.remark || "Issued for Sawing"),
+        createdBy: String(r.createdBy || "Admin"),
+        updatedBy: String(r.updatedBy || "Admin"),
+      } as unknown as WarehouseInventoryRow));
+
+    const rawTotal = listQuery.data?.pagination.total ?? 0;
+    return {
+      rows: [...sawingHistRows, ...rawRows],
+      totalCount: rawTotal + sawingFlowState.extraIssued.length,
+    };
+  }, [listQuery.data, sawingFlowState.extraIssued, section]);
+
   const isLoading = Boolean(warehouseId) && listQuery.isLoading;
   const errorMessage =
     listQuery.error instanceof Error ? listQuery.error.message : "";

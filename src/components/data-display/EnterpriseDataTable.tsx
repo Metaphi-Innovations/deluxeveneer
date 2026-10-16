@@ -500,12 +500,17 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     setGoToPageError("");
   }, [safePage]);
 
+  const prevSelectedIdsRef = useRef<string>("");
   useEffect(() => {
-    if (controlledSelectedRowIds !== undefined) {
+    if (controlledSelectedRowIds !== undefined || !onSelectionChange) {
       return;
     }
 
-    onSelectionChange?.(selectedRows);
+    const currentKey = selectedRows.map((r) => r.id).sort().join(",");
+    if (prevSelectedIdsRef.current !== currentKey) {
+      prevSelectedIdsRef.current = currentKey;
+      onSelectionChange(selectedRows);
+    }
   }, [controlledSelectedRowIds, onSelectionChange, selectedRows]);
 
   useEffect(() => {

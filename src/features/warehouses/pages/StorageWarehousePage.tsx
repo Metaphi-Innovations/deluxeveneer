@@ -77,6 +77,8 @@ import {
   type StorageRawVeneerSourceTab,
   type StorageSectionTab,
 } from "../storage/types";
+import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
+import { useWarehouseDynamicKpis } from "../shared/useWarehouseDynamicKpis";
 
 const rawVeneerSourceSelectOptions = ["All", "Purchase", "Production"] as const;
 
@@ -192,6 +194,12 @@ export function StorageWarehousePage({
   const canView = canAccessPermission(warehousePermissionKey, "view");
   const canEdit = canAccessPermission(warehousePermissionKey, "edit");
   const canCreate = canAccessPermission(warehousePermissionKey, "create");
+
+  const kpis = useWarehouseDynamicKpis({
+    warehouseType: "storage",
+    warehouseId,
+    tab: activeInventory,
+  });
 
   const panelProps = useMemo(
     () => ({
@@ -760,6 +768,8 @@ export function StorageWarehousePage({
             </Button>
           </Stack>
         </Stack>
+
+        <WarehouseKpiCards cards={kpis.cards} isLoading={kpis.isLoading} />
 
         {showBulkBanner ? (
           <Box

@@ -57,6 +57,8 @@ import {
   EMPTY_PRODUCTION_LIST_QUERY,
   type ProductionListQueryState,
 } from "../production/productionListQuery";
+import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
+import { useWarehouseDynamicKpis } from "../shared/useWarehouseDynamicKpis";
 
 export interface ProductionWarehousePageProps {
   warehouseId?: string | undefined;
@@ -94,6 +96,12 @@ export function ProductionWarehousePage({
     : "warehouseC";
   const canEditWarehouseC = canAccessPermission(warehousePermissionKey, "edit");
   const canViewWarehouseC = canAccessPermission(warehousePermissionKey, "view");
+
+  const kpis = useWarehouseDynamicKpis({
+    warehouseType: "production",
+    warehouseId: warehouseId ?? "",
+    tab: activeInventory,
+  });
 
   const orderRecords = useOrderRecords();
   const rawOrderRecords = useMemo(
@@ -339,6 +347,8 @@ export function ProductionWarehousePage({
             </Button>
           </Stack>
         </Stack>
+
+        <WarehouseKpiCards cards={kpis.cards} isLoading={kpis.isLoading} />
 
         {activeInventory === "raw-veneer" && (
           <RawVeneerTab
