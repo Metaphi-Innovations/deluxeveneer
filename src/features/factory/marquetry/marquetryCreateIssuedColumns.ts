@@ -1,7 +1,12 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import {
+  availableFactoryMeasures,
+  withAvailableFactoryMeasureColumns,
+} from "../shared/factoryAvailableMeasures";
 import type { FactoryRecord } from "../shared/types";
 
-export const marquetryCreateIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
+export const marquetryCreateIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  withAvailableFactoryMeasureColumns([
   { key: "storageSrNo", label: "Storage No" },
   { key: "issuedDate", label: "Issued Date" },
   { key: "itemName", label: "Item Name" },
@@ -20,7 +25,7 @@ export const marquetryCreateIssuedColumns: readonly EnterpriseTableColumn<Factor
   { key: "sqf", label: "SQF" },
   { key: "remark", label: "Remark" },
   { key: "createdUpdatedBy", label: "Created / Updated By" },
-];
+]);
 
 function textValue(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -42,6 +47,10 @@ export function mapMarquetryCreateIssuedRow<Row extends FactoryRecord>(row: Row)
     receivedLeaves;
   const createdBy = textValue(row.createdBy);
   const updatedBy = textValue(row.updatedBy);
+  const sqm = textValue(row.sqm) || textValue(row.totalSqMeter);
+  const sqf = textValue(row.sqf);
+  const receivedCount = Number(receivedLeaves.replace(/[^\d.]/g, "")) || 0;
+  const availableCount = Number(availableLeaves.replace(/[^\d.]/g, "")) || 0;
 
   return {
     ...row,
@@ -56,8 +65,13 @@ export function mapMarquetryCreateIssuedRow<Row extends FactoryRecord>(row: Row)
     color: textValue(row.color) || textValue(row.timberColor) || textValue(row.processColor),
     receivedLeaves,
     availableLeaves,
-    sqm: textValue(row.availableSqm) || textValue(row.sqm),
-    sqf: textValue(row.availableSqf) || textValue(row.sqf),
+    sqm,
+    sqf,
+    ...availableFactoryMeasures(
+      { ...row, sqm, sqf },
+      receivedCount,
+      availableCount,
+    ),
     createdUpdatedBy: [createdBy, updatedBy].filter(Boolean).join(" / "),
   } as Row;
 }

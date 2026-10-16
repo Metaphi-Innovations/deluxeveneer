@@ -5,23 +5,25 @@ import type { FactoryRecord } from "../shared/types";
 const embossingHiddenKeys = new Set([
   "warehouseName",
   "issuedFrom",
+  "issuedFor",
   "amount",
   "ratePerSqf",
 ]);
 
 export function applyEmbossingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
-  activeTab: FactoryProcessTab,
+  _activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  return columns.filter((column) => {
-    if (embossingHiddenKeys.has(column.key)) {
-      return false;
-    }
+  const visibleColumns = columns.filter(
+    (column) => !embossingHiddenKeys.has(column.key),
+  );
 
-    if (column.key === "issuedFor") {
-      return activeTab === "history";
-    }
+  if (visibleColumns.some((column) => column.key === "storageSrNo")) {
+    return visibleColumns;
+  }
 
-    return true;
-  });
+  return [
+    { key: "storageSrNo", label: "Storage Sr No." },
+    ...visibleColumns,
+  ];
 }

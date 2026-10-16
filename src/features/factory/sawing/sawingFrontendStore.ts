@@ -3,6 +3,7 @@
  * The sawing API module stays in place for later backend work and is not called from here.
  */
 
+import { useSyncExternalStore } from "react";
 import { sawingDefinition } from "../shared/factoryDefinitions";
 
 const STORAGE_KEY = "deluxe-sawing-frontend-flow";
@@ -39,13 +40,22 @@ const emptyState = (): SawingFlowState => ({
   issuedAvailability: {},
 });
 
+let memoryState: SawingFlowState | null = null;
+
 function readState(): SawingFlowState {
-  if (typeof window === "undefined") return emptyState();
+  if (memoryState) return memoryState;
+  if (typeof window === "undefined") {
+    memoryState = emptyState();
+    return memoryState;
+  }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return migrateLegacyState();
+    if (!raw) {
+      memoryState = migrateLegacyState();
+      return memoryState;
+    }
     const parsed = JSON.parse(raw) as Partial<SawingFlowState>;
-    return {
+    memoryState = {
       extraIssued: Array.isArray(parsed.extraIssued) ? parsed.extraIssued : [],
       extraDone: Array.isArray(parsed.extraDone) ? parsed.extraDone : [],
       extraHistory: Array.isArray(parsed.extraHistory) ? parsed.extraHistory : [],
@@ -60,8 +70,10 @@ function readState(): SawingFlowState {
           ? parsed.issuedAvailability
           : {},
     };
+    return memoryState;
   } catch {
-    return emptyState();
+    memoryState = emptyState();
+    return memoryState;
   }
 }
 
@@ -88,9 +100,34 @@ function migrateLegacyState(): SawingFlowState {
   return next;
 }
 
+const CHANGE_EVENT = "deluxe-sawing-frontend-flow-changed";
+const listeners = new Set<() => void>();
+
 function writeState(next: SawingFlowState) {
+  memoryState = next;
   if (typeof window === "undefined") return;
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  window.dispatchEvent(new Event(CHANGE_EVENT));
+  listeners.forEach((listener) => listener());
+}
+
+export function useSawingFlowState(): SawingFlowState {
+  return useSyncExternalStore(
+    (listener: () => void) => {
+      listeners.add(listener);
+      if (typeof window !== "undefined") {
+        window.addEventListener(CHANGE_EVENT, listener);
+      }
+      return () => {
+        listeners.delete(listener);
+        if (typeof window !== "undefined") {
+          window.removeEventListener(CHANGE_EVENT, listener);
+        }
+      };
+    },
+    readState,
+    readState
+  );
 }
 
 function text(value: unknown) {

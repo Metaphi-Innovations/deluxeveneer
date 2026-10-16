@@ -37,6 +37,8 @@ export interface StorageInventoryItem {
   noOfLeaves: number | null;
   sheets: number | null;
   totalSqMeter: number | null;
+  receivedSqm?: number | null;
+  availableSqm?: number | null;
   receivedQuantity?: number | null;
   availableQuantity?: number | null;
   length: number | null;
@@ -161,11 +163,22 @@ export function mapStorageItemToRow(
             : "";
     })(),
     totalSqm: item.totalSqMeter != null ? String(item.totalSqMeter) : "",
+    receivedSqm:
+      item.receivedSqm != null
+        ? String(item.receivedSqm)
+        : item.totalSqMeter != null
+          ? String(item.totalSqMeter)
+          : "",
     totalSqf:
       item.totalSqMeter != null
         ? (Number(item.totalSqMeter) * 10.7639).toFixed(3)
         : "",
-    availableSqm: item.totalSqMeter != null ? String(item.totalSqMeter) : "",
+    availableSqm:
+      item.availableSqm != null
+        ? String(item.availableSqm)
+        : item.totalSqMeter != null
+          ? String(item.totalSqMeter)
+          : "",
     availableSqf:
       item.totalSqMeter != null
         ? (Number(item.totalSqMeter) * 10.7639).toFixed(3)
@@ -354,4 +367,28 @@ export async function moveStorageItemToProductionApi(
     method: "POST",
     body: data,
   });
+}
+
+export interface StorageKpiData {
+  totalStock: { count: number; secondary: number };
+  receivedToday: { count: number; secondary: number };
+  outToday?: { count: number; secondary: number };
+  issueSawing?: { count: number; secondary: number };
+  issueSlicing?: { count: number; secondary: number };
+}
+
+export async function fetchStorageKpisApi(params: {
+  warehouseId: string;
+  tab: string;
+}): Promise<StorageKpiData> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("tab", params.tab);
+
+  const response = await apiRequest<ApiResponse<StorageKpiData>>(
+    `${BASE_PATH}/kpi?${query.toString()}`,
+    { method: "GET" }
+  );
+
+  return response.data;
 }

@@ -211,7 +211,9 @@ export const statusOptions = [
   "Draft",
   "Confirmed",
   "In Production",
+  "Packed",
   "Partially Dispatched",
+  "Dispatched",
   "Completed",
   "Cancelled",
 ] as const;
@@ -271,7 +273,7 @@ export function getCreateOrderFormFields(
   const orderTypeLabel = getOrderVariantLabel(variant);
 
   return getOrderFormFields()
-    .filter((field) => field.key !== "orderNo")
+    .filter((field) => field.key !== "orderNo" && field.key !== "status")
     .map((field) =>
       field.key === "orderType"
         ? {
@@ -672,6 +674,8 @@ function normalizeLineItems(
       baseLength: normalizeString(item.baseLength, ""),
       baseWidth: normalizeString(item.baseWidth, ""),
       baseThickness: normalizeString(item.baseThickness, ""),
+      designCode: normalizeString(item.designCode, ""),
+      structuredCode: normalizeString(item.structuredCode, ""),
       amount: calculateAmountFromSqf(totalSqf, ratePerSqf, item.amount),
       remark: normalizeString(item.remark, ""),
     };

@@ -13,6 +13,7 @@ export {
   transporterTypeOptions,
   getTransporterAreaOfOperationOptions,
   transporterAreaOfOperationOptions,
+  refreshTransporterMasterCache,
 } from "../transporter-master/transporterMasterDefinition";
 export { warehouseLocationMasterDefinition } from "../warehouse-location-master/warehouseLocationMasterDefinition";
 export {

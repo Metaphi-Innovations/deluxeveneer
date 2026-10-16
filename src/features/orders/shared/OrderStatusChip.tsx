@@ -8,11 +8,13 @@ const ORDER_STATUS_COLORS: Record<
   Draft: { bg: "#e8eaf6", color: "#283593", border: "#9fa8da" },
   Confirmed: { bg: "#e3f2fd", color: "#0d47a1", border: "#90caf9" },
   "In Production": { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
+  Packed: { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4" },
   "Partially Dispatched": {
     bg: "#fce4ec",
     color: "#880e4f",
     border: "#f48fb1",
   },
+  Dispatched: { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
   Completed: { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
   Cancelled: { bg: "#fafafa", color: "#616161", border: "#bdbdbd" },
 };

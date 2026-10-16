@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from "react";
 
+import { parseNumericValue, SQM_TO_SQF } from "../../shared/numberFormat";
+import { formatSlicingDecimal } from "../shared/slicingAreaCalculation";
+
 const STORAGE_KEY = "deluxe-slicing-frontend-flow";
 
 export type SlicingFlowRow = Record<string, unknown>;
@@ -118,6 +121,34 @@ function isHiddenIssued(row: SlicingFlowRow, hiddenIds: readonly string[]) {
   return rowAliases(row).some((key) => hidden.has(key));
 }
 
+function areaNumber(value: unknown) {
+  const parsed = parseNumericValue(value);
+  return parsed !== null && parsed > 0 ? parsed : 0;
+}
+
+function formatArea(value: number) {
+  return value > 0 ? formatSlicingDecimal(value, 3) : "0";
+}
+
+function slicingDoneAreas(
+  row: SlicingFlowRow,
+  receivedLeaves: number,
+  availableLeaves: number,
+) {
+  const receivedSqm = areaNumber(row.sqm ?? row.totalSqMeter ?? row.receivedSqm);
+  const receivedSqf =
+    areaNumber(row.sqf ?? row.receivedSqf) ||
+    (receivedSqm > 0 ? receivedSqm * SQM_TO_SQF : 0);
+  const ratio = receivedLeaves > 0 ? availableLeaves / receivedLeaves : 0;
+
+  return {
+    availableSqf: formatArea(receivedSqf * ratio),
+    availableSqm: formatArea(receivedSqm * ratio),
+    receivedSqf: formatArea(receivedSqf),
+    receivedSqm: formatArea(receivedSqm),
+  };
+}
+
 export function applySlicingListingRows<Row extends SlicingFlowRow>(
   rows: readonly Row[],
   tab: string,
@@ -160,6 +191,7 @@ export function applySlicingListingRows<Row extends SlicingFlowRow>(
         ...row,
         receivedLeaves: String(received),
         availableLeaves: String(available),
+        ...slicingDoneAreas(row, received, available),
       } as Row;
     });
   }

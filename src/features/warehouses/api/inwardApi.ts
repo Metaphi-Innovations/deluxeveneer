@@ -540,3 +540,25 @@ export async function deleteInwardApi(id: string) {
 
   return res.data;
 }
+
+export interface InwardKpiData {
+  totalStock: { count: number; secondary: number };
+  receivedToday: { count: number; secondary: number };
+  outToday: { count: number; secondary: number };
+}
+
+export async function fetchInwardKpisApi(params: {
+  warehouseId: string;
+  inventoryType: InwardInventoryType;
+}): Promise<InwardKpiData> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("inventoryType", params.inventoryType);
+
+  const res = await apiRequest<ApiResponse<InwardKpiData>>(
+    `${BASE_PATH}/kpi?${query.toString()}`,
+    { method: "GET" }
+  );
+
+  return res.data;
+}

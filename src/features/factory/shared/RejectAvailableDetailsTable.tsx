@@ -38,6 +38,7 @@ export type RejectAvailableValues = {
   height?: string;
   length: string;
   noOfLeaves?: string;
+  noOfSheets?: string;
   remark: string;
   sqf: string;
   sqm: string;
@@ -280,6 +281,7 @@ export function RejectAvailableDetailsTable({
   lockMeasuredFields = false,
   onChange,
   showLeafCount = false,
+  showSheetCount = false,
   title,
   useHeight = false,
   values,
@@ -293,6 +295,7 @@ export function RejectAvailableDetailsTable({
   lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   showLeafCount?: boolean;
+  showSheetCount?: boolean;
   title?: string | undefined;
   useHeight?: boolean;
   values: RejectAvailableValues;
@@ -324,9 +327,25 @@ export function RejectAvailableDetailsTable({
         return next;
       })()
     : columns;
-  const columnsWithArea = includeArea
-    ? insertBeforeRemark(leafColumns, slicingAreaColumns)
+  const quantityColumns = showSheetCount
+    ? (() => {
+        const thicknessIndex = leafColumns.findIndex(
+          (column) => column.key === "thickness" || column.key === "height",
+        );
+        const next = [...leafColumns];
+        next.splice(thicknessIndex + 1, 0, {
+          key: "noOfSheets",
+          label: "No. of Sheets",
+          minWidth: 150,
+          options: [],
+          type: "text",
+        });
+        return next;
+      })()
     : leafColumns;
+  const columnsWithArea = includeArea
+    ? insertBeforeRemark(quantityColumns, slicingAreaColumns)
+    : quantityColumns;
   const tableWidth = columnsWithArea.reduce(
     (total, column) => total + column.minWidth,
     0,
@@ -416,6 +435,7 @@ export function createEmptyRejectAvailableValues(): RejectAvailableValues {
     height: "",
     length: "",
     noOfLeaves: "",
+    noOfSheets: "",
     remark: "",
     sqf: "",
     sqm: "",
@@ -432,10 +452,10 @@ export function getNextRejectAvailableValues(
   volumeMode = false,
   useHeight = false,
 ): RejectAvailableValues {
-  if (key === "noOfLeaves") {
+  if (key === "noOfLeaves" || key === "noOfSheets") {
     return {
       ...current,
-      noOfLeaves: value.replace(/[^\d]/gu, ""),
+      [key]: value.replace(/[^\d]/gu, ""),
     };
   }
 

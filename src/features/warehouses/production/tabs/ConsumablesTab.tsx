@@ -80,7 +80,7 @@ export function ConsumablesTab({
 }: ConsumablesTabProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [sortBy, setSortBy] = useState<string | null>("inwardDate");
+  const [sortBy, setSortBy] = useState<string | null>("storageSrNo");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
   const [columnFilters, setColumnFilters] = useState<
     Partial<Record<string, ColumnFilterValue>>

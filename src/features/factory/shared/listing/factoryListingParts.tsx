@@ -448,19 +448,21 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 <FormSectionHeader title="Inspection" />
               ) : null}
               {isDryingInspection ? (
-                <ReadOnlyDialogField
-                  label="Available No of Leaves"
-                  value={String(totalQuantity || "-")}
-                />
-              ) : null}
-              {isDryingInspection ? (
                 <Box
                   sx={(theme) => ({
                     display: "grid",
                     gap: theme.spacing(2),
-                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(3, minmax(0, 1fr))",
+                    },
                   })}
                 >
+                  <ReadOnlyDialogField
+                    label="Available No of Leaves"
+                    value={String(totalQuantity || "-")}
+                  />
                   <Stack spacing={0.75}>
                     <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
                     <TextField
@@ -498,7 +500,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                   gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
                 })}
               >
-                <Stack spacing={0.75}>
+                <Stack spacing={0.75} sx={{ maxWidth: { sm: 260 } }}>
                   <DialogFieldLabel>Inspection Date</DialogFieldLabel>
                   <ErpDatePickerField
                     onChange={(value) => setInspectionDate(localDateToIso(value))}

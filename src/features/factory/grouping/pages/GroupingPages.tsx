@@ -17,6 +17,5 @@ export function EditGroupingPage() {
   return <FactoryProcessCreatePage definition={groupingDefinition} mode="edit" />;
 }
 
-export function ViewGroupingPage() {
-  return <FactoryForm definition={groupingDefinition} mode="view" />;
-}
+export { GroupingViewPage as ViewGroupingPage } from "./GroupingViewPage";
+

@@ -17,7 +17,6 @@ import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import {
   getAutocompleteListboxSx,
   getAutocompletePaperSx,
-  getAutocompletePopperSlotProps,
 } from "../../shared/dropdownMenuStyles";
 import type { FactoryRecord } from "../shared/types";
 
@@ -43,10 +42,12 @@ function defaultStorageWarehouse(warehouses: readonly StorageWarehouseOption[]) 
 }
 
 export function MoveToWarehouseBDialog<Row extends FactoryRecord>({
+  itemCount = 1,
   onClose,
   onConfirm,
   row,
 }: {
+  itemCount?: number;
   onClose: () => void;
   onConfirm: (warehouse: StorageWarehouseOption) => void;
   row: Row | null;
@@ -161,7 +162,9 @@ export function MoveToWarehouseBDialog<Row extends FactoryRecord>({
             Move to Warehouse B
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Are you sure you want to move this item to the storage warehouse?
+            {itemCount === 1
+              ? "Are you sure you want to move this item to the storage warehouse?"
+              : `Are you sure you want to move ${itemCount} items to the storage warehouse?`}
           </Typography>
         </Stack>
 
@@ -209,7 +212,11 @@ export function MoveToWarehouseBDialog<Row extends FactoryRecord>({
             </Box>
           )}
           slotProps={{
-            popper: getAutocompletePopperSlotProps(theme, 360),
+            popper: {
+              sx: {
+                zIndex: theme.zIndex.modal,
+              },
+            },
             paper: {
               sx: getAutocompletePaperSx(theme),
             },

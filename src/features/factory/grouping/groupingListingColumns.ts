@@ -1,4 +1,5 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
@@ -133,7 +134,7 @@ export function applyGroupingListingColumns<Row extends FactoryRecord>(
   }
 
   if (activeTab === "done" || activeTab === "history" || activeTab === "rejected") {
-    return groupingDoneColumns(sourceColumns);
+    return withAvailableFactoryMeasureColumns(groupingDoneColumns(sourceColumns));
   }
 
   return sourceColumns;

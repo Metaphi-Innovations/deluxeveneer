@@ -4,6 +4,7 @@ import {
   parseNumericValue,
   SQM_TO_SQF,
 } from "../../shared/numberFormat";
+import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import { calculateSlicingSqmValue } from "../shared/slicingAreaCalculation";
 import type { FactoryRecord } from "../shared/types";
 
@@ -89,14 +90,17 @@ export function isPressingOrderActive(status: string) {
 
 export function mapPressingIssuedListingRow(row: FactoryRecord): FactoryRecord {
   const available = getPressingAvailableQuantity(row);
+  const receivedQty = firstPressingText(row, receivedKeys);
+  const received = parseNumericValue(receivedQty) ?? available;
 
   return {
     ...row,
     issueSrNo: firstPressingText(row, ["issueSrNo", "issueNo"]) || String(row.id),
     itemSubCategory: firstPressingText(row, ["itemSubCategory", "subCategory"]),
     cutColor: firstPressingText(row, ["cutColor", "color"]),
-    receivedQty: firstPressingText(row, receivedKeys),
+    receivedQty,
     availableQty: String(available),
+    ...availableFactoryMeasures(row, received, available),
   };
 }
 
