@@ -1294,46 +1294,61 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   }}
                 />
 
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleGoToPageSubmit}
-                  sx={{
-                    minWidth: 36,
-                    height: 30,
-                    px: 1,
-                    py: 0,
-                    borderRadius: `${theme.customTokens.radius.sm}px`,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    textTransform: "none",
-                    borderColor: theme.customTokens.borders.default,
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      borderColor: theme.customTokens.brand.primary,
-                      backgroundColor: theme.customTokens.surfaces.alt,
+                <Tooltip
+                  arrow
+                  open={Boolean(goToPageError)}
+                  title={goToPageError}
+                  placement="top"
+                  slotProps={{
+                    popper: {
+                      sx: {
+                        zIndex: theme.zIndex.tooltip,
+                      },
+                    },
+                    tooltip: {
+                      sx: {
+                        backgroundColor: theme.palette.error.main,
+                        color: theme.palette.error.contrastText,
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        boxShadow: theme.shadows[3],
+                        "& .MuiTooltip-arrow": {
+                          color: theme.palette.error.main,
+                        },
+                      },
                     },
                   }}
                 >
-                  Go
-                </Button>
-
-                {goToPageError ? (
-                  <Typography
-                    variant="caption"
-                    color="error"
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleGoToPageSubmit}
                     sx={{
-                      position: "absolute",
-                      bottom: -18,
-                      right: 0,
-                      fontSize: "11px",
-                      whiteSpace: "nowrap",
-                      zIndex: 2,
+                      minWidth: 36,
+                      height: 30,
+                      px: 1,
+                      py: 0,
+                      borderRadius: `${theme.customTokens.radius.sm}px`,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      textTransform: "none",
+                      borderColor: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.borders.default,
+                      color: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.brand.primary,
+                      "&:hover": {
+                        borderColor: goToPageError
+                          ? theme.palette.error.main
+                          : theme.customTokens.brand.primary,
+                        backgroundColor: theme.customTokens.surfaces.alt,
+                      },
                     }}
                   >
-                    {goToPageError}
-                  </Typography>
-                ) : null}
+                    Go
+                  </Button>
+                </Tooltip>
               </Stack>
             </Stack>
           </Box>

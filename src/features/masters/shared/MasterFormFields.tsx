@@ -31,6 +31,7 @@ import {
   resolveLocationByPincode,
 } from "../../shared/locationOptions";
 import { ErpDatePickerField, ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { portalControlHeights } from "../../../theme/typography";
 import {
   getSelectDropdownOptionSx,
   getSelectDropdownPaperSx,
@@ -207,7 +208,9 @@ export function MasterFormFields({
       controlRadius: 6,
       focusRing: "subtle" as const,
     }
-    : {};
+    : compact
+      ? { controlHeight: portalControlHeights.standard }
+      : {};
   const selectedCountry = getLocationValue(definition.fields, values, "country");
   const selectedState = getLocationValue(definition.fields, values, "state");
   const handleFieldChange = (

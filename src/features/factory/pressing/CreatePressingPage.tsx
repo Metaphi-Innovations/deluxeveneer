@@ -553,7 +553,7 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
         </Typography>
       ) : null}
 
-      {selectionReady ? (
+      {pressingReady ? (
         <Stack
           sx={(theme) => ({
             ...formSectionCardSx(theme),
@@ -577,7 +577,7 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
         </Stack>
       ) : null}
 
-      {selectionReady ? (
+      {baseReady ? (
         <Stack
           sx={(theme) => ({
             ...formSectionCardSx(theme),

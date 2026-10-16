@@ -168,17 +168,21 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
       >
         <Box sx={(theme) => formSectionCardSx(theme)}>
           <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-            <ReadOnlyDialogField
-              label="Available No of Leaves"
-              value={String(leafQuantity || "-")}
-            />
             <Box
               sx={(theme) => ({
                 display: "grid",
                 gap: theme.spacing(2),
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  md: "repeat(3, minmax(0, 1fr))",
+                },
               })}
             >
+              <ReadOnlyDialogField
+                label="Available No of Leaves"
+                value={String(leafQuantity || "-")}
+              />
               <Stack spacing={0.75}>
                 <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
                 <TextField
@@ -223,7 +227,7 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
                 gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
               })}
             >
-              <Stack spacing={0.75}>
+              <Stack spacing={0.75} sx={{ maxWidth: { sm: 260 } }}>
                 <DialogFieldLabel>Inspection Date</DialogFieldLabel>
                 <ErpDatePickerField
                   onChange={(value) => setInspectionDate(localDateToIso(value))}
