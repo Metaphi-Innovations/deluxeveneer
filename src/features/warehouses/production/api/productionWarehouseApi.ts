@@ -162,3 +162,29 @@ export async function issueOrderToProduction(payload: {
     body: payload,
   });
 }
+
+export interface ProductionKpiData {
+  totalStock: { count: number; secondary: number };
+  receivedToday: { count: number; secondary: number };
+  outToday?: { count: number; secondary: number };
+  issueMarquetry?: { count: number; secondary: number };
+  issueGrouping?: { count: number; secondary: number };
+  sawingIn?: { count: number; secondary: number };
+  sawingIssued?: { count: number; secondary: number };
+}
+
+export async function fetchProductionKpisApi(params: {
+  warehouseId: string;
+  tab: string;
+}): Promise<ProductionKpiData> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("tab", params.tab);
+
+  const res = await apiRequest<ApiResponse<ProductionKpiData>>(
+    `/warehouse/production/inventory/kpi?${query.toString()}`,
+    { method: "GET" }
+  );
+
+  return res.data;
+}

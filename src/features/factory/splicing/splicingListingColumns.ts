@@ -1,4 +1,5 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
@@ -76,7 +77,9 @@ export function applySplicingListingColumns<Row extends FactoryRecord>(
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   if (activeTab === "issued") {
-    return withOrderColumnsBeforeItem(withSplicingIssuedLeafColumns(columns));
+    return withAvailableFactoryMeasureColumns(
+      withOrderColumnsBeforeItem(withSplicingIssuedLeafColumns(columns)),
+    );
   }
 
   if (activeTab !== "done") {

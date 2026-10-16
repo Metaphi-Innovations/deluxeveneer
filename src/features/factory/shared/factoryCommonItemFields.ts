@@ -532,6 +532,11 @@ export function applyFactoryLineItemValueChange(
   }
 
   if (slug === "slicing" && slicingMeasureInputKeys.has(key)) {
+    if (key === "height") {
+      nextValues.thickness = value;
+    } else if (key === "thickness") {
+      nextValues.height = value;
+    }
     return applySlicingDerivedAreas(nextValues);
   }
 

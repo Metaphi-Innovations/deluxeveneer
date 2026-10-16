@@ -50,8 +50,6 @@ export interface RawVeneerRow extends EnterpriseTableRow {
 
 export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = [
   { key: "storageSrNo", label: "Storage Sr No" },
-  { key: "inwardDate", label: "Inward Date" },
-  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
   { key: "subCategory", label: "Sub Category" },
@@ -69,9 +67,6 @@ export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = 
   { key: "receivedSqf", label: "Received SQF" },
   { key: "availableSqf", label: "Available SQF", filterable: false },
   { key: "grade", label: "Grade" },
-  { key: "currency", label: "Currency" },
-  { key: "amount", label: "Amount" },
-  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
@@ -105,8 +100,6 @@ export interface PlywoodRow extends EnterpriseTableRow {
 
 export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
   { key: "storageSrNo", label: "Storage Sr No" },
-  { key: "inwardDate", label: "Inward Date" },
-  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
   { key: "subCategory", label: "Sub Category" },
@@ -118,9 +111,6 @@ export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
   { key: "sqm", label: "SQM" },
   { key: "sqf", label: "SQF" },
   { key: "grade", label: "Grade" },
-  { key: "currency", label: "Currency" },
-  { key: "amount", label: "Amount" },
-  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
@@ -153,8 +143,6 @@ export interface MdfRow extends EnterpriseTableRow {
 
 export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "storageSrNo", label: "Storage Sr No" },
-  { key: "inwardDate", label: "Inward Date" },
-  { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
   { key: "mdfType", label: "MDF Type" },
@@ -165,9 +153,6 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "sqm", label: "SQM" },
   { key: "sqf", label: "SQF" },
   { key: "grade", label: "Grade" },
-  { key: "currency", label: "Currency" },
-  { key: "amount", label: "Amount" },
-  { key: "totalAmount", label: "Total Amount" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },
@@ -195,15 +180,10 @@ export interface ConsumablesRow extends EnterpriseTableRow {
 export const consumablesColumns: readonly EnterpriseTableColumn<ConsumablesRow>[] =
   [
     { key: "storageSrNo", label: "Storage Sr No" },
-    { key: "inwardDate", label: "Inward Date" },
-    { key: "inwardItemCode", label: "Inward Item Code" },
     { key: "itemName", label: "Item Name" },
     { key: "factoryCode", label: "Factory Code" },
     { key: "receivedQuantity", label: "Received Qty" },
     { key: "availableQuantity", label: "Available Qty" },
-    { key: "currency", label: "Currency" },
-    { key: "amount", label: "Amount" },
-    { key: "totalAmount", label: "Total Amount" },
     { key: "remark", label: "Remark" },
     { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },

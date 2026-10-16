@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 
+import { parseNumericValue } from "../../shared/numberFormat";
 import { queryKeys } from "../../../query/queryKeys";
 import { useSidebarWarehousesQuery } from "../../../query/useSidebarWarehousesQuery";
 import {
@@ -8,6 +9,7 @@ import {
   type ProductionInventoryItem,
 } from "../../warehouses/production/api/productionWarehouseApi";
 import type { FactoryRecord } from "../shared/types";
+import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import { buildPressingDummyBaseStock } from "./pressingDummyBaseStock";
 import { getPressingAvailableQuantity, pressingText } from "./pressingQuantity";
 
@@ -115,7 +117,15 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
       return [];
     }
 
-    return liveRows.length > 0 ? liveRows : buildPressingDummyBaseStock(materialType);
+    const sourceRows = liveRows.length > 0 ? liveRows : buildPressingDummyBaseStock(materialType);
+    return sourceRows.map((row) => {
+      const received = parseNumericValue(row.receivedSheets) ?? 0;
+      const available = parseNumericValue(row.availableSheets) ?? received;
+      return {
+        ...row,
+        ...availableFactoryMeasures(row, received, available),
+      };
+    });
   }, [materialType, stockQueries]);
 
   return {

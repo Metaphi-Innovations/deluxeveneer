@@ -1,4 +1,5 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
@@ -41,5 +42,5 @@ export function applyDryingListingColumns<Row extends FactoryRecord>(
     );
   }
 
-  return columns;
+  return withAvailableFactoryMeasureColumns(columns);
 }

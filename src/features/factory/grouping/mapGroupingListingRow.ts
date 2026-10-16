@@ -1,3 +1,4 @@
+import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import {
   getAvailableGroupedSheets,
   getReceivedGroupedLeaves,
@@ -49,6 +50,7 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
       ? {
           receivedNoOfLeaves: String(receivedLeaves),
           availableNoOfLeaves: String(availableLeaves),
+          ...availableFactoryMeasures(row, receivedLeaves, availableLeaves),
         }
       : {}),
     for: currentIssueTo,

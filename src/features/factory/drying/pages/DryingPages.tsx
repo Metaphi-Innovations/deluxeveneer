@@ -46,6 +46,5 @@ export function EditDryingPage() {
   return <FactoryForm definition={dryingDefinition} mode="edit" />;
 }
 
-export function ViewDryingPage() {
-  return <FactoryForm definition={dryingDefinition} mode="view" />;
-}
+export { DryingViewPage as ViewDryingPage } from "./DryingViewPage";
+

@@ -1,4 +1,5 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
 import type { FactoryRecord } from "../shared/types";
 
 const sharedIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
@@ -22,21 +23,24 @@ const itemIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "remark", label: "Remark" },
 ];
 
-export const pressingOrderIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
-  ...sharedIssuedColumns,
-  { key: "orderNo", label: "Order No" },
-  { key: "orderItemNo", label: "Order Item No" },
-  ...itemIssuedColumns,
-];
+export const pressingOrderIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  withAvailableFactoryMeasureColumns([
+    ...sharedIssuedColumns,
+    { key: "orderNo", label: "Order No" },
+    { key: "orderItemNo", label: "Order Item No" },
+    ...itemIssuedColumns,
+  ]);
 
-export const pressingSampleIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
-  ...sharedIssuedColumns,
-  ...itemIssuedColumns,
-];
+export const pressingSampleIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  withAvailableFactoryMeasureColumns([
+    ...sharedIssuedColumns,
+    ...itemIssuedColumns,
+  ]);
 
 export const pressingCreateIssuedColumns = pressingOrderIssuedColumns;
 
-export const pressingBaseStockColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
+export const pressingBaseStockColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  withAvailableFactoryMeasureColumns([
   { key: "storageSrNo", label: "Production/Storage Sr No" },
   { key: "inwardSrNo", label: "Inward Sr No" },
   { key: "itemName", label: "Item Name" },
@@ -51,4 +55,4 @@ export const pressingBaseStockColumns: readonly EnterpriseTableColumn<FactoryRec
   { key: "sqf", label: "SQF" },
   { key: "grade", label: "Grade" },
   { key: "remark", label: "Remark" },
-];
+]);

@@ -8,6 +8,11 @@ import {
   DialogContent,
   DialogTitle,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
 } from "@mui/material";
@@ -15,11 +20,9 @@ import {
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import {
-  formSectionCardSx,
-  FormSectionHeader,
-} from "../../shared/formSectionStyles";
-import {
-  DialogFieldLabel,
+  getDialogBodyCellSx,
+  getDialogHeaderCellSx,
+  getDialogScrollableTableSx,
   inspectionDialogPaperSx,
 } from "../shared/listing/factoryListingParts";
 import type { FactoryRecord } from "../shared/types";
@@ -153,194 +156,178 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
         })}
       >
         <Stack spacing={2}>
-          {entries.map(({ available, leaves, row }, index) => {
-            const rowId = String(row.id);
-            const current = values[rowId] ?? { leaves: "", remark: "" };
-            const invalid =
-              !Number.isInteger(leaves) || leaves <= 0 || leaves > available;
-
-            const storageSrNo = String(
-              row.storageSrNo ?? row.itemCode ?? `Item #${index + 1}`,
-            );
-            const logNo = String(row.logNo ?? row.logCode ?? row.batchNo ?? "");
-            const bundleNo = String(row.bundleNumber ?? row.bundleNo ?? "");
-            const palletNo = String(row.palletNo ?? "");
-            const dimensions = row.length
-              ? `${formatDimensionNumber(row.length)} × ${formatDimensionNumber(row.width)}${
-                  row.thickness !== undefined && row.thickness !== null
-                    ? ` × ${formatDimensionNumber(row.thickness)}`
-                    : ""
-                }`
-              : "";
-
-            return (
-              <Box
-                key={rowId}
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  backgroundColor: theme.customTokens.surfaces.surface,
-                })}
-              >
-                <Stack spacing={1.5}>
-                  <FormSectionHeader
-                    title={`Item ${index + 1}: ${storageSrNo}`}
-                    endAdornment={
-                      <Stack direction="row" spacing={0.5} alignItems="center">
-                        {logNo ? (
-                          <Chip
-                            label={`Log: ${logNo}`}
-                            size="small"
-                            sx={(theme) => ({
-                              height: 18,
-                              fontSize: "10px",
-                              fontWeight: 500,
-                              color: theme.customTokens.text.secondary,
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                              border: `1px solid ${theme.customTokens.borders.default}`,
-                              "& .MuiChip-label": { px: 0.75 },
-                            })}
-                          />
-                        ) : null}
-                        {bundleNo ? (
-                          <Chip
-                            label={`Bundle: ${bundleNo}`}
-                            size="small"
-                            sx={(theme) => ({
-                              height: 18,
-                              fontSize: "10px",
-                              fontWeight: 500,
-                              color: theme.customTokens.text.secondary,
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                              border: `1px solid ${theme.customTokens.borders.default}`,
-                              "& .MuiChip-label": { px: 0.75 },
-                            })}
-                          />
-                        ) : null}
-                        {palletNo ? (
-                          <Chip
-                            label={`Pallet: ${palletNo}`}
-                            size="small"
-                            sx={(theme) => ({
-                              height: 18,
-                              fontSize: "10px",
-                              fontWeight: 500,
-                              color: theme.customTokens.text.secondary,
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                              border: `1px solid ${theme.customTokens.borders.default}`,
-                              "& .MuiChip-label": { px: 0.75 },
-                            })}
-                          />
-                        ) : null}
-                        {dimensions ? (
-                          <Chip
-                            label={`Dim: ${dimensions}`}
-                            size="small"
-                            sx={(theme) => ({
-                              height: 18,
-                              fontSize: "10px",
-                              fontWeight: 500,
-                              color: theme.customTokens.text.secondary,
-                              backgroundColor: theme.customTokens.surfaces.alt,
-                              border: `1px solid ${theme.customTokens.borders.default}`,
-                              "& .MuiChip-label": { px: 0.75 },
-                            })}
-                          />
-                        ) : null}
-                      </Stack>
-                    }
-                  />
-
-                  <Box
-                    sx={(theme) => ({
-                      display: "grid",
-                      gap: theme.spacing(2),
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "160px 180px 1fr",
-                      },
-                      alignItems: "flex-start",
-                      pt: 0.5,
-                    })}
-                  >
-                    <Stack spacing={0.75}>
-                      <DialogFieldLabel>Available Leaves</DialogFieldLabel>
-                      <TextField
-                        fullWidth
-                        onFocus={(event) => event.target.blur()}
-                        size="small"
-                        slotProps={{
-                          htmlInput: { readOnly: true, tabIndex: -1 },
-                        }}
+          {(
+            <Box
+              sx={(theme) => ({
+                border: `1px solid ${theme.customTokens.borders.default}`,
+                borderRadius: "8px",
+                backgroundColor: theme.customTokens.surfaces.surface,
+                overflow: "hidden",
+              })}
+            >
+              <Box sx={(theme) => getDialogScrollableTableSx(theme)}>
+                <Table size="small" sx={{ minWidth: 900, tableLayout: "fixed" }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell
                         sx={(theme) => ({
-                          ...getCompactFieldSx(theme),
-                          "& .MuiInputBase-root": {
-                            backgroundColor: theme.customTokens.surfaces.alt,
-                          },
-                          "& .MuiInputBase-input": {
-                            cursor: "default",
-                            caretColor: "transparent",
-                            fontWeight: 600,
-                          },
+                          ...getDialogHeaderCellSx(theme),
+                          width: 300,
                         })}
-                        value={available}
-                      />
-                    </Stack>
-
-                    <Stack spacing={0.75}>
-                      <DialogFieldLabel required>Leaves to Issue</DialogFieldLabel>
-                      <TextField
-                        error={invalid}
-                        fullWidth
-                        helperText={
-                          available <= 0
-                            ? "No leaves available."
-                            : invalid
-                              ? `Whole number 1 to ${available}.`
+                      >
+                        Item Details
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...getDialogHeaderCellSx(theme),
+                          width: 140,
+                        })}
+                      >
+                        Available Leaves
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...getDialogHeaderCellSx(theme),
+                          width: 180,
+                        })}
+                      >
+                        Leaves to Issue
+                      </TableCell>
+                      <TableCell
+                        sx={(theme) => ({
+                          ...getDialogHeaderCellSx(theme),
+                          width: 280,
+                          borderRight: 0,
+                        })}
+                      >
+                        Remark
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {entries.map(({ available, leaves, row }, index) => {
+                      const rowId = String(row.id);
+                      const current = values[rowId] ?? {
+                        leaves: "",
+                        remark: "",
+                      };
+                      const invalid =
+                        !Number.isInteger(leaves) ||
+                        leaves <= 0 ||
+                        leaves > available;
+                      const storageSrNo = String(
+                        row.storageSrNo ?? row.itemCode ?? `Item #${index + 1}`,
+                      );
+                      const logNo = String(
+                        row.logNo ?? row.logCode ?? row.batchNo ?? "",
+                      );
+                      const bundleNo = String(
+                        row.bundleNumber ?? row.bundleNo ?? "",
+                      );
+                      const palletNo = String(row.palletNo ?? "");
+                      const dimensions = row.length
+                        ? `${formatDimensionNumber(row.length)} × ${formatDimensionNumber(row.width)}${
+                            row.thickness !== undefined && row.thickness !== null
+                              ? ` × ${formatDimensionNumber(row.thickness)}`
                               : ""
-                        }
-                        inputProps={{ min: 1, max: available, step: 1 }}
-                        onChange={(event) =>
-                          setValues((currentValues) => ({
-                            ...currentValues,
-                            [rowId]: {
-                              ...(currentValues[rowId] ?? current),
-                              leaves: event.target.value,
-                            },
-                          }))
-                        }
-                        size="small"
-                        sx={(theme) =>
-                          getCompactFieldSx(theme, invalid ? "error" : "default")
-                        }
-                        type="number"
-                        value={current.leaves}
-                      />
-                    </Stack>
+                          }`
+                        : "";
+                      const supportingDetails = [
+                        logNo ? `Log: ${logNo}` : "",
+                        bundleNo ? `Bundle: ${bundleNo}` : "",
+                        palletNo ? `Pallet: ${palletNo}` : "",
+                        dimensions ? `Dim: ${dimensions}` : "",
+                      ].filter(Boolean);
 
-                    <Stack spacing={0.75}>
-                      <DialogFieldLabel>Remark</DialogFieldLabel>
-                      <TextField
-                        fullWidth
-                        onChange={(event) =>
-                          setValues((currentValues) => ({
-                            ...currentValues,
-                            [rowId]: {
-                              ...(currentValues[rowId] ?? current),
-                              remark: event.target.value,
-                            },
-                          }))
-                        }
-                        placeholder="Enter remark (optional)"
-                        size="small"
-                        sx={(theme) => getCompactFieldSx(theme)}
-                        value={current.remark}
-                      />
-                    </Stack>
-                  </Box>
-                </Stack>
+                      return (
+                        <TableRow key={rowId}>
+                          <TableCell
+                            sx={(theme) => ({
+                              ...getDialogBodyCellSx(theme),
+                              whiteSpace: "normal",
+                            })}
+                          >
+                            <Typography sx={{ fontSize: "13px", fontWeight: 600 }}>
+                              {index + 1}. {storageSrNo}
+                            </Typography>
+                            {supportingDetails.length > 0 ? (
+                              <Typography
+                                sx={(theme) => ({
+                                  color: theme.customTokens.text.secondary,
+                                  fontSize: "11px",
+                                  mt: 0.25,
+                                })}
+                              >
+                                {supportingDetails.join(" · ")}
+                              </Typography>
+                            ) : null}
+                          </TableCell>
+                          <TableCell sx={getDialogBodyCellSx}>
+                            {available}
+                          </TableCell>
+                          <TableCell sx={getDialogBodyCellSx}>
+                            <TextField
+                              error={invalid}
+                              fullWidth
+                              helperText={
+                                available <= 0
+                                  ? "No leaves available."
+                                  : invalid
+                                    ? `Enter 1 to ${available}.`
+                                    : ""
+                              }
+                              inputProps={{ min: 1, max: available, step: 1 }}
+                              onChange={(event) =>
+                                setValues((currentValues) => ({
+                                  ...currentValues,
+                                  [rowId]: {
+                                    ...(currentValues[rowId] ?? current),
+                                    leaves: event.target.value,
+                                  },
+                                }))
+                              }
+                              size="small"
+                              sx={(theme) =>
+                                getCompactFieldSx(
+                                  theme,
+                                  invalid ? "error" : "default",
+                                )
+                              }
+                              type="number"
+                              value={current.leaves}
+                            />
+                          </TableCell>
+                          <TableCell
+                            sx={(theme) => ({
+                              ...getDialogBodyCellSx(theme),
+                              borderRight: 0,
+                            })}
+                          >
+                            <TextField
+                              fullWidth
+                              onChange={(event) =>
+                                setValues((currentValues) => ({
+                                  ...currentValues,
+                                  [rowId]: {
+                                    ...(currentValues[rowId] ?? current),
+                                    remark: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="Enter remark (optional)"
+                              size="small"
+                              sx={(theme) => getCompactFieldSx(theme)}
+                              value={current.remark}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </Box>
-            );
-          })}
+            </Box>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions

@@ -7,6 +7,23 @@ function isDryingInspectionSlug(slug: string) {
   return slug === "drying-inspection" || slug === "inspection";
 }
 
+function formatIssuedDate(value: unknown) {
+  const date =
+    value instanceof Date
+      ? value
+      : typeof value === "string" && value.trim()
+        ? new Date(value)
+        : null;
+
+  if (!date || Number.isNaN(date.getTime())) return "-";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
 function inspectionImageColumn<Row extends FactoryRecord>(): EnterpriseTableColumn<Row> {
   return {
     key: "inspectionImage",
@@ -76,21 +93,56 @@ function insertColumnsAfter<Row extends FactoryRecord>(
   return [...columns, ...extras];
 }
 
+function withDryingInspectionSourceColumns<Row extends FactoryRecord>(
+  sourceColumns: readonly EnterpriseTableColumn<Row>[],
+) {
+  const columns = sourceColumns.map((column) =>
+    column.key === "issueDate" || column.key === "issuedDate"
+      ? {
+          ...column,
+          label: "Issued Date",
+          renderCell: (row: Row) =>
+            formatIssuedDate(row.issuedDate ?? row.issueDate),
+        }
+      : column,
+  );
+
+  if (columns.some((column) => column.key === "warehouseName")) {
+    return columns;
+  }
+
+  const issuedDateColumn = columns.find(
+    (column) => column.key === "issueDate" || column.key === "issuedDate",
+  );
+
+  return insertColumnsAfter(columns, issuedDateColumn?.key ?? "", [
+    {
+      key: "warehouseName",
+      label: "Warehouse Name",
+      renderCell: (row) => {
+        const value = row.warehouseName ?? row.storageWarehouseName;
+        return value === null || value === undefined || value === ""
+          ? "-"
+          : String(value);
+      },
+    },
+  ]);
+}
+
 export function applyInspectionListingColumns<Row extends FactoryRecord>(
   sourceColumns: readonly EnterpriseTableColumn<Row>[],
   slug: string,
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  if (isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")) {
-    let columns = sourceColumns.filter((column) => column.key !== "qcStatus");
+  const inspectionSourceColumns =
+    isDryingInspectionSlug(slug) && activeTab === "history"
+      ? withDryingInspectionSourceColumns(sourceColumns)
+      : sourceColumns;
 
-    if (activeTab === "history") {
-      columns = columns.map((column) =>
-        column.key === "issueDate" || column.key === "issuedDate"
-          ? { ...column, label: "Inspection Date" }
-          : column,
-      );
-    }
+  if (isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")) {
+    const columns = inspectionSourceColumns.filter(
+      (column) => column.key !== "qcStatus",
+    );
 
     const statusColumn: EnterpriseTableColumn<Row> =
       activeTab === "done"
@@ -118,12 +170,10 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
   }
 
   if (isDryingInspectionSlug(slug) && activeTab === "issued") {
-    const columns = sourceColumns.map((col) =>
-      col.key === "issueDate" || col.key === "issuedDate"
-        ? { ...col, label: "Issued Inspection Date" }
-        : col,
-    );
-    return withStickyStatus(columns, { key: "status", label: "Status" });
+    return withStickyStatus(inspectionSourceColumns, {
+      key: "status",
+      label: "Status",
+    });
   }
 
   if (slug === "sawing-inspection") {

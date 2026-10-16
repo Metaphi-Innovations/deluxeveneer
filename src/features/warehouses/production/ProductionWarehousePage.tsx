@@ -6,7 +6,10 @@ import { useSearchParams } from "react-router";
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
-import { getListingToolbarOutlinedButtonSx } from "../../shared/buttonStyles";
+import {
+  getListingToolbarButtonSx,
+  getListingToolbarOutlinedButtonSx,
+} from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
@@ -54,6 +57,8 @@ import {
   EMPTY_PRODUCTION_LIST_QUERY,
   type ProductionListQueryState,
 } from "../production/productionListQuery";
+import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
+import { useWarehouseDynamicKpis } from "../shared/useWarehouseDynamicKpis";
 
 export interface ProductionWarehousePageProps {
   warehouseId?: string | undefined;
@@ -91,6 +96,12 @@ export function ProductionWarehousePage({
     : "warehouseC";
   const canEditWarehouseC = canAccessPermission(warehousePermissionKey, "edit");
   const canViewWarehouseC = canAccessPermission(warehousePermissionKey, "view");
+
+  const kpis = useWarehouseDynamicKpis({
+    warehouseType: "production",
+    warehouseId: warehouseId ?? "",
+    tab: activeInventory,
+  });
 
   const orderRecords = useOrderRecords();
   const rawOrderRecords = useMemo(
@@ -316,11 +327,7 @@ export function ProductionWarehousePage({
                 variant="contained"
                 startIcon={<Plus size={15} />}
                 onClick={handleOpenIssueOrderDialog}
-                sx={(theme) => ({
-                  ...getListingToolbarOutlinedButtonSx(theme),
-                  backgroundColor: theme.palette.primary.main,
-                  color: theme.palette.primary.contrastText,
-                })}
+                sx={(theme) => getListingToolbarButtonSx(theme)}
               >
                 Issue Order
               </Button>
@@ -340,6 +347,8 @@ export function ProductionWarehousePage({
             </Button>
           </Stack>
         </Stack>
+
+        <WarehouseKpiCards cards={kpis.cards} isLoading={kpis.isLoading} />
 
         {activeInventory === "raw-veneer" && (
           <RawVeneerTab

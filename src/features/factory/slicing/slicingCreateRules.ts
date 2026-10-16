@@ -1,4 +1,6 @@
-import type { MasterFieldValue } from "../../masters/shared";
+import type { MasterFieldDefinition, MasterFieldValue } from "../../masters/shared";
+
+import { insertFactoryCreateField } from "../shared/factoryCreateFieldOrder";
 
 import { completeFactoryIssuedWork } from "../shared/factoryIssuedWorkStore";
 import {
@@ -19,6 +21,13 @@ import {
   replaceSlicingDoneItems,
   updateSlicingIssuedAvailability,
 } from "./slicingFrontendStore";
+
+export function orderSlicingCreateFields(fields: readonly MasterFieldDefinition[]) {
+  return insertFactoryCreateField(fields, "color", (withoutColor) => {
+    const palletIndex = withoutColor.findIndex((field) => field.key === "palletNo");
+    return palletIndex >= 0 ? palletIndex + 1 : withoutColor.length;
+  });
+}
 
 export const slicingProcessDate = {
   key: "slicingDate",
@@ -106,8 +115,8 @@ export function validateSlicingRow({
   const sourceAvailableCbm = slicingStockCbm(sourceRow);
   const length = resolveSlicingDimensionMetres(values.length);
   const width = resolveSlicingDimensionMetres(values.width);
-  const thicknessKey = "thickness" in values ? "thickness" : "height";
-  const thicknessText = String(values.thickness ?? values.height ?? "").trim();
+  const thicknessKey = "height" in values ? "height" : "thickness";
+  const thicknessText = String(values.height || values.thickness || "").trim();
   const thickness = resolveSlicingDimensionMetres(thicknessText);
   const leavesText = String(values.noOfLeaves ?? values.noOfSheets ?? "").trim();
   const leaves = Number(leavesText);
@@ -351,6 +360,7 @@ addSlicingDoneItems(
       batchNo: slicingSource.batchNo ?? slicingSource.logCode ?? "",
       bundleNumber: vals.bundleNumber || slicingSource.bundleNumber || "",
       palletNo: vals.palletNo || slicingSource.palletNo || "",
+      color: vals.color || slicingSource.color || "",
       length: vals.length || "",
       width: vals.width || "",
       thickness: vals.thickness || vals.height || "",

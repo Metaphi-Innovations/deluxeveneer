@@ -463,15 +463,15 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       ? sortedRows
       : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(safePage, totalPages);
-  const currentPageIds = currentPageRows.map((row) => row.id);
-  const allCurrentPageSelected =
+  const selectableRowIds = sortedRows.map((row) => row.id);
+  const allRowsSelected =
     selectable &&
-    currentPageIds.length > 0 &&
-    currentPageIds.every((rowId) => selectedRowIds.includes(rowId));
-  const someCurrentPageSelected =
+    selectableRowIds.length > 0 &&
+    selectableRowIds.every((rowId) => selectedRowIds.includes(rowId));
+  const someRowsSelected =
     selectable &&
-    currentPageIds.some((rowId) => selectedRowIds.includes(rowId)) &&
-    !allCurrentPageSelected;
+    selectedRowIds.some((rowId) => selectableRowIds.includes(rowId)) &&
+    !allRowsSelected;
   const rangeStart = totalCount === 0 ? 0 : pageStartIndex + 1;
   const rangeEnd = hidePagination
     ? totalCount
@@ -500,12 +500,17 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     setGoToPageError("");
   }, [safePage]);
 
+  const prevSelectedIdsRef = useRef<string>("");
   useEffect(() => {
-    if (controlledSelectedRowIds !== undefined) {
+    if (controlledSelectedRowIds !== undefined || !onSelectionChange) {
       return;
     }
 
-    onSelectionChange?.(selectedRows);
+    const currentKey = selectedRows.map((r) => r.id).sort().join(",");
+    if (prevSelectedIdsRef.current !== currentKey) {
+      prevSelectedIdsRef.current = currentKey;
+      onSelectionChange(selectedRows);
+    }
   }, [controlledSelectedRowIds, onSelectionChange, selectedRows]);
 
   useEffect(() => {
@@ -655,14 +660,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       return;
     }
 
-    if (allCurrentPageSelected || someCurrentPageSelected) {
-      commitSelectedRowIds(
-        selectedRowIds.filter((rowId) => !currentPageIds.includes(rowId)),
-      );
+    if (allRowsSelected) {
+      const listedIds = new Set(selectableRowIds);
+      commitSelectedRowIds(selectedRowIds.filter((rowId) => !listedIds.has(rowId)));
       return;
     }
 
-    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...currentPageIds])));
+    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...selectableRowIds])));
   };
 
   const handleOpenActionMenu = (
@@ -798,8 +802,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       }}
                     >
                       <Checkbox
-                        checked={Boolean(allCurrentPageSelected)}
-                        indeterminate={Boolean(someCurrentPageSelected)}
+                        checked={Boolean(allRowsSelected)}
+                        indeterminate={Boolean(someRowsSelected)}
                         onChange={handleTogglePageSelection}
                         size="small"
                         sx={headerCheckboxSx(theme)}
@@ -1290,46 +1294,61 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   }}
                 />
 
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleGoToPageSubmit}
-                  sx={{
-                    minWidth: 36,
-                    height: 30,
-                    px: 1,
-                    py: 0,
-                    borderRadius: `${theme.customTokens.radius.sm}px`,
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    textTransform: "none",
-                    borderColor: theme.customTokens.borders.default,
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      borderColor: theme.customTokens.brand.primary,
-                      backgroundColor: theme.customTokens.surfaces.alt,
+                <Tooltip
+                  arrow
+                  open={Boolean(goToPageError)}
+                  title={goToPageError}
+                  placement="top"
+                  slotProps={{
+                    popper: {
+                      sx: {
+                        zIndex: theme.zIndex.tooltip,
+                      },
+                    },
+                    tooltip: {
+                      sx: {
+                        backgroundColor: theme.palette.error.main,
+                        color: theme.palette.error.contrastText,
+                        fontSize: "11px",
+                        fontWeight: 500,
+                        boxShadow: theme.shadows[3],
+                        "& .MuiTooltip-arrow": {
+                          color: theme.palette.error.main,
+                        },
+                      },
                     },
                   }}
                 >
-                  Go
-                </Button>
-
-                {goToPageError ? (
-                  <Typography
-                    variant="caption"
-                    color="error"
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleGoToPageSubmit}
                     sx={{
-                      position: "absolute",
-                      bottom: -18,
-                      right: 0,
-                      fontSize: "11px",
-                      whiteSpace: "nowrap",
-                      zIndex: 2,
+                      minWidth: 36,
+                      height: 30,
+                      px: 1,
+                      py: 0,
+                      borderRadius: `${theme.customTokens.radius.sm}px`,
+                      fontSize: "12px",
+                      fontWeight: 500,
+                      textTransform: "none",
+                      borderColor: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.borders.default,
+                      color: goToPageError
+                        ? theme.palette.error.main
+                        : theme.customTokens.brand.primary,
+                      "&:hover": {
+                        borderColor: goToPageError
+                          ? theme.palette.error.main
+                          : theme.customTokens.brand.primary,
+                        backgroundColor: theme.customTokens.surfaces.alt,
+                      },
                     }}
                   >
-                    {goToPageError}
-                  </Typography>
-                ) : null}
+                    Go
+                  </Button>
+                </Tooltip>
               </Stack>
             </Stack>
           </Box>

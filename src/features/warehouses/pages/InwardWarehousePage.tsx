@@ -52,6 +52,8 @@ import {
   isActiveColumnFilter,
   type ColumnFilterValue,
 } from "../../shared/columnFilters";
+import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
+import { useWarehouseDynamicKpis } from "../shared/useWarehouseDynamicKpis";
 
 type InwardInventoryTab =
   | "veneer-blocks"
@@ -204,6 +206,12 @@ export function InwardWarehousePage({
   const isLoading = isApiSupportedInventory && listQuery.isLoading;
   const errorMessage =
     listQuery.error instanceof Error ? listQuery.error.message : "";
+
+  const kpis = useWarehouseDynamicKpis({
+    warehouseType: "inward",
+    warehouseId,
+    tab: activeInventory,
+  });
 
   const loadColumnDropdown = useCallback(
     async (columnKey: string) => {
@@ -456,6 +464,8 @@ export function InwardWarehousePage({
             </Button>
           </Stack>
         </Stack>
+
+        <WarehouseKpiCards cards={kpis.cards} isLoading={kpis.isLoading} />
 
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
         {actionError ? <Alert severity="error">{actionError}</Alert> : null}

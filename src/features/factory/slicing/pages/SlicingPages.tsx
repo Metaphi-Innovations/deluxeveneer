@@ -17,6 +17,4 @@ export function EditSlicingPage() {
   return <FactoryProcessCreatePage definition={slicingDefinition} mode="edit" />;
 }
 
-export function ViewSlicingPage() {
-  return <FactoryForm definition={slicingDefinition} mode="view" />;
-}
+export { SlicingViewPage as ViewSlicingPage } from "./SlicingViewPage";
