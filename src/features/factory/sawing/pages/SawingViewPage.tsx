@@ -631,51 +631,7 @@ export const SawingViewPage: React.FC = () => {
                 </Paper>
               </Box>
 
-              {/* Progress Bar Showing Consumed vs Available */}
-              <Box sx={{ pt: 1 }}>
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 1,
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 600,
-                      color: theme.customTokens.brand.primary,
-                      fontSize: "12px",
-                    }}
-                  >
-                    Consumed: {utilizationPercent.toFixed(1)}%
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 600,
-                      color: "text.secondary",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Available: {availablePercent.toFixed(1)}%
-                  </Typography>
-                </Box>
-                <LinearProgress
-                  variant="determinate"
-                  value={utilizationPercent}
-                  sx={{
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: theme.customTokens.neutrals[200] || "#e0e0e0",
-                    "& .MuiLinearProgress-bar": {
-                      backgroundColor: theme.customTokens.brand.primary,
-                      borderRadius: 4,
-                    },
-                  }}
-                />
-              </Box>
+
 
               {/* Contextual Availability Message */}
               <Box

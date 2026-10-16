@@ -134,9 +134,10 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
   slug: string,
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  const inspectionSourceColumns = isDryingInspectionSlug(slug)
-    ? withDryingInspectionSourceColumns(sourceColumns)
-    : sourceColumns;
+  const inspectionSourceColumns =
+    isDryingInspectionSlug(slug) && activeTab === "history"
+      ? withDryingInspectionSourceColumns(sourceColumns)
+      : sourceColumns;
 
   if (isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")) {
     const columns = inspectionSourceColumns.filter(

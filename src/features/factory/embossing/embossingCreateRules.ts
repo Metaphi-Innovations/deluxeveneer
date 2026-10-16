@@ -181,9 +181,9 @@ export function getMaximumEmbossingSheets(
   return Math.max(
     0,
     sourceAvailableSheets -
-      calculateTotalEmbossedSheets(
-        items.filter((item) => item.id !== currentRowId),
-      ),
+    calculateTotalEmbossedSheets(
+      items.filter((item) => item.id !== currentRowId),
+    ),
   );
 }
 
@@ -322,8 +322,8 @@ export function validateEmbossingForm({
     return `Embossing quantity exceeds available sheets. Available Sheets: ${Math.max(
       0,
       sourceAvailableSheets -
-        (totalEmbossedSheets -
-          readPositiveWholeSheets(items.at(-1)?.values.noOfSheets)),
+      (totalEmbossedSheets -
+        readPositiveWholeSheets(items.at(-1)?.values.noOfSheets)),
     )}`;
   }
 

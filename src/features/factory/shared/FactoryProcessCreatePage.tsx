@@ -511,11 +511,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       ? splicingEditRow
       : isGroupingEdit
         ? groupingEditRow
-      : isMappedOutputEdit
-        ? (mappedOutputEditContext?.sourceRow as Row | undefined)
-    : (locationState?.sourceRow as Row | undefined) ??
-      (locationState?.sourceRows?.[0] as Row | undefined) ??
-      (definition.rows[0] as Row | undefined);
+        : isMappedOutputEdit
+          ? (mappedOutputEditContext?.sourceRow as Row | undefined)
+          : (locationState?.sourceRow as Row | undefined) ??
+          (locationState?.sourceRows?.[0] as Row | undefined) ??
+          (definition.rows[0] as Row | undefined);
   const allFields = useMemo(
     () => flattenFactorySections(definition.formSections),
     [definition.formSections],
@@ -577,9 +577,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       if (isSplicingEdit && splicingEditRow) {
         const existingDate = parseProcessDate(
           splicingEditRow.splicingDate ||
-            splicingEditRow.processDate ||
-            splicingEditRow.issueDate ||
-            splicingEditRow.issuedDate,
+          splicingEditRow.processDate ||
+          splicingEditRow.issueDate ||
+          splicingEditRow.issuedDate,
         );
         if (existingDate) {
           initial.splicingDate = existingDate;
@@ -590,9 +590,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       if (isGroupingEdit && groupingEditRow) {
         const existingDate = parseProcessDate(
           groupingEditRow.groupingDate ||
-            groupingEditRow.processDate ||
-            groupingEditRow.issueDate ||
-            groupingEditRow.issuedDate,
+          groupingEditRow.processDate ||
+          groupingEditRow.issueDate ||
+          groupingEditRow.issuedDate,
         );
         if (existingDate) {
           initial.groupingDate = existingDate;
@@ -603,8 +603,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       if (isMarquetryEdit && marquetryEditContext) {
         const existingDate = parseProcessDate(
           marquetryEditContext.rows[0]?.groupingDate ||
-            marquetryEditContext.rows[0]?.marquetryDate ||
-            marquetryEditContext.rows[0]?.processDate,
+          marquetryEditContext.rows[0]?.marquetryDate ||
+          marquetryEditContext.rows[0]?.processDate,
         );
         if (existingDate) {
           initial.groupingDate = existingDate;
@@ -644,25 +644,25 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const [draftValues, setDraftValues] = useState<Record<string, string>>(() =>
     definition.slug === "sawing"
       ? lockSawingProcessDetailValues(
-          {
-            ...buildDefaultLineItemValues(lineItemFields, sourceRow),
-            thickness: "",
-            cbm: "",
-            cbf: "",
-          },
-          sourceRow as Record<string, unknown> | undefined,
-        )
+        {
+          ...buildDefaultLineItemValues(lineItemFields, sourceRow),
+          thickness: "",
+          cbm: "",
+          cbf: "",
+        },
+        sourceRow as Record<string, unknown> | undefined,
+      )
       : definition.slug === "slicing"
         ? buildDefaultSlicingLineItemValues(lineItemFields, sourceRow)
-      : definition.slug === "grouping"
-        ? buildDefaultGroupingLineItemValues(lineItemFields, sourceRow)
-      : definition.slug === "splicing"
-        ? buildDefaultSplicingLineItemValues(lineItemFields, sourceRow)
-      : definition.slug === "cnc-fluting"
-        ? buildDefaultFlutingLineItemValues(lineItemFields, sourceRow)
-      : definition.slug === "embossing"
-        ? buildDefaultEmbossingLineItemValues(lineItemFields, sourceRow)
-      : buildDefaultLineItemValues(lineItemFields, sourceRow),
+        : definition.slug === "grouping"
+          ? buildDefaultGroupingLineItemValues(lineItemFields, sourceRow)
+          : definition.slug === "splicing"
+            ? buildDefaultSplicingLineItemValues(lineItemFields, sourceRow)
+            : definition.slug === "cnc-fluting"
+              ? buildDefaultFlutingLineItemValues(lineItemFields, sourceRow)
+              : definition.slug === "embossing"
+                ? buildDefaultEmbossingLineItemValues(lineItemFields, sourceRow)
+                : buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
   const [lineItems, setLineItems] = useState<LineItemRecord[]>(() => {
     if (isSlicingEdit && slicingEditContext) {
@@ -743,9 +743,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     splicingEditHydrated.current = true;
     const existingDate = parseProcessDate(
       splicingEditRow.splicingDate ||
-        splicingEditRow.processDate ||
-        splicingEditRow.issueDate ||
-        splicingEditRow.issuedDate,
+      splicingEditRow.processDate ||
+      splicingEditRow.issueDate ||
+      splicingEditRow.issuedDate,
     );
     if (existingDate) {
       setFormValues((current) => ({
@@ -773,9 +773,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     groupingEditHydrated.current = true;
     const existingDate = parseProcessDate(
       groupingEditRow.groupingDate ||
-        groupingEditRow.processDate ||
-        groupingEditRow.issueDate ||
-        groupingEditRow.issuedDate,
+      groupingEditRow.processDate ||
+      groupingEditRow.issueDate ||
+      groupingEditRow.issuedDate,
     );
     if (existingDate) {
       setFormValues((current) => ({
@@ -1039,10 +1039,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       return usesOrderSelection
         ? buildMarquetryOrderOverviewItems(orderRecords, marquetryOrderDetails)
         : buildSourceOverviewItems(
-            sourceRow,
-            sourceColumns,
-            definition.slug === "splicing",
-          );
+          sourceRow,
+          sourceColumns,
+          definition.slug === "splicing",
+        );
     },
     [
       factoryIssuedWorkItems,
@@ -1080,26 +1080,26 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
 
     const projected = editingRowId
       ? lineItems.map((item) =>
-          item.id === editingRowId
-            ? { ...item, values: applySlicingDerivedAreas(editingValues) }
-            : item,
-        )
+        item.id === editingRowId
+          ? { ...item, values: applySlicingDerivedAreas(editingValues) }
+          : item,
+      )
       : lineItems;
     const draftHasProcessValues = Boolean(
       draftValues.thickness?.trim() ||
-        draftValues.height?.trim() ||
-        draftValues.noOfLeaves?.trim() ||
-        draftValues.noOfSheets?.trim(),
+      draftValues.height?.trim() ||
+      draftValues.noOfLeaves?.trim() ||
+      draftValues.noOfSheets?.trim(),
     );
 
     return !editingRowId && draftHasProcessValues
       ? [
-          ...projected,
-          {
-            id: "slicing-current-draft",
-            values: applySlicingDerivedAreas(draftValues),
-          },
-        ]
+        ...projected,
+        {
+          id: "slicing-current-draft",
+          values: applySlicingDerivedAreas(draftValues),
+        },
+      ]
       : projected;
   }, [definition.slug, draftValues, editingRowId, editingValues, lineItems]);
 
@@ -1280,7 +1280,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   );
   const slicingStockUnavailable = Boolean(
     definition.slug === "slicing" &&
-      slicingStockCbm(slicingSource) <= SLICING_CBM_EPSILON,
+    slicingStockCbm(slicingSource) <= SLICING_CBM_EPSILON,
   );
   const slicingRemainingCbm =
     definition.slug === "slicing"
@@ -1294,10 +1294,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     () =>
       definition.slug === "slicing"
         ? validateSlicingRow({
-            otherConsumedCbm: slicingConsumedCbm,
-            sourceRow: slicingSource,
-            values: draftValues,
-          })
+          otherConsumedCbm: slicingConsumedCbm,
+          sourceRow: slicingSource,
+          values: draftValues,
+        })
         : { fieldErrors: {}, maximumLeaves: 0, message: "" },
     [definition.slug, draftValues, slicingConsumedCbm, slicingSource],
   );
@@ -1305,12 +1305,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     () =>
       definition.slug === "slicing" && editingRowId
         ? validateSlicingRow({
-            otherConsumedCbm: calculateTotalSlicingConsumption(
-              lineItems.filter((row) => row.id !== editingRowId),
-            ),
-            sourceRow: slicingSource,
-            values: editingValues,
-          })
+          otherConsumedCbm: calculateTotalSlicingConsumption(
+            lineItems.filter((row) => row.id !== editingRowId),
+          ),
+          sourceRow: slicingSource,
+          values: editingValues,
+        })
         : { fieldErrors: {}, maximumLeaves: 0, message: "" },
     [definition.slug, editingRowId, editingValues, lineItems, slicingSource],
   );
@@ -1350,9 +1350,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     ...(definition.slug === "slicing"
       ? {}
       : getRejectAvailableValidationErrors(
-          rejectAvailableValues,
-          rejectAvailableAreaLimits,
-        )),
+        rejectAvailableValues,
+        rejectAvailableAreaLimits,
+      )),
     ...getSawingAvailableCbmIssue(
       definition.slug,
       rejectAvailableValues.cbm,
@@ -1375,178 +1375,178 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     : 0;
   const groupingDraftValidation = definition.slug === "grouping"
     ? validateGroupingRow({
-        maximumLeaves: groupingMaximumDraftLeaves,
-        values: draftValues,
-      })
+      maximumLeaves: groupingMaximumDraftLeaves,
+      values: draftValues,
+    })
     : { fieldErrors: {}, message: "", values: draftValues };
   const groupingEditValidation = definition.slug === "grouping" && editingRowId
     ? validateGroupingRow({
-        maximumLeaves: getMaximumGroupingLeaves(
-          groupingReferenceLeaves,
-          lineItems,
-          editingRowId,
-        ),
-        values: editingValues,
-      })
+      maximumLeaves: getMaximumGroupingLeaves(
+        groupingReferenceLeaves,
+        lineItems,
+        editingRowId,
+      ),
+      values: editingValues,
+    })
     : { fieldErrors: {}, message: "", values: editingValues };
   const groupingProjectedItems = definition.slug === "grouping"
     ? lineItems.map((item) =>
-        item.id === editingRowId
-          ? { ...item, values: calculateGroupingRow(editingValues) }
-          : item,
-      )
+      item.id === editingRowId
+        ? { ...item, values: calculateGroupingRow(editingValues) }
+        : item,
+    )
     : lineItems;
   const groupingDraftHasLeaves =
     definition.slug === "grouping" && Boolean(draftValues.noOfLeaves?.trim());
   const groupingLeavesForAvailable = definition.slug === "grouping"
     ? calculateTotalGroupedLeaves(groupingProjectedItems) +
-      (!editingRowId && groupingDraftHasLeaves
-        ? sumGroupingOutputLeaves([{ values: draftValues }])
-        : 0)
+    (!editingRowId && groupingDraftHasLeaves
+      ? sumGroupingOutputLeaves([{ values: draftValues }])
+      : 0)
     : 0;
   const splicingCommittedLeaves = definition.slug === "splicing"
     ? calculateTotalSplicingLeaves(lineItems)
     : 0;
   const splicingDraftValidation = definition.slug === "splicing"
     ? validateSplicingRow({
-        maximumLeaves: getMaximumSplicingLeaves(groupingReferenceLeaves, lineItems),
-        values: draftValues,
-      })
+      maximumLeaves: getMaximumSplicingLeaves(groupingReferenceLeaves, lineItems),
+      values: draftValues,
+    })
     : { fieldErrors: {}, message: "", values: draftValues };
   const splicingEditValidation = definition.slug === "splicing" && editingRowId
     ? validateSplicingRow({
-        maximumLeaves: getMaximumSplicingLeaves(
-          groupingReferenceLeaves,
-          lineItems,
-          editingRowId,
-        ),
-        values: editingValues,
-      })
+      maximumLeaves: getMaximumSplicingLeaves(
+        groupingReferenceLeaves,
+        lineItems,
+        editingRowId,
+      ),
+      values: editingValues,
+    })
     : { fieldErrors: {}, message: "", values: editingValues };
   const splicingProjectedItems = definition.slug === "splicing"
     ? lineItems.map((item) =>
-        item.id === editingRowId
-          ? { ...item, values: calculateSplicingRow(editingValues) }
-          : item,
-      )
+      item.id === editingRowId
+        ? { ...item, values: calculateSplicingRow(editingValues) }
+        : item,
+    )
     : lineItems;
   const splicingDraftHasProcessValues =
     definition.slug === "splicing" &&
     Boolean(draftValues.noOfLeaves?.trim() || draftValues.noOfSheets?.trim());
   const splicingLeavesForAvailable = definition.slug === "splicing"
     ? calculateTotalSplicingLeaves(splicingProjectedItems) +
-      (!editingRowId && splicingDraftHasProcessValues
-        ? calculateTotalSplicingLeaves([{ values: draftValues }])
-        : 0)
+    (!editingRowId && splicingDraftHasProcessValues
+      ? calculateTotalSplicingLeaves([{ values: draftValues }])
+      : 0)
     : 0;
   const flutingReferenceSheets = definition.slug === "cnc-fluting"
     ? readFlutingReferenceSheets(
-        sourceRow as Record<string, unknown> | undefined,
-      )
+      sourceRow as Record<string, unknown> | undefined,
+    )
     : 0;
   const flutingCommittedSheets = definition.slug === "cnc-fluting"
     ? calculateTotalFlutedSheets(lineItems)
     : 0;
   const flutingDraftValidation = definition.slug === "cnc-fluting"
     ? validateFlutingRow({
-        maximumSheets: getMaximumFlutingSheets(
-          flutingReferenceSheets,
-          lineItems,
-        ),
-        values: draftValues,
-      })
+      maximumSheets: getMaximumFlutingSheets(
+        flutingReferenceSheets,
+        lineItems,
+      ),
+      values: draftValues,
+    })
     : { fieldErrors: {}, message: "", values: draftValues };
   const flutingEditValidation =
     definition.slug === "cnc-fluting" && editingRowId
       ? validateFlutingRow({
-          maximumSheets: getMaximumFlutingSheets(
-            flutingReferenceSheets,
-            lineItems,
-            editingRowId,
-          ),
-          values: editingValues,
-        })
+        maximumSheets: getMaximumFlutingSheets(
+          flutingReferenceSheets,
+          lineItems,
+          editingRowId,
+        ),
+        values: editingValues,
+      })
       : { fieldErrors: {}, message: "", values: editingValues };
   const flutingProjectedItems = definition.slug === "cnc-fluting"
     ? lineItems.map((item) =>
-        item.id === editingRowId
-          ? { ...item, values: calculateFlutingRow(editingValues) }
-          : item,
-      )
+      item.id === editingRowId
+        ? { ...item, values: calculateFlutingRow(editingValues) }
+        : item,
+    )
     : lineItems;
   const flutingDraftHasSheets =
     definition.slug === "cnc-fluting" &&
     Boolean(draftValues.noOfSheets?.trim());
   const flutingSheetsForAvailable = definition.slug === "cnc-fluting"
     ? calculateTotalFlutedSheets(flutingProjectedItems) +
-      (!editingRowId && flutingDraftHasSheets
-        ? calculateTotalFlutedSheets([{ values: draftValues }])
-        : 0)
+    (!editingRowId && flutingDraftHasSheets
+      ? calculateTotalFlutedSheets([{ values: draftValues }])
+      : 0)
     : 0;
   const embossingReferenceSheets = definition.slug === "embossing"
     ? readEmbossingReferenceSheets(
-        sourceRow as Record<string, unknown> | undefined,
-      )
+      sourceRow as Record<string, unknown> | undefined,
+    )
     : 0;
   const embossingCommittedSheets = definition.slug === "embossing"
     ? calculateTotalEmbossedSheets(lineItems)
     : 0;
   const embossingDraftValidation = definition.slug === "embossing"
     ? validateEmbossingRow({
-        maximumSheets: getMaximumEmbossingSheets(
-          embossingReferenceSheets,
-          lineItems,
-        ),
-        values: draftValues,
-      })
+      maximumSheets: getMaximumEmbossingSheets(
+        embossingReferenceSheets,
+        lineItems,
+      ),
+      values: draftValues,
+    })
     : { fieldErrors: {}, message: "", values: draftValues };
   const embossingEditValidation =
     definition.slug === "embossing" && editingRowId
       ? validateEmbossingRow({
-          maximumSheets: getMaximumEmbossingSheets(
-            embossingReferenceSheets,
-            lineItems,
-            editingRowId,
-          ),
-          values: editingValues,
-        })
+        maximumSheets: getMaximumEmbossingSheets(
+          embossingReferenceSheets,
+          lineItems,
+          editingRowId,
+        ),
+        values: editingValues,
+      })
       : { fieldErrors: {}, message: "", values: editingValues };
   const embossingProjectedItems = definition.slug === "embossing"
     ? lineItems.map((item) =>
-        item.id === editingRowId
-          ? { ...item, values: calculateEmbossingRow(editingValues) }
-          : item,
-      )
+      item.id === editingRowId
+        ? { ...item, values: calculateEmbossingRow(editingValues) }
+        : item,
+    )
     : lineItems;
   const embossingDraftHasSheets =
     definition.slug === "embossing" && Boolean(draftValues.noOfSheets?.trim());
   const embossingSheetsForAvailable = definition.slug === "embossing"
     ? calculateTotalEmbossedSheets(embossingProjectedItems) +
-      (!editingRowId && embossingDraftHasSheets
-        ? calculateTotalEmbossedSheets([{ values: draftValues }])
-        : 0)
+    (!editingRowId && embossingDraftHasSheets
+      ? calculateTotalEmbossedSheets([{ values: draftValues }])
+      : 0)
     : 0;
   const groupingOutputLeaves = usesReferenceLeafLimit
     ? sumGroupingOutputLeaves(
-        lineItems.map((item) => ({
-          values: leafValuesForLimit(
-            definition.slug,
-            item.id === editingRowId ? editingValues : item.values,
-          ),
-        })),
-      ) +
-      sumGroupingOutputLeaves([
-        { values: leafValuesForLimit(definition.slug, draftValues) },
-      ])
+      lineItems.map((item) => ({
+        values: leafValuesForLimit(
+          definition.slug,
+          item.id === editingRowId ? editingValues : item.values,
+        ),
+      })),
+    ) +
+    sumGroupingOutputLeaves([
+      { values: leafValuesForLimit(definition.slug, draftValues) },
+    ])
     : 0;
   const groupingAvailableLeaves = usesReferenceLeafLimit
     ? definition.slug === "grouping"
       ? Math.max(0, groupingReferenceLeaves - groupingLeavesForAvailable)
       : definition.slug === "splicing"
         ? Math.max(0, groupingReferenceLeaves - splicingLeavesForAvailable)
-      : sumGroupingOutputLeaves([
-        { values: { noOfLeaves: rejectAvailableValues.noOfLeaves ?? "" } },
-      ])
+        : sumGroupingOutputLeaves([
+          { values: { noOfLeaves: rejectAvailableValues.noOfLeaves ?? "" } },
+        ])
     : 0;
   const groupingLeafLimitMessage = usesReferenceLeafLimit
     ? definition.slug === "grouping"
@@ -1775,20 +1775,20 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     const valuesToAdd =
       definition.slug === "sawing"
         ? lockSawingProcessDetailValues(
-            draftValues,
-            sourceRow as Record<string, unknown> | undefined,
-          )
+          draftValues,
+          sourceRow as Record<string, unknown> | undefined,
+        )
         : definition.slug === "slicing"
           ? applySlicingDerivedAreas(draftValues)
-        : definition.slug === "grouping"
-          ? calculateGroupingRow(draftValues)
-        : definition.slug === "splicing"
-          ? calculateSplicingRow(draftValues)
-        : definition.slug === "cnc-fluting"
-          ? calculateFlutingRow(draftValues)
-        : definition.slug === "embossing"
-          ? calculateEmbossingRow(draftValues)
-        : draftValues;
+          : definition.slug === "grouping"
+            ? calculateGroupingRow(draftValues)
+            : definition.slug === "splicing"
+              ? calculateSplicingRow(draftValues)
+              : definition.slug === "cnc-fluting"
+                ? calculateFlutingRow(draftValues)
+                : definition.slug === "embossing"
+                  ? calculateEmbossingRow(draftValues)
+                  : draftValues;
     const nextId = `${definition.slug}-line-item-${nextRowId.current}`;
     nextRowId.current += 1;
 
@@ -2005,11 +2005,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               ? { ...calculateGroupingRow(editingValues) }
               : definition.slug === "splicing"
                 ? { ...calculateSplicingRow(editingValues) }
-              : definition.slug === "cnc-fluting"
-                ? { ...calculateFlutingRow(editingValues) }
-              : definition.slug === "embossing"
-                ? { ...calculateEmbossingRow(editingValues) }
-              : { ...editingValues },
+                : definition.slug === "cnc-fluting"
+                  ? { ...calculateFlutingRow(editingValues) }
+                  : definition.slug === "embossing"
+                    ? { ...calculateEmbossingRow(editingValues) }
+                    : { ...editingValues },
           }
           : row,
       ),
@@ -2043,7 +2043,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     open: false,
     title: "",
     description: "",
-    action: () => {},
+    action: () => { },
   });
 
   const [saveConfirmationOpen, setSaveConfirmationOpen] = useState(false);
@@ -2385,98 +2385,89 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               showError={hasSubmitted && selectedPressingRows.length === 0}
             />
           ) : (
-          <>
-          <Box
-            sx={{
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              borderRadius: "8px",
-              backgroundColor: theme.customTokens.surfaces.surface,
-              overflow: "hidden",
-            }}
-          >
-            <Box sx={getScrollableTableSx(theme)}>
-              <Table
-                size="medium"
-                sx={{ minWidth: Math.max(lineItemsTableWidth, 720), tableLayout: "auto" }}
+            <>
+              <Box
+                sx={{
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  borderRadius: "8px",
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                  overflow: "hidden",
+                }}
               >
-                <TableHead>
-                  <TableRow>
-                    {lineItemColumns.map((column) => (
-                      <TableCell
-                        key={column.key}
-                        sx={getHeaderCellSx(theme, column.minWidth)}
-                      >
-                        <ColumnLabel
-                          label={column.label}
-                          required={
-                            isLineItemColumnRequired(column) ||
-                            (definition.slug === "grouping" &&
-                              (column.key === "itemName" ||
-                                column.key === "length" ||
-                                column.key === "width" ||
-                                column.key === "noOfLeaves")) ||
-                            (definition.slug === "splicing" &&
-                              (column.key === "itemName" ||
-                                column.key === "length" ||
-                                column.key === "width" ||
-                                column.key === "noOfLeaves" ||
-                                column.key === "noOfSheets")) ||
-                            (definition.slug === "cnc-fluting" &&
-                              (column.key === "itemName" ||
-                                column.key === "length" ||
-                                column.key === "width" ||
-                                column.key === "height" ||
-                                column.key === "noOfSheets")) ||
-                            (definition.slug === "embossing" &&
-                              (column.key === "itemName" ||
-                                column.key === "length" ||
-                                column.key === "width" ||
-                                column.key === "height" ||
-                                column.key === "noOfSheets")) ||
-                            (definition.slug === "slicing" &&
-                              (column.key === "thickness" ||
-                                column.key === "height" ||
-                                column.key === "noOfLeaves"))
-                          }
-                        />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    {lineItemColumns.map((column) => (
-                      <TableCell key={column.key} sx={getBodyCellSx(theme)}>
-                        {renderEditableField({
-                          column,
-                          onChange: (value) => {
-                            if (definition.slug === "slicing") {
-                              setSlicingSubmitError("");
-                            }
-                            if (definition.slug === "grouping") {
-                              setGroupingSubmitError("");
-                            }
-                            if (definition.slug === "splicing") {
-                              setSplicingSubmitError("");
-                            }
-                            if (definition.slug === "cnc-fluting") {
-                              setFlutingSubmitError("");
-                            }
-                            if (definition.slug === "embossing") {
-                              setEmbossingSubmitError("");
-                            }
-                            setDraftValues((current) =>
-                              definition.slug === "grouping"
-                                ? calculateGroupingRow(
-                                    applyFactoryLineItemValueChange(
-                                      current,
-                                      column.key,
-                                      value,
-                                      definition.slug,
-                                    ),
-                                  )
-                                : definition.slug === "splicing"
-                                  ? calculateSplicingRow(
+                <Box sx={getScrollableTableSx(theme)}>
+                  <Table
+                    size="medium"
+                    sx={{ minWidth: Math.max(lineItemsTableWidth, 720), tableLayout: "auto" }}
+                  >
+                    <TableHead>
+                      <TableRow>
+                        {lineItemColumns.map((column) => (
+                          <TableCell
+                            key={column.key}
+                            sx={getHeaderCellSx(theme, column.minWidth)}
+                          >
+                            <ColumnLabel
+                              label={column.label}
+                              required={
+                                isLineItemColumnRequired(column) ||
+                                (definition.slug === "grouping" &&
+                                  (column.key === "itemName" ||
+                                    column.key === "length" ||
+                                    column.key === "width" ||
+                                    column.key === "noOfLeaves")) ||
+                                (definition.slug === "splicing" &&
+                                  (column.key === "itemName" ||
+                                    column.key === "length" ||
+                                    column.key === "width" ||
+                                    column.key === "noOfLeaves" ||
+                                    column.key === "noOfSheets")) ||
+                                (definition.slug === "cnc-fluting" &&
+                                  (column.key === "itemName" ||
+                                    column.key === "length" ||
+                                    column.key === "width" ||
+                                    column.key === "height" ||
+                                    column.key === "noOfSheets")) ||
+                                (definition.slug === "embossing" &&
+                                  (column.key === "itemName" ||
+                                    column.key === "length" ||
+                                    column.key === "width" ||
+                                    column.key === "height" ||
+                                    column.key === "noOfSheets")) ||
+                                (definition.slug === "slicing" &&
+                                  (column.key === "thickness" ||
+                                    column.key === "height" ||
+                                    column.key === "noOfLeaves"))
+                              }
+                            />
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        {lineItemColumns.map((column) => (
+                          <TableCell key={column.key} sx={getBodyCellSx(theme)}>
+                            {renderEditableField({
+                              column,
+                              onChange: (value) => {
+                                if (definition.slug === "slicing") {
+                                  setSlicingSubmitError("");
+                                }
+                                if (definition.slug === "grouping") {
+                                  setGroupingSubmitError("");
+                                }
+                                if (definition.slug === "splicing") {
+                                  setSplicingSubmitError("");
+                                }
+                                if (definition.slug === "cnc-fluting") {
+                                  setFlutingSubmitError("");
+                                }
+                                if (definition.slug === "embossing") {
+                                  setEmbossingSubmitError("");
+                                }
+                                setDraftValues((current) =>
+                                  definition.slug === "grouping"
+                                    ? calculateGroupingRow(
                                       applyFactoryLineItemValueChange(
                                         current,
                                         column.key,
@@ -2484,255 +2475,264 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                         definition.slug,
                                       ),
                                     )
-                                : definition.slug === "cnc-fluting"
-                                  ? calculateFlutingRow(
-                                      applyFactoryLineItemValueChange(
-                                        current,
-                                        column.key,
-                                        value,
-                                        definition.slug,
-                                      ),
-                                    )
-                                : definition.slug === "embossing"
-                                  ? calculateEmbossingRow(
-                                      applyFactoryLineItemValueChange(
-                                        current,
-                                        column.key,
-                                        value,
-                                        definition.slug,
-                                      ),
-                                    )
-                                : applySawingVolumeCalculation(
-                                  definition.slug,
-                                  applyFactoryLineItemValueChange(
-                                  current,
-                                  column.key,
-                                  value,
-                                  definition.slug,
-                                ),
-                                ),
-                            );
-                          },
-                          theme,
-                          value: draftValues[column.key] ?? "",
-                          errorText: draftSubmitAttempted
-                            ? definition.slug === "grouping"
-                              ? groupingDraftValidation.fieldErrors[column.key] ||
-                                getFieldValidationError(column, draftValues)
-                              : definition.slug === "splicing"
-                                ? splicingDraftValidation.fieldErrors[column.key] ||
+                                    : definition.slug === "splicing"
+                                      ? calculateSplicingRow(
+                                        applyFactoryLineItemValueChange(
+                                          current,
+                                          column.key,
+                                          value,
+                                          definition.slug,
+                                        ),
+                                      )
+                                      : definition.slug === "cnc-fluting"
+                                        ? calculateFlutingRow(
+                                          applyFactoryLineItemValueChange(
+                                            current,
+                                            column.key,
+                                            value,
+                                            definition.slug,
+                                          ),
+                                        )
+                                        : definition.slug === "embossing"
+                                          ? calculateEmbossingRow(
+                                            applyFactoryLineItemValueChange(
+                                              current,
+                                              column.key,
+                                              value,
+                                              definition.slug,
+                                            ),
+                                          )
+                                          : applySawingVolumeCalculation(
+                                            definition.slug,
+                                            applyFactoryLineItemValueChange(
+                                              current,
+                                              column.key,
+                                              value,
+                                              definition.slug,
+                                            ),
+                                          ),
+                                );
+                              },
+                              theme,
+                              value: draftValues[column.key] ?? "",
+                              errorText: draftSubmitAttempted
+                                ? definition.slug === "grouping"
+                                  ? groupingDraftValidation.fieldErrors[column.key] ||
                                   getFieldValidationError(column, draftValues)
-                              : definition.slug === "cnc-fluting"
-                                ? flutingDraftValidation.fieldErrors[column.key] ||
-                                  getFieldValidationError(column, draftValues)
-                              : definition.slug === "embossing"
-                                ? embossingDraftValidation.fieldErrors[column.key] ||
-                                  getFieldValidationError(column, draftValues)
-                              : definition.slug === "slicing"
-                              ? slicingDraftValidation.fieldErrors[column.key] ||
-                                getFieldValidationError(column, draftValues)
-                              : getFieldValidationError(column, draftValues)
-                            : "",
-                          invalid:
-                            (usesReferenceLeafLimit &&
-                              column.key === "noOfLeaves" &&
-                              groupingOutputLeafInvalid) ||
-                            (definition.slug === "sawing" &&
-                              (column.key === "cbm" || column.key === "width") &&
-                              sawingDraftError.includes("CBM")) ||
-                            (definition.slug === "slicing" &&
-                              Boolean(slicingDraftValidation.fieldErrors[column.key])) ||
-                            (definition.slug === "cnc-fluting" &&
-                              Boolean(flutingDraftValidation.fieldErrors[column.key])) ||
-                            (definition.slug === "embossing" &&
-                              Boolean(embossingDraftValidation.fieldErrors[column.key])),
-                        })}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Box>
-          </Box>
+                                  : definition.slug === "splicing"
+                                    ? splicingDraftValidation.fieldErrors[column.key] ||
+                                    getFieldValidationError(column, draftValues)
+                                    : definition.slug === "cnc-fluting"
+                                      ? flutingDraftValidation.fieldErrors[column.key] ||
+                                      getFieldValidationError(column, draftValues)
+                                      : definition.slug === "embossing"
+                                        ? embossingDraftValidation.fieldErrors[column.key] ||
+                                        getFieldValidationError(column, draftValues)
+                                        : definition.slug === "slicing"
+                                          ? slicingDraftValidation.fieldErrors[column.key] ||
+                                          getFieldValidationError(column, draftValues)
+                                          : getFieldValidationError(column, draftValues)
+                                : "",
+                              invalid:
+                                (usesReferenceLeafLimit &&
+                                  column.key === "noOfLeaves" &&
+                                  groupingOutputLeafInvalid) ||
+                                (definition.slug === "sawing" &&
+                                  (column.key === "cbm" || column.key === "width") &&
+                                  sawingDraftError.includes("CBM")) ||
+                                (definition.slug === "slicing" &&
+                                  Boolean(slicingDraftValidation.fieldErrors[column.key])) ||
+                                (definition.slug === "cnc-fluting" &&
+                                  Boolean(flutingDraftValidation.fieldErrors[column.key])) ||
+                                (definition.slug === "embossing" &&
+                                  Boolean(embossingDraftValidation.fieldErrors[column.key])),
+                            })}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
 
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: theme.spacing(1.5),
-              flexWrap: "wrap",
-            }}
-          >
-            {(definition.slug === "sawing" &&
-              (sawingStockUnavailable ||
-                sawingSubmitError ||
-                sawingDraftError)) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  gap: theme.spacing(1.5),
+                  flexWrap: "wrap",
+                }}
               >
-                {sawingStockUnavailable
-                  ? "No CBM is available for Sawing."
-                  : sawingSubmitError || sawingDraftError}
-              </Typography>
-            ) : definition.slug === "slicing" &&
-              (slicingStockUnavailable ||
-                slicingSubmitError ||
-                slicingDraftValidation.message) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {slicingStockUnavailable
-                  ? "No CBM is available for Slicing."
-                  : slicingSubmitError || slicingDraftValidation.message}
-              </Typography>
-            ) : definition.slug === "grouping" &&
-              (groupingReferenceLeaves <= 0 ||
-                groupingCommittedLeaves >= groupingReferenceLeaves ||
-                groupingSubmitError ||
-                (draftSubmitAttempted && groupingDraftValidation.message)) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {groupingReferenceLeaves <= 0 ||
-                groupingCommittedLeaves >= groupingReferenceLeaves
-                  ? "No leaves are available for Grouping."
-                  : groupingSubmitError || groupingDraftValidation.message}
-              </Typography>
-            ) : definition.slug === "splicing" &&
-              (groupingReferenceLeaves <= 0 ||
-                splicingCommittedLeaves >= groupingReferenceLeaves ||
-                splicingSubmitError ||
-                (draftSubmitAttempted && splicingDraftValidation.message)) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {groupingReferenceLeaves <= 0 ||
-                splicingCommittedLeaves >= groupingReferenceLeaves
-                  ? "No leaves are available for Splicing."
-                  : splicingSubmitError || splicingDraftValidation.message}
-              </Typography>
-            ) : definition.slug === "cnc-fluting" &&
-              (flutingReferenceSheets <= 0 ||
-                flutingCommittedSheets >= flutingReferenceSheets ||
-                flutingSubmitError ||
-                (draftSubmitAttempted && flutingDraftValidation.message)) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {flutingReferenceSheets <= 0 ||
-                flutingCommittedSheets >= flutingReferenceSheets
-                  ? "No sheets are available for Fluting."
-                  : flutingSubmitError || flutingDraftValidation.message}
-              </Typography>
-            ) : definition.slug === "embossing" &&
-              (embossingReferenceSheets <= 0 ||
-                embossingCommittedSheets >= embossingReferenceSheets ||
-                embossingSubmitError ||
-                (draftSubmitAttempted && embossingDraftValidation.message)) ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {embossingReferenceSheets <= 0 ||
-                embossingCommittedSheets >= embossingReferenceSheets
-                  ? "No sheets are available for Embossing."
-                  : embossingSubmitError || embossingDraftValidation.message}
-              </Typography>
-            ) : usesReferenceLeafLimit && groupingOutputLeafInvalid ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  flex: "1 1 220px",
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  minWidth: 0,
-                  whiteSpace: "normal",
-                })}
-              >
-                {groupingLeafLimitMessage}
-              </Typography>
-            ) : draftSubmitAttempted && draftProjectedOverflow ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  mr: "auto",
-                })}
-              >
-                {draftProjectedOverflow}
-              </Typography>
-            ) : null}
-            <Button
-              disableElevation
-              disabled={
-                sawingStockUnavailable ||
-                slicingStockUnavailable ||
-                slicingFullyConsumed ||
-                (definition.slug === "grouping" &&
+                {(definition.slug === "sawing" &&
+                  (sawingStockUnavailable ||
+                    sawingSubmitError ||
+                    sawingDraftError)) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {sawingStockUnavailable
+                      ? "No CBM is available for Sawing."
+                      : sawingSubmitError || sawingDraftError}
+                  </Typography>
+                ) : definition.slug === "slicing" &&
+                  (slicingStockUnavailable ||
+                    slicingSubmitError ||
+                    slicingDraftValidation.message) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {slicingStockUnavailable
+                      ? "No CBM is available for Slicing."
+                      : slicingSubmitError || slicingDraftValidation.message}
+                  </Typography>
+                ) : definition.slug === "grouping" &&
                   (groupingReferenceLeaves <= 0 ||
-                    groupingCommittedLeaves >= groupingReferenceLeaves)) ||
-                (definition.slug === "splicing" &&
+                    groupingCommittedLeaves >= groupingReferenceLeaves ||
+                    groupingSubmitError ||
+                    (draftSubmitAttempted && groupingDraftValidation.message)) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {groupingReferenceLeaves <= 0 ||
+                      groupingCommittedLeaves >= groupingReferenceLeaves
+                      ? "No leaves are available for Grouping."
+                      : groupingSubmitError || groupingDraftValidation.message}
+                  </Typography>
+                ) : definition.slug === "splicing" &&
                   (groupingReferenceLeaves <= 0 ||
-                    splicingCommittedLeaves >= groupingReferenceLeaves)) ||
-                (definition.slug === "cnc-fluting" &&
+                    splicingCommittedLeaves >= groupingReferenceLeaves ||
+                    splicingSubmitError ||
+                    (draftSubmitAttempted && splicingDraftValidation.message)) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {groupingReferenceLeaves <= 0 ||
+                      splicingCommittedLeaves >= groupingReferenceLeaves
+                      ? "No leaves are available for Splicing."
+                      : splicingSubmitError || splicingDraftValidation.message}
+                  </Typography>
+                ) : definition.slug === "cnc-fluting" &&
                   (flutingReferenceSheets <= 0 ||
-                    flutingCommittedSheets >= flutingReferenceSheets)) ||
-                (definition.slug === "embossing" &&
+                    flutingCommittedSheets >= flutingReferenceSheets ||
+                    flutingSubmitError ||
+                    (draftSubmitAttempted && flutingDraftValidation.message)) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {flutingReferenceSheets <= 0 ||
+                      flutingCommittedSheets >= flutingReferenceSheets
+                      ? "No sheets are available for Fluting."
+                      : flutingSubmitError || flutingDraftValidation.message}
+                  </Typography>
+                ) : definition.slug === "embossing" &&
                   (embossingReferenceSheets <= 0 ||
-                    embossingCommittedSheets >= embossingReferenceSheets))
-              }
-              onClick={handleAddLineItem}
-              startIcon={<Plus size={15} strokeWidth={2} />}
-              sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
-              variant="contained"
-            >
-              Add Item
-            </Button>
-          </Box>
-          </>
+                    embossingCommittedSheets >= embossingReferenceSheets ||
+                    embossingSubmitError ||
+                    (draftSubmitAttempted && embossingDraftValidation.message)) ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {embossingReferenceSheets <= 0 ||
+                      embossingCommittedSheets >= embossingReferenceSheets
+                      ? "No sheets are available for Embossing."
+                      : embossingSubmitError || embossingDraftValidation.message}
+                  </Typography>
+                ) : usesReferenceLeafLimit && groupingOutputLeafInvalid ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      flex: "1 1 220px",
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      minWidth: 0,
+                      whiteSpace: "normal",
+                    })}
+                  >
+                    {groupingLeafLimitMessage}
+                  </Typography>
+                ) : draftSubmitAttempted && draftProjectedOverflow ? (
+                  <Typography
+                    sx={(currentTheme) => ({
+                      color: currentTheme.palette.error.main,
+                      fontSize: "0.8125rem",
+                      fontWeight: 500,
+                      mr: "auto",
+                    })}
+                  >
+                    {draftProjectedOverflow}
+                  </Typography>
+                ) : null}
+                <Button
+                  disableElevation
+                  disabled={
+                    sawingStockUnavailable ||
+                    slicingStockUnavailable ||
+                    slicingFullyConsumed ||
+                    (definition.slug === "grouping" &&
+                      (groupingReferenceLeaves <= 0 ||
+                        groupingCommittedLeaves >= groupingReferenceLeaves)) ||
+                    (definition.slug === "splicing" &&
+                      (groupingReferenceLeaves <= 0 ||
+                        splicingCommittedLeaves >= groupingReferenceLeaves)) ||
+                    (definition.slug === "cnc-fluting" &&
+                      (flutingReferenceSheets <= 0 ||
+                        flutingCommittedSheets >= flutingReferenceSheets)) ||
+                    (definition.slug === "embossing" &&
+                      (embossingReferenceSheets <= 0 ||
+                        embossingCommittedSheets >= embossingReferenceSheets))
+                  }
+                  onClick={handleAddLineItem}
+                  startIcon={<Plus size={15} strokeWidth={2} />}
+                  sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
+                  variant="contained"
+                >
+                  Add Item
+                </Button>
+              </Box>
+            </>
           )}
         </Stack>
 
@@ -2864,6 +2864,15 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                     setEditingValues((current) =>
                                       definition.slug === "grouping"
                                         ? calculateGroupingRow(
+                                          applyFactoryLineItemValueChange(
+                                            current,
+                                            column.key,
+                                            value,
+                                            definition.slug,
+                                          ),
+                                        )
+                                        : definition.slug === "splicing"
+                                          ? calculateSplicingRow(
                                             applyFactoryLineItemValueChange(
                                               current,
                                               column.key,
@@ -2871,8 +2880,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                               definition.slug,
                                             ),
                                           )
-                                        : definition.slug === "splicing"
-                                          ? calculateSplicingRow(
+                                          : definition.slug === "cnc-fluting"
+                                            ? calculateFlutingRow(
                                               applyFactoryLineItemValueChange(
                                                 current,
                                                 column.key,
@@ -2880,33 +2889,24 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                                 definition.slug,
                                               ),
                                             )
-                                        : definition.slug === "cnc-fluting"
-                                          ? calculateFlutingRow(
-                                              applyFactoryLineItemValueChange(
-                                                current,
-                                                column.key,
-                                                value,
+                                            : definition.slug === "embossing"
+                                              ? calculateEmbossingRow(
+                                                applyFactoryLineItemValueChange(
+                                                  current,
+                                                  column.key,
+                                                  value,
+                                                  definition.slug,
+                                                ),
+                                              )
+                                              : applySawingVolumeCalculation(
                                                 definition.slug,
+                                                applyFactoryLineItemValueChange(
+                                                  current,
+                                                  column.key,
+                                                  value,
+                                                  definition.slug,
+                                                ),
                                               ),
-                                            )
-                                        : definition.slug === "embossing"
-                                          ? calculateEmbossingRow(
-                                              applyFactoryLineItemValueChange(
-                                                current,
-                                                column.key,
-                                                value,
-                                                definition.slug,
-                                              ),
-                                            )
-                                        : applySawingVolumeCalculation(
-                                          definition.slug,
-                                          applyFactoryLineItemValueChange(
-                                          current,
-                                          column.key,
-                                          value,
-                                          definition.slug,
-                                        ),
-                                        ),
                                     );
                                   },
                                   theme,
@@ -2914,20 +2914,20 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   errorText: editingSubmitAttempted
                                     ? definition.slug === "grouping"
                                       ? groupingEditValidation.fieldErrors[column.key] ||
-                                        getFieldValidationError(column, editingValues)
+                                      getFieldValidationError(column, editingValues)
                                       : definition.slug === "splicing"
                                         ? splicingEditValidation.fieldErrors[column.key] ||
-                                          getFieldValidationError(column, editingValues)
-                                      : definition.slug === "cnc-fluting"
-                                        ? flutingEditValidation.fieldErrors[column.key] ||
-                                          getFieldValidationError(column, editingValues)
-                                      : definition.slug === "embossing"
-                                        ? embossingEditValidation.fieldErrors[column.key] ||
-                                          getFieldValidationError(column, editingValues)
-                                      : definition.slug === "slicing"
-                                      ? slicingEditValidation.fieldErrors[column.key] ||
                                         getFieldValidationError(column, editingValues)
-                                      : getFieldValidationError(column, editingValues)
+                                        : definition.slug === "cnc-fluting"
+                                          ? flutingEditValidation.fieldErrors[column.key] ||
+                                          getFieldValidationError(column, editingValues)
+                                          : definition.slug === "embossing"
+                                            ? embossingEditValidation.fieldErrors[column.key] ||
+                                            getFieldValidationError(column, editingValues)
+                                            : definition.slug === "slicing"
+                                              ? slicingEditValidation.fieldErrors[column.key] ||
+                                              getFieldValidationError(column, editingValues)
+                                              : getFieldValidationError(column, editingValues)
                                     : "",
                                   invalid:
                                     (usesReferenceLeafLimit &&
@@ -2982,81 +2982,81 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   </TableBody>
                 </Table>
               </Box>
-            {definition.slug === "sawing" && sawingEditError.includes("CBM") ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {sawingEditError}
-              </Typography>
-            ) : definition.slug === "slicing" && slicingEditValidation.message ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {slicingEditValidation.message}
-              </Typography>
-            ) : definition.slug === "grouping" &&
-              editingRowId &&
-              groupingEditValidation.message ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {groupingEditValidation.message}
-              </Typography>
-            ) : definition.slug === "splicing" &&
-              editingRowId &&
-              splicingEditValidation.message ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {splicingEditValidation.message}
-              </Typography>
-            ) : definition.slug === "cnc-fluting" &&
-              editingRowId &&
-              flutingEditValidation.message ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {flutingEditValidation.message}
-              </Typography>
-            ) : definition.slug === "embossing" &&
-              editingRowId &&
-              embossingEditValidation.message ? (
-              <Typography
-                sx={(currentTheme) => ({
-                  color: currentTheme.palette.error.main,
-                  fontSize: "0.8125rem",
-                  fontWeight: 500,
-                  whiteSpace: "normal",
-                })}
-              >
-                {embossingEditValidation.message}
-              </Typography>
-            ) : null}
+              {definition.slug === "sawing" && sawingEditError.includes("CBM") ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {sawingEditError}
+                </Typography>
+              ) : definition.slug === "slicing" && slicingEditValidation.message ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {slicingEditValidation.message}
+                </Typography>
+              ) : definition.slug === "grouping" &&
+                editingRowId &&
+                groupingEditValidation.message ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {groupingEditValidation.message}
+                </Typography>
+              ) : definition.slug === "splicing" &&
+                editingRowId &&
+                splicingEditValidation.message ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {splicingEditValidation.message}
+                </Typography>
+              ) : definition.slug === "cnc-fluting" &&
+                editingRowId &&
+                flutingEditValidation.message ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {flutingEditValidation.message}
+                </Typography>
+              ) : definition.slug === "embossing" &&
+                editingRowId &&
+                embossingEditValidation.message ? (
+                <Typography
+                  sx={(currentTheme) => ({
+                    color: currentTheme.palette.error.main,
+                    fontSize: "0.8125rem",
+                    fontWeight: 500,
+                    whiteSpace: "normal",
+                  })}
+                >
+                  {embossingEditValidation.message}
+                </Typography>
+              ) : null}
             </Box>
           </Stack>
         ) : null}
@@ -3073,11 +3073,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             }
             title={
               definition.slug === "sawing" ||
-              definition.slug === "slicing" ||
-              definition.slug === "grouping" ||
-              definition.slug === "splicing" ||
-              definition.slug === "cnc-fluting" ||
-              definition.slug === "embossing"
+                definition.slug === "slicing" ||
+                definition.slug === "grouping" ||
+                definition.slug === "splicing" ||
+                definition.slug === "cnc-fluting" ||
+                definition.slug === "embossing"
                 ? "Available Details"
                 : undefined
             }
@@ -3112,11 +3112,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               ),
               ...(groupingAvailableLeafInvalid
                 ? {
-                    noOfLeaves: {
-                      message: groupingLeafLimitMessage,
-                      severity: "error" as const,
-                    },
-                  }
+                  noOfLeaves: {
+                    message: groupingLeafLimitMessage,
+                    severity: "error" as const,
+                  },
+                }
                 : {}),
             }}
             onChange={(key, value) => {
@@ -3189,9 +3189,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 definition.slug === "slicing" &&
                 Boolean(
                   draftValues.thickness?.trim() ||
-                    draftValues.height?.trim() ||
-                    draftValues.noOfLeaves?.trim() ||
-                    draftValues.noOfSheets?.trim(),
+                  draftValues.height?.trim() ||
+                  draftValues.noOfLeaves?.trim() ||
+                  draftValues.noOfSheets?.trim(),
                 );
               const draftErrors = getLineItemValidationErrors(
                 lineItemColumns,
@@ -3204,18 +3204,18 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               const lineItemsInvalid =
                 definition.slug === "marquetry"
                   ? selectedMarquetryRows.length === 0 ||
-                    selectedMarquetryRows.some((row) =>
-                      Boolean(
-                        getMarquetryLeavesUsedError(
-                          marquetryDrafts[String(row.id)]?.leavesUsed ?? "",
-                          row.availableLeaves,
-                          true,
-                        ),
+                  selectedMarquetryRows.some((row) =>
+                    Boolean(
+                      getMarquetryLeavesUsedError(
+                        marquetryDrafts[String(row.id)]?.leavesUsed ?? "",
+                        row.availableLeaves,
+                        true,
                       ),
-                    )
+                    ),
+                  )
                   : definition.slug === "pressing"
                     ? selectedPressingRows.length === 0
-                  : lineItems.length === 0 ||
+                    : lineItems.length === 0 ||
                     ((definition.slug === "slicing"
                       ? slicingDraftHasValues
                       : draftHasValues) && hasValidationErrors(draftErrors)) ||
@@ -3242,51 +3242,51 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               const sawingRowsForSubmit =
                 definition.slug === "sawing" && sawingSource
                   ? lineItems.map((row) =>
-                      row.id === editingRowId
-                        ? {
-                            ...row,
-                            values: lockSawingProcessDetailValues(
-                              editingValues,
-                              sourceRow as Record<string, unknown> | undefined,
-                            ),
-                          }
-                        : row,
-                    )
+                    row.id === editingRowId
+                      ? {
+                        ...row,
+                        values: lockSawingProcessDetailValues(
+                          editingValues,
+                          sourceRow as Record<string, unknown> | undefined,
+                        ),
+                      }
+                      : row,
+                  )
                   : lineItems;
               const sawingValidationError =
                 definition.slug === "sawing" && sawingSource
                   ? getSawingCreateSubmitError(sawingSource, sawingRowsForSubmit) ||
-                    (draftValues.thickness?.trim()
-                      ? getSawingProcessDetailError({
-                          committing: true,
-                          otherProcessedCbm: sumSawingLineCbm(
-                            sawingRowsForSubmit,
-                            sawingSource,
-                          ),
-                          source: sawingSource,
-                          values: draftValues,
-                        })
-                      : "")
+                  (draftValues.thickness?.trim()
+                    ? getSawingProcessDetailError({
+                      committing: true,
+                      otherProcessedCbm: sumSawingLineCbm(
+                        sawingRowsForSubmit,
+                        sawingSource,
+                      ),
+                      source: sawingSource,
+                      values: draftValues,
+                    })
+                    : "")
                   : "";
               const slicingPendingDraftError =
                 definition.slug === "slicing" && slicingDraftHasValues
                   ? validateSlicingRow({
-                      committing: true,
-                      otherConsumedCbm: slicingConsumedCbm,
-                      sourceRow: slicingSource,
-                      values: draftValues,
-                    }).message
+                    committing: true,
+                    otherConsumedCbm: slicingConsumedCbm,
+                    sourceRow: slicingSource,
+                    values: draftValues,
+                  }).message
                   : "";
               const slicingValidationError =
                 definition.slug === "slicing"
                   ? slicingPendingDraftError ||
-                    (editingRowId
-                      ? "Save or cancel the edited Process Detail row before saving."
-                      : getSlicingCreateSubmitError(
-                          slicingSource,
-                          lineItems,
-                          rejectAvailableValues,
-                        ))
+                  (editingRowId
+                    ? "Save or cancel the edited Process Detail row before saving."
+                    : getSlicingCreateSubmitError(
+                      slicingSource,
+                      lineItems,
+                      rejectAvailableValues,
+                    ))
                   : "";
               const groupingValidationError =
                 definition.slug === "grouping"
@@ -3295,11 +3295,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     : groupingDraftHasLeaves
                       ? "Add the current Process Detail item before saving."
                       : validateGroupingForm({
-                          availableValues: rejectAvailableValues,
-                          items: lineItems,
-                          sourceAvailableLeaves: groupingReferenceLeaves,
-                          sourceRow: sourceRow as Record<string, unknown> | undefined,
-                        })
+                        availableValues: rejectAvailableValues,
+                        items: lineItems,
+                        sourceAvailableLeaves: groupingReferenceLeaves,
+                        sourceRow: sourceRow as Record<string, unknown> | undefined,
+                      })
                   : "";
               const splicingValidationError =
                 definition.slug === "splicing"
@@ -3308,11 +3308,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     : splicingDraftHasProcessValues
                       ? "Add the current Process Detail item before saving."
                       : validateSplicingForm({
-                          availableValues: rejectAvailableValues,
-                          items: lineItems,
-                          sourceAvailableLeaves: groupingReferenceLeaves,
-                          sourceRow: sourceRow as Record<string, unknown> | undefined,
-                        })
+                        availableValues: rejectAvailableValues,
+                        items: lineItems,
+                        sourceAvailableLeaves: groupingReferenceLeaves,
+                        sourceRow: sourceRow as Record<string, unknown> | undefined,
+                      })
                   : "";
               const flutingValidationError =
                 definition.slug === "cnc-fluting"
@@ -3321,11 +3321,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     : flutingDraftHasSheets
                       ? "Add the current Process Detail item before saving."
                       : validateFlutingForm({
-                          availableValues: rejectAvailableValues,
-                          items: lineItems,
-                          sourceAvailableSheets: flutingReferenceSheets,
-                          sourceRow: sourceRow as Record<string, unknown> | undefined,
-                        })
+                        availableValues: rejectAvailableValues,
+                        items: lineItems,
+                        sourceAvailableSheets: flutingReferenceSheets,
+                        sourceRow: sourceRow as Record<string, unknown> | undefined,
+                      })
                   : "";
               const embossingValidationError =
                 definition.slug === "embossing"
@@ -3334,11 +3334,11 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     : embossingDraftHasSheets
                       ? "Add the current Process Detail item before saving."
                       : validateEmbossingForm({
-                          availableValues: rejectAvailableValues,
-                          items: lineItems,
-                          sourceAvailableSheets: embossingReferenceSheets,
-                          sourceRow: sourceRow as Record<string, unknown> | undefined,
-                        })
+                        availableValues: rejectAvailableValues,
+                        items: lineItems,
+                        sourceAvailableSheets: embossingReferenceSheets,
+                        sourceRow: sourceRow as Record<string, unknown> | undefined,
+                      })
                   : "";
 
               if (
@@ -3352,9 +3352,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               ) {
                 setDraftSubmitAttempted(
                   lineItems.length === 0 ||
-                    draftHasValues ||
-                    Boolean(sawingValidationError) ||
-                    Boolean(slicingValidationError),
+                  draftHasValues ||
+                  Boolean(sawingValidationError) ||
+                  Boolean(slicingValidationError),
                 );
                 setEditingSubmitAttempted(Boolean(editingRowId));
                 if (sawingValidationError) {
@@ -3453,15 +3453,15 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   lineItems:
                     definition.slug === "cnc-fluting"
                       ? lineItems.map((item) => ({
-                          ...item,
-                          values: calculateFlutingRow(item.values),
-                        }))
+                        ...item,
+                        values: calculateFlutingRow(item.values),
+                      }))
                       : definition.slug === "embossing"
                         ? lineItems.map((item) => ({
-                            ...item,
-                            values: calculateEmbossingRow(item.values),
-                          }))
-                      : lineItems,
+                          ...item,
+                          values: calculateEmbossingRow(item.values),
+                        }))
+                        : lineItems,
                   listPath: isMappedOutputEdit ? listPath : `${paths.list}?tab=done`,
                   navigate,
                   originalRows: mappedOutputEditContext?.rows ?? [],
@@ -3684,16 +3684,16 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   ...(usesOrderSelection ? marquetryOrderDetails : {}),
                   ...(splicingPrimaryValues
                     ? {
-                        ...splicingPrimaryValues,
-                        values: splicingPrimaryValues,
-                      }
+                      ...splicingPrimaryValues,
+                      values: splicingPrimaryValues,
+                    }
                     : primaryLineItem
-                    ? Object.fromEntries(
-                      Object.entries(primaryLineItem).filter(
-                        ([key]) => key !== "id",
-                      ),
-                    )
-                    : {}),
+                      ? Object.fromEntries(
+                        Object.entries(primaryLineItem).filter(
+                          ([key]) => key !== "id",
+                        ),
+                      )
+                      : {}),
                 };
 
                 if (definition.slug === "grouping") {
@@ -3746,9 +3746,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   }
                 }
 
-              if (definition.slug !== "sawing" && definition.slug !== "slicing") {
-                completeFactoryIssuedWork(workItemId, resultSnapshot);
-              }
+                if (definition.slug !== "sawing" && definition.slug !== "slicing") {
+                  completeFactoryIssuedWork(workItemId, resultSnapshot);
+                }
               }
 
               const sampleNo =
@@ -4407,8 +4407,8 @@ function mapFieldToColumn(
       field.key === "itemName" && (slug === "grouping" || slug === "slicing")
         ? 220
         : field.key === "groupPhoto"
-        ? 260
-        : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
+          ? 260
+          : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
     placeholder: field.placeholder ?? getDefaultPlaceholder(field),
     type:
       field.type === "select"
