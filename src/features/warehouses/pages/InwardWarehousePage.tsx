@@ -389,11 +389,12 @@ export function InwardWarehousePage({
   return (
     <MasterPageShell
       breadcrumbs={[{ label: warehouseName }, { label: activeTitle }]}
+      contentGap={1}
       title={warehouseName}
     >
       <Stack
         sx={(theme) => ({
-          gap: theme.spacing(2),
+          gap: theme.spacing(1),
         })}
       >
         <ModuleProcessTabs
@@ -412,7 +413,7 @@ export function InwardWarehousePage({
           direction={{ xs: "column", lg: "row" }}
           alignItems={{ xs: "stretch", lg: "center" }}
           justifyContent="space-between"
-          spacing={2}
+          spacing={1.5}
         >
           <ClearableSearchField
             value={searchValue}
@@ -445,7 +446,7 @@ export function InwardWarehousePage({
                 variant="contained"
                 sx={(theme) => getListingToolbarButtonSx(theme)}
               >
-                Add {getInwardStockLabel(activeInventory)}
+                Add Stock
               </Button>
             ) : null}
 

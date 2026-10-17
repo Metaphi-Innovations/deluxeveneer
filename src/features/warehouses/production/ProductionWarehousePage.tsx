@@ -274,6 +274,7 @@ export function ProductionWarehousePage({
               ?.label ?? "Raw Veneer",
         },
       ]}
+      contentGap={1}
       subtitle={
         isSampleSheetsTab
           ? " "
@@ -283,7 +284,7 @@ export function ProductionWarehousePage({
     >
       <Stack
         sx={(theme) => ({
-          gap: theme.spacing(2),
+          gap: theme.spacing(1),
         })}
       >
         <ModuleProcessTabs
@@ -305,7 +306,7 @@ export function ProductionWarehousePage({
           direction={{ xs: "column", lg: "row" }}
           alignItems={{ xs: "stretch", lg: "center" }}
           justifyContent="space-between"
-          spacing={2}
+          spacing={1.5}
         >
           <ClearableSearchField
             value={searchValue}
