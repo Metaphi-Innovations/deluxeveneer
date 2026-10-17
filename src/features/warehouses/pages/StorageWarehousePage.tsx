@@ -686,12 +686,13 @@ export function StorageWarehousePage({
         { label: "Warehouses" },
         { label: warehouseName },
       ]}
+      contentGap={1}
       subtitle=" "
       title={warehouseName}
     >
       <Stack
         sx={(t) => ({
-          gap: t.spacing(2),
+          gap: t.spacing(1),
         })}
       >
         <ModuleProcessTabs
@@ -716,7 +717,7 @@ export function StorageWarehousePage({
           direction={{ xs: "column", lg: "row" }}
           alignItems={{ xs: "stretch", lg: "center" }}
           justifyContent="space-between"
-          spacing={2}
+          spacing={1.5}
         >
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: "wrap", gap: 1.5 }}>
             <ClearableSearchField
