@@ -75,7 +75,7 @@ export function WarehouseBSectionTabs({
   return (
     <Stack
       sx={(theme) => ({
-        gap: theme.spacing(0),
+        gap: theme.spacing(0.75),
       })}
     >
       <ModuleProcessTabs

@@ -654,14 +654,14 @@ export function WarehouseBInventoryModulePage({
     >
       <Stack
         sx={(currentTheme) => ({
-          gap: currentTheme.spacing(2),
+          gap: currentTheme.spacing(1.25),
         })}
       >
         <Stack
           direction={{ xs: "column", lg: "row" }}
           alignItems={{ xs: "stretch", lg: "center" }}
           justifyContent="space-between"
-          spacing={2}
+          spacing={1.5}
         >
           <Stack
             direction={{ xs: "column", sm: "row" }}
