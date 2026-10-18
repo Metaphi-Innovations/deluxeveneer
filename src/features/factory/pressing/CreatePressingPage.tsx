@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Divider, Stack, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -34,28 +34,29 @@ import {
   readPressingVeneerRows,
   readPressingWorkItemId,
 } from "./pressingEdit";
-import { PressingIssuedSelection } from "./PressingIssuedSelection";
-import {
-  pressingBaseStockColumns,
-  pressingOrderIssuedColumns,
-  pressingSampleIssuedColumns,
-} from "./pressingCreateIssuedColumns";
 import { buildPressingDummyIssuedRows } from "./pressingDummyIssuedRows";
 import { pressingRowIssuedForOrder } from "./pressingOrderMatch";
+import {
+  PressingGroupDetailsTable,
+  type PressingGroupDetailRow,
+} from "./PressingGroupDetailsTable";
+import {
+  PressingBaseDetailsTable,
+  type PressingBaseDetailRow,
+} from "./PressingBaseDetailsTable";
 import { PressingPurposeChoice, type PressingPurpose } from "./PressingPurposeChoice";
 import { PressingProcessFields, type PressingProcessValues } from "./PressingProcessFields";
 import { PressingRejectDetails, type PressingRejectValues } from "./PressingRejectDetails";
-import { PressingSelectedBase, PressingSelectedVeneer } from "./PressingSelectedTables";
 import {
   calculatePressingUsedArea,
   firstPressingText,
+  getPressingAvailableQuantity,
   getPressingQtyError,
   isPressingOrderActive,
   isPressingSourceEligible,
   mapPressingIssuedListingRow,
   pressingText,
   sanitizePressingInteger,
-  sumPressingDraftQuantity,
   type PressingUsageDraft,
 } from "./pressingQuantity";
 import { usePressingBaseStock, type PressingBaseMaterialType } from "./usePressingBaseStock";
@@ -99,10 +100,38 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
   const [veneerDrafts, setVeneerDrafts] = useState<Record<string, PressingUsageDraft>>(
     editForm?.veneerDrafts ?? {},
   );
-  const [baseType, setBaseType] = useState<PressingBaseMaterialType>(editForm?.baseType ?? "");
+  const [groupDetailRows, setGroupDetailRows] = useState<PressingGroupDetailRow[]>(() =>
+    editForm?.veneerIds?.length
+      ? editForm.veneerIds.map((id, index) => ({
+          id: `grp-init-${index}`,
+          selectedRecordId: id,
+          consume: editForm?.veneerDrafts?.[id]?.qtyToUse ?? "",
+        }))
+      : [{ id: "grp-init-0", selectedRecordId: "", consume: "" }],
+  );
+  const [baseType, setBaseType] = useState<PressingBaseMaterialType>(editForm?.baseType ?? "Plywood");
   const [selectedBaseIds, setSelectedBaseIds] = useState<string[]>(editForm?.baseIds ?? []);
   const [baseDrafts, setBaseDrafts] = useState<Record<string, PressingUsageDraft>>(
     editForm?.baseDrafts ?? {},
+  );
+  const [baseDetailRows, setBaseDetailRows] = useState<PressingBaseDetailRow[]>(() =>
+    editForm?.baseIds?.length
+      ? editForm.baseIds.map((id, index) => ({
+          id: `base-init-${index}`,
+          baseType: editForm?.baseType ?? "Plywood",
+          selectedRecordId: id,
+          consumeSheets: editForm?.baseDrafts?.[id]?.qtyToUse ?? "",
+          consumeSqm: "",
+        }))
+      : [
+          {
+            id: "base-init-0",
+            baseType: editForm?.baseType ?? "Plywood",
+            selectedRecordId: "",
+            consumeSheets: "",
+            consumeSqm: "",
+          },
+        ],
   );
   const [processValues, setProcessValues] = useState<PressingProcessValues>(
     editForm?.processValues ?? {
@@ -222,9 +251,66 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
     selectedOrder,
   ]);
 
+  // Keep initial blank row with selection input ready on access if no rows are present
+  useEffect(() => {
+    if (isEdit) {
+      return;
+    }
+    if (groupDetailRows.length === 0) {
+      setGroupDetailRows([{ id: "grp-init-0", selectedRecordId: "", consume: "" }]);
+    }
+  }, [groupDetailRows.length, isEdit]);
+
+  useEffect(() => {
+    if (isEdit) {
+      return;
+    }
+    if (baseDetailRows.length === 0) {
+      setBaseDetailRows([{ id: "base-init-0", baseType: baseType || "Plywood", selectedRecordId: "", consumeSheets: "", consumeSqm: "" }]);
+    }
+  }, [baseDetailRows.length, baseType, isEdit]);
+
+  // Synchronize veneer selection and drafts from groupDetailRows
+  useEffect(() => {
+    const validGroupRows = groupDetailRows.filter((r) => r.selectedRecordId);
+    const nextIds = validGroupRows.map((r) => r.selectedRecordId);
+    setSelectedVeneerIds(nextIds);
+    setVeneerDrafts(
+      validGroupRows.reduce(
+        (acc, r) => ({
+          ...acc,
+          [r.selectedRecordId]: {
+            qtyToUse: r.consume,
+            remark: "",
+          },
+        }),
+        {} as Record<string, PressingUsageDraft>,
+      ),
+    );
+  }, [groupDetailRows]);
+
+  // Synchronize base selection and drafts from baseDetailRows
+  useEffect(() => {
+    const validBaseRows = baseDetailRows.filter((r) => r.selectedRecordId);
+    const nextIds = validBaseRows.map((r) => r.selectedRecordId);
+    setSelectedBaseIds(nextIds);
+    setBaseDrafts(
+      validBaseRows.reduce(
+        (acc, r) => ({
+          ...acc,
+          [r.selectedRecordId]: {
+            qtyToUse: r.consumeSheets,
+            remark: "",
+          },
+        }),
+        {} as Record<string, PressingUsageDraft>,
+      ),
+    );
+  }, [baseDetailRows]);
+
   const selectedVeneerRows = rowsFromIds(issuedRows, selectedVeneerIds);
   const selectedBaseRows = rowsFromIds(baseSelectionRows, selectedBaseIds);
-  const detailSource = selectedVeneerRows[0] ?? issuedRows[0];
+  const detailSource = selectedVeneerRows[0];
   const detailSourceId = detailSource ? String(detailSource.id) : "";
   useEffect(() => {
     const keepsSavedOutput =
@@ -235,7 +321,7 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
       return;
     }
 
-    const row = selectedVeneerRows[0] ?? issuedRows[0];
+    const row = selectedVeneerRows[0];
     if (!row) {
       if (isEdit) {
         return;
@@ -270,28 +356,22 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
     }));
   }, [detailSourceId, editContext, isEdit]);
   const outputSheets = Number(processValues.noOfSheets);
-  const veneerUseTotal = sumPressingDraftQuantity(selectedVeneerIds, veneerDrafts);
-  const baseUseTotal = sumPressingDraftQuantity(selectedBaseIds, baseDrafts);
-  const veneerQtyInvalid = selectedVeneerRows.some((row) =>
-    Boolean(
-      getPressingQtyError(
-        veneerDrafts[String(row.id)]?.qtyToUse ?? "",
-        row.availableQty,
-        true,
-        "Qty to use",
-      ),
-    ),
-  );
-  const baseQtyInvalid = selectedBaseRows.some((row) =>
-    Boolean(
-      getPressingQtyError(
-        baseDrafts[String(row.id)]?.qtyToUse ?? "",
-        row.availableSheets,
-        true,
-        "Sheets to use",
-      ),
-    ),
-  );
+  const veneerUseTotal = groupDetailRows.reduce((sum, r) => sum + (Number(r.consume) || 0), 0);
+  const baseUseTotal = baseDetailRows.reduce((sum, r) => sum + (Number(r.consumeSheets) || 0), 0);
+  const veneerQtyInvalid = groupDetailRows.some((r) => {
+    if (!r.selectedRecordId) return true;
+    const record = issuedRows.find((item) => String(item.id) === r.selectedRecordId);
+    const available = record ? getPressingAvailableQuantity(record) : 0;
+    const val = Number(r.consume);
+    return !r.consume.trim() || Number.isNaN(val) || val <= 0 || val > available;
+  });
+  const baseQtyInvalid = baseDetailRows.some((r) => {
+    if (!r.selectedRecordId) return true;
+    const record = baseSelectionRows.find((item) => String(item.id) === r.selectedRecordId);
+    const available = record ? getPressingAvailableQuantity(record) : 0;
+    const val = Number(r.consumeSheets);
+    return !r.consumeSheets.trim() || Number.isNaN(val) || val <= 0 || val > available;
+  });
   const outputExceedsVeneer =
     outputSheets > 0 && veneerUseTotal > 0 && outputSheets > veneerUseTotal;
   const outputExceedsBase =
@@ -306,32 +386,16 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
     (purpose === "Order"
       ? Boolean(orderNo && orderItemNo && orderActive)
       : purpose === "Sample Sheet" && Boolean(sampleNo)) &&
-    selectedVeneerRows.length > 0 &&
+    groupDetailRows.length > 0 &&
     !veneerQtyInvalid &&
     (baseType === "Plywood" || baseType === "MDF") &&
-    selectedBaseRows.length > 0 &&
+    baseDetailRows.length > 0 &&
     !baseQtyInvalid &&
     Boolean(processValues.pressingDate && processValues.outputItemName.trim()) &&
     outputSheets > 0 &&
     !outputExceedsVeneer &&
     !outputExceedsBase &&
     !rejectQuantityInvalid;
-
-  useEffect(() => {
-    setSelectedVeneerIds((current) => {
-      const next = current.filter((id) => issuedRows.some((row) => String(row.id) === id));
-      return next.length === current.length ? current : next;
-    });
-  }, [issuedRows]);
-
-  useEffect(() => {
-    setSelectedBaseIds((current) => {
-      const next = current.filter((id) =>
-        baseSelectionRows.some((row) => String(row.id) === id),
-      );
-      return next.length === current.length ? current : next;
-    });
-  }, [baseSelectionRows]);
 
   const handleCreate = () => {
     setHasSubmitted(true);
@@ -553,112 +617,46 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
         </Typography>
       ) : null}
 
-      {pressingReady ? (
-        <Stack
-          sx={(theme) => ({
-            ...formSectionCardSx(theme),
-            gap: theme.spacing(1),
-            maxWidth: "100%",
-            minWidth: 0,
-            width: "100%",
-          })}
-        >
-          <FormSectionHeader title="Issued for Pressing" />
-          <PressingIssuedSelection
-            columns={
-              purpose === "Sample Sheet" ? pressingSampleIssuedColumns : pressingOrderIssuedColumns
-            }
-            emptyLabel={issuedEmptyLabel}
-            onSelectedIdsChange={setSelectedVeneerIds}
-            rows={issuedRows}
-            selectedIds={selectedVeneerIds}
-            showError={hasSubmitted && selectedVeneerRows.length === 0}
+      {selectionReady ? (
+        <>
+          <PressingProcessFields
+            onChange={(patch) => setProcessValues((current) => ({ ...current, ...patch }))}
+            outputError={hasSubmitted ? outputError : ""}
+            showErrors={hasSubmitted}
+            values={processValues}
           />
-        </Stack>
+
+          <Divider sx={(theme) => ({ borderColor: theme.customTokens.borders.divider, my: 1 })} />
+        </>
+      ) : null}
+
+      {pressingReady ? (
+        <>
+          <PressingGroupDetailsTable
+            availableRows={issuedRows}
+            emptyMessage={issuedEmptyLabel}
+            onRowsChange={setGroupDetailRows}
+            rows={groupDetailRows}
+            showErrors={hasSubmitted}
+          />
+
+          {baseReady ? (
+            <Divider sx={(theme) => ({ borderColor: theme.customTokens.borders.divider, my: 1 })} />
+          ) : null}
+        </>
       ) : null}
 
       {baseReady ? (
-        <Stack
-          sx={(theme) => ({
-            ...formSectionCardSx(theme),
-            gap: theme.spacing(1),
-            maxWidth: "100%",
-            minWidth: 0,
-            width: "100%",
-          })}
-        >
-          <FormSectionHeader title="Available Base Material" />
-          <PressingIssuedSelection
-            columns={pressingBaseStockColumns}
-            emptyLabel={
-              baseStock.emptyLabel ||
-              `No ${baseType.toLowerCase()} stock with available sheets in the production warehouse.`
-            }
-            errorText={`Select at least one ${baseType} stock record.`}
-            loading={baseStock.isLoading}
-            onSelectedIdsChange={setSelectedBaseIds}
-            placeholder={`Search ${baseType.toLowerCase()} stock...`}
-            rows={baseSelectionRows}
-            selectedIds={selectedBaseIds}
-            showError={hasSubmitted && selectedBaseRows.length === 0}
-          />
-        </Stack>
-      ) : null}
-
-      {selectionReady ? (
-        <PressingProcessFields
-          onChange={(patch) => setProcessValues((current) => ({ ...current, ...patch }))}
-          outputError={hasSubmitted ? outputError : ""}
-          showErrors={hasSubmitted}
-          values={processValues}
-        />
-      ) : null}
-
-      {selectedVeneerRows.length > 0 ? (
-        <PressingSelectedVeneer
-          drafts={veneerDrafts}
-          onDraftChange={(rowId, patch) =>
-            setVeneerDrafts((current) => ({
-              ...current,
-              [rowId]: {
-                qtyToUse: current[rowId]?.qtyToUse ?? "",
-                remark: current[rowId]?.remark ?? "",
-                ...patch,
-              },
-            }))
+        <PressingBaseDetailsTable
+          availableRows={baseSelectionRows}
+          currentBaseType={baseType}
+          emptyMessage={
+            baseStock.emptyLabel ||
+            `No ${baseType.toLowerCase()} stock with available sheets in the production warehouse.`
           }
-          onRemove={(rowId) =>
-            setSelectedVeneerIds((current) => current.filter((id) => id !== rowId))
-          }
-          rows={selectedVeneerRows}
+          onRowsChange={setBaseDetailRows}
+          rows={baseDetailRows}
           showErrors={hasSubmitted}
-        />
-      ) : null}
-
-      {selectedBaseRows.length > 0 ? (
-        <PressingSelectedBase
-          drafts={baseDrafts}
-          materialType={baseType}
-          onDraftChange={(rowId, patch) =>
-            setBaseDrafts((current) => ({
-              ...current,
-              [rowId]: {
-                qtyToUse: current[rowId]?.qtyToUse ?? "",
-                remark: current[rowId]?.remark ?? "",
-                ...patch,
-              },
-            }))
-          }
-          onRemove={(rowId) => setSelectedBaseIds((current) => current.filter((id) => id !== rowId))}
-          rows={selectedBaseRows}
-          showErrors={hasSubmitted}
-        />
-      ) : null}
-
-      {selectionReady ? (
-        <PressingRejectDetails
-          onChange={(patch) => setRejectValues((current) => ({ ...current, ...patch }))}
-          values={rejectValues}
         />
       ) : null}
     </FactoryPageShell>

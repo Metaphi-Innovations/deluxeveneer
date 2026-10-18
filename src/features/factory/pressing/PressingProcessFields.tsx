@@ -9,10 +9,10 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
 } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { FormSectionHeader, formSectionCardSx } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
   pressingCompactBodyCellSx,
@@ -86,8 +86,19 @@ export function PressingProcessFields({
     (showErrors && !values.noOfSheets.trim() ? "No of sheets must be greater than 0." : "");
 
   return (
-    <Stack sx={(theme) => ({ ...formSectionCardSx(theme), gap: theme.spacing(1) })}>
-      <FormSectionHeader title="Pressing Details" />
+    <Stack sx={{ gap: 1 }}>
+      <Typography
+        component="h3"
+        sx={(theme) => ({
+          color: theme.customTokens.neutrals[900],
+          fontSize: "0.875rem",
+          fontWeight: 600,
+          letterSpacing: "0.01em",
+          lineHeight: 1.25,
+        })}
+      >
+        Pressing Details
+      </Typography>
       <Box sx={(theme) => listingTableContainerSx(theme)}>
         <TableContainer sx={(theme) => pressingTableScrollSx(theme)}>
           <Table stickyHeader sx={pressingDetailsTableSx}>

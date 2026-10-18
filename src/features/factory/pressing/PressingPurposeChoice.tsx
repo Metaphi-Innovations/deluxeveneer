@@ -69,7 +69,9 @@ export function PressingPurposeChoice({
           display: "flex",
           flexWrap: "wrap",
           gap: theme.spacing(1),
-          py: 1,
+          py: 0.5,
+          px: 1.25,
+          minHeight: 34,
           width: "fit-content",
           maxWidth: "100%",
         })}
@@ -79,13 +81,25 @@ export function PressingPurposeChoice({
             color: theme.customTokens.text.primary,
             fontSize: theme.typography.caption.fontSize,
             fontWeight: 700,
-            lineHeight: "28px",
+            lineHeight: "22px",
             whiteSpace: "nowrap",
           })}
         >
           Pressing For
         </Typography>
-        <Box sx={(theme) => ({ display: "flex", gap: theme.spacing(1) })}>
+        <Box
+          sx={(theme) => ({
+            display: "inline-flex",
+            alignItems: "center",
+            p: "2px",
+            borderRadius: `${theme.customTokens.radius.md}px`,
+            backgroundColor: theme.customTokens.surfaces.alt,
+            border: `1px solid ${
+              missing ? theme.palette.error.main : theme.customTokens.borders.default
+            }`,
+            gap: "2px",
+          })}
+        >
           {pressingPurposeOptions.map((option) => {
             const selected = value === option;
 
@@ -99,36 +113,35 @@ export function PressingPurposeChoice({
                 sx={(theme) => ({
                   backgroundColor: selected
                     ? theme.customTokens.brand.primary
-                    : theme.customTokens.surfaces.surface,
-                  border: `1px solid ${
-                    selected
-                      ? theme.customTokens.brand.primary
-                      : missing
-                        ? theme.palette.error.main
-                        : theme.customTokens.borders.default
-                  }`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
+                    : "transparent",
+                  border: "none",
+                  borderRadius: `${Math.max(theme.customTokens.radius.md - 2, 4)}px`,
                   color: selected
                     ? theme.palette.common.white
-                    : theme.customTokens.text.primary,
+                    : theme.customTokens.text.secondary,
                   cursor: "pointer",
                   font: "inherit",
-                  fontSize: theme.typography.caption.fontSize,
-                  fontWeight: 700,
-                  height: 28,
-                  px: 0,
-                  width: 104,
+                  fontSize: "0.75rem",
+                  fontWeight: selected ? 700 : 600,
+                  height: 22,
+                  px: 1.25,
+                  minWidth: 84,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s ease-in-out",
+                  boxShadow: selected ? "0 1px 2px rgba(0,0,0,0.12)" : "none",
                   "&:hover": {
                     backgroundColor: selected
                       ? theme.customTokens.brand.primary
-                      : theme.customTokens.surfaces.alt,
-                    borderColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.borders.hover,
+                      : theme.customTokens.surfaces.surface,
+                    color: selected
+                      ? theme.palette.common.white
+                      : theme.customTokens.text.primary,
                   },
                   "&:focus-visible": {
                     outline: `2px solid ${theme.customTokens.brand.primary}`,
-                    outlineOffset: 2,
+                    outlineOffset: 1,
                   },
                 })}
               >
@@ -143,7 +156,7 @@ export function PressingPurposeChoice({
               color: theme.palette.error.main,
               fontSize: theme.typography.caption.fontSize,
               fontWeight: 600,
-              lineHeight: "28px",
+              lineHeight: "22px",
             })}
           >
             Select Order or Sample Sheet.
@@ -158,7 +171,9 @@ export function PressingPurposeChoice({
           display: "flex",
           flexWrap: "wrap",
           gap: theme.spacing(1),
-          py: 1,
+          py: 0.5,
+          px: 1.25,
+          minHeight: 34,
           width: "fit-content",
           maxWidth: "100%",
         })}
@@ -168,13 +183,25 @@ export function PressingPurposeChoice({
             color: theme.customTokens.text.primary,
             fontSize: theme.typography.caption.fontSize,
             fontWeight: 700,
-            lineHeight: "28px",
+            lineHeight: "22px",
             whiteSpace: "nowrap",
           })}
         >
           Base Material
         </Typography>
-        <Box sx={(theme) => ({ display: "flex", gap: theme.spacing(1) })}>
+        <Box
+          sx={(theme) => ({
+            display: "inline-flex",
+            alignItems: "center",
+            p: "2px",
+            borderRadius: `${theme.customTokens.radius.md}px`,
+            backgroundColor: theme.customTokens.surfaces.alt,
+            border: `1px solid ${
+              baseMissing ? theme.palette.error.main : theme.customTokens.borders.default
+            }`,
+            gap: "2px",
+          })}
+        >
           {(["Plywood", "MDF"] as const).map((option) => {
             const selected = baseType === option;
 
@@ -188,36 +215,35 @@ export function PressingPurposeChoice({
                 sx={(theme) => ({
                   backgroundColor: selected
                     ? theme.customTokens.brand.primary
-                    : theme.customTokens.surfaces.surface,
-                  border: `1px solid ${
-                    selected
-                      ? theme.customTokens.brand.primary
-                      : baseMissing
-                        ? theme.palette.error.main
-                        : theme.customTokens.borders.default
-                  }`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
+                    : "transparent",
+                  border: "none",
+                  borderRadius: `${Math.max(theme.customTokens.radius.md - 2, 4)}px`,
                   color: selected
                     ? theme.palette.common.white
-                    : theme.customTokens.text.primary,
+                    : theme.customTokens.text.secondary,
                   cursor: "pointer",
                   font: "inherit",
-                  fontSize: theme.typography.caption.fontSize,
-                  fontWeight: 700,
-                  height: 28,
-                  px: 0,
-                  width: 104,
+                  fontSize: "0.75rem",
+                  fontWeight: selected ? 700 : 600,
+                  height: 22,
+                  px: 1.25,
+                  minWidth: 84,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s ease-in-out",
+                  boxShadow: selected ? "0 1px 2px rgba(0,0,0,0.12)" : "none",
                   "&:hover": {
                     backgroundColor: selected
                       ? theme.customTokens.brand.primary
-                      : theme.customTokens.surfaces.alt,
-                    borderColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.borders.hover,
+                      : theme.customTokens.surfaces.surface,
+                    color: selected
+                      ? theme.palette.common.white
+                      : theme.customTokens.text.primary,
                   },
                   "&:focus-visible": {
                     outline: `2px solid ${theme.customTokens.brand.primary}`,
-                    outlineOffset: 2,
+                    outlineOffset: 1,
                   },
                 })}
               >
@@ -232,7 +258,7 @@ export function PressingPurposeChoice({
               color: theme.palette.error.main,
               fontSize: theme.typography.caption.fontSize,
               fontWeight: 600,
-              lineHeight: "28px",
+              lineHeight: "22px",
             })}
           >
             Select Plywood or MDF.
