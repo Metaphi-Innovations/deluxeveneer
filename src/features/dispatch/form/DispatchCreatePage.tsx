@@ -231,20 +231,20 @@ function getDynamicItemTableColumns(
   }
 
   // GST logic:
-  // Add GST % column when GST applies
-  // If intra state (same state), display SGST and CGST
-  // If inter state (another state), display IGST
+  // Add GST % column when GST applies with percentage segregation
+  // If intra state (same state), display SGST (9%) and CGST (9%)
+  // If inter state (another state), display IGST (18%)
   // If none or null, do not display
   if (gstMode === "intra") {
     cols.push(
       { key: "gstPercent", label: "GST %", minWidth: 100 },
-      { key: "cgstAmount", label: "CGST Amount", minWidth: 140 },
-      { key: "sgstAmount", label: "SGST Amount", minWidth: 140 },
+      { key: "cgstAmount", label: "CGST (9%)", minWidth: 140 },
+      { key: "sgstAmount", label: "SGST (9%)", minWidth: 140 },
     );
   } else if (gstMode === "inter") {
     cols.push(
       { key: "gstPercent", label: "GST %", minWidth: 100 },
-      { key: "igstAmount", label: "IGST Amount", minWidth: 140 },
+      { key: "igstAmount", label: "IGST (18%)", minWidth: 140 },
     );
   }
 
@@ -971,7 +971,6 @@ function MultiSelectField({
     >
       <Autocomplete
         multiple
-        disableCloseOnSelect
         disabled={disabled}
         options={finalOptions}
         value={[...value]}
@@ -1342,7 +1341,7 @@ function mapDispatchItemRow(
     itemAmount: formatAmount(currentAmount),
     discountPercent: "0",
     itemAmountWithDiscount: formatAmount(currentAmount),
-    gstPercent: gstMode === "none" ? "0" : "18",
+    gstPercent: gstMode === "none" ? "0%" : "18%",
     gstAmount: formatAmount(totalGstAmount),
     cgstAmount,
     sgstAmount,

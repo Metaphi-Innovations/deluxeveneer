@@ -53,10 +53,6 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
     renderCell: (row) => <OrderStatusChip status={String(row.status ?? "")} />,
   },
   { label: "Remark", minWidth: 220, getValue: (row) => row.remark },
-  { label: "Created Date", minWidth: 130, getValue: (row) => row.createdDate },
-  { label: "Updated Date", minWidth: 130, getValue: (row) => row.updatedDate },
-  { label: "Created By", minWidth: 130, getValue: (row) => row.createdBy },
-  { label: "Updated By", minWidth: 130, getValue: (row) => row.updatedBy },
 ];
 
 type OrderLineItemTableRow = OrderLineItem & {
@@ -494,18 +490,26 @@ function getItemDetailColumns(
     );
   }
 
+  if (hasDecorative) {
+    cols.push(
+      { label: "Group No", minWidth: 100, getValue: (row) => row.groupNo ?? "-" },
+      { label: "Photo No", minWidth: 100, getValue: (row) => row.photoNo ?? "-" },
+    );
+  }
+
+  if (hasFluted) {
+    cols.push({ label: "Design Code", minWidth: 120, getValue: (row) => row.designCode });
+  }
+
+  if (hasEmbossed) {
+    cols.push({ label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode });
+  }
+
   cols.push(
     { label: "Length", minWidth: 100, getValue: (row) => row.length },
     { label: "Width", minWidth: 100, getValue: (row) => row.width },
     { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
   );
-
-  if (hasSawing) {
-    cols.push(
-      { label: "CBM", minWidth: 90, getValue: (row) => row.cbm ?? "-" },
-      { label: "CBF", minWidth: 90, getValue: (row) => row.cbf ?? "-" },
-    );
-  }
 
   if (hasSheetRaw || hasFinished) {
     cols.push({ label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets });
@@ -513,6 +517,13 @@ function getItemDetailColumns(
 
   if (hasVeneer) {
     cols.push({ label: "Leaves", minWidth: 80, getValue: (row) => row.noOfLeaves ?? "-" });
+  }
+
+  if (hasSawing) {
+    cols.push(
+      { label: "CBM", minWidth: 90, getValue: (row) => row.cbm ?? "-" },
+      { label: "CBF", minWidth: 90, getValue: (row) => row.cbf ?? "-" },
+    );
   }
 
   if (hasVeneer || hasSheetRaw || hasFinished) {
@@ -540,13 +551,6 @@ function getItemDetailColumns(
     { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
   );
 
-  if (hasDecorative) {
-    cols.push(
-      { label: "Group No", minWidth: 100, getValue: (row) => row.groupNo ?? "-" },
-      { label: "Photo No", minWidth: 100, getValue: (row) => row.photoNo ?? "-" },
-    );
-  }
-
   if (hasFinished) {
     cols.push(
       { label: "Base Type", minWidth: 120, getValue: (row) => row.baseType },
@@ -555,14 +559,6 @@ function getItemDetailColumns(
       { label: "Base Width", minWidth: 110, getValue: (row) => row.baseWidth },
       { label: "Base Thickness", minWidth: 120, getValue: (row) => row.baseThickness },
     );
-  }
-
-  if (hasFluted) {
-    cols.push({ label: "Design Code", minWidth: 120, getValue: (row) => row.designCode });
-  }
-
-  if (hasEmbossed) {
-    cols.push({ label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode });
   }
 
   cols.push({ label: "Remark", minWidth: 180, getValue: (row) => row.remark });

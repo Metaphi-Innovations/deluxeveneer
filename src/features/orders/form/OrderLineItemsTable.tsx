@@ -92,7 +92,7 @@ export function formatProductTypeLabel(value?: string): string {
     return trimmed;
   }
   const norm = trimmed.toLowerCase();
-  if (norm === "veneer" || norm === "raw" || norm === "mdf") {
+  if (norm === "veneer" || norm === "sawing" || norm === "mdf" || norm === "plywood") {
     return `${trimmed} (Raw)`;
   }
   return `${trimmed} (Finished)`;
@@ -548,13 +548,12 @@ const finishedProductFlutedRow: EntryRowConfig = {
     "baseLength",
     "baseWidth",
     "baseThickness",
-    "designCode",
     "remark",
   ],
   template: {
     xs: "1fr",
     sm: "1fr 1fr",
-    md: "minmax(120px, 1fr) minmax(180px, 1.6fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) minmax(140px, 1.2fr) minmax(180px, 1.4fr)",
+    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
   },
 };
 
@@ -565,20 +564,17 @@ const finishedProductEmbossedRow: EntryRowConfig = {
     "baseLength",
     "baseWidth",
     "baseThickness",
-    "structuredCode",
     "remark",
   ],
   template: {
     xs: "1fr",
     sm: "1fr 1fr",
-    md: "minmax(120px, 1fr) minmax(180px, 1.6fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) minmax(140px, 1.2fr) minmax(180px, 1.4fr)",
+    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
   },
 };
 
 const finishedProductDecorativeRow: EntryRowConfig = {
   keys: [
-    "groupNo",
-    "photoNo",
     "baseType",
     "baseName",
     "baseLength",
@@ -589,7 +585,7 @@ const finishedProductDecorativeRow: EntryRowConfig = {
   template: {
     xs: "1fr",
     sm: "1fr 1fr",
-    md: "minmax(120px, 1fr) minmax(120px, 1fr) minmax(120px, 1fr) minmax(170px, 1.4fr) repeat(3, minmax(100px, 0.8fr)) minmax(180px, 1.4fr)",
+    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
   },
 };
 
@@ -604,6 +600,55 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
           ? finishedProductDecorativeRow
           : finishedProductBaseRow;
 
+  const middleKeys: readonly (keyof Omit<OrderLineItem, "id">)[] =
+    normalized === "decorative"
+      ? [
+          "groupNo",
+          "photoNo",
+          "length",
+          "width",
+          "thickness",
+          "quantitySheets",
+          "sqm",
+          "totalSqm",
+          "ratePerSqf",
+          "amount",
+        ]
+      : normalized === "fluted"
+        ? [
+            "designCode",
+            "length",
+            "width",
+            "thickness",
+            "quantitySheets",
+            "sqm",
+            "totalSqm",
+            "ratePerSqf",
+            "amount",
+          ]
+        : normalized === "embossed"
+          ? [
+              "structuredCode",
+              "length",
+              "width",
+              "thickness",
+              "quantitySheets",
+              "sqm",
+              "totalSqm",
+              "ratePerSqf",
+              "amount",
+            ]
+          : [
+              "length",
+              "width",
+              "thickness",
+              "quantitySheets",
+              "sqm",
+              "totalSqm",
+              "ratePerSqf",
+              "amount",
+            ];
+
   return [
     {
       keys: ["finishedType", "itemName", "salesItemName"],
@@ -614,20 +659,11 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
       },
     },
     {
-      keys: [
-        "length",
-        "width",
-        "thickness",
-        "quantitySheets",
-        "sqm",
-        "totalSqm",
-        "ratePerSqf",
-        "amount",
-      ],
+      keys: middleKeys,
       template: {
         xs: "1fr 1fr",
         sm: "repeat(4, minmax(120px, 1fr))",
-        md: "repeat(8, minmax(110px, 1fr))",
+        md: `repeat(${middleKeys.length}, minmax(105px, 1fr))`,
       },
     },
     thirdRow,
@@ -663,7 +699,7 @@ const sheetBasedRawEntryRows: readonly EntryRowConfig[] = [
     },
   },
   {
-    keys: ["quantitySheets", "length", "width", "thickness", "sqm", "ratePerSqf", "amount", "remark"],
+    keys: ["length", "width", "thickness", "quantitySheets", "sqm", "ratePerSqf", "amount", "remark"],
     template: {
       xs: "1fr 1fr",
       sm: "repeat(4, 1fr)",
@@ -707,6 +743,55 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
             ? finishedProductDecorativeRow
             : finishedProductBaseRow;
 
+    const middleKeys: readonly (keyof Omit<OrderLineItem, "id">)[] =
+      normalized === "decorative"
+        ? [
+            "groupNo",
+            "photoNo",
+            "length",
+            "width",
+            "thickness",
+            "quantitySheets",
+            "sqm",
+            "totalSqm",
+            "ratePerSqf",
+            "amount",
+          ]
+        : normalized === "fluted"
+          ? [
+              "designCode",
+              "length",
+              "width",
+              "thickness",
+              "quantitySheets",
+              "sqm",
+              "totalSqm",
+              "ratePerSqf",
+              "amount",
+            ]
+          : normalized === "embossed"
+            ? [
+                "structuredCode",
+                "length",
+                "width",
+                "thickness",
+                "quantitySheets",
+                "sqm",
+                "totalSqm",
+                "ratePerSqf",
+                "amount",
+              ]
+            : [
+                "length",
+                "width",
+                "thickness",
+                "quantitySheets",
+                "sqm",
+                "totalSqm",
+                "ratePerSqf",
+                "amount",
+              ];
+
     return [
       {
         keys: ["productCategory", "itemName", "salesItemName"],
@@ -717,20 +802,11 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
         },
       },
       {
-        keys: [
-          "length",
-          "width",
-          "thickness",
-          "quantitySheets",
-          "sqm",
-          "totalSqm",
-          "ratePerSqf",
-          "amount",
-        ],
+        keys: middleKeys,
         template: {
           xs: "1fr 1fr",
           sm: "repeat(4, minmax(120px, 1fr))",
-          md: "repeat(8, minmax(110px, 1fr))",
+          md: `repeat(${middleKeys.length}, minmax(105px, 1fr))`,
         },
       },
       thirdRow,
@@ -1421,18 +1497,26 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
     );
   }
 
+  if (hasDecorative) {
+    headers.push(
+      { label: "Group No", minWidth: 100, align: "left" },
+      { label: "Photo No", minWidth: 100, align: "left" },
+    );
+  }
+
+  if (hasFluted) {
+    headers.push({ label: "Design Code", minWidth: 120, align: "left" });
+  }
+
+  if (hasEmbossed) {
+    headers.push({ label: "Structured Code", minWidth: 130, align: "left" });
+  }
+
   headers.push(
     { label: "Length", minWidth: 100, align: "left" },
     { label: "Width", minWidth: 100, align: "left" },
     { label: "Thickness", minWidth: 100, align: "left" },
   );
-
-  if (hasSawing) {
-    headers.push(
-      { label: "CBM", minWidth: 90, align: "right" },
-      { label: "CBF", minWidth: 90, align: "right" },
-    );
-  }
 
   if (hasSheetRaw || hasFinished) {
     headers.push({ label: "Sheets", minWidth: 80, align: "right" });
@@ -1440,6 +1524,13 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
 
   if (hasVeneer) {
     headers.push({ label: "Leaves", minWidth: 80, align: "right" });
+  }
+
+  if (hasSawing) {
+    headers.push(
+      { label: "CBM", minWidth: 90, align: "right" },
+      { label: "CBF", minWidth: 90, align: "right" },
+    );
   }
 
   if (hasVeneer || hasSheetRaw || hasFinished) {
@@ -1452,13 +1543,6 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
     { label: "Amount", minWidth: 110, align: "right" },
   );
 
-  if (hasDecorative) {
-    headers.push(
-      { label: "Group No", minWidth: 100, align: "left" },
-      { label: "Photo No", minWidth: 100, align: "left" },
-    );
-  }
-
   if (hasFinished) {
     headers.push(
       { label: "Base Type", minWidth: 120, align: "left" },
@@ -1467,14 +1551,6 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
       { label: "Base Width", minWidth: 110, align: "left" },
       { label: "Base Thickness", minWidth: 120, align: "left" },
     );
-  }
-
-  if (hasFluted) {
-    headers.push({ label: "Design Code", minWidth: 120, align: "left" });
-  }
-
-  if (hasEmbossed) {
-    headers.push({ label: "Structured Code", minWidth: 130, align: "left" });
   }
 
   headers.push({ label: "Remark", minWidth: 180, align: "left" });
@@ -1610,7 +1686,7 @@ function getUnifiedProductType(row: OrderLineItem) {
 
 function isFinishedProductType(value: string | undefined) {
   const norm = normalizeProductType(value);
-  return ["decorative", "marquetry", "fluted", "embossed", "plywood"].includes(norm);
+  return ["decorative", "marquetry", "fluted", "embossed"].includes(norm);
 }
 
 function isBaseField(key: keyof Omit<OrderLineItem, "id">) {

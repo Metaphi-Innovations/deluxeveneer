@@ -116,6 +116,9 @@ const ALL_PACKING_SOURCE_COLUMNS: readonly EnterpriseTableColumn<PackingSourceRo
     { key: "productCategory", label: "Product Type" },
     { key: "salesItemName", label: "Sales Item Name" },
     { key: "itemName", label: "Item Name" },
+    { key: "groupNo", label: "Group No" },
+    { key: "designCode", label: "Design Code" },
+    { key: "structuredCode", label: "Structured Code" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
@@ -124,14 +127,11 @@ const ALL_PACKING_SOURCE_COLUMNS: readonly EnterpriseTableColumn<PackingSourceRo
     { key: "sqf", label: "SQF" },
     { key: "ratePerSqf", label: "Rate" },
     { key: "amount", label: "Amount" },
-    { key: "groupNo", label: "Group No" },
     { key: "baseType", label: "Base Type" },
     { key: "baseName", label: "Base Name" },
     { key: "baseLength", label: "Base Length" },
     { key: "baseWidth", label: "Base Width" },
     { key: "baseThickness", label: "Base Thickness" },
-    { key: "designCode", label: "Design Code" },
-    { key: "structuredCode", label: "Structured Code" },
     { key: "remark", label: "Remark" },
   ];
 
@@ -141,10 +141,6 @@ function getDynamicPackingSourceColumns(
   if (rows.length === 0) {
     return ALL_PACKING_SOURCE_COLUMNS;
   }
-
-  const productTypes = new Set(
-    rows.map((r) => (r.productCategory || "").trim().toLowerCase()),
-  );
 
   // Check if all rows are Veneer/Raw Veneer
   const allVeneer = rows.every((r) => {
@@ -181,6 +177,7 @@ function getDynamicPackingSourceColumns(
       { key: "productCategory", label: "Product Type" },
       { key: "salesItemName", label: "Sales Item Name" },
       { key: "itemName", label: "Item Name" },
+      { key: "groupNo", label: "Group No" },
       { key: "length", label: "Length" },
       { key: "width", label: "Width" },
       { key: "thickness", label: "Thickness" },
@@ -189,12 +186,34 @@ function getDynamicPackingSourceColumns(
       { key: "sqf", label: "SQF" },
       { key: "ratePerSqf", label: "Rate / SQF" },
       { key: "amount", label: "Amount" },
-      { key: "groupNo", label: "Group No" },
       { key: "baseType", label: "Base Type" },
       { key: "baseName", label: "Base Name" },
       { key: "baseLength", label: "Base Length" },
       { key: "baseWidth", label: "Base Width" },
       { key: "baseThickness", label: "Base Thickness" },
+      { key: "remark", label: "Remark" },
+    ];
+  }
+
+  // Check if all rows are MDF or Plywood
+  const allMdfOrPlywood = rows.every((r) => {
+    const pt = (r.productCategory || "").trim().toLowerCase();
+    return pt.includes("mdf") || pt.includes("plywood");
+  });
+
+  if (allMdfOrPlywood) {
+    return [
+      { key: "orderItemNo", label: "Order Item No" },
+      { key: "productCategory", label: "Product Type" },
+      { key: "salesItemName", label: "Sales Item Name" },
+      { key: "itemName", label: "Item Name" },
+      { key: "length", label: "Length" },
+      { key: "width", label: "Width" },
+      { key: "thickness", label: "Thickness" },
+      { key: "noOfSheets", label: "No. of Sheets" },
+      { key: "sqm", label: "SQM" },
+      { key: "ratePerSqf", label: "Rate" },
+      { key: "amount", label: "Amount" },
       { key: "remark", label: "Remark" },
     ];
   }
@@ -654,6 +673,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                           const isRaw =
                             normalizePackingOrderType(row.orderType) === "Raw";
                           createPackingEntry(undefined, {
+                            completeImmediately: true,
                             amount: row.amount,
                             customerName: selectedCustomerName || row.customerName,
                             issuedFrom: isRaw ? "Warehouse C" : "Factory",
@@ -663,6 +683,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                             orderNo: row.orderNo,
                             orderItemNo: row.orderItemNo,
                             orderType: normalizePackingOrderType(row.orderType),
+                            packingDate,
                             productCategory: row.productCategory,
                             remark: isRaw
                               ? `Stock eligible · ${row.orderNo}`
@@ -686,7 +707,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                           (row) => row.orderNo === selectedOrderNo,
                         );
                         createPackingEntry(undefined, {
-                          completeImmediately: false,
+                          completeImmediately: true,
                           packingDate,
                           remark,
                           customerName: selectedCustomerName || fallbackRow?.customerName || "",
@@ -710,17 +731,13 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                     const isEdit = mode !== "add" && Boolean(record);
                     const successMsg = isEdit
                       ? "Packing record updated successfully."
-                      : "Packing record added to queue successfully.";
+                      : "Packing record marked as Packing Done successfully.";
 
-                    if (window.history.length > 1) {
-                      navigate(-1);
-                    } else {
-                      navigate(paths.list, {
-                        state: {
-                          packingFlashMessage: successMsg,
-                        },
-                      });
-                    }
+                    navigate("/packing?tab=done", {
+                      state: {
+                        packingFlashMessage: successMsg,
+                      },
+                    });
                   }}
                   startIcon={mode === "add" ? undefined : <Save size={15} strokeWidth={2} />}
                   sx={(theme) =>
@@ -730,7 +747,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                   }
                   variant="contained"
                 >
-                  {mode === "add" ? "Add to Packing Queue" : "Save"}
+                  {mode === "add" ? "Add to Packing Done" : "Save"}
                 </Button>
               </>
             )}

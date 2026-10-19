@@ -178,10 +178,6 @@ export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] 
     { key: "dispatchQuantity", label: "Dispatch Quantity", filterable: true },
     { key: "issuedQuantity", label: "Issued Quantity", filterable: true },
     { key: "remark", label: "Remark" },
-    { key: "createdBy", label: "Created By", filterable: true },
-    { key: "createdDate", label: "Created Date", filterable: true },
-    { key: "updatedBy", label: "Updated By", filterable: true },
-    { key: "updatedDate", label: "Updated Date", filterable: true },
   ];
 
 export const orderTypeOptions = orderCreateOptions.map((option) => option.label);
@@ -189,9 +185,8 @@ export const orderTypeOptions = orderCreateOptions.map((option) => option.label)
 export const productCategoryOptions = [
   "Veneer (Raw)",
   "Sawing (Raw)",
-  "Raw (Raw)",
   "MDF (Raw)",
-  "Plywood (Finished)",
+  "Plywood (Raw)",
   "Decorative (Finished)",
   "Marquetry (Finished)",
   "Fluted (Finished)",
