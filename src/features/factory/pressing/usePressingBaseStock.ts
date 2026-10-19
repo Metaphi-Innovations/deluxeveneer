@@ -10,7 +10,6 @@ import {
 } from "../../warehouses/production/api/productionWarehouseApi";
 import type { FactoryRecord } from "../shared/types";
 import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
-import { buildPressingDummyBaseStock } from "./pressingDummyBaseStock";
 import { getPressingAvailableQuantity, pressingText } from "./pressingQuantity";
 
 export type PressingBaseMaterialType = "" | "Plywood" | "MDF";
@@ -43,7 +42,10 @@ async function fetchProductionWarehouseStock(
   return items;
 }
 
-function mapProductionStockRow(item: ProductionInventoryItem): FactoryRecord {
+function mapProductionStockRow(
+  item: ProductionInventoryItem,
+  warehouse: { id: string; label: string },
+): FactoryRecord {
   const receivedSheets =
     pressingText(item.receivedQuantity) ||
     pressingText(item.noOfSheets) ||
@@ -55,6 +57,9 @@ function mapProductionStockRow(item: ProductionInventoryItem): FactoryRecord {
 
   return {
     id: String(item.id),
+    warehouseId: warehouse.id,
+    warehouseName: warehouse.label || "Production Warehouse",
+    warehouseType: "Production",
     storageSrNo: pressingText(item.storageSrNo) || pressingText(item.productionSrNo),
     inwardSrNo: pressingText(item.inwardItemCode) || pressingText(item.inwardSrNo),
     itemName: pressingText(item.itemName),
@@ -100,10 +105,13 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
 
   const rows = useMemo(() => {
     const seen = new Set<string>();
-    const liveRows = stockQueries.flatMap((query) => {
+    const liveRows = stockQueries.flatMap((query, queryIndex) => {
       const items = (query.data ?? []) as ProductionInventoryItem[];
+      const warehouse = productionWarehouses[queryIndex];
+      if (!warehouse) return [];
+
       return items.flatMap((item) => {
-        const row = mapProductionStockRow(item);
+        const row = mapProductionStockRow(item, warehouse);
         const id = String(row.id);
         if (seen.has(id) || getPressingAvailableQuantity(row) <= 0) {
           return [];
@@ -117,8 +125,7 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
       return [];
     }
 
-    const sourceRows = liveRows.length > 0 ? liveRows : buildPressingDummyBaseStock(materialType);
-    return sourceRows.map((row) => {
+    return liveRows.map((row) => {
       const received = parseNumericValue(row.receivedSheets) ?? 0;
       const available = parseNumericValue(row.availableSheets) ?? received;
       return {
@@ -126,11 +133,20 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
         ...availableFactoryMeasures(row, received, available),
       };
     });
-  }, [materialType, stockQueries]);
+  }, [materialType, productionWarehouses, stockQueries]);
+
+  const isLoading = warehousesQuery.isLoading || stockQueries.some((query) => query.isLoading);
+  const emptyLabel = !materialSelected
+    ? "Select a base material."
+    : isLoading
+      ? "Loading Production Warehouse stock..."
+      : productionWarehouses.length === 0
+        ? "No Production Warehouse is configured."
+        : `No ${materialType.toLowerCase()} pallets with available sheets were found in the Production Warehouse.`;
 
   return {
-    emptyLabel: "",
-    isLoading: false,
+    emptyLabel,
+    isLoading,
     rows,
   };
 }

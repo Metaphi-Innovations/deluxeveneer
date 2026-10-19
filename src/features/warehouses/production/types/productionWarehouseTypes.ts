@@ -228,7 +228,7 @@ export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
 ];
 
 export interface SampleSheetTableRow extends EnterpriseTableRow {
-  sampleNo: string;
+  groupNo: string;
   issueDate: Date | string;
   itemName: string;
   subCategory: string;
@@ -243,7 +243,7 @@ export interface SampleSheetTableRow extends EnterpriseTableRow {
 }
 
 export const sampleSheetColumns: readonly EnterpriseTableColumn<SampleSheetTableRow>[] = [
-  { key: "sampleNo", label: "Sample No." },
+  { key: "groupNo", label: "Group No." },
   { key: "issueDate", label: "Issue Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -253,6 +253,6 @@ export const sampleSheetColumns: readonly EnterpriseTableColumn<SampleSheetTable
   { key: "thickness", label: "Thickness" },
   { key: "availableQuantity", label: "No. of Leaves / Quantity" },
   { key: "processRoute", label: "Process Route / Type" },
-  { key: "currentStage", label: "Current Stage" },
-  { key: "currentStatus", label: "Current Status" },
+  { key: "currentStage", label: "Current Process" },
+  { key: "currentStatus", label: "Process Status" },
 ];

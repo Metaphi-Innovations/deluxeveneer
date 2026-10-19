@@ -7,7 +7,7 @@ import type { FactoryRecord } from "../shared/types";
 
 export const marquetryCreateIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
   withAvailableFactoryMeasureColumns([
-  { key: "storageSrNo", label: "Storage No" },
+  { key: "groupNo", label: "Group No" },
   { key: "issuedDate", label: "Issued Date" },
   { key: "itemName", label: "Item Name" },
   { key: "itemSubCategory", label: "Item Sub-Category" },

@@ -11,8 +11,8 @@ import {
 } from "../types/productionWarehouseTypes";
 import {
   getSampleSheetByNo,
+  getSampleGroupNo,
   isSampleEligibleForOrder,
-  isStoredProductionSample,
   resolveSampleFinishedType,
   useSampleSheetRecords,
   type SampleSheetRecord,
@@ -50,9 +50,9 @@ export function SampleSheetsTab({
 
   const sampleRows = useMemo<SampleSheetTableRow[]>(
     () =>
-      sampleRecords.filter(isStoredProductionSample).map((sample) => ({
+      sampleRecords.map((sample) => ({
         id: sample.sampleNo,
-        sampleNo: sample.sampleNo,
+        groupNo: getSampleGroupNo(sample),
         issueDate: new Date(sample.issueDate),
         itemName: sample.itemName,
         subCategory: sample.subCategory,
@@ -94,7 +94,7 @@ export function SampleSheetsTab({
         label: "View",
         icon: Eye,
         onSelect: (row: SampleSheetTableRow) => {
-          const sample = getSampleSheetByNo(row.sampleNo);
+          const sample = getSampleSheetByNo(String(row.id));
           if (sample) {
             setJourneySample(sample);
           }
@@ -109,7 +109,7 @@ export function SampleSheetsTab({
         icon: Plus,
         tone: "primary",
         onSelect: (row: SampleSheetTableRow) => {
-          const sample = getSampleSheetByNo(row.sampleNo);
+          const sample = getSampleSheetByNo(String(row.id));
           if (!sample || !isSampleEligibleForOrder(sample)) {
             return;
           }
@@ -128,7 +128,7 @@ export function SampleSheetsTab({
                 thickness: sample.thickness,
                 quantitySheets: String(sample.availableSheets),
                 finishedType: resolveSampleFinishedType(sample),
-                remark: `From Sample ${sample.sampleNo}`,
+                remark: `From Group ${getSampleGroupNo(sample)}`,
               },
             },
           });
@@ -146,13 +146,13 @@ export function SampleSheetsTab({
         actions={actions}
         columns={sampleSheetColumns}
         defaultRowsPerPage={10}
-        emptyStateLabel="No sample sheets have been stored from Pressing yet."
+        emptyStateLabel="No grouped stock has been issued for sample sheets yet."
         getRowActions={(row) =>
           actions.filter((action) => {
             if (action.id !== "issue-for-order") {
               return true;
             }
-            const sample = getSampleSheetByNo(row.sampleNo);
+            const sample = getSampleSheetByNo(String(row.id));
             return Boolean(sample && isSampleEligibleForOrder(sample));
           })
         }
@@ -199,7 +199,7 @@ function SampleJourneyDialog({
           py: 1.5,
         })}
       >
-        Sample Journey {sample ? `· ${sample.sampleNo}` : ""}
+        Sample Journey {sample ? `· ${getSampleGroupNo(sample)}` : ""}
       </DialogTitle>
       <DialogContent sx={{ px: 2, py: "16px !important" }}>
         <Stack spacing={1.25}>

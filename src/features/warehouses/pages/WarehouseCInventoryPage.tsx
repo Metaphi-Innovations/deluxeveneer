@@ -67,7 +67,7 @@ type SampleSheetTableRow = EnterpriseTableRow & {
   itemName: string;
   length: string;
   processRoute: string;
-  sampleNo: string;
+  groupNo: string;
   subCategory: string;
   thickness: string;
   width: string;
@@ -84,7 +84,7 @@ const warehouseCInventoryTabs = [
 }[];
 
 const sampleSheetColumns: readonly EnterpriseTableColumn<SampleSheetTableRow>[] = [
-  { key: "sampleNo", label: "Sample No." },
+  { key: "groupNo", label: "Group No." },
   { key: "issueDate", label: "Issue Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },

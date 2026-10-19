@@ -1,6 +1,7 @@
 import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import {
   getAvailableGroupedSheets,
+  getGroupedStockIssuesForRow,
   getReceivedGroupedLeaves,
 } from "../shared/groupedStockIssueStore";
 import type { FactoryRecord } from "../shared/types";
@@ -27,6 +28,37 @@ function groupingIssuedIdentityFields<Row extends FactoryRecord>(row: Row) {
   };
 }
 
+function resolveGroupingIssuedFor<Row extends FactoryRecord>(row: Row): string {
+  const issues = getGroupedStockIssuesForRow(String(row.id));
+  if (issues.length > 0) {
+    const latest = issues[issues.length - 1];
+    if (latest) {
+      return latest.purpose === "sample-sheet" ? "Sample" : "Order";
+    }
+  }
+
+  const rawCandidates = [
+    typeof row.issuedFor === "string" ? row.issuedFor : "",
+    typeof row.issueTo === "string" ? row.issueTo : "",
+    typeof row.for === "string" ? row.for : "",
+    typeof row.forLabel === "string" ? row.forLabel : "",
+    typeof row.purpose === "string" ? row.purpose : "",
+  ];
+
+  for (const candidate of rawCandidates) {
+    if (!candidate.trim()) continue;
+    const lower = candidate.toLowerCase();
+    if (lower.includes("sample")) {
+      return "Sample";
+    }
+    if (lower.includes("order") || lower.includes("splicing")) {
+      return "Order";
+    }
+  }
+
+  return "Order";
+}
+
 export function mapGroupingListingRow<Row extends FactoryRecord>(
   row: Row,
   activeTab: string,
@@ -35,9 +67,13 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
   const issuedIdentity =
     activeTab === "issued" ? groupingIssuedIdentityFields(row) : {};
   const showLeafBalance =
-    activeTab === "done" || activeTab === "history" || activeTab === "rejected";
+    activeTab === "issued" ||
+    activeTab === "done" ||
+    activeTab === "history" ||
+    activeTab === "rejected";
   const receivedLeaves = showLeafBalance ? getReceivedGroupedLeaves(row) : 0;
   const availableLeaves = showLeafBalance ? getAvailableGroupedSheets(row) : 0;
+  const issuedFor = resolveGroupingIssuedFor(row);
 
   return {
     ...row,
@@ -46,6 +82,7 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
       row.groupPhoto ||
       "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
     issueTo: currentIssueTo,
+    issuedFor,
     ...(showLeafBalance
       ? {
           receivedNoOfLeaves: String(receivedLeaves),
@@ -57,3 +94,4 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
     forLabel: currentIssueTo,
   } as Row;
 }
+

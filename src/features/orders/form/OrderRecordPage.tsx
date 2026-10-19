@@ -1313,7 +1313,7 @@ function buildSamplePrefillLineItem(
     baseWidth: draft.baseWidth || "",
     baseThickness: draft.baseThickness || "",
     amount: draft.amount || "",
-    remark: draft.remark || (samplePrefill.sampleNo ? `From Sample ${samplePrefill.sampleNo}` : ""),
+    remark: draft.remark || (samplePrefill.sampleNo ? `From Group ${samplePrefill.sampleNo}` : ""),
   };
 }
 

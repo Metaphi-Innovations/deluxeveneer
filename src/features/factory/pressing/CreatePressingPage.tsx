@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Divider, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -106,8 +106,9 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
           id: `grp-init-${index}`,
           selectedRecordId: id,
           consume: editForm?.veneerDrafts?.[id]?.qtyToUse ?? "",
+          isSaved: true,
         }))
-      : [{ id: "grp-init-0", selectedRecordId: "", consume: "" }],
+      : [],
   );
   const [baseType, setBaseType] = useState<PressingBaseMaterialType>(editForm?.baseType ?? "Plywood");
   const [selectedBaseIds, setSelectedBaseIds] = useState<string[]>(editForm?.baseIds ?? []);
@@ -122,16 +123,9 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
           selectedRecordId: id,
           consumeSheets: editForm?.baseDrafts?.[id]?.qtyToUse ?? "",
           consumeSqm: "",
+          isSaved: true,
         }))
-      : [
-          {
-            id: "base-init-0",
-            baseType: editForm?.baseType ?? "Plywood",
-            selectedRecordId: "",
-            consumeSheets: "",
-            consumeSqm: "",
-          },
-        ],
+      : [],
   );
   const [processValues, setProcessValues] = useState<PressingProcessValues>(
     editForm?.processValues ?? {
@@ -160,8 +154,12 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
   );
   const baseStock = usePressingBaseStock(baseType);
   const baseSelectionRows = useMemo(
-    () => mergePressingBaseRows(baseStock.rows, editForm?.baseRows ?? []),
-    [baseStock.rows, editForm],
+    () =>
+      mergePressingBaseRows(
+        baseStock.rows,
+        editForm?.baseType === baseType ? editForm.baseRows : [],
+      ),
+    [baseStock.rows, baseType, editForm],
   );
 
   const selectedOrder = orderRecords.find((order) => order.orderNo === orderNo);
@@ -178,6 +176,66 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
 
     return getOrderLineItems(selectedOrder.id).map((_, index) => String(index + 1));
   }, [selectedOrder]);
+
+  const selectedOrderLine = useMemo(() => {
+    if (!selectedOrder || !orderItemNo) {
+      return null;
+    }
+
+    return getOrderLineItems(selectedOrder.id)[Number(orderItemNo) - 1] ?? null;
+  }, [orderItemNo, selectedOrder]);
+
+  const prevOrderSelectionRef = useMemo(
+    () => ({ currentKey: "" }),
+    [],
+  );
+
+  useEffect(() => {
+    if (purpose !== "Order") {
+      prevOrderSelectionRef.currentKey = "";
+      return;
+    }
+
+    const selectionKey = `${orderNo}__${orderItemNo}`;
+    if (!orderNo || !orderItemNo) {
+      prevOrderSelectionRef.currentKey = selectionKey;
+      return;
+    }
+
+    const isOriginalEditSelection =
+      isEdit &&
+      orderNo === editForm?.orderNo &&
+      orderItemNo === editForm?.orderItemNo;
+    if (isOriginalEditSelection) {
+      prevOrderSelectionRef.currentKey = selectionKey;
+      return;
+    }
+
+    if (prevOrderSelectionRef.currentKey === selectionKey) {
+      return;
+    }
+    prevOrderSelectionRef.currentKey = selectionKey;
+
+    setProcessValues((current) => ({
+      ...current,
+      grade: pressingText(selectedOrderLine?.grade) || pressingText(selectedOrder?.grade),
+      itemSubCategory:
+        pressingText(selectedOrderLine?.subCategory) || pressingText(selectedOrder?.subCategory),
+      length: pressingText(selectedOrderLine?.length) || pressingText(selectedOrder?.length),
+      noOfSheets: sanitizePressingInteger(
+        pressingText(selectedOrderLine?.quantitySheets) ||
+          pressingText(selectedOrder?.quantitySheets),
+      ),
+      outputItemName:
+        pressingText(selectedOrderLine?.itemName) ||
+        pressingText(selectedOrderLine?.salesItemName) ||
+        pressingText(selectedOrder?.itemName),
+      remark: pressingText(selectedOrderLine?.remark) || pressingText(selectedOrder?.remark),
+      thickness:
+        pressingText(selectedOrderLine?.thickness) || pressingText(selectedOrder?.thickness),
+      width: pressingText(selectedOrderLine?.width) || pressingText(selectedOrder?.width),
+    }));
+  }, [editForm, isEdit, orderItemNo, orderNo, prevOrderSelectionRef, purpose, selectedOrder, selectedOrderLine]);
 
   const issuedRows = useMemo(() => {
     const issuedWorkRows = getFactoryIssuedWorkForListing("pressing", "issued").map((item) =>
@@ -251,25 +309,6 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
     selectedOrder,
   ]);
 
-  // Keep initial blank row with selection input ready on access if no rows are present
-  useEffect(() => {
-    if (isEdit) {
-      return;
-    }
-    if (groupDetailRows.length === 0) {
-      setGroupDetailRows([{ id: "grp-init-0", selectedRecordId: "", consume: "" }]);
-    }
-  }, [groupDetailRows.length, isEdit]);
-
-  useEffect(() => {
-    if (isEdit) {
-      return;
-    }
-    if (baseDetailRows.length === 0) {
-      setBaseDetailRows([{ id: "base-init-0", baseType: baseType || "Plywood", selectedRecordId: "", consumeSheets: "", consumeSqm: "" }]);
-    }
-  }, [baseDetailRows.length, baseType, isEdit]);
-
   // Synchronize veneer selection and drafts from groupDetailRows
   useEffect(() => {
     const validGroupRows = groupDetailRows.filter((r) => r.selectedRecordId);
@@ -321,6 +360,10 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
       return;
     }
 
+    if (purpose === "Order") {
+      return;
+    }
+
     const row = selectedVeneerRows[0];
     if (!row) {
       if (isEdit) {
@@ -354,7 +397,7 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
       thickness: pressingText(row.thickness),
       width: pressingText(row.width),
     }));
-  }, [detailSourceId, editContext, isEdit]);
+  }, [detailSourceId, editContext, isEdit, purpose]);
   const outputSheets = Number(processValues.noOfSheets);
   const veneerUseTotal = groupDetailRows.reduce((sum, r) => sum + (Number(r.consume) || 0), 0);
   const baseUseTotal = baseDetailRows.reduce((sum, r) => sum + (Number(r.consumeSheets) || 0), 0);
@@ -550,28 +593,12 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
 
   return (
     <FactoryPageShell
-      actions={
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          <Button onClick={() => navigate(listPath)} sx={recordFormActionButtonSx} variant="outlined">
-            Cancel
-          </Button>
-          <Button
-            disableElevation
-            disabled={!canCreate}
-            onClick={handleCreate}
-            sx={highlightedRecordFormPrimaryButtonSx}
-            variant="contained"
-          >
-            {isEdit ? "Update Pressing" : "Create Pressing"}
-          </Button>
-        </Box>
-      }
       breadcrumbs={[
         { label: "Factory", to: "/factory" },
         { label: "Pressing", to: listPath },
         { label: pageTitle },
       ]}
-      sectionGap={1}
+      sectionGap={2}
       title={pageTitle}
     >
       <PressingPurposeChoice
@@ -580,6 +607,8 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
         onBaseTypeChange={(nextType) => {
           setBaseType(nextType);
           setSelectedBaseIds([]);
+          setBaseDrafts({});
+          setBaseDetailRows([]);
         }}
         onChange={(nextPurpose) => {
           setPurpose(nextPurpose);
@@ -618,32 +647,22 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
       ) : null}
 
       {selectionReady ? (
-        <>
-          <PressingProcessFields
-            onChange={(patch) => setProcessValues((current) => ({ ...current, ...patch }))}
-            outputError={hasSubmitted ? outputError : ""}
-            showErrors={hasSubmitted}
-            values={processValues}
-          />
-
-          <Divider sx={(theme) => ({ borderColor: theme.customTokens.borders.divider, my: 1 })} />
-        </>
+        <PressingProcessFields
+          onChange={(patch) => setProcessValues((current) => ({ ...current, ...patch }))}
+          outputError={hasSubmitted ? outputError : ""}
+          showErrors={hasSubmitted}
+          values={processValues}
+        />
       ) : null}
 
       {pressingReady ? (
-        <>
-          <PressingGroupDetailsTable
-            availableRows={issuedRows}
-            emptyMessage={issuedEmptyLabel}
-            onRowsChange={setGroupDetailRows}
-            rows={groupDetailRows}
-            showErrors={hasSubmitted}
-          />
-
-          {baseReady ? (
-            <Divider sx={(theme) => ({ borderColor: theme.customTokens.borders.divider, my: 1 })} />
-          ) : null}
-        </>
+        <PressingGroupDetailsTable
+          availableRows={issuedRows}
+          emptyMessage={issuedEmptyLabel}
+          onRowsChange={setGroupDetailRows}
+          rows={groupDetailRows}
+          showErrors={hasSubmitted}
+        />
       ) : null}
 
       {baseReady ? (
@@ -659,6 +678,29 @@ export function CreatePressingPage({ mode = "create" }: { mode?: "create" | "edi
           showErrors={hasSubmitted}
         />
       ) : null}
+
+      <Box
+        sx={{
+          alignItems: "center",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 1,
+          justifyContent: "flex-end",
+        }}
+      >
+        <Button onClick={() => navigate(listPath)} sx={recordFormActionButtonSx} variant="outlined">
+          Cancel
+        </Button>
+        <Button
+          disableElevation
+          disabled={!canCreate}
+          onClick={handleCreate}
+          sx={highlightedRecordFormPrimaryButtonSx}
+          variant="contained"
+        >
+          {isEdit ? "Update Pressing" : "Create Pressing"}
+        </Button>
+      </Box>
     </FactoryPageShell>
   );
 }

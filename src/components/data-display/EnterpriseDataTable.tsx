@@ -1587,8 +1587,12 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
     return renderForPurposeBadge(row[column.key], theme);
   }
 
-  if (column.key === "groupPhoto") {
-    return renderGroupPhotoCell(row[column.key], theme);
+  if (column.key === "groupPhoto" || column.key === "inspectionImage") {
+    return renderPhotoPreviewCell(
+      row[column.key],
+      theme,
+      column.key === "inspectionImage" ? "Inspection Image" : "Group Photo",
+    );
   }
 
   const isStatusRelatedColumn =
@@ -1946,13 +1950,21 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
   );
 }
 
-function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme }) {
+function PhotoPreviewCell({
+  photoUrl,
+  theme,
+  title,
+}: {
+  photoUrl: string;
+  theme: Theme;
+  title: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Tooltip title="View Group Photo">
+        <Tooltip title={`View ${title}`}>
           <IconButton
             size="small"
             onClick={(e) => {
@@ -1997,13 +2009,13 @@ function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme })
         onClick={(e) => e.stopPropagation()}
       >
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="h6" fontWeight={600}>Group Photo</Typography>
+          <Typography variant="h6" fontWeight={600}>{title}</Typography>
         </DialogTitle>
         <DialogContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", p: 2 }}>
           <Box
             component="img"
             src={photoUrl}
-            alt="Group Photo"
+            alt={title}
             sx={{
               maxWidth: "100%",
               maxHeight: "70vh",
@@ -2023,7 +2035,11 @@ function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme })
   );
 }
 
-function renderGroupPhotoCell(value: EnterpriseTableCellValue, theme: Theme) {
+function renderPhotoPreviewCell(
+  value: EnterpriseTableCellValue,
+  theme: Theme,
+  title: string,
+) {
   const photoUrl = typeof value === "string" && value.trim() ? value.trim() : "";
   if (!photoUrl) {
     return (
@@ -2033,7 +2049,7 @@ function renderGroupPhotoCell(value: EnterpriseTableCellValue, theme: Theme) {
     );
   }
 
-  return <GroupPhotoCell photoUrl={photoUrl} theme={theme} />;
+  return <PhotoPreviewCell photoUrl={photoUrl} theme={theme} title={title} />;
 }
 
 function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {

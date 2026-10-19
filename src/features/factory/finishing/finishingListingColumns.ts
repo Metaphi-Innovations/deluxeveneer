@@ -15,6 +15,10 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   const visible = columns.filter((column) => {
+    if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
+      return false;
+    }
+
     if (finishingHiddenKeys.has(column.key)) {
       return false;
     }

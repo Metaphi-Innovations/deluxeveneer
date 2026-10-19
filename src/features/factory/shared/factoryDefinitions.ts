@@ -92,11 +92,8 @@ const field = (
     return selectField(key, label, rows);
   }
 
-  if (key === "groupNo") {
-    return textField(key, label, { readOnly: true });
-  }
-
   return textField(key, label);
+
 };
 
 const columns = (
@@ -410,6 +407,7 @@ const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
     issueDate: row.issuedDate,
     processDate: row.issuedDate,
     sawingDate: row.issuedDate,
+    inspectionDate: row.issuedDate,
     subCategory: row.itemSubCategory,
     batchNoCode: `SW-CODE-${sequence}`,
     issuedFor: "Sawing Inspection",
@@ -620,6 +618,8 @@ const productionListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
+  ["bundleNumber", "Bundle No."],
+  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -671,7 +671,6 @@ const marquetryListingColumns = columns([
 
 /** Grouping listing columns */
 const groupingListingColumns = columns([
-  ["storageSrNo", "Storage Sr No."],
   ["issuedDate", "Issued Date"],
   ["groupNo", "Group No."],
   ["groupingDate", "Grouping Date"],
@@ -724,6 +723,8 @@ const flutingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
+  ["bundleNumber", "Bundle No."],
+  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -751,6 +752,8 @@ const embossingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
+  ["bundleNumber", "Bundle No."],
+  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -778,6 +781,8 @@ const finishingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
+  ["bundleNumber", "Bundle No."],
+  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -881,19 +886,20 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
 }
 
 const groupingCreateFields = [
-  ["groupNo", "Group No."],
   ["groupingDate", "Grouping Date"],
 ] as const;
 
-const marquetryCreateFields = groupingCreateFields.filter(
-  ([key]) => key !== "groupNo",
-);
+
+const marquetryCreateFields = groupingCreateFields;
+
 
 const groupingAddItemFields = [
+  ["groupNo", "Group No."],
   ...commonFactoryItemFieldSpecs.filter(([key]) => key !== "remark"),
   ["groupPhoto", "Group Photo"],
   ["remark", "Remark"],
 ] as const;
+
 
 const splicingCreateFields = [
   ["issuedFor", "Issued For"],

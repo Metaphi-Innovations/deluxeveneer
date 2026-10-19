@@ -1867,7 +1867,7 @@ export function SplicingOrderIssueDialog<Row extends FactoryRecord>({
                       <TableRow>
                         <TableCell sx={getDialogHeaderCellSx}>Item Name</TableCell>
                         <TableCell sx={getDialogHeaderCellSx}>
-                          No. of Sheets
+                          Order No. of Sheets
                         </TableCell>
                         <TableCell sx={getDialogHeaderCellSx}>
                           Available No. of Sheets

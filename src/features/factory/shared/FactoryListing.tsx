@@ -4,6 +4,11 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
   Snackbar,
   Stack,
   Table,
@@ -12,12 +17,14 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
   AlertCircle,
   CheckCircle2,
   Eye,
+  Info,
   Pencil,
   Plus,
   RotateCcw,
@@ -193,6 +200,7 @@ import {
 } from "./listing/factoryListingParts";
 import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTransferStore";
 import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
+import { orderFactoryListingMeasureColumns } from "./factoryListingColumnOrder";
 
 type ListingTab = FactoryProcessTab;
 
@@ -212,6 +220,44 @@ function formatInspectionLeafQty(value: unknown) {
 
 interface FactoryListingProps<Row extends FactoryRecord> {
   definition: FactoryDefinition<Row>;
+}
+
+type GroupingOrderItemDetails = {
+  lineItem: OrderLineItem | null;
+  order: OrderRecord | null;
+  orderItemNo: string;
+  row: FactoryRecord;
+  stageLabel: string;
+};
+
+function getGroupingOrderItemDetails(
+  row: FactoryRecord,
+  orderRecords: readonly OrderRecord[],
+  stageLabel: string,
+): GroupingOrderItemDetails {
+  const orderNo = typeof row.orderNo === "string" ? row.orderNo : "";
+  const orderItemNo =
+    typeof row.orderItemNo === "string" ? row.orderItemNo : "";
+  const order =
+    orderRecords.find((record) => record.orderNo === orderNo) ?? null;
+  const itemIndex = Math.max(
+    0,
+    Number(orderItemNo.match(/\d+/)?.[0] ?? "1") - 1,
+  );
+  const lineItem = order ? getOrderLineItems(order.id)[itemIndex] ?? null : null;
+
+  return { lineItem, order, orderItemNo, row, stageLabel };
+}
+
+function detailText(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(value);
+  }
+  return typeof value === "string" && value.trim() ? value.trim() : "-";
 }
 
 export function FactoryListing<Row extends FactoryRecord>({
@@ -299,6 +345,8 @@ export function FactoryListing<Row extends FactoryRecord>({
     useState<GroupingSampleIssueState<Row> | null>(null);
   const [groupingOrderIssue, setGroupingOrderIssue] =
     useState<GroupingOrderIssueState<Row> | null>(null);
+  const [groupingOrderItemDetails, setGroupingOrderItemDetails] =
+    useState<GroupingOrderItemDetails | null>(null);
   const [dryingInspectionIssueRow, setDryingInspectionIssueRow] =
     useState<Row | null>(null);
   const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
@@ -401,8 +449,36 @@ export function FactoryListing<Row extends FactoryRecord>({
     const baseRowsForTab = getFactoryRowsForTab(definition.rows, activeTab).filter(
       (row) => !movedSourceRowIds.has(String(row.id)),
     );
+    const groupingIssueHistoryRows =
+      isGroupingModule && activeTab === "history"
+        ? groupedStockIssues.map((issue) => {
+            const order = issue.orderNo
+              ? orderRecords.find(
+                  (record) => record.orderNo === issue.orderNo,
+                ) ?? null
+              : null;
+
+            return {
+              ...issue.sourceSnapshot,
+              id: issue.id,
+              listingState: "history",
+              groupingRef: issue.groupingRowId,
+              issuedDate: new Date(issue.issueDate),
+              issuedFor: issue.purpose === "order" ? "Order" : "Sample",
+              issueSheets: String(issue.issueSheets),
+              noOfSheets: String(issue.issueSheets),
+              orderType: issue.orderType ?? "",
+              orderNo: issue.orderNo ?? "",
+              orderItemNo: issue.orderItemNo ?? "",
+              customerName: order?.customerName ?? "",
+              orderDate: order?.orderDate,
+            } as unknown as Row;
+          })
+        : [];
     const rowsForTab =
-      activeTab === "rejected"
+      isGroupingModule && activeTab === "history"
+        ? [...groupingIssueHistoryRows, ...baseRowsForTab]
+      : activeTab === "rejected"
         ? [...baseRowsForTab, ...rejectedDoneRows]
         : definition.slug === "drying" && activeTab === "history"
           ? [...dryingInspectionHistoryRows, ...baseRowsForTab]
@@ -517,11 +593,20 @@ export function FactoryListing<Row extends FactoryRecord>({
           } as Row;
         }
 
-        if (definition.slug === "splicing" && activeTab === "issued") {
-          return mapSplicingIssuedListingRow(
-            sourceNormalizedRow,
-            factoryIssuedWorkItems,
-          );
+        if (definition.slug === "splicing") {
+          const splicingRow = {
+            ...sourceNormalizedRow,
+            issuePurpose: isSampleFactoryRow(sourceNormalizedRow)
+              ? "Sample"
+              : "Order",
+          } as Row;
+
+          return activeTab === "issued"
+            ? mapSplicingIssuedListingRow(
+                splicingRow,
+                factoryIssuedWorkItems,
+              )
+            : splicingRow;
         }
 
         if (definition.slug === "drying" && activeTab === "done") {
@@ -542,6 +627,8 @@ export function FactoryListing<Row extends FactoryRecord>({
             ...sourceNormalizedRow,
             status,
             issueForInspection: issuedLeaves > 0 ? String(issuedLeaves) : "-",
+            issuedForInspectionDate:
+              sourceNormalizedRow.issuedForInspectionDate ?? sourceNormalizedRow.inspectionDate,
             availableLeaves: String(availableLeaves),
           } as Row;
         }
@@ -577,6 +664,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     inspectionTrackingMap,
     isDryingInspectionModule,
     isInspectionModule,
+    orderRecords,
     rejectedDoneRowIds,
     rejectedDoneRows,
     revertedRowIds,
@@ -618,20 +706,134 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     let columns = definition.listColumns;
 
+    const withGroupNoFirst = (
+      targetColumns: readonly EnterpriseTableColumn<Row>[],
+    ): readonly EnterpriseTableColumn<Row>[] => {
+      const groupNoColumn =
+        targetColumns.find((column) => column.key === "groupNo") ??
+        ({ key: "groupNo", label: "Group No." } as EnterpriseTableColumn<Row>);
+
+      return [
+        groupNoColumn,
+        ...targetColumns.filter((column) => column.key !== "groupNo"),
+      ];
+    };
+
+    const withOrderItemInfoButton = (
+      targetColumns: readonly EnterpriseTableColumn<Row>[],
+      stageLabel: string,
+    ) => {
+      const columnsWithOrderItem = targetColumns.some(
+        (column) => column.key === "orderItemNo",
+      )
+        ? targetColumns
+        : withOptionalColumn(
+            targetColumns,
+            { key: "orderItemNo", label: "Order Item No." },
+            "itemName",
+          );
+
+      const renderedColumns = columnsWithOrderItem.map((column) =>
+      column.key === "orderItemNo"
+        ? {
+            ...column,
+            renderCell: (row: Row) => {
+              const orderItemNo =
+                typeof row.orderItemNo === "string"
+                  ? row.orderItemNo.trim()
+                  : "";
+
+              if (!orderItemNo) {
+                return "-";
+              }
+
+              return (
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={0.5}
+                  sx={{ minWidth: 96, width: "100%" }}
+                >
+                  <Typography noWrap sx={{ flex: 1, fontSize: "inherit", minWidth: 0 }}>
+                    {orderItemNo}
+                  </Typography>
+                  <Tooltip title="View order item details">
+                    <IconButton
+                      aria-label={`View details for ${orderItemNo}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setGroupingOrderItemDetails(
+                          getGroupingOrderItemDetails(row, orderRecords, stageLabel),
+                        );
+                      }}
+                      size="small"
+                      sx={(theme) => ({
+                        color: theme.customTokens.brand.primary,
+                        flexShrink: 0,
+                        ml: "auto",
+                        p: 0.25,
+                      })}
+                    >
+                      <Info size={15} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              );
+            },
+          }
+        : column,
+      );
+
+      const groupNoIndex = renderedColumns.findIndex(
+        (column) => column.key === "groupNo",
+      );
+      const orderItemIndex = renderedColumns.findIndex(
+        (column) => column.key === "orderItemNo",
+      );
+      if (groupNoIndex === -1 || orderItemIndex === -1 || orderItemIndex === groupNoIndex + 1) {
+        return renderedColumns;
+      }
+
+      const orderItemColumn = renderedColumns[orderItemIndex];
+      if (!orderItemColumn) {
+        return renderedColumns;
+      }
+      const withoutOrderItem = renderedColumns.filter(
+        (column) => column.key !== "orderItemNo",
+      );
+      const targetGroupIndex = withoutOrderItem.findIndex(
+        (column) => column.key === "groupNo",
+      );
+
+      return [
+        ...withoutOrderItem.slice(0, targetGroupIndex + 1),
+        orderItemColumn,
+        ...withoutOrderItem.slice(targetGroupIndex + 1),
+      ];
+    };
+
     if (definition.slug === "marquetry") {
       columns = applyMarquetryListingColumns(columns, activeTab);
     }
 
     if (definition.slug === "grouping") {
-      return applyGroupingListingColumns(columns, activeTab);
+      const groupingColumns = applyGroupingListingColumns(columns, activeTab);
+      if (activeTab !== "history") {
+        return groupingColumns;
+      }
+
+      return withOrderItemInfoButton(groupingColumns, "Grouping");
     }
 
     if (definition.slug === "splicing") {
-      return applySplicingListingColumns(columns, activeTab);
+      return withOrderItemInfoButton(
+        withGroupNoFirst(applySplicingListingColumns(columns, activeTab)),
+        "Splicing",
+      );
     }
 
     if (definition.slug === "pressing") {
-      columns = applyPressingListingColumns(columns);
+      columns = applyPressingListingColumns(columns, activeTab);
     }
 
     if (definition.slug === "cnc-fluting") {
@@ -657,6 +859,19 @@ export function FactoryListing<Row extends FactoryRecord>({
       );
     }
 
+    const orderInfoStageLabel: Record<string, string> = {
+      marquetry: "Marquetry",
+      pressing: "Pressing",
+      "cnc-fluting": "Fluting",
+      embossing: "Embossing",
+      finishing: "Finishing",
+    };
+    const currentOrderInfoStage = orderInfoStageLabel[definition.slug];
+    if (currentOrderInfoStage) {
+      columns = withGroupNoFirst(columns);
+      columns = withOrderItemInfoButton(columns, currentOrderInfoStage);
+    }
+
     if (isInspectionModule) {
       return applyInspectionListingColumns(columns, definition.slug, activeTab);
     }
@@ -678,6 +893,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     isGroupingDoneTab,
     isGroupingModule,
     isInspectionModule,
+    orderRecords,
     supportsSamplePurposeColumn,
   ]);
   const tableRows = useMemo<readonly Row[]>(() => {
@@ -690,6 +906,10 @@ export function FactoryListing<Row extends FactoryRecord>({
     filteredRows,
     shouldUsePressingIssuedForLabels,
   ]);
+  const orderedTableColumns = useMemo(
+    () => orderFactoryListingMeasureColumns(tableColumns),
+    [tableColumns],
+  );
 
   const rowActions = useMemo<ReadonlyArray<EnterpriseTableAction<Row>>>(
     () => {
@@ -1629,7 +1849,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           <EnterpriseDataTable
             key={`${definition.slug}-${activeTab}`}
             actions={rowActions}
-            columns={tableColumns}
+            columns={orderedTableColumns}
             defaultRowsPerPage={10}
             emptyStateLabel={`No ${definition.title.toLowerCase()} records are available for this tab.`}
             rows={canView ? tableRows : []}
@@ -1665,6 +1885,11 @@ export function FactoryListing<Row extends FactoryRecord>({
         onSubmit={handleSubmitGroupingOrderIssue}
         orderRecords={orderRecords}
         state={groupingOrderIssue}
+      />
+
+      <GroupingOrderItemDetailsDialog
+        details={groupingOrderItemDetails}
+        onClose={() => setGroupingOrderItemDetails(null)}
       />
 
       <ConfirmationDialog
@@ -2452,6 +2677,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           recordDryingInspectionIssue(rowId, newlyIssued);
           const updatedInStore = adjustDryingDoneLeaves(rowId, remaining, remainingArea, {
             issueForInspection: String(totalIssued),
+            issuedForInspectionDate: inspectionDateVal,
             status: "Done",
           });
           if (!updatedInStore) {
@@ -2962,6 +3188,7 @@ export function FactoryListing<Row extends FactoryRecord>({
               remainingArea,
               {
                 issueForInspection: String(totalIssued),
+                issuedForInspectionDate: inspectionDateVal,
                 status: "Done",
               },
             );
@@ -3034,6 +3261,233 @@ export function FactoryListing<Row extends FactoryRecord>({
         ) : undefined}
       </Snackbar>
     </>
+  );
+}
+
+function GroupingOrderItemDetailsDialog({
+  details,
+  onClose,
+}: {
+  details: GroupingOrderItemDetails | null;
+  onClose: () => void;
+}) {
+  const order = details?.order;
+  const item = details?.lineItem;
+  const row = details?.row;
+  const sections = details
+    ? [
+        {
+          title: "Order Reference",
+          fields: [
+            ["Order No.", detailText(order?.orderNo ?? row?.orderNo)],
+            ["Order Item No.", detailText(details.orderItemNo)],
+            ["Order Type", detailText(order?.orderType ?? row?.orderType)],
+            ["Customer Name", detailText(order?.customerName ?? row?.customerName)],
+            ["Order Date", detailText(order?.orderDate ?? row?.orderDate)],
+            ["Required Delivery Date", detailText(order?.deliveryDate ?? row?.deliveryDate)],
+          ],
+        },
+        {
+          title: "Grouping Requirement",
+          fields: [
+            ["Product Category", detailText(item?.productCategory ?? row?.productCategory)],
+            ["Finished Type", detailText(item?.finishedType ?? row?.finishedType)],
+            ["Sales Item Name", detailText(item?.salesItemName ?? row?.salesItemName)],
+            ["Item Name", detailText(item?.itemName ?? row?.itemName)],
+            ["Sub Category", detailText(item?.subCategory ?? row?.subCategory)],
+            ["Series", detailText(item?.series ?? row?.series)],
+            ["Grade", detailText(item?.grade ?? row?.grade)],
+          ],
+        },
+        {
+          title: "Dimensions",
+          fields: [
+            ["Length", detailText(item?.length ?? row?.length)],
+            ["Width", detailText(item?.width ?? row?.width)],
+            ["Thickness", detailText(item?.thickness ?? row?.thickness ?? row?.height)],
+          ],
+        },
+        {
+          title: "Required Quantity",
+          fields: [
+            ["No. of Sheets", detailText(item?.quantitySheets ?? row?.noOfSheets)],
+            ["SQM", detailText(item?.sqm ?? row?.sqm)],
+            ["Total SQM", detailText(item?.totalSqm ?? row?.totalSqm)],
+          ],
+        },
+        {
+          title: "Grouping Instructions",
+          fields: [
+            ["Remark", detailText(item?.remark ?? row?.remark)],
+          ],
+        },
+      ]
+    : [];
+
+  return (
+    <Dialog
+      fullWidth
+      maxWidth="lg"
+      open={Boolean(details)}
+      onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: (theme) => ({
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            borderRadius: 2.5,
+            maxHeight: "calc(100% - 32px)",
+            overflow: "hidden",
+          }),
+        },
+      }}
+    >
+      <DialogTitle
+        sx={(theme) => ({
+          alignItems: "center",
+          bgcolor: theme.customTokens.surfaces.surface,
+          borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+          display: "flex",
+          gap: 1.25,
+          px: 2.5,
+          py: 1.5,
+        })}
+      >
+        <Box
+          sx={(theme) => ({
+            alignItems: "center",
+            bgcolor: theme.customTokens.brand.primary,
+            borderRadius: 1.5,
+            color: theme.palette.common.white,
+            display: "flex",
+            height: 32,
+            justifyContent: "center",
+            width: 32,
+          })}
+        >
+          <Info size={17} />
+        </Box>
+        <Box>
+          <Typography sx={{ fontSize: 17, fontWeight: 750 }}>
+            Order Item Details
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>
+            Order-item information required at the {details?.stageLabel ?? "Grouping"} stage
+          </Typography>
+        </Box>
+      </DialogTitle>
+      <DialogContent sx={{ bgcolor: "background.default", p: "14px !important" }}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: { xs: "1fr", md: "1.1fr 0.9fr" },
+          }}
+        >
+          <Stack spacing={1.5}>
+            {sections.slice(0, 2).map((section) => (
+              <OrderDetailSection
+                columns={2}
+                fields={section.fields}
+                key={section.title}
+                title={section.title}
+              />
+            ))}
+          </Stack>
+          <Stack spacing={1.5}>
+            {sections.slice(2).map((section) => (
+              <OrderDetailSection
+                columns={section.title === "Grouping Instructions" ? 1 : 3}
+                fields={section.fields}
+                key={section.title}
+                title={section.title}
+              />
+            ))}
+          </Stack>
+          {sections.length === 0 ? (
+            <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
+              No additional order-item details are available.
+            </Typography>
+          ) : null}
+        </Box>
+      </DialogContent>
+      <DialogActions
+        sx={(theme) => ({
+          borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          px: 3,
+          py: 1.5,
+        })}
+      >
+        <Button onClick={onClose} size="small" variant="contained">
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function OrderDetailSection({
+  columns = 2,
+  fields,
+  title,
+}: {
+  columns?: 1 | 2 | 3;
+  fields: string[][];
+  title: string;
+}) {
+  return (
+    <Box
+      sx={(theme) => ({
+        bgcolor: theme.customTokens.surfaces.surface,
+        border: `1px solid ${theme.customTokens.borders.default}`,
+        borderRadius: 2,
+        p: 1.25,
+      })}
+    >
+      <Typography
+        sx={(theme) => ({
+          color: theme.customTokens.text.primary,
+          fontSize: 11.5,
+          fontWeight: 750,
+          letterSpacing: "0.04em",
+          mb: 1,
+          px: 0.25,
+          textTransform: "uppercase",
+        })}
+      >
+        {title}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 0.75,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: `repeat(${columns}, minmax(0, 1fr))`,
+          },
+        }}
+      >
+        {fields.map(([label, value]) => (
+          <Box
+            key={label}
+            sx={(theme) => ({
+              bgcolor: theme.customTokens.surfaces.alt,
+              border: `1px solid ${theme.customTokens.borders.divider}`,
+              borderRadius: 1.25,
+              minWidth: 0,
+              px: 1.25,
+              py: 0.9,
+            })}
+          >
+            <Typography color="text.secondary" sx={{ fontSize: 11.5, mb: 0.35 }}>
+              {label}
+            </Typography>
+            <Typography sx={{ fontSize: 13.5, fontWeight: 650, wordBreak: "break-word" }}>
+              {value}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+    </Box>
   );
 }
 

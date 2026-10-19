@@ -691,7 +691,7 @@ const extraViewFieldsBySlug: Record<string, readonly (readonly [string, string])
   pressing: [
     ["for", "For"],
     ["purpose", "Purpose"],
-    ["sampleNo", "Sample No"],
+    ["sampleNo", "Group No."],
   ],
 };
 

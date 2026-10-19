@@ -221,30 +221,12 @@ export const GroupingViewPage: React.FC = () => {
   const groupedLeavesDisplay = formatLeafInteger(groupedLeaves);
   const availableLeavesDisplay = formatLeafInteger(availableLeaves);
 
-  // ==================== 5. GROUPING OUTPUTS (Process Details) ====================
-  // Check if multiple process outputs exist under this groupNo
+  // ==================== 5. GROUPING OUTPUT (Single Process Output Detail) ====================
+  // Show only the specific item being viewed, matching the individual grouping done listing entry
   const siblingGroupOutputs = useMemo(() => {
-    if (!groupNo || groupNo === "-") return [];
-
-    // Find all definition rows matching this groupNo
-    const defMatches = groupingDefinition.rows.filter(
-      (r) => String((r as any).groupNo || "") === groupNo,
-    );
-
-    if (defMatches.length > 1) {
-      return defMatches as Record<string, unknown>[];
-    }
-
-    // Also check if record itself has lineItems / processDetails array
-    if (Array.isArray(record?.processDetails) && record.processDetails.length > 0) {
-      return record.processDetails;
-    }
-    if (Array.isArray(record?.lineItems) && record.lineItems.length > 0) {
-      return record.lineItems.map((item: any) => item.values || item);
-    }
-
     return [record ?? {}];
-  }, [groupNo, record]);
+  }, [record]);
+
 
   // ==================== 6. AVAILABLE MATERIAL (Remaining details) ====================
   const availableDetails = useMemo(() => {
@@ -521,6 +503,9 @@ export const GroupingViewPage: React.FC = () => {
                     <TableCell sx={transactionTableHeaderCellSx(theme, 70)}>
                       #
                     </TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme, 140)}>
+                      Group No
+                    </TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme, 160)}>
                       Item Name
                     </TableCell>
@@ -584,6 +569,17 @@ export const GroupingViewPage: React.FC = () => {
                       >
                         <TableCell sx={transactionTableBodyCellSx(theme)}>
                           {index + 1}
+                        </TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              color: theme.customTokens.brand.primary,
+                            }}
+                          >
+                            {String(item.groupNo || groupNo || "-")}
+                          </Typography>
                         </TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>

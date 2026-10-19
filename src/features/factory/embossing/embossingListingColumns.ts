@@ -15,15 +15,11 @@ export function applyEmbossingListingColumns<Row extends FactoryRecord>(
   _activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   const visibleColumns = columns.filter(
-    (column) => !embossingHiddenKeys.has(column.key),
+    (column) =>
+      !embossingHiddenKeys.has(column.key) &&
+      column.key !== "storageSrNo" &&
+      column.key !== "storageSerialNumber",
   );
 
-  if (visibleColumns.some((column) => column.key === "storageSrNo")) {
-    return visibleColumns;
-  }
-
-  return [
-    { key: "storageSrNo", label: "Storage Sr No." },
-    ...visibleColumns,
-  ];
+  return visibleColumns;
 }

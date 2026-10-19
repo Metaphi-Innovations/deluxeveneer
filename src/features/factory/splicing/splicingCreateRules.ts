@@ -42,7 +42,7 @@ export function calculateSplicingRow<T extends Record<string, string>>(values: T
   const sqm = calculateSlicingSqmValue(
     values.length,
     values.width,
-    values.noOfLeaves,
+    values.noOfSheets,
   );
   return {
     ...values,
@@ -225,9 +225,21 @@ export const splicingProcessDate = {
   label: "Splicing Date",
 } as const;
 
+export const splicingApplyingTypeOptions = [
+  "MACHINE SPLICING",
+  "HAND",
+  "END TAPING",
+] as const;
+
 export function orderSplicingCreateFields(
   fields: readonly MasterFieldDefinition[],
 ) {
+  const editableKeys = new Set([
+    "length",
+    "width",
+    "thickness",
+    "noOfSheets",
+  ]);
   const visibleFields = fields
     .filter(
       (field) =>
@@ -243,9 +255,10 @@ export function orderSplicingCreateFields(
         field.key !== "sgst" &&
         field.key !== "igst",
     )
-    .map((field) =>
-      field.key === "itemName" ? { ...field, readOnly: true } : field,
-    );
+    .map((field) => ({
+      ...field,
+      readOnly: !editableKeys.has(field.key),
+    }));
   const colorField = visibleFields.find(
     (field) => field.key === "color" || field.key === "colour",
   );
