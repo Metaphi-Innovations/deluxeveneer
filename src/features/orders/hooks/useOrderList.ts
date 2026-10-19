@@ -103,41 +103,36 @@ function buildOrderListingRows(record: OrderRecord): OrderListingRow[] {
         issuedQuantity: record.quantitySheets,
         id: record.id,
         orderId: record.id,
-        orderItemNumber: "1",
+        orderItemNumber: "OI-001",
         orderLineItemId: "",
         rawMaterial: record.productCategory || record.orderType,
       },
     ];
   }
 
-  // When order has line items, list exactly 1 row for the order representing total quantity and details
-  const totalSheets = lineItems.reduce((sum, item) => sum + (parseInt(item.quantitySheets, 10) || 0), 0);
-  const displaySheets = totalSheets > 0 ? String(totalSheets) : record.quantitySheets;
-  const firstItem = lineItems[0]!;
-  const isMultiItem = lineItems.length > 1;
-  const itemNames = Array.from(new Set(lineItems.map((item) => item.itemName || item.salesItemName).filter(Boolean)));
-  const displayItemName = isMultiItem
-    ? `${firstItem.itemName || firstItem.salesItemName} (+${lineItems.length - 1} more)`
-    : (firstItem.itemName || firstItem.salesItemName || record.itemName);
+  // Display each order item separately in its own row
+  return lineItems.map((item, index) => {
+    const rawMaterial =
+      item.productCategory === "Finished"
+        ? item.finishedType
+        : item.productCategory || item.finishedType || record.productCategory;
 
-  return [
-    {
+    // Use OI-001 or formatOrderItemNo
+    const numericTail = String(item.id).match(/(\d+)$/)?.[1];
+    const sequence = numericTail ? Number.parseInt(numericTail, 10) : index + 1;
+    const orderItemNumber = `OI-${String(Number.isFinite(sequence) ? sequence : index + 1).padStart(3, "0")}`;
+
+    return {
       ...record,
-      ...getOrderLineItemListingValues(firstItem),
-      itemName: displayItemName,
-      quantitySheets: displaySheets,
-      dispatchQuantity: displaySheets,
-      issuedQuantity: displaySheets,
-      id: record.id,
+      ...getOrderLineItemListingValues(item),
+      // Unique row ID for enterprise table keying
+      id: `${record.id}-${item.id || index + 1}`,
       orderId: record.id,
-      orderItemNumber: isMultiItem ? `${lineItems.length} Items` : "1",
-      orderLineItemId: firstItem.id,
-      rawMaterial:
-        firstItem.productCategory === "Finished"
-          ? firstItem.finishedType
-          : firstItem.productCategory || firstItem.finishedType || record.productCategory,
-    },
-  ];
+      orderItemNumber,
+      orderLineItemId: item.id,
+      rawMaterial,
+    };
+  });
 }
 
 function getOrderLineItemListingValues(lineItem: OrderLineItem) {

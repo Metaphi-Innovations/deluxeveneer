@@ -30,6 +30,7 @@ import {
   getTransporterMasterOptions,
   refreshTransporterMasterCache,
 } from "../../masters/shared/masterDefinitions";
+import { getCachedCustomerMasterRows } from "../../masters/customer-master/api/customerMasterApi";
 import {
   createDispatchEntry,
   packingOrderTypeOptions,
@@ -104,6 +105,8 @@ interface DispatchItemRow {
   itemAmountWithDiscount: string;
   gstPercent: string;
   gstAmount: string;
+  cgstAmount: string;
+  sgstAmount: string;
   igstAmount: string;
   finalAmount: string;
   remark: string;
@@ -119,40 +122,139 @@ interface DispatchSummaryRow {
   grandTotal: string;
 }
 
-const itemTableColumns: readonly {
+interface ItemColumnConfig {
   key: keyof DispatchItemRow;
   label: string;
   minWidth: number;
-}[] = [
-    { key: "srNo", label: "Sr. No", minWidth: 80 },
-    { key: "orderNo", label: "Order No", minWidth: 140 },
-    { key: "salesItemName", label: "Sales Item Name", minWidth: 200 },
-    { key: "orderItemNo", label: "Order Item No", minWidth: 130 },
-    { key: "productCategory", label: "Product Category", minWidth: 160 },
-    { key: "groupNo", label: "Group No", minWidth: 120 },
-    { key: "itemName", label: "Item Name", minWidth: 180 },
-    { key: "itemSubCategory", label: "Item Sub Category", minWidth: 170 },
-    { key: "length", label: "Length", minWidth: 110 },
-    { key: "width", label: "Width", minWidth: 110 },
-    { key: "thickness", label: "Thickness", minWidth: 120 },
-    { key: "totalQuantity", label: "Total Qty", minWidth: 110 },
-    { key: "dispatchQuantity", label: "Dispatch Qty", minWidth: 130 },
-    { key: "remainingQuantity", label: "Remaining Qty", minWidth: 130 },
-    { key: "sqm", label: "SQM", minWidth: 110 },
-    { key: "rate", label: "Rate", minWidth: 120 },
-    { key: "itemAmount", label: "Item Amount", minWidth: 140 },
-    { key: "discountPercent", label: "Discount %", minWidth: 120 },
-    {
-      key: "itemAmountWithDiscount",
-      label: "Item Amount With Discount",
-      minWidth: 210,
-    },
-    { key: "gstPercent", label: "GST %", minWidth: 100 },
-    { key: "gstAmount", label: "GST Amount", minWidth: 140 },
-    { key: "igstAmount", label: "IGST Amount", minWidth: 140 },
+}
+
+const baseItemTableColumns: readonly ItemColumnConfig[] = [
+  { key: "srNo", label: "Sr. No", minWidth: 80 },
+  { key: "orderNo", label: "Order No", minWidth: 140 },
+  { key: "salesItemName", label: "Sales Item Name", minWidth: 200 },
+  { key: "orderItemNo", label: "Order Item No", minWidth: 130 },
+  { key: "productCategory", label: "Product Category", minWidth: 160 },
+  { key: "groupNo", label: "Group No", minWidth: 120 },
+  { key: "itemName", label: "Item Name", minWidth: 180 },
+  { key: "itemSubCategory", label: "Item Sub Category", minWidth: 170 },
+  { key: "length", label: "Length", minWidth: 110 },
+  { key: "width", label: "Width", minWidth: 110 },
+  { key: "thickness", label: "Thickness", minWidth: 120 },
+  { key: "totalQuantity", label: "Total Qty", minWidth: 110 },
+  { key: "dispatchQuantity", label: "Dispatch Qty", minWidth: 130 },
+  { key: "remainingQuantity", label: "Remaining Qty", minWidth: 130 },
+  { key: "sqm", label: "SQM", minWidth: 110 },
+  { key: "rate", label: "Rate", minWidth: 120 },
+  { key: "itemAmount", label: "Item Amount", minWidth: 140 },
+];
+
+function extractStateFromAddress(addressText: string): string {
+  const text = (addressText || "").toLowerCase();
+  const knownStates = [
+    "gujarat",
+    "maharashtra",
+    "delhi",
+    "rajasthan",
+    "madhya pradesh",
+    "karnataka",
+    "tamil nadu",
+    "west bengal",
+    "uttar pradesh",
+    "punjab",
+    "haryana",
+    "kerala",
+    "telangana",
+    "andhra pradesh",
+    "goa",
+    "assam",
+    "bihar",
+    "chhattisgarh",
+    "jharkhand",
+    "odisha",
+    "uttarakhand",
+    "himachal pradesh",
+  ];
+  for (const st of knownStates) {
+    if (text.includes(st)) {
+      return st;
+    }
+  }
+  return "";
+}
+
+function resolveCustomerState(customerName: string, buyerAddress: string): string {
+  const fromAddr = extractStateFromAddress(buyerAddress);
+  if (fromAddr) return fromAddr;
+  if (!customerName) return "";
+  const match = getCachedCustomerMasterRows().find(
+    (row) => String(row.customerName ?? "").trim().toLowerCase() === customerName.trim().toLowerCase(),
+  );
+  if (match?.state) {
+    return String(match.state).trim().toLowerCase();
+  }
+  return "";
+}
+
+function resolveSellerState(sellerAddress: string): string {
+  const fromAddr = extractStateFromAddress(sellerAddress);
+  if (fromAddr) return fromAddr;
+  return "gujarat"; // Deluxe Veneers primary factory state
+}
+
+function getDispatchGstMode(
+  customerName: string,
+  buyerAddress: string,
+  sellerAddress: string,
+): "intra" | "inter" | "none" {
+  const custState = resolveCustomerState(customerName, buyerAddress);
+  const sellerState = resolveSellerState(sellerAddress);
+  if (!custState) {
+    // Default to intra (SGST + CGST) if customer is in Gujarat or state is unknown
+    return "intra";
+  }
+  return custState === sellerState ? "intra" : "inter";
+}
+
+function getDynamicItemTableColumns(
+  rows: readonly DispatchItemRow[],
+  gstMode: "intra" | "inter" | "none",
+): readonly ItemColumnConfig[] {
+  const cols: ItemColumnConfig[] = [...baseItemTableColumns];
+
+  // If discount is applicable (> 0) on any item, display discount % and item amount with discount
+  const hasDiscount = rows.some((row) => parseAmount(row.discountPercent) > 0);
+  if (hasDiscount) {
+    cols.push(
+      { key: "discountPercent", label: "Discount %", minWidth: 120 },
+      { key: "itemAmountWithDiscount", label: "Item Amount With Discount", minWidth: 210 },
+    );
+  }
+
+  // GST logic:
+  // Add GST % column when GST applies
+  // If intra state (same state), display SGST and CGST
+  // If inter state (another state), display IGST
+  // If none or null, do not display
+  if (gstMode === "intra") {
+    cols.push(
+      { key: "gstPercent", label: "GST %", minWidth: 100 },
+      { key: "cgstAmount", label: "CGST Amount", minWidth: 140 },
+      { key: "sgstAmount", label: "SGST Amount", minWidth: 140 },
+    );
+  } else if (gstMode === "inter") {
+    cols.push(
+      { key: "gstPercent", label: "GST %", minWidth: 100 },
+      { key: "igstAmount", label: "IGST Amount", minWidth: 140 },
+    );
+  }
+
+  cols.push(
     { key: "finalAmount", label: "Final Amount", minWidth: 140 },
     { key: "remark", label: "Remark", minWidth: 160 },
-  ];
+  );
+
+  return cols;
+}
 
 const summaryTableColumns: readonly {
   key: keyof DispatchSummaryRow;
@@ -300,6 +402,11 @@ export function DispatchCreatePage({
       .catch(() => {});
   }, []);
 
+  const gstMode = useMemo(
+    () => getDispatchGstMode(values.customerName, values.buyerAddress, values.sellerAddress),
+    [values.customerName, values.buyerAddress, values.sellerAddress],
+  );
+
   const dispatchItemRows = useMemo(
     () =>
       loadedRecords.map((record, index) => {
@@ -308,10 +415,16 @@ export function DispatchCreatePage({
           typeof dispatchQuantityMap[record.id] === "number"
             ? dispatchQuantityMap[record.id]!
             : totalSheetsNum;
-        return mapDispatchItemRow(record, index, currentDispatchQty);
+        return mapDispatchItemRow(record, index, currentDispatchQty, gstMode);
       }),
-    [dispatchQuantityMap, loadedRecords],
+    [dispatchQuantityMap, gstMode, loadedRecords],
   );
+
+  const dynamicItemColumns = useMemo(
+    () => getDynamicItemTableColumns(dispatchItemRows, gstMode),
+    [dispatchItemRows, gstMode],
+  );
+
   const dispatchSummaryRow = useMemo(
     () => buildSummaryRow(dispatchItemRows),
     [dispatchItemRows],
@@ -592,6 +705,7 @@ export function DispatchCreatePage({
           {hasLoadedItems ? (
             <>
               <DispatchItemsTable
+                columns={dynamicItemColumns}
                 readOnly={readOnly}
                 rows={dispatchItemRows}
                 onQuantityChange={(recordId, nextQty) => {
@@ -1040,10 +1154,12 @@ function LabeledField({
 function DispatchItemsTable({
   readOnly,
   rows,
+  columns,
   onQuantityChange,
 }: {
   readOnly?: boolean;
   rows: readonly DispatchItemRow[];
+  columns: readonly ItemColumnConfig[];
   onQuantityChange?: (recordId: string, quantity: number) => void;
 }) {
   return (
@@ -1051,7 +1167,7 @@ function DispatchItemsTable({
       <Table sx={{ minWidth: 3000 }}>
         <TableHead>
           <TableRow>
-            {itemTableColumns.map((column) => (
+            {columns.map((column) => (
               <TableCell
                 key={column.key}
                 sx={(theme) => getHeaderCellSx(theme, column.minWidth)}
@@ -1065,7 +1181,7 @@ function DispatchItemsTable({
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id}>
-              {itemTableColumns.map((column) => {
+              {columns.map((column) => {
                 if (column.key === "dispatchQuantity" && !readOnly && onQuantityChange) {
                   const maxQty = parseInt(row.totalQuantity, 10) || 0;
                   const currentQty = parseInt(row.dispatchQuantity, 10) || 0;
@@ -1182,6 +1298,7 @@ function mapDispatchItemRow(
   record: PackingRecord,
   index: number,
   dispatchQty: number,
+  gstMode: "intra" | "inter" | "none" = "intra",
 ): DispatchItemRow {
   const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
   const originalAmount = parseAmount(record.amount);
@@ -1192,8 +1309,14 @@ function mapDispatchItemRow(
   const currentSqm = sqmPerSheet * dispatchQty;
   const currentAmount = amountPerSheet * dispatchQty;
   const rate = currentSqm > 0 ? currentAmount / currentSqm : (originalSqm > 0 ? originalAmount / originalSqm : 0);
-  const gstAmount = currentAmount * 0.18;
-  const finalAmount = currentAmount + gstAmount;
+  const totalGstRate = gstMode === "none" ? 0 : 0.18;
+  const totalGstAmount = currentAmount * totalGstRate;
+  const halfGstAmount = totalGstAmount / 2;
+
+  const cgstAmount = gstMode === "intra" ? formatAmount(halfGstAmount) : "0.00";
+  const sgstAmount = gstMode === "intra" ? formatAmount(halfGstAmount) : "0.00";
+  const igstAmount = gstMode === "inter" ? formatAmount(totalGstAmount) : "0.00";
+  const finalAmount = currentAmount + totalGstAmount;
   const remainingQty = Math.max(0, totalSheetsNum - dispatchQty);
 
   return {
@@ -1219,9 +1342,11 @@ function mapDispatchItemRow(
     itemAmount: formatAmount(currentAmount),
     discountPercent: "0",
     itemAmountWithDiscount: formatAmount(currentAmount),
-    gstPercent: "18",
-    gstAmount: formatAmount(gstAmount),
-    igstAmount: "0.00",
+    gstPercent: gstMode === "none" ? "0" : "18",
+    gstAmount: formatAmount(totalGstAmount),
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
     finalAmount: formatAmount(finalAmount),
     remark: record.remark || "-",
   };

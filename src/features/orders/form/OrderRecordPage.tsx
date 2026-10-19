@@ -115,15 +115,35 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
 
 const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
-  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
+  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
+  { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
+  { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 120, getValue: (row) => row.length },
   { label: "Width", minWidth: 120, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
+  { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
+  { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
   { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
+  { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
+  { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
+  { label: "Photo No.", minWidth: 130, getValue: (row) => row.photoNo ?? "-" },
   { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
   { label: "SQF", minWidth: 120, getValue: (row) => row.totalSqm },
-  { label: "Rate per SQF", minWidth: 140, getValue: (row) => row.ratePerSqf },
+  {
+    label: "Rate",
+    minWidth: 140,
+    getValue: (row) => {
+      const prod = (row.productCategory ?? "").toLowerCase();
+      if (prod.includes("sawing")) {
+        return `${row.ratePerCbm || row.ratePerSqf} / CBM`;
+      }
+      if (prod.includes("veneer")) {
+        return `${row.ratePerSqf} / SQM`;
+      }
+      return `${row.ratePerSqf} / SQF`;
+    },
+  },
   { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
   { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
   { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
@@ -349,7 +369,7 @@ export function OrderRecordPage({
                         : `Item ${index + 1}`}
                     </Typography>
                     <OrderLabelValueGrid
-                      items={getItemDetailColumns(recordVariant).map((column) => ({
+                      items={getDynamicLineItemDetailColumns(item).map((column) => ({
                         label: column.label,
                         value: formatDetailValue(column.getValue(item)),
                       }))}
@@ -1043,8 +1063,114 @@ function OrderTypeBanner(_props: { variant: OrderCreateVariant | null }) {
   return null;
 }
 
-function getItemDetailColumns(_variant: OrderCreateVariant | null) {
-  return unifiedItemDetailColumns;
+export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly DetailColumn<OrderLineItem>[] {
+  const normProduct = (item.productCategory || item.finishedType || "")
+    .trim()
+    .replace(/\s*\((?:Raw|Finished)\)$/i, "")
+    .toLowerCase();
+
+  const isSawing = normProduct === "sawing";
+  const isVeneer = normProduct === "veneer";
+  const isDecorative = normProduct === "decorative";
+  const isFluted = normProduct === "fluted";
+  const isEmbossed = normProduct === "embossed";
+  const isFinished = ["decorative", "marquetry", "fluted", "embossed", "plywood"].includes(normProduct);
+
+  const columns: DetailColumn<OrderLineItem>[] = [
+    { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
+    { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
+    { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
+  ];
+
+  if (isSawing) {
+    columns.push(
+      { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
+      { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
+    );
+  }
+
+  columns.push(
+    { label: "Length", minWidth: 120, getValue: (row) => row.length },
+    { label: "Width", minWidth: 120, getValue: (row) => row.width },
+    { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
+  );
+
+  if (isSawing) {
+    columns.push(
+      { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
+      { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+    );
+  }
+
+  if (!isVeneer && !isSawing) {
+    columns.push(
+      { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
+    );
+  }
+
+  if (isVeneer) {
+    columns.push(
+      { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
+    );
+  }
+
+  if (!isSawing) {
+    columns.push(
+      { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
+      { label: "SQF", minWidth: 120, getValue: (row) => row.totalSqm },
+    );
+  }
+
+  columns.push(
+    {
+      label: "Rate",
+      minWidth: 140,
+      getValue: (row) => {
+        const prod = (row.productCategory ?? "").toLowerCase();
+        if (prod.includes("sawing")) {
+          return `${row.ratePerCbm || row.ratePerSqf} / CBM`;
+        }
+        if (prod.includes("veneer")) {
+          return `${row.ratePerSqf} / SQM`;
+        }
+        return `${row.ratePerSqf} / SQF`;
+      },
+    },
+    { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
+  );
+
+  if (isDecorative) {
+    columns.push(
+      { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
+      { label: "Photo No.", minWidth: 130, getValue: (row) => row.photoNo ?? "-" },
+    );
+  }
+
+  if (isFinished) {
+    columns.push(
+      { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
+      { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
+      { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
+      { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
+      { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
+    );
+  }
+
+  if (isFluted) {
+    columns.push(
+      { label: "Design Code", minWidth: 130, getValue: (row) => row.designCode },
+    );
+  }
+
+  if (isEmbossed) {
+    columns.push(
+      { label: "Structured Code", minWidth: 140, getValue: (row) => row.structuredCode },
+    );
+  }
+
+  columns.push({ label: "Remark", minWidth: 200, getValue: (row) => row.remark });
+
+  return columns;
 }
 
 function getDetailTableMinWidth<TRow>(columns: readonly DetailColumn<TRow>[]) {

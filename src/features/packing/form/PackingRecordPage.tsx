@@ -110,7 +110,7 @@ interface PackingSourceRow extends EnterpriseTableRow {
   remark: string;
 }
 
-const packingSourceColumns: readonly EnterpriseTableColumn<PackingSourceRow>[] =
+const ALL_PACKING_SOURCE_COLUMNS: readonly EnterpriseTableColumn<PackingSourceRow>[] =
   [
     { key: "orderItemNo", label: "Order Item No" },
     { key: "productCategory", label: "Product Type" },
@@ -122,8 +122,9 @@ const packingSourceColumns: readonly EnterpriseTableColumn<PackingSourceRow>[] =
     { key: "noOfSheets", label: "Sheets" },
     { key: "sqm", label: "SQM" },
     { key: "sqf", label: "SQF" },
-    { key: "ratePerSqf", label: "Rate/SQF" },
+    { key: "ratePerSqf", label: "Rate" },
     { key: "amount", label: "Amount" },
+    { key: "groupNo", label: "Group No" },
     { key: "baseType", label: "Base Type" },
     { key: "baseName", label: "Base Name" },
     { key: "baseLength", label: "Base Length" },
@@ -133,6 +134,99 @@ const packingSourceColumns: readonly EnterpriseTableColumn<PackingSourceRow>[] =
     { key: "structuredCode", label: "Structured Code" },
     { key: "remark", label: "Remark" },
   ];
+
+function getDynamicPackingSourceColumns(
+  rows: readonly PackingSourceRow[],
+): readonly EnterpriseTableColumn<PackingSourceRow>[] {
+  if (rows.length === 0) {
+    return ALL_PACKING_SOURCE_COLUMNS;
+  }
+
+  const productTypes = new Set(
+    rows.map((r) => (r.productCategory || "").trim().toLowerCase()),
+  );
+
+  // Check if all rows are Veneer/Raw Veneer
+  const allVeneer = rows.every((r) => {
+    const pt = (r.productCategory || "").trim().toLowerCase();
+    return pt.includes("veneer") && !pt.includes("decorative");
+  });
+
+  if (allVeneer) {
+    return [
+      { key: "orderItemNo", label: "Order Item No" },
+      { key: "productCategory", label: "Product Type" },
+      { key: "salesItemName", label: "Sales Item Name" },
+      { key: "itemName", label: "Item Name" },
+      { key: "length", label: "Length" },
+      { key: "width", label: "Width" },
+      { key: "thickness", label: "Thickness" },
+      { key: "noOfSheets", label: "No. of Leaves" },
+      { key: "sqm", label: "SQM" },
+      { key: "ratePerSqf", label: "Rate / SQM" },
+      { key: "amount", label: "Amount" },
+      { key: "remark", label: "Remark" },
+    ];
+  }
+
+  // Check if all rows are Decorative
+  const allDecorative = rows.every((r) => {
+    const pt = (r.productCategory || "").trim().toLowerCase();
+    return pt.includes("decorative");
+  });
+
+  if (allDecorative) {
+    return [
+      { key: "orderItemNo", label: "Order Item No" },
+      { key: "productCategory", label: "Product Type" },
+      { key: "salesItemName", label: "Sales Item Name" },
+      { key: "itemName", label: "Item Name" },
+      { key: "length", label: "Length" },
+      { key: "width", label: "Width" },
+      { key: "thickness", label: "Thickness" },
+      { key: "noOfSheets", label: "No. of Sheets" },
+      { key: "sqm", label: "SQM" },
+      { key: "sqf", label: "SQF" },
+      { key: "ratePerSqf", label: "Rate / SQF" },
+      { key: "amount", label: "Amount" },
+      { key: "groupNo", label: "Group No" },
+      { key: "baseType", label: "Base Type" },
+      { key: "baseName", label: "Base Name" },
+      { key: "baseLength", label: "Base Length" },
+      { key: "baseWidth", label: "Base Width" },
+      { key: "baseThickness", label: "Base Thickness" },
+      { key: "remark", label: "Remark" },
+    ];
+  }
+
+  // Dynamic filter for other product types: hide columns that are empty / inapplicable across all rows
+  return ALL_PACKING_SOURCE_COLUMNS.filter((col) => {
+    // Core columns always stay
+    if (
+      [
+        "orderItemNo",
+        "productCategory",
+        "itemName",
+        "length",
+        "width",
+        "thickness",
+        "noOfSheets",
+        "amount",
+        "remark",
+      ].includes(col.key)
+    ) {
+      return true;
+    }
+
+    // Hide column if every row has empty or "-" value for this key
+    const hasValue = rows.some((row) => {
+      const val = String(row[col.key as keyof PackingSourceRow] ?? "").trim();
+      return val !== "" && val !== "-";
+    });
+
+    return hasValue;
+  });
+}
 
 const selectedOrderDetailColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
   [
@@ -144,10 +238,6 @@ const selectedOrderDetailColumns: readonly EnterpriseTableColumn<OrderRecord>[] 
     { key: "priority", label: "Priority" },
     { key: "status", label: "Order Status" },
     { key: "remark", label: "Remark" },
-    { key: "createdDate", label: "Created Date" },
-    { key: "updatedDate", label: "Updated Date" },
-    { key: "createdBy", label: "Created By" },
-    { key: "updatedBy", label: "Updated By" },
   ];
 
 const packingItemDetailColumns: readonly {
@@ -448,7 +538,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
 
               <FormSectionHeader title="Order Items" />
               <EnterpriseDataTable
-                columns={packingSourceColumns}
+                columns={getDynamicPackingSourceColumns(filteredSourceRows)}
                 defaultRowsPerPage={10}
                 emptyStateLabel="No packing-eligible order items match."
                 hidePagination

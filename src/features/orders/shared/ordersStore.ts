@@ -31,6 +31,14 @@ export interface OrderLineItem {
   width: string;
   thickness: string;
   quantitySheets: string;
+  noOfLeaves?: string | undefined;
+  groupNo?: string | undefined;
+  photoNo?: string | undefined;
+  logNo?: string | undefined;
+  batchNo?: string | undefined;
+  cbm?: string | undefined;
+  cbf?: string | undefined;
+  ratePerCbm?: string | undefined;
   sqm: string;
   totalSqm: string;
   ratePerSqf: string;
@@ -40,8 +48,8 @@ export interface OrderLineItem {
   baseWidth: string;
   baseThickness: string;
   amount: string;
-  designCode?: string;
-  structuredCode?: string;
+  designCode?: string | undefined;
+  structuredCode?: string | undefined;
   remark: string;
 }
 
@@ -179,13 +187,15 @@ export const orderListingColumns: readonly EnterpriseTableColumn<OrderRecord>[] 
 export const orderTypeOptions = orderCreateOptions.map((option) => option.label);
 
 export const productCategoryOptions = [
-  "Veneer",
-  "Plywood",
-  "MDF",
-  "Decorative",
-  "Marquetry",
-  "Fluted",
-  "Embossed",
+  "Veneer (Raw)",
+  "Sawing (Raw)",
+  "Raw (Raw)",
+  "MDF (Raw)",
+  "Plywood (Finished)",
+  "Decorative (Finished)",
+  "Marquetry (Finished)",
+  "Fluted (Finished)",
+  "Embossed (Finished)",
 ] as const;
 
 export const subCategoryOptions = getItemMasterSubCategoryOptions();
@@ -244,6 +254,7 @@ export function getOrderFormFields(): readonly MasterFieldDefinition[] {
       key: "customerName",
       label: "Customer Name",
       type: "select",
+      required: true,
       options: getOrderCustomerOptions(),
     },
     {
@@ -652,13 +663,25 @@ function normalizeLineItems(
     const sqm = normalizeString(item.sqm, "7.280");
     const totalSqf = formatSqfFromSqm(sqm, item.totalSqm);
     const ratePerSqf = normalizeString(item.ratePerSqf, "2,360.00");
+    const isVeneer = (item.productCategory ?? "").trim().toLowerCase().includes("veneer");
+    const isSawing = (item.productCategory ?? "").trim().toLowerCase().includes("sawing");
+    const cbmVal = Number.parseFloat(item.cbm ?? "") || 0;
+    const rateCbmVal = Number.parseFloat(item.ratePerCbm || item.ratePerSqf || "") || 0;
+    let calculatedAmount = item.amount;
+    if (isSawing && cbmVal > 0 && rateCbmVal > 0) {
+      calculatedAmount = formatCurrencyAmount(cbmVal * rateCbmVal);
+    } else if (isVeneer) {
+      calculatedAmount = calculateAmountFromSqm(sqm, ratePerSqf, item.amount);
+    } else {
+      calculatedAmount = calculateAmountFromSqf(totalSqf, ratePerSqf, item.amount);
+    }
 
     return {
       id: item.id || `order-line-item-${index + 1}`,
       productCategory: normalizeString(item.productCategory, ""),
       finishedType: normalizeString(item.finishedType, ""),
       salesItemName: normalizeString(item.salesItemName, ""),
-      itemName: normalizeString(item.itemName, "Oak Veneer Panel"),
+      itemName: normalizeString(item.itemName, isSawing ? "Sawing Log" : "Oak Veneer Panel"),
       subCategory: normalizeString(item.subCategory, "Quarter Cut"),
       series: normalizeString(item.series, "DV-Prime"),
       grade: normalizeString(item.grade, "A"),
@@ -666,6 +689,14 @@ function normalizeLineItems(
       width: normalizeString(item.width, "1220 mm"),
       thickness: normalizeString(item.thickness, "0.60 mm"),
       quantitySheets: normalizeString(item.quantitySheets, "24"),
+      noOfLeaves: item.noOfLeaves ? normalizeString(item.noOfLeaves, "") : undefined,
+      groupNo: item.groupNo ? normalizeString(item.groupNo, "") : undefined,
+      photoNo: item.photoNo ? normalizeString(item.photoNo, "") : undefined,
+      logNo: item.logNo ? normalizeString(item.logNo, "") : undefined,
+      batchNo: item.batchNo ? normalizeString(item.batchNo, "") : undefined,
+      cbm: item.cbm ? normalizeString(item.cbm, "") : undefined,
+      cbf: item.cbf ? normalizeString(item.cbf, "") : undefined,
+      ratePerCbm: item.ratePerCbm ? normalizeString(item.ratePerCbm, "") : undefined,
       sqm,
       totalSqm: totalSqf,
       ratePerSqf,
@@ -676,10 +707,25 @@ function normalizeLineItems(
       baseThickness: normalizeString(item.baseThickness, ""),
       designCode: normalizeString(item.designCode, ""),
       structuredCode: normalizeString(item.structuredCode, ""),
-      amount: calculateAmountFromSqf(totalSqf, ratePerSqf, item.amount),
+      amount: calculatedAmount,
       remark: normalizeString(item.remark, ""),
     };
   });
+}
+
+function calculateAmountFromSqm(
+  sqm: string,
+  ratePerSqm: string,
+  fallbackAmount?: string,
+) {
+  const sqmValue = parseNumberValue(sqm);
+  const rateValue = parseNumberValue(ratePerSqm);
+
+  if (sqmValue > 0 && rateValue > 0) {
+    return formatCurrencyAmount(sqmValue * rateValue);
+  }
+
+  return normalizeOrderCurrency(fallbackAmount, 185000);
 }
 
 function applyOrderLineItemSummary(

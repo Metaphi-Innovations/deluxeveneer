@@ -345,36 +345,31 @@ function InventoryFormContent<Row extends InventoryRecord>({
   }, [baseFields, row, warehouseAAddStockSlug, warehouseRecordDetailSlug]);
 
   useEffect(() => {
-    if (!isApiInwardAdd) {
-      return;
-    }
-
     void refreshSupplierMasterCache()
       .then(() => {
         setSupplierOptionsRevision((current) => current + 1);
       })
       .catch(() => undefined);
-  }, [isApiInwardAdd]);
+  }, []);
 
   useEffect(() => {
-    if (!apiWarehouseId) {
-      setWarehouseState("");
-      return;
-    }
-
     let ignore = false;
 
-    void fetchWarehouseMasterDetail(apiWarehouseId)
-      .then((warehouse) => {
-        if (!ignore) {
-          setWarehouseState(String(warehouse.state ?? ""));
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setWarehouseState("");
-        }
-      });
+    if (apiWarehouseId) {
+      void fetchWarehouseMasterDetail(apiWarehouseId)
+        .then((warehouse) => {
+          if (!ignore) {
+            setWarehouseState(String(warehouse.state ?? "Gujarat"));
+          }
+        })
+        .catch(() => {
+          if (!ignore) {
+            setWarehouseState("Gujarat");
+          }
+        });
+    } else {
+      setWarehouseState("Gujarat");
+    }
 
     return () => {
       ignore = true;
