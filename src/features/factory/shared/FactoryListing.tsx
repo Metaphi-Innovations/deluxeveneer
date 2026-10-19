@@ -110,6 +110,14 @@ import {
   FinishingCreateDialog,
 } from "../finishing/FinishingCreateDialog";
 import {
+  buildCncFlutingDoneSnapshot,
+  CncFlutingCreateDialog,
+} from "../cnc-fluting/CncFlutingCreateDialog";
+import {
+  buildEmbossingDoneSnapshot,
+  EmbossingCreateDialog,
+} from "../embossing/EmbossingCreateDialog";
+import {
   addDryingDoneItems,
   adjustDryingDoneLeaves,
   applyDryingListingRows,
@@ -297,6 +305,10 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingEditRow, setDryingEditRow] = useState<Row | null>(null);
   const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
   const [finishingEditRow, setFinishingEditRow] = useState<Row | null>(null);
+  const [flutingCreateRow, setFlutingCreateRow] = useState<Row | null>(null);
+  const [flutingEditRow, setFlutingEditRow] = useState<Row | null>(null);
+  const [embossingCreateRow, setEmbossingCreateRow] = useState<Row | null>(null);
+  const [embossingEditRow, setEmbossingEditRow] = useState<Row | null>(null);
   const [splicingPressingIssueRows, setSplicingPressingIssueRows] =
     useState<Row[]>([]);
   const [marquetryPressingIssueRows, setMarquetryPressingIssueRows] =
@@ -712,10 +724,19 @@ export function FactoryListing<Row extends FactoryRecord>({
               id: "edit",
               label: "Edit",
               icon: Pencil,
-              onSelect: (row: Row) =>
+              onSelect: (row: Row) => {
+                if (definition.slug === "cnc-fluting") {
+                  setFlutingEditRow(row);
+                  return;
+                }
+                if (definition.slug === "embossing") {
+                  setEmbossingEditRow(row);
+                  return;
+                }
                 navigate(paths.edit(row.id), {
                   state: { record: row, tab: activeTab },
-                }),
+                });
+              },
             },
           ]
           : []),
@@ -741,6 +762,16 @@ export function FactoryListing<Row extends FactoryRecord>({
 
             if (definition.slug === "finishing") {
               setFinishingCreateRow(row);
+              return;
+            }
+
+            if (definition.slug === "cnc-fluting") {
+              setFlutingCreateRow(row);
+              return;
+            }
+
+            if (definition.slug === "embossing") {
+              setEmbossingCreateRow(row);
               return;
             }
 
@@ -2087,6 +2118,136 @@ export function FactoryListing<Row extends FactoryRecord>({
           setFinishingEditRow(null);
           setToastNotification({
             message: "Finishing item updated successfully.",
+            severity: "success",
+          });
+        }}
+      />
+
+      <CncFlutingCreateDialog
+        open={Boolean(flutingCreateRow)}
+        row={flutingCreateRow}
+        onClose={() => setFlutingCreateRow(null)}
+        onSave={(entry) => {
+          if (!flutingCreateRow) return;
+
+          const snapshot = buildCncFlutingDoneSnapshot(flutingCreateRow, entry);
+          const workItemId =
+            typeof flutingCreateRow.workItemId === "string"
+              ? flutingCreateRow.workItemId
+              : flutingCreateRow.id.startsWith("factory-work-")
+                ? flutingCreateRow.id
+                : "";
+
+          if (workItemId) {
+            completeFactoryIssuedWork(workItemId, snapshot);
+          } else {
+            const issued = issueFactoryWork({
+              destinationProcess: "CNC / Fluting",
+              sourceProcess: "CNC / Fluting",
+              sourceRow: flutingCreateRow,
+              sourceSlug: "cnc-fluting",
+            });
+            completeFactoryIssuedWork(issued.id, snapshot);
+          }
+
+          const sampleNo = getSampleNoFromRow(flutingCreateRow);
+          if (sampleNo) {
+            markSampleProcessDone(sampleNo, "cnc-fluting");
+          }
+
+          setFlutingCreateRow(null);
+          setActiveTab("done");
+        }}
+      />
+
+      <CncFlutingCreateDialog
+        mode="edit"
+        open={Boolean(flutingEditRow)}
+        row={flutingEditRow}
+        onClose={() => setFlutingEditRow(null)}
+        onSave={(entry) => {
+          if (!flutingEditRow) return;
+
+          const snapshot = buildCncFlutingDoneSnapshot(flutingEditRow, entry);
+          const workItemId =
+            typeof flutingEditRow.workItemId === "string"
+              ? flutingEditRow.workItemId
+              : flutingEditRow.id.startsWith("factory-work-")
+                ? flutingEditRow.id
+                : "";
+
+          if (workItemId) {
+            updateFactoryIssuedWorkSnapshot(workItemId, snapshot);
+          }
+
+          setFlutingEditRow(null);
+          setToastNotification({
+            message: "Fluting item updated successfully.",
+            severity: "success",
+          });
+        }}
+      />
+
+      <EmbossingCreateDialog
+        open={Boolean(embossingCreateRow)}
+        row={embossingCreateRow}
+        onClose={() => setEmbossingCreateRow(null)}
+        onSave={(entry) => {
+          if (!embossingCreateRow) return;
+
+          const snapshot = buildEmbossingDoneSnapshot(embossingCreateRow, entry);
+          const workItemId =
+            typeof embossingCreateRow.workItemId === "string"
+              ? embossingCreateRow.workItemId
+              : embossingCreateRow.id.startsWith("factory-work-")
+                ? embossingCreateRow.id
+                : "";
+
+          if (workItemId) {
+            completeFactoryIssuedWork(workItemId, snapshot);
+          } else {
+            const issued = issueFactoryWork({
+              destinationProcess: "Embossing",
+              sourceProcess: "Embossing",
+              sourceRow: embossingCreateRow,
+              sourceSlug: "embossing",
+            });
+            completeFactoryIssuedWork(issued.id, snapshot);
+          }
+
+          const sampleNo = getSampleNoFromRow(embossingCreateRow);
+          if (sampleNo) {
+            markSampleProcessDone(sampleNo, "embossing");
+          }
+
+          setEmbossingCreateRow(null);
+          setActiveTab("done");
+        }}
+      />
+
+      <EmbossingCreateDialog
+        mode="edit"
+        open={Boolean(embossingEditRow)}
+        row={embossingEditRow}
+        onClose={() => setEmbossingEditRow(null)}
+        onSave={(entry) => {
+          if (!embossingEditRow) return;
+
+          const snapshot = buildEmbossingDoneSnapshot(embossingEditRow, entry);
+          const workItemId =
+            typeof embossingEditRow.workItemId === "string"
+              ? embossingEditRow.workItemId
+              : embossingEditRow.id.startsWith("factory-work-")
+                ? embossingEditRow.id
+                : "";
+
+          if (workItemId) {
+            updateFactoryIssuedWorkSnapshot(workItemId, snapshot);
+          }
+
+          setEmbossingEditRow(null);
+          setToastNotification({
+            message: "Embossing item updated successfully.",
             severity: "success",
           });
         }}

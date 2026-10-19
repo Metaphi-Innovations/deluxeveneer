@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
-import { Box, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField } from "@mui/material";
+import { Box, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
-import { FormSectionHeader, formSectionCardSx } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
   pressingCompactBodyCellSx,
@@ -64,8 +63,19 @@ export function PressingRejectDetails({
   const columnWidths = inputWidths.map(pressingCellWidth);
 
   return (
-    <Stack sx={(theme) => ({ ...formSectionCardSx(theme), gap: theme.spacing(1) })}>
-      <FormSectionHeader title="Reject / Available Details" />
+    <Stack sx={{ gap: 1 }}>
+      <Typography
+        component="h3"
+        sx={(theme) => ({
+          color: theme.customTokens.neutrals[900],
+          fontSize: "0.875rem",
+          fontWeight: 600,
+          letterSpacing: "0.01em",
+          lineHeight: 1.25,
+        })}
+      >
+        Reject / Available Details
+      </Typography>
       <Box sx={(theme) => listingTableContainerSx(theme)}>
         <TableContainer sx={(theme) => pressingTableScrollSx(theme)}>
           <Table stickyHeader sx={pressingDetailsTableSx}>

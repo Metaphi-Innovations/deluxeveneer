@@ -93,13 +93,27 @@ function scaleMeasure(value: unknown, fromSheets: number, toSheets: number) {
   });
 }
 
+function todayInputValue() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${today.getFullYear()}-${month}-${day}`;
+}
+
 export function buildFinishingDoneSnapshot(
   row: FactoryRecord,
-  entry: { finishingType: FinishingType; noOfSheets: number; remark: string },
+  entry: {
+    finishingDate?: string;
+    finishingType: FinishingType;
+    flutingDate?: string;
+    noOfSheets: number;
+    remark: string;
+  },
 ) {
   const availableSheets = availableSheetCount(row);
   const sheets = String(entry.noOfSheets);
   const remark = entry.remark.trim();
+  const flutingDate = entry.flutingDate?.trim() || "";
 
   return {
     ...row,
@@ -110,6 +124,7 @@ export function buildFinishingDoneSnapshot(
     outputNoOfSheets: sheets,
     sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
     sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    ...(flutingDate ? { flutingDate, cncDate: flutingDate } : {}),
     ...(remark ? { remark } : {}),
   };
 }
@@ -124,7 +139,9 @@ export function FinishingCreateDialog({
   mode?: "create" | "edit";
   onClose: () => void;
   onSave: (entry: {
+    finishingDate?: string;
     finishingType: FinishingType;
+    flutingDate?: string;
     noOfSheets: number;
     remark: string;
   }) => void;
@@ -133,6 +150,7 @@ export function FinishingCreateDialog({
 }) {
   const [sheets, setSheets] = useState("");
   const [finishingType, setFinishingType] = useState("");
+  const [flutingDate, setFlutingDate] = useState("");
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const availableSheets = availableSheetCount(row);
@@ -146,10 +164,12 @@ export function FinishingCreateDialog({
           ? (row.finishingType as FinishingType)
           : "",
       );
+      setFlutingDate(String(row.flutingDate ?? row.cncDate ?? row.finishingDate ?? todayInputValue()));
       setRemark(String(row.remark ?? ""));
     } else {
       setSheets("");
       setFinishingType("");
+      setFlutingDate(todayInputValue());
       setRemark("");
     }
     setSubmitted(false);
@@ -290,6 +310,7 @@ export function FinishingCreateDialog({
                   gridTemplateColumns: {
                     xs: "1fr",
                     sm: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(4, minmax(0, 1fr))",
                   },
                 })}
               >
@@ -331,12 +352,21 @@ export function FinishingCreateDialog({
                     value={finishingType}
                   />
                 </Stack>
-                <Stack spacing={0.75} sx={{ gridColumn: "1 / -1" }}>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Fluting Date</DialogFieldLabel>
+                  <TextField
+                    fullWidth
+                    onChange={(event) => setFlutingDate(event.target.value)}
+                    size="small"
+                    type="date"
+                    value={flutingDate}
+                    sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
                   <DialogFieldLabel>Remark</DialogFieldLabel>
                   <TextField
                     fullWidth
-                    minRows={2}
-                    multiline
                     onChange={(event) => setRemark(event.target.value)}
                     placeholder="Enter remark"
                     size="small"
@@ -366,6 +396,7 @@ export function FinishingCreateDialog({
             if (sheetsInvalid || typeInvalid) return;
             onSave({
               finishingType: finishingType as FinishingType,
+              flutingDate: flutingDate.trim(),
               noOfSheets: parsedSheets,
               remark: remark.trim(),
             });
