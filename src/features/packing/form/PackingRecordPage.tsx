@@ -322,6 +322,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     buildPackingInitialValues(initialActiveFields, record, mode),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [selectedSourceRowIds, setSelectedSourceRowIds] = useState<string[]>([]);
   const [leaveConfirmation, setLeaveConfirmation] = useState<{
     open: boolean;
@@ -494,10 +495,17 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
         >
           <FormSectionHeader title="Packing Details" />
 
+          {errorMessage ? (
+            <Alert severity="error" sx={{ mb: 1 }}>
+              {errorMessage}
+            </Alert>
+          ) : null}
+
           {mode === "add" ? (
             <SizedMasterFormFields
               fields={activeFields}
-              onChange={(key, value) =>
+              onChange={(key, value) => {
+                setErrorMessage("");
                 setValues((current) => {
                   const nextValues = {
                     ...current,
@@ -515,8 +523,8 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                   }
 
                   return nextValues;
-                })
-              }
+                });
+              }}
               showRequiredErrors={hasSubmitted}
               sizes={packingCreateFieldSizes}
               values={values}
@@ -639,11 +647,13 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                     }
 
                     setHasSubmitted(true);
+                    setErrorMessage("");
 
                     if (
                       mode === "add" &&
                       hasRequiredFieldErrors(activeFields, values)
                     ) {
+                      setErrorMessage("Please fill in all required packing details.");
                       return;
                     }
 
@@ -657,6 +667,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                       showOrderSourceTable &&
                       rowsToUse.length === 0
                     ) {
+                      setErrorMessage("Please select at least one item from the order items list to proceed.");
                       return;
                     }
 

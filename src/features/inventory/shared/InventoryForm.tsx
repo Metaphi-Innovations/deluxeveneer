@@ -835,7 +835,18 @@ function InventoryFormContent<Row extends InventoryRecord>({
                         values,
                       );
 
-                      if (hasBaseFieldErrors || !workspaceIsValid) {
+                      if (hasBaseFieldErrors && !workspaceIsValid) {
+                        setSaveError("Please fill in all required header fields and complete line items details.");
+                        return;
+                      }
+
+                      if (hasBaseFieldErrors) {
+                        setSaveError("Please fill in all required fields marked with *.");
+                        return;
+                      }
+
+                      if (!workspaceIsValid) {
+                        setSaveError("Please complete all required line items and stock details.");
                         return;
                       }
 

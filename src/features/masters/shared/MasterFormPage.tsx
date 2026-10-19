@@ -258,10 +258,14 @@ export function MasterFormPage({
 
     const canSaveAdditionalContent = beforeSave?.() ?? true;
 
-    if (
-      hasFormFieldErrors(formDefinition.fields, values) ||
-      !canSaveAdditionalContent
-    ) {
+    const hasFormErrors = hasFormFieldErrors(formDefinition.fields, values);
+
+    if (hasFormErrors || !canSaveAdditionalContent) {
+      const msg = hasFormErrors
+        ? "Please fill in all required fields marked with * and correct invalid entries."
+        : "Please complete all required section details.";
+      setSaveError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
