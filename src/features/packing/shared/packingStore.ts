@@ -515,6 +515,13 @@ export function issueFinishingToPacking(source: Record<string, unknown>) {
   }
 
   const timestamp = new Date();
+  const requestedPackingDate = source.packingDate;
+  const packingDate =
+    requestedPackingDate instanceof Date && !Number.isNaN(requestedPackingDate.getTime())
+      ? requestedPackingDate
+      : typeof requestedPackingDate === "string" && requestedPackingDate.trim()
+        ? new Date(`${requestedPackingDate.slice(0, 10)}T00:00:00`)
+        : null;
   const orderNo = readPackingSourceText(source, ["orderNo"]) || `ORD-FIN-${Date.now()}`;
   const productCategory = resolveFinishedProductCategory(source);
   const record: PackingRecord = {
@@ -540,7 +547,8 @@ export function issueFinishingToPacking(source: Record<string, unknown>) {
     amount: readPackingSourceText(source, ["amount"]) || "0.00",
     remark: readPackingSourceText(source, ["remark"]) || `Transferred from finishing ${sourceRef}`.trim(),
     ...(sourceRef ? { sourceRef } : {}),
-    packingDate: null,
+    packingDate:
+      packingDate && !Number.isNaN(packingDate.getTime()) ? packingDate : null,
     dispatchDate: null,
     createdBy: "Finishing Supervisor",
     updatedBy: "Finishing Supervisor",

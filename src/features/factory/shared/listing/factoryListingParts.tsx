@@ -42,6 +42,7 @@ import {
 } from "../factoryIssuedWorkStore";
 import {
   getSampleNoFromRow,
+  isSampleFactoryRow,
   issueSampleToProcess,
 } from "../sampleSheetIdentityStore";
 import type { FactoryRecord } from "../types";
@@ -1085,6 +1086,7 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
   sourceSlug: string;
 }) {
   const sampleNo = getSampleNoFromRow(row);
+  const isSample = isSampleFactoryRow(row);
   if (sampleNo) {
     const normalized = destinationProcess.replace(/^CNC\s*\/\s*/i, "").trim();
     if (
@@ -1099,9 +1101,9 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
   }
 
   const orderNo =
-    typeof row.orderNo === "string" && !sampleNo ? row.orderNo : undefined;
+    typeof row.orderNo === "string" && !isSample ? row.orderNo : undefined;
   const orderItemNo =
-    typeof row.orderItemNo === "string" && !sampleNo
+    typeof row.orderItemNo === "string" && !isSample
       ? row.orderItemNo
       : undefined;
 
@@ -1115,7 +1117,7 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
 
   issueFactoryWork({
     destinationProcess,
-    purpose: sampleNo ? "SAMPLE" : "ORDER",
+    purpose: isSample ? "SAMPLE" : "ORDER",
     sourceRow,
     sourceSlug,
     sourceProcess: resolveFactoryProcessLabel(sourceSlug),

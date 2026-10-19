@@ -475,6 +475,24 @@ const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
   ],
 }));
 
+const pressingListingRows = expandFactoryRowsForTabs("pressing", pressingRows).map((row) =>
+  row.id === "pressing-done-1"
+    ? {
+        ...row,
+        customerName: "",
+        isSample: true,
+        orderItemNo: "",
+        orderNo: "",
+        pressingFor: "Sample Sheet",
+        purpose: "SAMPLE",
+        for: "Sample",
+        forLabel: "Sample",
+        issuedFor: "Pressing",
+        remark: "Dummy Sample Sheet for testing the next-process actions.",
+      }
+    : row,
+);
+
 const cncFlutingRows = factoryRows("cnc-fluting", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
   issuedFor: "Finishing",
@@ -618,8 +636,6 @@ const productionListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
-  ["bundleNumber", "Bundle No."],
-  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -723,8 +739,6 @@ const flutingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
-  ["bundleNumber", "Bundle No."],
-  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -752,8 +766,6 @@ const embossingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
-  ["bundleNumber", "Bundle No."],
-  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -781,8 +793,6 @@ const finishingListingColumns = listingColumns([
   ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
-  ["bundleNumber", "Bundle No."],
-  ["palletNo", "Pallet No."],
   ["orderDate", "Order Date"],
   ["issuedDate", "Issued Date"],
   ["customerName", "Customer Name"],
@@ -1146,7 +1156,7 @@ export const pressingDefinition: FactoryDefinition = {
   title: "Pressing",
   listColumns: productionListingColumns,
   formSections: sectionSet(pressingRows, pressingCreateFields, pressingAddItemFields),
-  rows: expandFactoryRowsForTabs("pressing", pressingRows),
+  rows: pressingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 

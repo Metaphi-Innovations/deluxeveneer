@@ -98,9 +98,13 @@ import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColum
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
 import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
+import { FinishingIssueToPackingDialog } from "../finishing/FinishingIssueToPackingDialog";
 import { issueFinishingToPacking } from "../../packing/shared/packingStore";
 import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
-import { applyPressingIssuedForLabels } from "../pressing/pressingIssuedForLabel";
+import {
+  applyPressingIssuedForLabels,
+  getPressingForLabel,
+} from "../pressing/pressingIssuedForLabel";
 import { applyPressingListingColumns } from "../pressing/pressingListingColumns";
 import { getPressingNextProcessActions } from "../pressing/pressingNextProcessActions";
 import { mapSplicingIssuedListingRow } from "../splicing/mapSplicingIssuedListingRow";
@@ -367,6 +371,8 @@ export function FactoryListing<Row extends FactoryRecord>({
     useState<Row[]>([]);
   const [finishingPackingIssueRows, setFinishingPackingIssueRows] =
     useState<Row[]>([]);
+  const [finishingPackingIssueRow, setFinishingPackingIssueRow] =
+    useState<Row | null>(null);
   const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
   const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
   const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
@@ -854,6 +860,9 @@ export function FactoryListing<Row extends FactoryRecord>({
         {
           key: "for",
           label: "For",
+          ...(definition.slug === "pressing"
+            ? { renderCell: (row: Row) => getPressingForLabel(row) }
+            : {}),
         },
         "itemName",
       );
@@ -1063,6 +1072,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         action.id === "issue-for-drying" ||
         action.id === "issue-to-pressing" ||
         action.id === "issue-to-inspection" ||
+        (definition.slug === "finishing" && action.id === "issue-for-packing") ||
         (definition.slug === "grouping" && action.id === "issue-for-sample-sheet")
       ) {
         return action;
@@ -1260,7 +1270,7 @@ export function FactoryListing<Row extends FactoryRecord>({
         canEdit,
         canView,
         onIssueToPacking: (selectedRow) => {
-          issueFinishingToPacking(selectedRow);
+          setFinishingPackingIssueRow(selectedRow);
         },
         onRevert: (selectedRow) =>
           setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
@@ -1357,10 +1367,10 @@ export function FactoryListing<Row extends FactoryRecord>({
           );
         }
 
-        if (canCreate && definition.slug === "pressing") {
+        if (definition.slug === "pressing") {
           return confirmIssueActions([
-            ...sampleActions,
-            ...getPressingNextProcessActions(row, definition.slug),
+            ...doneActions,
+            ...(canCreate ? getPressingNextProcessActions(row, definition.slug) : []),
           ]);
         }
 
@@ -1816,7 +1826,16 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setFinishingPackingIssueRows(selectedListingRows)}
+                    onClick={() => {
+                      const eligibleRows = selectedListingRows.filter(
+                        (row) => !isSampleFactoryRow(row),
+                      );
+                      if (selectedListingRows.length === 1 && eligibleRows.length === 1) {
+                        setFinishingPackingIssueRow(eligibleRows[0] ?? null);
+                        return;
+                      }
+                      setFinishingPackingIssueRows(selectedListingRows);
+                    }}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -2858,6 +2877,38 @@ export function FactoryListing<Row extends FactoryRecord>({
         open={flutingFinishingIssueRows.length > 0}
         title="Issue to Finishing"
         tone="default"
+      />
+      <FinishingIssueToPackingDialog
+        onClose={() => setFinishingPackingIssueRow(null)}
+        onSubmit={(row, entry) => {
+          const availableSheets = Number(
+            row.availableSheets ??
+              row.finishedSheets ??
+              row.outputNoOfSheets ??
+              row.noOfSheets ??
+              0,
+          );
+          issueFinishingToPacking({
+            ...row,
+            availableSheets: String(
+              Math.max(0, availableSheets - entry.issueSheets),
+            ),
+            issuedNoOfSheets: String(entry.issueSheets),
+            noOfSheets: String(entry.issueSheets),
+            packingDate: entry.packingDate,
+            remark: entry.remark || row.remark,
+          });
+          setToastNotification({
+            message: `Issued ${entry.issueSheets} sheet(s) to Packing successfully.`,
+            severity: "success",
+          });
+          setSelectedListingRows((current) =>
+            current.filter((selectedRow) => selectedRow.id !== row.id),
+          );
+          setFinishingPackingIssueRow(null);
+        }}
+        open={Boolean(finishingPackingIssueRow)}
+        row={finishingPackingIssueRow}
       />
       <ConfirmationDialog
         cancelLabel="Cancel"
