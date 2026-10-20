@@ -209,6 +209,7 @@ export function OrderRecordPage({
     buildOrderInitialValues(activeFields, record, activeVariant),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const lineItemsTableRef = useRef<OrderLineItemsTableHandle>(null);
   const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
   const [lineItems, setLineItems] = useState<OrderLineItem[]>(() => {
@@ -436,6 +437,12 @@ export function OrderRecordPage({
           width: "100%",
         })}
       >
+        {errorMessage ? (
+          <Alert severity="error">
+            {errorMessage}
+          </Alert>
+        ) : null}
+
         <OrderCompactSectionCard>
           <Stack spacing={1.15}>
             <OrderSectionTitle title="Order Details" />
@@ -506,14 +513,29 @@ export function OrderRecordPage({
             }
 
             setHasSubmitted(true);
+            setErrorMessage("");
 
+            const hasHeaderErrors = hasFormFieldErrors(activeFields, values);
             const lineItemsAreValid =
               lineItemsTableRef.current?.validate() ?? true;
 
-            if (
-              hasFormFieldErrors(activeFields, values) ||
-              !lineItemsAreValid
-            ) {
+            if (lineItems.length === 0) {
+              setErrorMessage("Please add at least one line item to the order.");
+              return;
+            }
+
+            if (hasHeaderErrors && !lineItemsAreValid) {
+              setErrorMessage("Please fill in all required order details and complete the line items information.");
+              return;
+            }
+
+            if (hasHeaderErrors) {
+              setErrorMessage("Please fill in all required order header details.");
+              return;
+            }
+
+            if (!lineItemsAreValid) {
+              setErrorMessage("Please correct errors in the line items table (all marked * fields are required).");
               return;
             }
 

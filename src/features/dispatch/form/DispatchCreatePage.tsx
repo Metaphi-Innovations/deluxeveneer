@@ -319,6 +319,8 @@ export function DispatchCreatePage({
   const [values, setValues] = useState<DispatchFormState>(() =>
     buildDispatchInitialValues(sourceRecord),
   );
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [loadedRecords, setLoadedRecords] = useState<readonly PackingRecord[]>(
     () => (sourceRecord ? [sourceRecord] : []),
   );
@@ -508,6 +510,12 @@ export function DispatchCreatePage({
         >
           <FormSectionHeader title="Dispatch Details" />
 
+          {errorMessage ? (
+            <Alert severity="error" sx={{ mb: 1 }}>
+              {errorMessage}
+            </Alert>
+          ) : null}
+
           <Box
             sx={(theme) => ({
               display: "grid",
@@ -520,27 +528,35 @@ export function DispatchCreatePage({
               alignItems: "start",
             })}
           >
-            <LabeledField label="Dispatch Date">
+            <LabeledField label="Dispatch Date *">
               <ErpDatePickerField
-                helperText=""
-                onChange={(nextValue) =>
+                helperText={hasSubmitted && !values.dispatchDate ? "Dispatch Date is required." : ""}
+                onChange={(nextValue) => {
+                  setErrorMessage("");
                   setValues((current) => ({
                     ...current,
                     dispatchDate: nextValue,
-                  }))
+                  }));
+                }}
+                state={
+                  readOnly
+                    ? "readOnly"
+                    : hasSubmitted && !values.dispatchDate
+                      ? "error"
+                      : "default"
                 }
-                state={readOnly ? "readOnly" : "default"}
                 value={values.dispatchDate}
               />
             </LabeledField>
 
             <SingleSelectField
               disabled={readOnly}
-              error={false}
-              label="Customer Name"
+              error={hasSubmitted && !values.customerName}
+              label="Customer Name *"
               options={customerOptions}
               value={values.customerName}
               onChange={(nextValue) => {
+                setErrorMessage("");
                 setValues((current) => ({
                   ...current,
                   customerName: nextValue,
@@ -594,8 +610,8 @@ export function DispatchCreatePage({
             {canSelectPackingList ? (
               <MultiSelectField
                 disabled={readOnly}
-                error={false}
-                label="Packing List"
+                error={hasSubmitted && loadedRecords.length === 0}
+                label="Packing List *"
                 labelAction={
                   !readOnly ? (
                     <Button
@@ -612,6 +628,7 @@ export function DispatchCreatePage({
                           initialQtyMap[record.id] = parseInt(record.noOfSheets, 10) || 0;
                         });
                         setDispatchQuantityMap(initialQtyMap);
+                        setErrorMessage("");
                       }}
                       sx={loadButtonSx}
                       variant="contained"
@@ -776,6 +793,42 @@ export function DispatchCreatePage({
                 <Button
                   type="button"
                   onClick={() => {
+                    setHasSubmitted(true);
+                    setErrorMessage("");
+
+                    if (!values.dispatchDate) {
+                      setErrorMessage("Please enter a valid Dispatch Date.");
+                      return;
+                    }
+
+                    if (!values.customerName) {
+                      setErrorMessage("Please select a Customer Name.");
+                      return;
+                    }
+
+                    if (loadedRecords.length === 0) {
+                      setErrorMessage(
+                        "Please select a Packing List and click 'Load' to include items for dispatch."
+                      );
+                      return;
+                    }
+
+                    const validItems = loadedRecords.filter((record) => {
+                      const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+                      const dispatchQty =
+                        dispatchQuantityMap[record.id] !== undefined
+                          ? dispatchQuantityMap[record.id]!
+                          : totalSheetsNum;
+                      return dispatchQty > 0;
+                    });
+
+                    if (validItems.length === 0) {
+                      setErrorMessage(
+                        "Please enter a Dispatch Quantity greater than 0 for at least one item."
+                      );
+                      return;
+                    }
+
                     loadedRecords.forEach((record) => {
                       const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
                       const dispatchQty =
