@@ -242,13 +242,21 @@ function getGroupingOrderItemDetails(
   const orderNo = typeof row.orderNo === "string" ? row.orderNo : "";
   const orderItemNo =
     typeof row.orderItemNo === "string" ? row.orderItemNo : "";
-  const order =
+  const matchedOrder =
     orderRecords.find((record) => record.orderNo === orderNo) ?? null;
+
   const itemIndex = Math.max(
     0,
     Number(orderItemNo.match(/\d+/)?.[0] ?? "1") - 1,
   );
-  const lineItem = order ? getOrderLineItems(order.id)[itemIndex] ?? null : null;
+
+  // If orderNo doesn't directly exist in orderRecords (e.g. factory mock row ORD-2026-12xx),
+  // pick a consistent order from orderRecords based on itemIndex so lineItem fields are populated
+  const fallbackOrder = orderRecords.length > 0 ? (orderRecords[itemIndex % orderRecords.length] ?? orderRecords[0] ?? null) : null;
+  const order: OrderRecord | null = matchedOrder ?? fallbackOrder ?? null;
+
+  const orderLineItems = order ? getOrderLineItems(order.id) : [];
+  const lineItem = orderLineItems[itemIndex % Math.max(1, orderLineItems.length)] ?? orderLineItems[0] ?? null;
 
   return { lineItem, order, orderItemNo, row, stageLabel };
 }
@@ -379,6 +387,7 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] = useState<Row[]>([]);
   const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<Row[]>([]);
   const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<string[]>([]);
+  const [warehouseBTransferredWarehouseMap, setWarehouseBTransferredWarehouseMap] = useState<Record<string, string>>({});
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
     Record<string, { issuedLeaves: number; availableLeaves: number; status: "Pending" | "Partially Done" | "Done" }>
   >({});
@@ -551,6 +560,12 @@ export function FactoryListing<Row extends FactoryRecord>({
           const rowId = String(sourceNormalizedRow.id);
           if (isDryingInspectionModule && (activeTab === "done" || activeTab === "history")) {
             const transferred = warehouseBTransferredIds.includes(rowId);
+            const destinationWarehouseName =
+              warehouseBTransferredWarehouseMap[rowId] ||
+              sourceNormalizedRow.productionWarehouseName ||
+              sourceNormalizedRow.storageWarehouseName ||
+              sourceNormalizedRow.destinationWarehouse ||
+              (transferred ? sourceNormalizedRow.warehouseName || "Warehouse B" : (sourceNormalizedRow.warehouseName || "Warehouse B"));
             const eventStatus = formatInspectionLeafQty(sourceNormalizedRow.inspectionEventStatus);
             return {
               ...sourceNormalizedRow,
@@ -559,6 +574,9 @@ export function FactoryListing<Row extends FactoryRecord>({
               warehouseBStatus: transferred
                 ? "Transferred to Warehouse B"
                 : "Not transferred",
+              productionWarehouseName: destinationWarehouseName,
+              destinationWarehouse: destinationWarehouseName,
+              storageWarehouseName: destinationWarehouseName,
               inspectionEventStatus: activeTab === "history" ? eventStatus : sourceNormalizedRow.inspectionEventStatus,
             } as Row;
           }
@@ -584,6 +602,12 @@ export function FactoryListing<Row extends FactoryRecord>({
             definition.slug === "sawing-inspection"
               ? sourceNormalizedRow.sawingDate || sourceNormalizedRow.processDate
               : undefined;
+          const sawingProductionWarehouseName =
+            definition.slug === "sawing-inspection" && activeTab === "done"
+              ? sourceNormalizedRow.productionWarehouseName ||
+                sourceNormalizedRow.destinationWarehouse ||
+                "Warehouse C"
+              : sourceNormalizedRow.productionWarehouseName;
           return {
             ...sourceNormalizedRow,
             qcStatus: sourceNormalizedRow.qcStatus ?? defaultStatus,
@@ -594,6 +618,7 @@ export function FactoryListing<Row extends FactoryRecord>({
                   subCategory: sawingSubCategory,
                   itemSubCategory: sawingSubCategory,
                   sawingDate,
+                  productionWarehouseName: sawingProductionWarehouseName,
                 }
               : {}),
           } as Row;
@@ -1947,6 +1972,13 @@ export function FactoryListing<Row extends FactoryRecord>({
           setWarehouseBTransferredIds((current) => [
             ...new Set([...current, ...warehouseBMoveRows.map((row) => row.id)]),
           ]);
+          setWarehouseBTransferredWarehouseMap((current) => {
+            const next = { ...current };
+            warehouseBMoveRows.forEach((r) => {
+              next[String(r.id)] = warehouse.name;
+            });
+            return next;
+          });
           if (rowsToRecord.length > 0) {
             const movedAt = Date.now();
             const issueDate = new Date().toISOString().slice(0, 10);
@@ -3325,51 +3357,89 @@ function GroupingOrderItemDetailsDialog({
   const order = details?.order;
   const item = details?.lineItem;
   const row = details?.row;
-  const sections = details
+  const stage = details?.stageLabel?.trim() || "Process";
+  const orderType = String(order?.orderType ?? row?.orderType ?? "");
+  const isFinishedOrder =
+    /finished/i.test(orderType) ||
+    Boolean(item?.baseType || row?.baseType || item?.baseName || item?.finishedType);
+
+  const baseTypeVal = item?.baseType || (row?.baseType as string) || (isFinishedOrder ? "Plywood" : "");
+  const baseNameVal = item?.baseName || (baseTypeVal ? `${baseTypeVal} Base` : "");
+  const baseLengthVal = item?.baseLength || item?.length || (row?.length as string) || "";
+  const baseWidthVal = item?.baseWidth || item?.width || (row?.width as string) || "";
+  const baseThicknessVal = item?.baseThickness || (row?.baseThickness as string) || "12 mm";
+
+  const hasBaseDetails = isFinishedOrder || Boolean(baseTypeVal);
+
+  const leftSections = details
     ? [
         {
           title: "Order Reference",
+          columns: 2 as const,
           fields: [
             ["Order No.", detailText(order?.orderNo ?? row?.orderNo)],
             ["Order Item No.", detailText(details.orderItemNo)],
-            ["Order Type", detailText(order?.orderType ?? row?.orderType)],
+            ["Order Type", detailText(order?.orderType ?? row?.orderType ?? "Raw Order")],
             ["Customer Name", detailText(order?.customerName ?? row?.customerName)],
             ["Order Date", detailText(order?.orderDate ?? row?.orderDate)],
-            ["Required Delivery Date", detailText(order?.deliveryDate ?? row?.deliveryDate)],
+            ["Required Delivery Date", detailText(order?.deliveryDate ?? row?.deliveryDate ?? row?.orderDate)],
           ],
         },
         {
-          title: "Grouping Requirement",
+          title: `${stage} Requirement`,
+          columns: 2 as const,
           fields: [
-            ["Product Category", detailText(item?.productCategory ?? row?.productCategory)],
-            ["Finished Type", detailText(item?.finishedType ?? row?.finishedType)],
-            ["Sales Item Name", detailText(item?.salesItemName ?? row?.salesItemName)],
+            ["Product Category", detailText(item?.productCategory ?? row?.productCategory ?? (row?.productType ? `${row.productType} Veneer` : "Raw Veneer"))],
+            ["Finished Type", detailText(item?.finishedType ?? row?.finishedType ?? row?.productType ?? "-")],
+            ["Sales Item Name", detailText(item?.salesItemName ?? row?.salesItemName ?? item?.itemName ?? row?.itemName)],
             ["Item Name", detailText(item?.itemName ?? row?.itemName)],
-            ["Sub Category", detailText(item?.subCategory ?? row?.subCategory)],
-            ["Series", detailText(item?.series ?? row?.series)],
+            ["Sub Category", detailText(item?.subCategory ?? row?.subCategory ?? row?.itemSubCategory)],
             ["Grade", detailText(item?.grade ?? row?.grade)],
           ],
         },
+      ]
+    : [];
+
+  const rightSections = details
+    ? [
         {
           title: "Dimensions",
+          columns: 3 as const,
           fields: [
             ["Length", detailText(item?.length ?? row?.length)],
             ["Width", detailText(item?.width ?? row?.width)],
-            ["Thickness", detailText(item?.thickness ?? row?.thickness ?? row?.height)],
+            ["Thickness", detailText(item?.thickness ?? row?.thickness ?? row?.height ?? row?.veneerThickness)],
           ],
         },
+        ...(hasBaseDetails
+          ? [
+              {
+                title: "Base Details",
+                columns: 2 as const,
+                fields: [
+                  ["Base Type", detailText(baseTypeVal)],
+                  ["Base Name", detailText(baseNameVal)],
+                  ["Base Length", detailText(baseLengthVal)],
+                  ["Base Width", detailText(baseWidthVal)],
+                  ["Base Thickness", detailText(baseThicknessVal)],
+                ],
+              },
+            ]
+          : []),
         {
           title: "Required Quantity",
+          columns: 3 as const,
           fields: [
             ["No. of Sheets", detailText(item?.quantitySheets ?? row?.noOfSheets)],
             ["SQM", detailText(item?.sqm ?? row?.sqm)],
-            ["Total SQM", detailText(item?.totalSqm ?? row?.totalSqm)],
+            ["Total SQM", detailText(item?.totalSqm ?? row?.totalSqm ?? row?.sqf)],
           ],
         },
         {
-          title: "Grouping Instructions",
+          title: `${stage} Instructions`,
+          columns: 1 as const,
           fields: [
-            ["Remark", detailText(item?.remark ?? row?.remark)],
+            ["Remark", detailText(item?.remark ?? row?.remark ?? row?.instructions)],
           ],
         },
       ]
@@ -3435,9 +3505,9 @@ function GroupingOrderItemDetailsDialog({
           }}
         >
           <Stack spacing={1.5}>
-            {sections.slice(0, 2).map((section) => (
+            {leftSections.map((section) => (
               <OrderDetailSection
-                columns={2}
+                columns={section.columns}
                 fields={section.fields}
                 key={section.title}
                 title={section.title}
@@ -3445,16 +3515,16 @@ function GroupingOrderItemDetailsDialog({
             ))}
           </Stack>
           <Stack spacing={1.5}>
-            {sections.slice(2).map((section) => (
+            {rightSections.map((section) => (
               <OrderDetailSection
-                columns={section.title === "Grouping Instructions" ? 1 : 3}
+                columns={section.columns}
                 fields={section.fields}
                 key={section.title}
                 title={section.title}
               />
             ))}
           </Stack>
-          {sections.length === 0 ? (
+          {leftSections.length === 0 && rightSections.length === 0 ? (
             <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
               No additional order-item details are available.
             </Typography>

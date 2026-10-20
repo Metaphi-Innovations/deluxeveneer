@@ -32,6 +32,7 @@ export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
   { key: "cbf", label: "CBF" },
+  { key: "productionWarehouseName", label: "Production Warehouse" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
   { key: "updatedBy", label: "Updated" },

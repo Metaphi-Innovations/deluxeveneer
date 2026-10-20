@@ -44,7 +44,6 @@ function detailFields(order: OrderRecord, line: OrderLineItem) {
     ["Sales Item Name", line.salesItemName],
     ["Item Name", line.itemName || order.itemName],
     ["Sub Category", line.subCategory || order.subCategory],
-    ["Series", line.series || order.series],
     ["Grade", line.grade || order.grade],
     ["Length", line.length || order.length],
     ["Width", line.width || order.width],

@@ -121,6 +121,22 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
       (column) => column.key !== "qcStatus",
     );
 
+    const warehouseColumn: EnterpriseTableColumn<Row> = {
+      key: "productionWarehouseName",
+      label: "Warehouse",
+      renderCell: (row: Row) => {
+        const val =
+          row.productionWarehouseName ??
+          row.storageWarehouseName ??
+          row.destinationWarehouse ??
+          row.warehouseName ??
+          (row.transferredToWarehouse || row.warehouseTransferStatus === "Transferred" || row.warehouseBStatus === "Transferred to Warehouse B"
+            ? "Warehouse B"
+            : "Warehouse B");
+        return val ? String(val) : "-";
+      },
+    };
+
     const statusColumn: EnterpriseTableColumn<Row> =
       activeTab === "done"
         ? { key: "warehouseBStatus", label: "Status" }
@@ -129,6 +145,7 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
     return insertColumnsAfter(columns, "noOfLeaves", [
       { key: "passQty", label: "Pass Qty (Leaves)" },
       { key: "failQty", label: "Failed Qty (Leaves)" },
+      ...(activeTab === "done" ? [warehouseColumn] : []),
       statusColumn,
       inspectionImageColumn<Row>(),
     ]);
@@ -153,6 +170,27 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
           }
           return column;
         });
+
+        const productionWarehouseCol: EnterpriseTableColumn<Row> = {
+          key: "productionWarehouseName",
+          label: "Production Warehouse",
+          renderCell: (row: Row) => {
+            const val =
+              row.productionWarehouseName ??
+              row.destinationWarehouse ??
+              (row.transferredToWarehouse || row.warehouseTransferStatus === "Transferred"
+                ? row.warehouseName || "Warehouse C"
+                : row.warehouseName || "Warehouse C");
+            return val ? String(val) : "-";
+          },
+        };
+
+        const withWarehouse = insertColumnsAfter(columns, "cbf", [productionWarehouseCol]);
+
+        return [
+          ...withWarehouse.filter((column) => column.key !== "inspectionImage"),
+          inspectionImageColumn<Row>(),
+        ];
       }
 
       return [

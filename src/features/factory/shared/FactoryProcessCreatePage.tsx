@@ -4493,13 +4493,17 @@ function mapFieldToColumn(
     key: field.key,
     label: field.label,
     minWidth:
-      field.key === "itemName" && (slug === "grouping" || slug === "slicing")
-        ? 220
-        : field.key === "groupNo"
+      field.key === "itemName" && slug === "grouping"
+        ? 150
+        : field.key === "color" && slug === "grouping"
           ? 180
-          : field.key === "groupPhoto"
-            ? 260
-            : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
+          : field.key === "itemName" && slug === "slicing"
+            ? 220
+            : field.key === "groupNo"
+              ? 180
+              : field.key === "groupPhoto"
+                ? 260
+                : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
     placeholder: field.placeholder ?? getDefaultPlaceholder(field),
     type:
       field.type === "select"

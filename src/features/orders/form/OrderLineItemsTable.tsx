@@ -205,14 +205,6 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
     type: "select",
   },
   {
-    key: "series",
-    label: "Series",
-    controlWidth: 160,
-    minWidth: 160,
-    options: seriesOptions,
-    type: "select",
-  },
-  {
     key: "grade",
     label: "Grade",
     controlWidth: 120,
