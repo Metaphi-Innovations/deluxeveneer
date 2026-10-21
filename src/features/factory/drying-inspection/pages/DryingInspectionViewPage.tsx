@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 import { ChevronLeft } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -890,6 +891,15 @@ export const DryingInspectionViewPage: React.FC = () => {
                 </Typography>
               </Box>
             )}
+            <FactoryProductionPipeline
+              currentStage={
+                isAlreadyTransferred
+                  ? "storage-raw-veneer"
+                  : isDone || isHistory
+                    ? "drying-inspection-done"
+                    : "drying-inspection"
+              }
+            />
           </Stack>
         </Box>
 

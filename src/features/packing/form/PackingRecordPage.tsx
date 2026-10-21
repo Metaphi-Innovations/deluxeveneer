@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
@@ -34,6 +34,7 @@ import {
   type OrderRecord,
   useOrderRecords,
 } from "../../orders/shared/ordersStore";
+import { OrderStatusChip } from "../../orders/shared/OrderStatusChip";
 import { canAccessPermission } from "../../permissions";
 import {
   recordFormActionButtonSx,
@@ -44,29 +45,16 @@ import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
-import { SizedMasterFormFields } from "../../shared/SizedMasterFormFields";
-import type { FormFieldSize } from "../../shared/formFieldSizes";
 import { transactionTableHeaderCellSx } from "../../shared/listingTableStyles";
 import {
   createPackingEntry,
   getPackingPaths,
   isFinishedOrderPackingEligible,
   isRawOrderPackingEligible,
-  packingOrderTypeOptions,
   type PackingRecord,
   updatePackingRecord,
   usePackingRecords,
 } from "../shared/packingStore";
-
-const packingCreateFieldSizes: Partial<Record<string, FormFieldSize>> = {
-  packingDate: "sm",
-  customerName: "md",
-  orderType: "sm",
-  orderNo: "sm",
-  preparedBy: "md",
-  checkedBy: "md",
-  remark: "lg",
-};
 
 const packingDetailFields: readonly MasterFieldDefinition[] = [
   { key: "packingId", label: "Packing ID", type: "text" },
@@ -122,7 +110,7 @@ const ALL_PACKING_SOURCE_COLUMNS: readonly EnterpriseTableColumn<PackingSourceRo
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
-    { key: "noOfSheets", label: "Sheets" },
+    { key: "noOfSheets", label: "Leaves / Sheets" },
     { key: "sqm", label: "SQM" },
     { key: "sqf", label: "SQF" },
     { key: "ratePerSqf", label: "Rate" },
@@ -247,18 +235,6 @@ function getDynamicPackingSourceColumns(
   });
 }
 
-const selectedOrderDetailColumns: readonly EnterpriseTableColumn<OrderRecord>[] =
-  [
-    { key: "orderNo", label: "Order No" },
-    { key: "orderDate", label: "Order Date" },
-    { key: "deliveryDate", label: "Required Delivery Date" },
-    { key: "customerName", label: "Customer Name" },
-    { key: "orderType", label: "Order Type" },
-    { key: "priority", label: "Priority" },
-    { key: "status", label: "Order Status" },
-    { key: "remark", label: "Remark" },
-  ];
-
 const packingItemDetailColumns: readonly {
   key: keyof PackingRecord & string;
   label: string;
@@ -303,10 +279,9 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   const customerOptions = useMemo(
     () =>
       uniqueStringValues([
-        ...orderRecords.map((entry) => entry.customerName),
-        ...packingRecords.map((entry) => entry.customerName),
+        ...packingSourceRows.map((entry) => entry.customerName),
       ]),
-    [orderRecords, packingRecords],
+    [packingSourceRows],
   );
   const initialCreatePackingFields = useMemo(
     () =>
@@ -322,6 +297,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     buildPackingInitialValues(initialActiveFields, record, mode),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [selectedSourceRowIds, setSelectedSourceRowIds] = useState<string[]>([]);
   const [leaveConfirmation, setLeaveConfirmation] = useState<{
@@ -351,10 +327,14 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   );
   const orderNoOptions = useMemo(
     () =>
-      uniqueStringValues(
-        packingSourceRows.map((row) => row.orderNo),
-      ),
-    [packingSourceRows],
+      selectedCustomerName
+        ? uniqueStringValues(
+            packingSourceRows
+              .filter((row) => row.customerName === selectedCustomerName)
+              .map((row) => row.orderNo),
+          )
+        : [],
+    [packingSourceRows, selectedCustomerName],
   );
   const createPackingFields = useMemo<readonly MasterFieldDefinition[]>(
     () =>
@@ -460,6 +440,267 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     }
   };
 
+  const handleCreateFieldChange = (key: string, value: MasterFieldValue) => {
+    setErrorMessage("");
+
+    if (key === "customerName" || key === "orderNo") {
+      setSelectedSourceRowIds([]);
+    }
+
+    setValues((current) => {
+      const nextValues = { ...current, [key]: value };
+
+      if (key === "customerName") {
+        nextValues.orderNo = "";
+      }
+
+      if (key === "orderNo" && typeof value === "string") {
+        const selectedOrder = packingSourceRows.find((row) => row.orderNo === value);
+
+        if (selectedOrder) {
+          nextValues.customerName = selectedOrder.customerName;
+        }
+      }
+
+      return nextValues;
+    });
+  };
+
+  const handleCancelChanges = () => {
+    setLeaveConfirmation({
+      open: true,
+      title: "Cancel Changes",
+      description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+      action: () => {
+        if (window.history.length > 1) {
+          navigate(-1);
+        } else {
+          navigate(paths.list);
+        }
+      },
+    });
+  };
+
+  const packingSummary = buildPackingSelectionSummary(selectedSourceRows);
+
+  const handleCreatePacking = () => {
+    if (!canUseMode || isSubmitting) {
+      return;
+    }
+
+    setHasSubmitted(true);
+    setErrorMessage("");
+
+    if (hasRequiredFieldErrors(activeFields, values)) {
+      setErrorMessage("Please fill in all required packing details.");
+      return;
+    }
+
+    if (!showOrderSourceTable || selectedSourceRows.length === 0) {
+      setErrorMessage("Please select at least one item from the order items list to proceed.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const packingDate = values.packingDate instanceof Date ? values.packingDate : null;
+
+      selectedSourceRows.forEach((row) => {
+        const isRaw = normalizePackingOrderType(row.orderType) === "Raw";
+        createPackingEntry(undefined, {
+          completeImmediately: true,
+          amount: row.amount,
+          customerName: selectedCustomerName || row.customerName,
+          issuedFrom: isRaw ? "Warehouse C" : "Factory",
+          itemName: row.itemName,
+          length: row.length,
+          noOfSheets: row.noOfSheets,
+          orderNo: row.orderNo,
+          orderItemNo: row.orderItemNo,
+          orderType: normalizePackingOrderType(row.orderType),
+          packingDate,
+          productCategory: row.productCategory,
+          remark: isRaw
+            ? `Stock eligible · ${row.orderNo}`
+            : `Factory completed · ${row.orderNo}`,
+          sourceOrderId: row.sourceOrderId,
+          sourceOrderItemId: row.id,
+          sqf: row.sqf,
+          sqm: row.sqm,
+          thickness: row.thickness,
+          width: row.width,
+          ...(typeof values.preparedBy === "string"
+            ? { preparedBy: values.preparedBy }
+            : {}),
+          ...(typeof values.checkedBy === "string"
+            ? { checkedBy: values.checkedBy }
+            : {}),
+        });
+      });
+
+      navigate("/packing?tab=done", {
+        state: {
+          packingFlashMessage: "Packing record marked as Packing Done successfully.",
+        },
+      });
+    } catch {
+      setIsSubmitting(false);
+      setErrorMessage("Unable to add the selected items to Packing Done. Please try again.");
+    }
+  };
+
+  if (mode === "add") {
+    const selectOrderFields = selectPackingFields(activeFields, ["customerName", "orderNo"]);
+    const packingInformationFields = selectPackingFields(activeFields, [
+      "packingDate",
+      "preparedBy",
+      "checkedBy",
+      "remark",
+    ]);
+
+    return (
+      <MasterPageShell
+        backNav={{
+          label: "Back to Packing",
+          to: paths.list,
+          onBack: handleRequestBack,
+        }}
+        breadcrumbs={[
+          { label: "Packing", to: paths.list },
+          { label: "Issue for Packing" },
+        ]}
+        contentGap={1.5}
+        subtitle="Select order items and prepare them for packing."
+        title="Issue for Packing"
+      >
+        <Stack sx={(theme) => ({ gap: theme.spacing(1.5), width: "100%" })}>
+          {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+
+          <PackingCreateSection title="Select Order">
+            <MasterFormFields
+              compact
+              definition={{ fields: selectOrderFields, gridColumns: 2 }}
+              onChange={handleCreateFieldChange}
+              showRequiredErrors={hasSubmitted}
+              values={values}
+            />
+          </PackingCreateSection>
+
+          {selectedOrderRecord ? (
+            <PackingCreateSection title="Order Overview">
+              <PackingOrderOverview order={selectedOrderRecord} />
+            </PackingCreateSection>
+          ) : null}
+
+          <PackingCreateSection
+            endAdornment={
+              <Typography
+                sx={(theme) => ({
+                  color: theme.customTokens.text.secondary,
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                })}
+              >
+                {filteredSourceRows.length} total · {selectedSourceRows.length} selected
+              </Typography>
+            }
+            title="Select Order Items"
+          >
+            {showOrderSourceTable ? (
+              <Box sx={{ mx: -1.75, mb: -1.5 }}>
+                <EnterpriseDataTable
+                  columns={getDynamicPackingSourceColumns(filteredSourceRows)}
+                  defaultRowsPerPage={10}
+                  dense
+                  emptyStateLabel="No packing-eligible order items match."
+                  hidePagination={filteredSourceRows.length <= 10}
+                  maxBodyHeight={420}
+                  onSelectionChange={(selectedRows) =>
+                    setSelectedSourceRowIds(selectedRows.map((row) => row.id))
+                  }
+                  preserveColumnOrder
+                  rows={filteredSourceRows}
+                  selectable
+                  selectedRowIds={selectedSourceRowIds}
+                  selectionColumnLabel="Select"
+                  selectionResetKey={selectedOrderNo}
+                  selectOnRowClick
+                  subtleScrollbar
+                />
+              </Box>
+            ) : (
+              <PackingEmptyState message="Select a customer and order to view packing-eligible order items." />
+            )}
+          </PackingCreateSection>
+
+          <PackingCreateSection title="Packing Information">
+            <MasterFormFields
+              compact
+              definition={{ fields: packingInformationFields, gridColumns: 4 }}
+              onChange={handleCreateFieldChange}
+              showRequiredErrors={hasSubmitted}
+              values={values}
+            />
+          </PackingCreateSection>
+
+          <PackingCreateSection title="Packing Summary">
+            <PackingSummary summary={packingSummary} />
+          </PackingCreateSection>
+
+          <Box
+            sx={(theme) => ({
+              alignItems: "center",
+              backgroundColor: theme.customTokens.surfaces.surface,
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: theme.spacing(1.25),
+              justifyContent: "flex-end",
+              px: 1.75,
+              py: 1.25,
+            })}
+          >
+            <Button
+              disabled={isSubmitting}
+              onClick={handleCancelChanges}
+              sx={recordFormActionButtonSx}
+              type="button"
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={handleCreatePacking}
+              sx={(theme) => formInlineActionButtonSx(theme)}
+              type="button"
+              variant="contained"
+            >
+              {isSubmitting ? "Adding..." : "Add to Packing Done"}
+            </Button>
+          </Box>
+        </Stack>
+
+        <ConfirmationDialog
+          cancelLabel="Stay on Page"
+          confirmLabel="Leave"
+          description={leaveConfirmation.description}
+          onClose={() => setLeaveConfirmation((current) => ({ ...current, open: false }))}
+          onConfirm={() => {
+            const action = leaveConfirmation.action;
+            setLeaveConfirmation((current) => ({ ...current, open: false }));
+            action();
+          }}
+          open={leaveConfirmation.open}
+          title={leaveConfirmation.title}
+          tone="default"
+        />
+      </MasterPageShell>
+    );
+  }
+
   return (
     <MasterPageShell
       backNav={{
@@ -470,21 +711,10 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
       breadcrumbs={[
         { label: "Packing", to: paths.list },
         {
-          label:
-            mode === "add"
-              ? "Issue for Packing"
-              : mode === "edit"
-                ? "Edit Packing"
-                : "View Packing",
+          label: mode === "edit" ? "Edit Packing" : "View Packing",
         },
       ]}
-      title={
-        mode === "add"
-          ? "Issue for Packing"
-          : mode === "edit"
-            ? "Edit Packing"
-            : "View Packing"
-      }
+      title={mode === "edit" ? "Edit Packing" : "View Packing"}
       contentGap={1.5}
     >
       <MasterSectionCard>
@@ -501,83 +731,26 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
             </Alert>
           ) : null}
 
-          {mode === "add" ? (
-            <SizedMasterFormFields
-              fields={activeFields}
-              onChange={(key, value) => {
-                setErrorMessage("");
-                setValues((current) => {
-                  const nextValues = {
-                    ...current,
-                    [key]: value,
-                  };
+          <MasterFormFields
+            compact
+            definition={{
+              fields: activeFields,
+              gridColumns: 4,
+            }}
+            onChange={(key, value) =>
+              setValues((current) => ({
+                ...current,
+                [key]: value,
+              }))
+            }
+            presentation={mode === "view" ? "details" : "form"}
+            readOnly={mode === "view"}
+            showRequiredErrors={false}
+            values={values}
+          />
 
-                  if (key === "orderNo" && typeof value === "string") {
-                    const selectedOrder = packingSourceRows.find(
-                      (row) => row.orderNo === value,
-                    );
-
-                    if (selectedOrder) {
-                      nextValues.customerName = selectedOrder.customerName;
-                    }
-                  }
-
-                  return nextValues;
-                });
-              }}
-              showRequiredErrors={hasSubmitted}
-              sizes={packingCreateFieldSizes}
-              values={values}
-            />
-          ) : (
-            <MasterFormFields
-              compact
-              definition={{
-                fields: activeFields,
-                gridColumns: 4,
-              }}
-              onChange={(key, value) =>
-                setValues((current) => ({
-                  ...current,
-                  [key]: value,
-                }))
-              }
-              presentation={mode === "view" ? "details" : "form"}
-              readOnly={mode === "view"}
-              showRequiredErrors={false}
-              values={values}
-            />
-          )}
-
-          {mode !== "add" && record ? (
+          {record ? (
             <PackingItemDetailsTable record={record} />
-          ) : null}
-
-          {showOrderSourceTable && selectedOrderRecord ? (
-            <Stack spacing={1.5} sx={{ mt: 1 }}>
-              <FormSectionHeader title="Order Details" />
-              <EnterpriseDataTable
-                columns={selectedOrderDetailColumns}
-                defaultRowsPerPage={5}
-                hidePagination
-                rows={[selectedOrderRecord]}
-              />
-
-              <FormSectionHeader title="Order Items" />
-              <EnterpriseDataTable
-                columns={getDynamicPackingSourceColumns(filteredSourceRows)}
-                defaultRowsPerPage={10}
-                emptyStateLabel="No packing-eligible order items match."
-                hidePagination
-                maxBodyHeight={420}
-                onSelectionChange={(selectedRows) =>
-                  setSelectedSourceRowIds(selectedRows.map((row) => row.id))
-                }
-                rows={filteredSourceRows}
-                selectable
-                selectionResetKey={selectedOrderNo}
-              />
-            </Stack>
           ) : null}
 
           <Box
@@ -642,123 +815,24 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                 <Button
                   type="button"
                   onClick={() => {
-                    if (!canUseMode) {
-                      return;
-                    }
-
-                    setHasSubmitted(true);
-                    setErrorMessage("");
-
-                    if (
-                      mode === "add" &&
-                      hasRequiredFieldErrors(activeFields, values)
-                    ) {
-                      setErrorMessage("Please fill in all required packing details.");
-                      return;
-                    }
-
-                    const rowsToUse =
-                      selectedSourceRows.length > 0
-                        ? selectedSourceRows
-                        : filteredSourceRows;
-
-                    if (
-                      mode === "add" &&
-                      showOrderSourceTable &&
-                      rowsToUse.length === 0
-                    ) {
-                      setErrorMessage("Please select at least one item from the order items list to proceed.");
-                      return;
-                    }
-
-                    if (mode === "add") {
-                      const packingDate =
-                        values.packingDate instanceof Date
-                          ? values.packingDate
-                          : null;
-                      const remark =
-                        typeof values.remark === "string" ? values.remark : "";
-
-                      if (showOrderSourceTable && rowsToUse.length > 0) {
-                        rowsToUse.forEach((row) => {
-                          const isRaw =
-                            normalizePackingOrderType(row.orderType) === "Raw";
-                          createPackingEntry(undefined, {
-                            completeImmediately: true,
-                            amount: row.amount,
-                            customerName: selectedCustomerName || row.customerName,
-                            issuedFrom: isRaw ? "Warehouse C" : "Factory",
-                            itemName: row.itemName,
-                            length: row.length,
-                            noOfSheets: row.noOfSheets,
-                            orderNo: row.orderNo,
-                            orderItemNo: row.orderItemNo,
-                            orderType: normalizePackingOrderType(row.orderType),
-                            packingDate,
-                            productCategory: row.productCategory,
-                            remark: isRaw
-                              ? `Stock eligible · ${row.orderNo}`
-                              : `Factory completed · ${row.orderNo}`,
-                            sourceOrderId: row.sourceOrderId,
-                            sourceOrderItemId: row.id,
-                            sqf: row.sqf,
-                            sqm: row.sqm,
-                            thickness: row.thickness,
-                            width: row.width,
-                            ...(typeof values.preparedBy === "string"
-                              ? { preparedBy: values.preparedBy }
-                              : {}),
-                            ...(typeof values.checkedBy === "string"
-                              ? { checkedBy: values.checkedBy }
-                              : {}),
-                          });
-                        });
-                      } else {
-                        const fallbackRow = packingSourceRows.find(
-                          (row) => row.orderNo === selectedOrderNo,
-                        );
-                        createPackingEntry(undefined, {
-                          completeImmediately: true,
-                          packingDate,
-                          remark,
-                          customerName: selectedCustomerName || fallbackRow?.customerName || "",
-                          orderType: fallbackRow?.orderType || "Raw",
-                          orderNo: selectedOrderNo,
-                          ...(typeof values.preparedBy === "string"
-                            ? { preparedBy: values.preparedBy }
-                            : {}),
-                          ...(typeof values.checkedBy === "string"
-                            ? { checkedBy: values.checkedBy }
-                            : {}),
-                        });
-                      }
-                    } else if (record) {
+                    if (canUseMode && record) {
                       updatePackingRecord(
                         record.id,
                         buildPackingUpdatePayload(values),
                       );
                     }
 
-                    const isEdit = mode !== "add" && Boolean(record);
-                    const successMsg = isEdit
-                      ? "Packing record updated successfully."
-                      : "Packing record marked as Packing Done successfully.";
-
                     navigate("/packing?tab=done", {
                       state: {
-                        packingFlashMessage: successMsg,
+                        packingFlashMessage: "Packing record updated successfully.",
                       },
                     });
                   }}
-                  startIcon={mode === "add" ? undefined : <Save size={15} strokeWidth={2} />}
-                  sx={(theme) =>
-                    mode === "add"
-                      ? formInlineActionButtonSx(theme)
-                      : recordFormActionButtonSx
-                  }
+                  startIcon={<Save size={15} strokeWidth={2} />}
+                  sx={recordFormActionButtonSx}
                   variant="contained"
                 >
-                  {mode === "add" ? "Add to Packing Done" : "Save"}
+                  Save
                 </Button>
               </>
             )}
@@ -782,6 +856,290 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
       />
     </MasterPageShell>
   );
+}
+
+function PackingCreateSection({
+  children,
+  endAdornment,
+  title,
+}: {
+  children: ReactNode;
+  endAdornment?: ReactNode;
+  title: string;
+}) {
+  return (
+    <Box sx={(theme) => ({ ...formSectionCardSx(theme) })}>
+      <FormSectionHeader endAdornment={endAdornment} title={title} />
+      <Box sx={{ pt: 1.25 }}>{children}</Box>
+    </Box>
+  );
+}
+
+function PackingOrderOverview({ order }: { order: OrderRecord }) {
+  const fields = [
+    { label: "Order No.", value: order.orderNo },
+    { label: "Order Date", value: formatPackingOverviewValue(order.orderDate) },
+    { label: "Required Delivery Date", value: formatPackingOverviewValue(order.deliveryDate) },
+    { label: "Customer Name", value: order.customerName },
+    { label: "Order Type", value: order.orderType },
+    { label: "Priority", value: order.priority },
+  ];
+
+  return (
+    <Stack spacing={1.25}>
+      <Box
+        sx={(theme) => ({
+          display: "grid",
+          gap: theme.spacing(1.25, 1.5),
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(4, minmax(0, 1fr))",
+          },
+        })}
+      >
+        {fields.map((field) => (
+          <PackingReadOnlyField key={field.label} label={field.label} value={field.value} />
+        ))}
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            sx={(theme) => ({
+              color: theme.customTokens.text.secondary,
+              fontSize: "11.5px",
+              fontWeight: 600,
+              mb: 0.5,
+              textTransform: "uppercase",
+            })}
+          >
+            Order Status
+          </Typography>
+          <OrderStatusChip status={order.status} />
+        </Box>
+      </Box>
+
+      {order.remark.trim() ? (
+        <PackingReadOnlyField label="Remark" value={order.remark} />
+      ) : null}
+    </Stack>
+  );
+}
+
+function PackingReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        sx={(theme) => ({
+          color: theme.customTokens.text.secondary,
+          fontSize: "11.5px",
+          fontWeight: 600,
+          mb: 0.4,
+          textTransform: "uppercase",
+        })}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={(theme) => ({
+          color: theme.customTokens.text.primary,
+          fontSize: "14px",
+          fontWeight: 600,
+          lineHeight: 1.4,
+          overflowWrap: "anywhere",
+        })}
+      >
+        {value || "-"}
+      </Typography>
+    </Box>
+  );
+}
+
+function PackingEmptyState({ message }: { message: string }) {
+  return (
+    <Box
+      sx={(theme) => ({
+        alignItems: "center",
+        backgroundColor: theme.customTokens.surfaces.alt,
+        border: `1px dashed ${theme.customTokens.borders.default}`,
+        borderRadius: "7px",
+        color: theme.customTokens.text.secondary,
+        display: "flex",
+        fontSize: "13px",
+        justifyContent: "center",
+        minHeight: 86,
+        px: 2,
+        textAlign: "center",
+      })}
+    >
+      {message}
+    </Box>
+  );
+}
+
+type PackingSelectionSummary = {
+  hasLeaves: boolean;
+  hasSheets: boolean;
+  hasSqf: boolean;
+  hasSqm: boolean;
+  selectedItems: number;
+  selectedLeaves: number;
+  selectedSheets: number;
+  selectedSqf: number;
+  selectedSqm: number;
+};
+
+function PackingSummary({ summary }: { summary: PackingSelectionSummary }) {
+  const metrics = [
+    { label: "Selected Order Items", value: String(summary.selectedItems), visible: true },
+    {
+      label: "Selected Leaves",
+      value: formatPackingSummaryNumber(summary.selectedLeaves, 0),
+      visible: summary.hasLeaves,
+    },
+    {
+      label: "Selected Sheets",
+      value: formatPackingSummaryNumber(summary.selectedSheets, 0),
+      visible: summary.hasSheets,
+    },
+    {
+      label: "Selected SQM",
+      value: formatPackingSummaryNumber(summary.selectedSqm, 3),
+      visible: summary.hasSqm,
+    },
+    {
+      label: "Selected SQF",
+      value: formatPackingSummaryNumber(summary.selectedSqf, 3),
+      visible: summary.hasSqf,
+    },
+  ].filter((metric) => metric.visible);
+
+  return (
+    <Box
+      sx={(theme) => ({
+        display: "grid",
+        gap: theme.spacing(1),
+        gridTemplateColumns: {
+          xs: "repeat(2, minmax(0, 1fr))",
+          sm: "repeat(3, minmax(0, 1fr))",
+          lg: `repeat(${Math.min(metrics.length, 5)}, minmax(130px, 1fr))`,
+        },
+      })}
+    >
+      {metrics.map((metric) => (
+        <Box
+          key={metric.label}
+          sx={(theme) => ({
+            backgroundColor: theme.customTokens.surfaces.alt,
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            borderRadius: "7px",
+            minWidth: 0,
+            px: 1.25,
+            py: 0.9,
+          })}
+        >
+          <Typography
+            sx={(theme) => ({
+              color: theme.customTokens.text.secondary,
+              fontSize: "11px",
+              fontWeight: 600,
+              letterSpacing: "0.02em",
+              textTransform: "uppercase",
+            })}
+          >
+            {metric.label}
+          </Typography>
+          <Typography
+            sx={(theme) => ({
+              color: theme.customTokens.brand.primary,
+              fontSize: "15px",
+              fontWeight: 700,
+              mt: 0.35,
+            })}
+          >
+            {metric.value}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function buildPackingSelectionSummary(
+  rows: readonly PackingSourceRow[],
+): PackingSelectionSummary {
+  return rows.reduce<PackingSelectionSummary>(
+    (summary, row) => {
+      const leafBased = isLeafBasedPackingRow(row);
+      const quantity = parsePackingNumber(row.noOfSheets);
+
+      return {
+        hasLeaves: summary.hasLeaves || leafBased,
+        hasSheets: summary.hasSheets || !leafBased,
+        hasSqf: summary.hasSqf || hasPackingMetric(row.sqf),
+        hasSqm: summary.hasSqm || hasPackingMetric(row.sqm),
+        selectedItems: summary.selectedItems + 1,
+        selectedLeaves: summary.selectedLeaves + (leafBased ? quantity : 0),
+        selectedSheets: summary.selectedSheets + (leafBased ? 0 : quantity),
+        selectedSqf: summary.selectedSqf + parsePackingNumber(row.sqf),
+        selectedSqm: summary.selectedSqm + parsePackingNumber(row.sqm),
+      };
+    },
+    {
+      hasLeaves: false,
+      hasSheets: false,
+      hasSqf: false,
+      hasSqm: false,
+      selectedItems: 0,
+      selectedLeaves: 0,
+      selectedSheets: 0,
+      selectedSqf: 0,
+      selectedSqm: 0,
+    },
+  );
+}
+
+function isLeafBasedPackingRow(row: PackingSourceRow) {
+  const productType = row.productCategory.trim().toLowerCase();
+  return productType.includes("veneer") && !productType.includes("decorative");
+}
+
+function hasPackingMetric(value: string) {
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized !== "-";
+}
+
+function parsePackingNumber(value: string) {
+  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatPackingSummaryNumber(value: number, fractionDigits: number) {
+  return new Intl.NumberFormat("en-IN", {
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function formatPackingOverviewValue(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(value);
+  }
+
+  return typeof value === "string" && value.trim() ? value.trim() : "-";
+}
+
+function selectPackingFields(
+  fields: readonly MasterFieldDefinition[],
+  keys: readonly string[],
+) {
+  const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+  return keys.flatMap((key) => {
+    const field = fieldsByKey.get(key);
+    return field ? [field] : [];
+  });
 }
 
 function PackingItemDetailsTable({ record }: { record: PackingRecord }) {
@@ -917,7 +1275,9 @@ function buildCreatePackingFields({
       key: "remark",
       label: "Remarks",
       required: false,
-      type: "text",
+      rows: 2,
+      span: "full",
+      type: "textarea",
     },
   ];
 }
@@ -1055,6 +1415,10 @@ function buildPackingSourceRows(
         return [];
       }
 
+      const productCategory = getPackingSourceProductCategory(record, item, index);
+      const leafBased = productCategory.trim().toLowerCase().includes("veneer") &&
+        !productCategory.trim().toLowerCase().includes("decorative");
+
       return [
         {
           id: `${record.id}-${item.id}`,
@@ -1063,7 +1427,7 @@ function buildPackingSourceRows(
           orderNo: record.orderNo,
           orderItemNo,
           orderType: normalizePackingOrderType(record.orderType),
-          productCategory: getPackingSourceProductCategory(record, item, index),
+          productCategory,
           finishedType: item.finishedType ?? "",
           salesItemName: item.salesItemName || "-",
           itemName: item.itemName,
@@ -1071,7 +1435,9 @@ function buildPackingSourceRows(
           length: item.length,
           width: item.width,
           thickness: item.thickness,
-          noOfSheets: item.quantitySheets,
+          noOfSheets: leafBased
+            ? item.noOfLeaves || item.quantitySheets
+            : item.quantitySheets,
           sqm: item.sqm,
           sqf: item.totalSqm,
           ratePerSqf: item.ratePerSqf || "-",

@@ -6,6 +6,8 @@ import {
   Button,
   Checkbox,
   Chip,
+  CircularProgress,
+  Divider,
   Stack,
   Table,
   TableBody,
@@ -33,7 +35,6 @@ import {
 import { getCachedCustomerMasterRows } from "../../masters/customer-master/api/customerMasterApi";
 import {
   createDispatchEntry,
-  packingOrderTypeOptions,
   type PackingRecord,
   usePackingRecords,
 } from "../../packing/shared/packingStore";
@@ -66,10 +67,13 @@ interface DispatchRecordPageProps {
   mode?: "add" | "edit" | "view";
 }
 
+function isAddMode(mode: "add" | "edit" | "view") {
+  return mode === "add";
+}
+
 interface DispatchFormState {
   dispatchDate: Date | null;
   customerName: string;
-  orderCategories: string[];
   productCategories: string[];
   packingList: string[];
   buyerAddress: string;
@@ -78,6 +82,41 @@ interface DispatchFormState {
   transporter: string;
   transportMode: string;
   remark: string;
+}
+
+interface RoadDetailsState {
+  vehicleNumber: string;
+  driverName: string;
+  driverMobileNumber: string;
+}
+
+interface AirDetailsState {
+  airlineName: string;
+  awbNumber: string;
+  flightNumber: string;
+  originAirport: string;
+  destinationAirport: string;
+}
+
+interface RailDetailsState {
+  rrNumber: string;
+  trainNumber: string;
+  containerNumber: string;
+  originRailwayStation: string;
+  destinationRailwayStation: string;
+}
+
+interface ShipDetailsState {
+  shippingLineName: string;
+  vesselName: string;
+  voyageNumber: string;
+  billOfLadingNumber: string;
+  blDate: Date | null;
+  containerNumber: string;
+  containerType: string;
+  sealNumber: string;
+  portOfLoading: string;
+  portOfDischarge: string;
 }
 
 interface DispatchItemRow {
@@ -99,6 +138,7 @@ interface DispatchItemRow {
   remainingQuantity: string;
   noOfSheets: string;
   sqm: string;
+  sqf: string;
   rate: string;
   itemAmount: string;
   discountPercent: string;
@@ -120,6 +160,13 @@ interface DispatchSummaryRow {
   expenseAmountWithGst: string;
   baseAmountWithGst: string;
   grandTotal: string;
+  subTotalNum: number;
+  cgstNum: number;
+  sgstNum: number;
+  igstNum: number;
+  taxableAmountNum: number;
+  totalNum: number;
+  otherAmountNum: number;
 }
 
 interface ItemColumnConfig {
@@ -283,6 +330,37 @@ const summaryTableColumns: readonly {
   ];
 
 const transportModeOptions = ["Road", "Air", "Rail", "Ship"];
+const emptyRoadDetails: RoadDetailsState = {
+  vehicleNumber: "",
+  driverName: "",
+  driverMobileNumber: "",
+};
+const emptyAirDetails: AirDetailsState = {
+  airlineName: "",
+  awbNumber: "",
+  flightNumber: "",
+  originAirport: "",
+  destinationAirport: "",
+};
+const emptyRailDetails: RailDetailsState = {
+  rrNumber: "",
+  trainNumber: "",
+  containerNumber: "",
+  originRailwayStation: "",
+  destinationRailwayStation: "",
+};
+const emptyShipDetails: ShipDetailsState = {
+  shippingLineName: "",
+  vesselName: "",
+  voyageNumber: "",
+  billOfLadingNumber: "",
+  blDate: null,
+  containerNumber: "",
+  containerType: "",
+  sealNumber: "",
+  portOfLoading: "",
+  portOfDischarge: "",
+};
 const transactionTypeOptions = [
   "REGULAR",
   "BILL TO SHIP TO",
@@ -320,7 +398,12 @@ export function DispatchCreatePage({
     buildDispatchInitialValues(sourceRecord),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [roadDetails, setRoadDetails] = useState<RoadDetailsState>(emptyRoadDetails);
+  const [airDetails, setAirDetails] = useState<AirDetailsState>(emptyAirDetails);
+  const [railDetails, setRailDetails] = useState<RailDetailsState>(emptyRailDetails);
+  const [shipDetails, setShipDetails] = useState<ShipDetailsState>(emptyShipDetails);
   const [loadedRecords, setLoadedRecords] = useState<readonly PackingRecord[]>(
     () => (sourceRecord ? [sourceRecord] : []),
   );
@@ -340,10 +423,6 @@ export function DispatchCreatePage({
     () => uniqueOptions(dispatchSourceRecords, "customerName"),
     [dispatchSourceRecords],
   );
-  const orderCategoryOptions = useMemo(
-    () => [...packingOrderTypeOptions],
-    [],
-  );
   const productCategoryOptions = useMemo(
     () =>
       uniqueStrings(
@@ -351,18 +430,12 @@ export function DispatchCreatePage({
           .filter((record) =>
             values.customerName ? record.customerName === values.customerName : true,
           )
-          .filter((record) =>
-            values.orderCategories.length > 0
-              ? values.orderCategories.includes(record.orderType)
-              : false,
-          )
           .map((record) => record.productCategory),
       ),
-    [dispatchSourceRecords, values.customerName, values.orderCategories],
+    [dispatchSourceRecords, values.customerName],
   );
   const canSelectPackingList =
     values.customerName.trim().length > 0 &&
-    values.orderCategories.length > 0 &&
     values.productCategories.length > 0;
   const packingListRecords = useMemo(
     () =>
@@ -370,7 +443,6 @@ export function DispatchCreatePage({
         ? dispatchSourceRecords.filter(
           (record) =>
             record.customerName === values.customerName &&
-            values.orderCategories.includes(record.orderType) &&
             values.productCategories.includes(record.productCategory),
         )
         : [],
@@ -378,7 +450,6 @@ export function DispatchCreatePage({
       canSelectPackingList,
       dispatchSourceRecords,
       values.customerName,
-      values.orderCategories,
       values.productCategories,
     ],
   );
@@ -391,6 +462,24 @@ export function DispatchCreatePage({
       ),
     [packingListRecords],
   );
+  const createPackingListRecords = useMemo(
+    () =>
+      values.customerName
+        ? dispatchSourceRecords.filter(
+          (record) => record.customerName === values.customerName,
+        )
+        : [],
+    [dispatchSourceRecords, values.customerName],
+  );
+  const createPackingListOptions = useMemo(
+    () =>
+      uniqueStrings(
+        createPackingListRecords.map(
+          (record) => `${record.packingId} - ${record.orderNo}`,
+        ),
+      ),
+    [createPackingListRecords],
+  );
   const [transporterOptions, setTransporterOptions] = useState<string[]>(() =>
     getTransporterMasterOptions(),
   );
@@ -401,7 +490,7 @@ export function DispatchCreatePage({
       .then(() => {
         setTransporterOptions(getTransporterMasterOptions());
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const gstMode = useMemo(
@@ -426,10 +515,19 @@ export function DispatchCreatePage({
     () => getDynamicItemTableColumns(dispatchItemRows, gstMode),
     [dispatchItemRows, gstMode],
   );
+  const createItemColumns = useMemo(
+    () =>
+      dynamicItemColumns.flatMap((column) =>
+        column.key === "sqm"
+          ? [column, { key: "sqf" as const, label: "SQF", minWidth: 110 }]
+          : [column],
+      ),
+    [dynamicItemColumns],
+  );
 
   const dispatchSummaryRow = useMemo(
-    () => buildSummaryRow(dispatchItemRows),
-    [dispatchItemRows],
+    () => buildSummaryRow(dispatchItemRows, gstMode),
+    [dispatchItemRows, gstMode],
   );
   const hasLoadedItems = loadedRecords.length > 0;
 
@@ -488,6 +586,444 @@ export function DispatchCreatePage({
       navigate("/dispatch");
     }
   };
+
+  const handleLoadPackingLists = () => {
+    const selectedRecords = createPackingListRecords.filter((record) =>
+      values.packingList.includes(`${record.packingId} - ${record.orderNo}`),
+    );
+    setLoadedRecords(selectedRecords);
+    const initialQtyMap: Record<string, number> = {};
+    selectedRecords.forEach((record) => {
+      initialQtyMap[record.id] = parseInt(record.noOfSheets, 10) || 0;
+    });
+    setDispatchQuantityMap(initialQtyMap);
+    setErrorMessage("");
+  };
+
+  const handleSubmit = () => {
+    if (isSubmitting) return;
+
+    setHasSubmitted(true);
+    setErrorMessage("");
+
+    if (!values.dispatchDate) {
+      setErrorMessage("Please enter a valid Dispatch Date.");
+      return;
+    }
+
+    if (!values.customerName) {
+      setErrorMessage("Please select a Customer Name.");
+      return;
+    }
+
+    if (loadedRecords.length === 0) {
+      setErrorMessage(
+        "Please select a Packing List and click 'Load' to include items for dispatch.",
+      );
+      return;
+    }
+
+    if (
+      mode === "add" &&
+      values.transportMode === "Road" &&
+      getDriverMobileValidationError(roadDetails.driverMobileNumber)
+    ) {
+      setErrorMessage(getDriverMobileValidationError(roadDetails.driverMobileNumber));
+      return;
+    }
+
+    if (
+      mode === "add" &&
+      values.transportMode === "Ship" &&
+      !isValidOptionalDate(shipDetails.blDate)
+    ) {
+      setErrorMessage("Please enter a valid BL Date.");
+      return;
+    }
+
+    const activeTransportDetails =
+      mode === "add"
+        ? buildActiveTransportDetails(
+          values.transportMode,
+          roadDetails,
+          airDetails,
+          railDetails,
+          shipDetails,
+        )
+        : null;
+
+    const validItems = loadedRecords.filter((record) => {
+      const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+      const dispatchQty =
+        dispatchQuantityMap[record.id] !== undefined
+          ? dispatchQuantityMap[record.id]!
+          : totalSheetsNum;
+      return dispatchQty > 0;
+    });
+
+    if (validItems.length === 0) {
+      setErrorMessage(
+        "Please enter a Dispatch Quantity greater than 0 for at least one item.",
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      loadedRecords.forEach((record) => {
+        const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
+        const dispatchQty =
+          dispatchQuantityMap[record.id] !== undefined
+            ? dispatchQuantityMap[record.id]!
+            : totalSheetsNum;
+
+        if (dispatchQty <= 0) return;
+
+        const originalAmount = parseAmount(record.amount);
+        const itemAmount =
+          totalSheetsNum > 0
+            ? (originalAmount / totalSheetsNum) * dispatchQty
+            : originalAmount;
+        const grandTotal = itemAmount * 1.18;
+        const originalSqf = parseAmount(record.sqf);
+        const dispatchSqf =
+          totalSheetsNum > 0
+            ? ((originalSqf / totalSheetsNum) * dispatchQty).toFixed(3)
+            : record.sqf;
+
+        createDispatchEntry(record.id, {
+          customerName: values.customerName,
+          dispatchDate: values.dispatchDate,
+          dispatchGrandTotal: formatAmount(grandTotal),
+          dispatchTotalQuantity: String(dispatchQty),
+          dispatchTotalSqf: dispatchSqf,
+          dispatchBuyerAddress: values.buyerAddress,
+          dispatchSellerAddress: values.sellerAddress,
+          dispatchTransactionType: values.transactionType,
+          dispatchTransporter: values.transporter,
+          dispatchTransportMode: values.transportMode,
+          orderType: record.orderType,
+          productCategory: record.productCategory,
+          remark: values.remark,
+          ...(activeTransportDetails
+            ? { dispatchTransportDetails: activeTransportDetails }
+            : {}),
+        });
+      });
+
+      const successMsg =
+        mode === "add"
+          ? "Dispatch created successfully."
+          : "Dispatch updated successfully.";
+
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate("/dispatch", {
+          state: { dispatchFlashMessage: successMsg },
+        });
+      }
+    } catch {
+      setIsSubmitting(false);
+      setErrorMessage("Unable to save the dispatch. Please try again.");
+    }
+  };
+
+  if (isAddMode(mode)) {
+    return (
+      <MasterPageShell
+        backNav={{ label: "Back to Dispatch", to: "/dispatch", onBack: handleRequestBack }}
+        breadcrumbs={[
+          { label: "Dispatch", to: "/dispatch" },
+          { label: pageLabel },
+        ]}
+        subtitle=""
+        title={pageLabel}
+      >
+        <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+          {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+
+          <MasterSectionCard>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Dispatch Details" />
+              <Box sx={dispatchDetailsGridSx}>
+                <LabeledField label="Dispatch Date *">
+                  <ErpDatePickerField
+                    helperText={hasSubmitted && !values.dispatchDate ? "Dispatch Date is required." : ""}
+                    onChange={(dispatchDate) => {
+                      setErrorMessage("");
+                      setValues((current) => ({ ...current, dispatchDate }));
+                    }}
+                    state={hasSubmitted && !values.dispatchDate ? "error" : "default"}
+                    value={values.dispatchDate}
+                  />
+                </LabeledField>
+
+                <SingleSelectField
+                  error={hasSubmitted && !values.customerName}
+                  label="Customer Name *"
+                  options={customerOptions}
+                  value={values.customerName}
+                  onChange={(customerName) => {
+                    setErrorMessage("");
+                    setValues((current) => ({
+                      ...current,
+                      customerName,
+                      productCategories: [],
+                      packingList: [],
+                    }));
+                    setLoadedRecords([]);
+                    setDispatchQuantityMap({});
+                  }}
+                />
+
+                <MultiSelectField
+                  disabled={!values.customerName}
+                  error={hasSubmitted && loadedRecords.length === 0}
+                  label="Packing List *"
+                  options={createPackingListOptions}
+                  showAllOption
+                  showCheckboxes
+                  value={values.packingList}
+                  onChange={(packingList) => {
+                    setValues((current) => ({ ...current, packingList }));
+                    setLoadedRecords([]);
+                    setDispatchQuantityMap({});
+                  }}
+                />
+                <Button
+                  disabled={values.packingList.length === 0}
+                  onClick={handleLoadPackingLists}
+                  sx={createLoadButtonSx}
+                  variant="contained"
+                >
+                  Load
+                </Button>
+              </Box>
+
+              {!values.customerName ? (
+                <Typography sx={compactHintSx}>
+                  Select a customer to view eligible packing lists.
+                </Typography>
+              ) : createPackingListOptions.length === 0 ? (
+                <Typography sx={compactHintSx}>
+                  No eligible packing items are available for this selection.
+                </Typography>
+              ) : null}
+            </Stack>
+          </MasterSectionCard>
+
+          <MasterSectionCard>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+              <FormSectionHeader title="Buyer & Shipping Information" />
+              <Box sx={buyerShippingGridSx}>
+                <TextInputField
+                  label="Address of Buyer"
+                  value={values.buyerAddress}
+                  onChange={(buyerAddress) =>
+                    setValues((current) => ({ ...current, buyerAddress }))
+                  }
+                />
+                <TextInputField
+                  label="Address of Seller"
+                  value={values.sellerAddress}
+                  onChange={(sellerAddress) =>
+                    setValues((current) => ({ ...current, sellerAddress }))
+                  }
+                />
+                <SingleSelectField
+                  error={false}
+                  label="Transaction Type"
+                  options={transactionTypeOptions}
+                  value={values.transactionType}
+                  onChange={(transactionType) =>
+                    setValues((current) => ({ ...current, transactionType }))
+                  }
+                />
+                <SingleSelectField
+                  error={false}
+                  label="Transporter"
+                  options={transporterOptions}
+                  value={values.transporter}
+                  onChange={(transporter) =>
+                    setValues((current) => ({ ...current, transporter }))
+                  }
+                />
+                <SingleSelectField
+                  error={false}
+                  label="Transport Mode"
+                  options={transportModeOptions}
+                  value={values.transportMode}
+                  onChange={(transportMode) => {
+                    setErrorMessage("");
+                    setValues((current) => ({ ...current, transportMode }));
+                  }}
+                />
+                <TextInputField
+                  label="Remark"
+                  value={values.remark}
+                  onChange={(remark) => setValues((current) => ({ ...current, remark }))}
+                />
+              </Box>
+            </Stack>
+          </MasterSectionCard>
+
+          {values.transportMode ? (
+            <MasterSectionCard>
+              <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
+                <FormSectionHeader title="Transport Details" />
+                <Box
+                  sx={
+                    values.transportMode === "Ship" ||
+                      values.transportMode === "Air" ||
+                      values.transportMode === "Rail"
+                      ? fiveColumnTransportDetailsGridSx
+                      : transportDetailsGridSx
+                  }
+                >
+                  {values.transportMode === "Road" ? (
+                    <>
+                      <TextInputField label="Vehicle Number" value={roadDetails.vehicleNumber} onChange={(vehicleNumber) => setRoadDetails((current) => ({ ...current, vehicleNumber }))} />
+                      <TextInputField label="Driver Name" value={roadDetails.driverName} onChange={(driverName) => setRoadDetails((current) => ({ ...current, driverName }))} />
+                      <TextInputField
+                        error={Boolean(hasSubmitted && getDriverMobileValidationError(roadDetails.driverMobileNumber))}
+                        helperText={hasSubmitted ? getDriverMobileValidationError(roadDetails.driverMobileNumber) : ""}
+                        label="Driver Mobile Number"
+                        type="tel"
+                        value={roadDetails.driverMobileNumber}
+                        onChange={(driverMobileNumber) => {
+                          setErrorMessage("");
+                          setRoadDetails((current) => ({ ...current, driverMobileNumber }));
+                        }}
+                      />
+                    </>
+                  ) : null}
+                  {values.transportMode === "Air" ? (
+                    <>
+                      <TextInputField label="Airline Name" value={airDetails.airlineName} onChange={(airlineName) => setAirDetails((current) => ({ ...current, airlineName }))} />
+                      <TextInputField label="AWB Number" value={airDetails.awbNumber} onChange={(awbNumber) => setAirDetails((current) => ({ ...current, awbNumber }))} />
+                      <TextInputField label="Flight Number" value={airDetails.flightNumber} onChange={(flightNumber) => setAirDetails((current) => ({ ...current, flightNumber }))} />
+                      <TextInputField label="Origin Airport" value={airDetails.originAirport} onChange={(originAirport) => setAirDetails((current) => ({ ...current, originAirport }))} />
+                      <TextInputField label="Destination Airport" value={airDetails.destinationAirport} onChange={(destinationAirport) => setAirDetails((current) => ({ ...current, destinationAirport }))} />
+                    </>
+                  ) : null}
+                  {values.transportMode === "Rail" ? (
+                    <>
+                      <TextInputField label="RR Number" value={railDetails.rrNumber} onChange={(rrNumber) => setRailDetails((current) => ({ ...current, rrNumber }))} />
+                      <TextInputField label="Train Number" value={railDetails.trainNumber} onChange={(trainNumber) => setRailDetails((current) => ({ ...current, trainNumber }))} />
+                      <TextInputField label="Container Number" value={railDetails.containerNumber} onChange={(containerNumber) => setRailDetails((current) => ({ ...current, containerNumber }))} />
+                      <TextInputField label="Origin Railway Station" value={railDetails.originRailwayStation} onChange={(originRailwayStation) => setRailDetails((current) => ({ ...current, originRailwayStation }))} />
+                      <TextInputField label="Destination Railway Station" value={railDetails.destinationRailwayStation} onChange={(destinationRailwayStation) => setRailDetails((current) => ({ ...current, destinationRailwayStation }))} />
+                    </>
+                  ) : null}
+                  {values.transportMode === "Ship" ? (
+                    <>
+                      <TextInputField label="Shipping Line Name" value={shipDetails.shippingLineName} onChange={(shippingLineName) => setShipDetails((current) => ({ ...current, shippingLineName }))} />
+                      <TextInputField label="Vessel Name" value={shipDetails.vesselName} onChange={(vesselName) => setShipDetails((current) => ({ ...current, vesselName }))} />
+                      <TextInputField label="Voyage Number" value={shipDetails.voyageNumber} onChange={(voyageNumber) => setShipDetails((current) => ({ ...current, voyageNumber }))} />
+                      <TextInputField label="Bill of Lading (BL) Number" value={shipDetails.billOfLadingNumber} onChange={(billOfLadingNumber) => setShipDetails((current) => ({ ...current, billOfLadingNumber }))} />
+                      <LabeledField label="BL Date">
+                        <ErpDatePickerField
+                          helperText={hasSubmitted && !isValidOptionalDate(shipDetails.blDate) ? "Enter a valid BL Date." : ""}
+                          onChange={(blDate) => {
+                            setErrorMessage("");
+                            setShipDetails((current) => ({ ...current, blDate }));
+                          }}
+                          state={hasSubmitted && !isValidOptionalDate(shipDetails.blDate) ? "error" : "default"}
+                          value={shipDetails.blDate}
+                        />
+                      </LabeledField>
+                      <TextInputField label="Container Number" value={shipDetails.containerNumber} onChange={(containerNumber) => setShipDetails((current) => ({ ...current, containerNumber }))} />
+                      <TextInputField label="Container Type" value={shipDetails.containerType} onChange={(containerType) => setShipDetails((current) => ({ ...current, containerType }))} />
+                      <TextInputField label="Seal Number" value={shipDetails.sealNumber} onChange={(sealNumber) => setShipDetails((current) => ({ ...current, sealNumber }))} />
+                      <TextInputField label="Port of Loading" value={shipDetails.portOfLoading} onChange={(portOfLoading) => setShipDetails((current) => ({ ...current, portOfLoading }))} />
+                      <TextInputField label="Port of Discharge" value={shipDetails.portOfDischarge} onChange={(portOfDischarge) => setShipDetails((current) => ({ ...current, portOfDischarge }))} />
+                    </>
+                  ) : null}
+                </Box>
+              </Stack>
+            </MasterSectionCard>
+          ) : null}
+
+          <MasterSectionCard>
+            <Stack sx={(theme) => ({ gap: theme.spacing(1.25) })}>
+              <FormSectionHeader
+                title="Dispatch Items"
+                endAdornment={hasLoadedItems ? <Chip label={`${dispatchItemRows.length} ${dispatchItemRows.length === 1 ? "item" : "items"}`} size="small" sx={itemCountChipSx} /> : null}
+              />
+              <Typography sx={sectionSubtitleSx}>
+                Items loaded from the selected packing list.
+              </Typography>
+              {hasLoadedItems ? (
+                <DispatchItemsTable
+                  columns={createItemColumns}
+                  rows={dispatchItemRows}
+                  onQuantityChange={(recordId, nextQty) => {
+                    setDispatchQuantityMap((current) => ({ ...current, [recordId]: nextQty }));
+                  }}
+                />
+              ) : (
+                <Box sx={emptyStateSx}>
+                  Select a packing list and click Load to view dispatch items.
+                </Box>
+              )}
+            </Stack>
+          </MasterSectionCard>
+
+          {hasLoadedItems ? (
+            <Box sx={dispatchSummaryPlacementSx}>
+              <DispatchSummaryCards
+                gstMode={gstMode}
+                row={dispatchSummaryRow}
+              />
+            </Box>
+          ) : null}
+
+          <Box sx={stickyActionBarSx}>
+            <Button
+              disabled={isSubmitting}
+              onClick={() =>
+                setLeaveConfirmation({
+                  open: true,
+                  title: "Cancel Changes",
+                  description: "Are you sure you want to cancel? Any unsaved changes will be discarded.",
+                  action: handleRequestBack,
+                })
+              }
+              sx={recordFormActionButtonSx}
+              variant="outlined"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={handleSubmit}
+              startIcon={isSubmitting ? <CircularProgress color="inherit" size={16} /> : <Save size={16} />}
+              sx={recordFormActionButtonSx}
+              variant="contained"
+            >
+              {isSubmitting ? "Submitting..." : "Submit"}
+            </Button>
+          </Box>
+        </Stack>
+
+        <ConfirmationDialog
+          cancelLabel="Stay on Page"
+          confirmLabel="Leave"
+          description={leaveConfirmation.description}
+          onClose={() => setLeaveConfirmation((current) => ({ ...current, open: false }))}
+          onConfirm={() => {
+            const action = leaveConfirmation.action;
+            setLeaveConfirmation((current) => ({ ...current, open: false }));
+            action();
+          }}
+          open={leaveConfirmation.open}
+          title={leaveConfirmation.title}
+          tone="default"
+        />
+      </MasterPageShell>
+    );
+  }
 
   return (
     <MasterPageShell
@@ -560,37 +1096,14 @@ export function DispatchCreatePage({
                 setValues((current) => ({
                   ...current,
                   customerName: nextValue,
-                  orderCategories: [],
                   productCategories: [],
                   packingList: [],
                 }));
-                if (mode === "add") {
-                  setLoadedRecords([]);
-                }
               }}
             />
 
             <MultiSelectField
               disabled={readOnly || !values.customerName}
-              error={false}
-              label="Order Category"
-              options={orderCategoryOptions}
-              value={values.orderCategories}
-              onChange={(nextValue) => {
-                setValues((current) => ({
-                  ...current,
-                  orderCategories: nextValue,
-                  productCategories: [],
-                  packingList: [],
-                }));
-                if (mode === "add") {
-                  setLoadedRecords([]);
-                }
-              }}
-            />
-
-            <MultiSelectField
-              disabled={readOnly || values.orderCategories.length === 0}
               error={false}
               label="Product Category"
               options={productCategoryOptions}
@@ -601,9 +1114,6 @@ export function DispatchCreatePage({
                   productCategories: nextValue,
                   packingList: [],
                 }));
-                if (mode === "add") {
-                  setLoadedRecords([]);
-                }
               }}
             />
 
@@ -646,9 +1156,6 @@ export function DispatchCreatePage({
                     ...current,
                     packingList: nextValue,
                   }));
-                  if (mode === "add") {
-                    setLoadedRecords([]);
-                  }
                 }}
               />
             ) : null}
@@ -704,9 +1211,10 @@ export function DispatchCreatePage({
               label="Transport Mode"
               options={transportModeOptions}
               value={values.transportMode}
-              onChange={(nextValue) =>
+              onChange={(nextValue) => {
+                setErrorMessage("");
                 setValues((current) => ({ ...current, transportMode: nextValue }))
-              }
+              }}
             />
 
             <TextInputField
@@ -718,6 +1226,217 @@ export function DispatchCreatePage({
               }
             />
           </Box>
+
+          {false && values.transportMode ? (
+            <>
+              <FormSectionHeader title="Transport Details" variant="nested" />
+              <Box sx={transportDetailsGridSx}>
+                {values.transportMode === "Road" ? (
+                  <>
+                    <TextInputField
+                      label="Vehicle Number"
+                      value={roadDetails.vehicleNumber}
+                      onChange={(vehicleNumber) =>
+                        setRoadDetails((current) => ({ ...current, vehicleNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Driver Name"
+                      value={roadDetails.driverName}
+                      onChange={(driverName) =>
+                        setRoadDetails((current) => ({ ...current, driverName }))
+                      }
+                    />
+                    <TextInputField
+                      error={Boolean(
+                        hasSubmitted &&
+                        getDriverMobileValidationError(roadDetails.driverMobileNumber),
+                      )}
+                      helperText={
+                        hasSubmitted
+                          ? getDriverMobileValidationError(roadDetails.driverMobileNumber)
+                          : ""
+                      }
+                      label="Driver Mobile Number"
+                      type="tel"
+                      value={roadDetails.driverMobileNumber}
+                      onChange={(driverMobileNumber) => {
+                        setErrorMessage("");
+                        setRoadDetails((current) => ({ ...current, driverMobileNumber }));
+                      }}
+                    />
+                  </>
+                ) : null}
+
+                {values.transportMode === "Air" ? (
+                  <>
+                    <TextInputField
+                      label="Airline Name"
+                      value={airDetails.airlineName}
+                      onChange={(airlineName) =>
+                        setAirDetails((current) => ({ ...current, airlineName }))
+                      }
+                    />
+                    <TextInputField
+                      label="AWB Number"
+                      value={airDetails.awbNumber}
+                      onChange={(awbNumber) =>
+                        setAirDetails((current) => ({ ...current, awbNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Flight Number"
+                      value={airDetails.flightNumber}
+                      onChange={(flightNumber) =>
+                        setAirDetails((current) => ({ ...current, flightNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Origin Airport"
+                      value={airDetails.originAirport}
+                      onChange={(originAirport) =>
+                        setAirDetails((current) => ({ ...current, originAirport }))
+                      }
+                    />
+                    <TextInputField
+                      label="Destination Airport"
+                      value={airDetails.destinationAirport}
+                      onChange={(destinationAirport) =>
+                        setAirDetails((current) => ({ ...current, destinationAirport }))
+                      }
+                    />
+                  </>
+                ) : null}
+
+                {values.transportMode === "Rail" ? (
+                  <>
+                    <TextInputField
+                      label="RR Number"
+                      value={railDetails.rrNumber}
+                      onChange={(rrNumber) =>
+                        setRailDetails((current) => ({ ...current, rrNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Train Number"
+                      value={railDetails.trainNumber}
+                      onChange={(trainNumber) =>
+                        setRailDetails((current) => ({ ...current, trainNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Container Number"
+                      value={railDetails.containerNumber}
+                      onChange={(containerNumber) =>
+                        setRailDetails((current) => ({ ...current, containerNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Origin Railway Station"
+                      value={railDetails.originRailwayStation}
+                      onChange={(originRailwayStation) =>
+                        setRailDetails((current) => ({ ...current, originRailwayStation }))
+                      }
+                    />
+                    <TextInputField
+                      label="Destination Railway Station"
+                      value={railDetails.destinationRailwayStation}
+                      onChange={(destinationRailwayStation) =>
+                        setRailDetails((current) => ({ ...current, destinationRailwayStation }))
+                      }
+                    />
+                  </>
+                ) : null}
+
+                {values.transportMode === "Ship" ? (
+                  <>
+                    <TextInputField
+                      label="Shipping Line Name"
+                      value={shipDetails.shippingLineName}
+                      onChange={(shippingLineName) =>
+                        setShipDetails((current) => ({ ...current, shippingLineName }))
+                      }
+                    />
+                    <TextInputField
+                      label="Vessel Name"
+                      value={shipDetails.vesselName}
+                      onChange={(vesselName) =>
+                        setShipDetails((current) => ({ ...current, vesselName }))
+                      }
+                    />
+                    <TextInputField
+                      label="Voyage Number"
+                      value={shipDetails.voyageNumber}
+                      onChange={(voyageNumber) =>
+                        setShipDetails((current) => ({ ...current, voyageNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Bill of Lading (BL) Number"
+                      value={shipDetails.billOfLadingNumber}
+                      onChange={(billOfLadingNumber) =>
+                        setShipDetails((current) => ({ ...current, billOfLadingNumber }))
+                      }
+                    />
+                    <LabeledField label="BL Date">
+                      <ErpDatePickerField
+                        helperText={
+                          hasSubmitted && !isValidOptionalDate(shipDetails.blDate)
+                            ? "Enter a valid BL Date."
+                            : ""
+                        }
+                        onChange={(blDate) => {
+                          setErrorMessage("");
+                          setShipDetails((current) => ({ ...current, blDate }));
+                        }}
+                        state={
+                          hasSubmitted && !isValidOptionalDate(shipDetails.blDate)
+                            ? "error"
+                            : "default"
+                        }
+                        value={shipDetails.blDate}
+                      />
+                    </LabeledField>
+                    <TextInputField
+                      label="Container Number"
+                      value={shipDetails.containerNumber}
+                      onChange={(containerNumber) =>
+                        setShipDetails((current) => ({ ...current, containerNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Container Type"
+                      value={shipDetails.containerType}
+                      onChange={(containerType) =>
+                        setShipDetails((current) => ({ ...current, containerType }))
+                      }
+                    />
+                    <TextInputField
+                      label="Seal Number"
+                      value={shipDetails.sealNumber}
+                      onChange={(sealNumber) =>
+                        setShipDetails((current) => ({ ...current, sealNumber }))
+                      }
+                    />
+                    <TextInputField
+                      label="Port of Loading"
+                      value={shipDetails.portOfLoading}
+                      onChange={(portOfLoading) =>
+                        setShipDetails((current) => ({ ...current, portOfLoading }))
+                      }
+                    />
+                    <TextInputField
+                      label="Port of Discharge"
+                      value={shipDetails.portOfDischarge}
+                      onChange={(portOfDischarge) =>
+                        setShipDetails((current) => ({ ...current, portOfDischarge }))
+                      }
+                    />
+                  </>
+                ) : null}
+              </Box>
+            </>
+          ) : null}
 
           {hasLoadedItems ? (
             <>
@@ -813,6 +1532,37 @@ export function DispatchCreatePage({
                       return;
                     }
 
+                    if (
+                      false &&
+                      values.transportMode === "Road" &&
+                      getDriverMobileValidationError(roadDetails.driverMobileNumber)
+                    ) {
+                      setErrorMessage(
+                        getDriverMobileValidationError(roadDetails.driverMobileNumber),
+                      );
+                      return;
+                    }
+
+                    if (
+                      false &&
+                      values.transportMode === "Ship" &&
+                      !isValidOptionalDate(shipDetails.blDate)
+                    ) {
+                      setErrorMessage("Please enter a valid BL Date.");
+                      return;
+                    }
+
+                    const activeTransportDetails =
+                      false
+                        ? buildActiveTransportDetails(
+                          values.transportMode,
+                          roadDetails,
+                          airDetails,
+                          railDetails,
+                          shipDetails,
+                        )
+                        : null;
+
                     const validItems = loadedRecords.filter((record) => {
                       const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
                       const dispatchQty =
@@ -851,7 +1601,7 @@ export function DispatchCreatePage({
                         ? ((originalSqf / totalSheetsNum) * dispatchQty).toFixed(3)
                         : record.sqf;
 
-                      createDispatchEntry(record.id, {
+                      const dispatchPayload = {
                         customerName: values.customerName,
                         dispatchDate: values.dispatchDate,
                         dispatchGrandTotal: formatAmount(grandTotal),
@@ -862,14 +1612,21 @@ export function DispatchCreatePage({
                         dispatchTransactionType: values.transactionType,
                         dispatchTransporter: values.transporter,
                         dispatchTransportMode: values.transportMode,
-                        orderType: values.orderCategories.join(", "),
+                        orderType: record.orderType,
                         productCategory: values.productCategories.join(", "),
                         remark: values.remark,
-                      });
+                        // Future API/store mapping: the current frontend store does not
+                        // persist this field yet, but only the active mode is submitted.
+                        ...(activeTransportDetails
+                          ? { dispatchTransportDetails: activeTransportDetails }
+                          : {}),
+                      };
+
+                      createDispatchEntry(record.id, dispatchPayload);
                     });
 
                     const successMsg =
-                      mode === "add"
+                      false
                         ? "Dispatch created successfully."
                         : "Dispatch updated successfully.";
 
@@ -887,7 +1644,7 @@ export function DispatchCreatePage({
                   sx={recordFormActionButtonSx}
                   variant="contained"
                 >
-                  {mode === "add" ? "Submit" : "Save"}
+                  Save
                 </Button>
               </>
             )}
@@ -1132,16 +1889,20 @@ function MultiSelectField({
 function TextInputField({
   disabled,
   error,
+  helperText,
   label,
   onChange,
   required,
+  type,
   value,
 }: {
   disabled?: boolean;
   error?: boolean;
+  helperText?: string;
   label: string;
   onChange: (value: string) => void;
   required?: boolean;
+  type?: string;
   value: string;
 }) {
   return (
@@ -1149,7 +1910,8 @@ function TextInputField({
       <TextField
         disabled={disabled}
         error={error}
-        helperText={error ? `${label} is required` : undefined}
+        helperText={helperText || (error ? `${label} is required` : undefined)}
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         size="small"
@@ -1312,6 +2074,208 @@ function DispatchSummaryTable({ row }: { row: DispatchSummaryRow }) {
   );
 }
 
+function DispatchSummaryCards({
+  row,
+  gstMode = "intra",
+}: {
+  row: DispatchSummaryRow;
+  gstMode?: "intra" | "inter" | "none";
+}) {
+  const theme = useTheme();
+
+  return (
+    <Box
+      sx={{
+        border: `1px solid ${theme.customTokens.borders.default}`,
+        borderRadius: `${theme.customTokens.radius.md}px`,
+        backgroundColor: theme.customTokens.surfaces.alt,
+        px: theme.spacing(2),
+        py: theme.spacing(1.5),
+        width: { xs: "100%", sm: 380 },
+        maxWidth: "100%",
+      }}
+    >
+      <Typography
+        variant="subtitle2"
+        sx={{
+          mb: 1,
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          color: theme.customTokens.text.secondary,
+        }}
+      >
+        INVOICE TOTALS
+      </Typography>
+
+      <Stack spacing={0.75}>
+        <SummaryLine
+          label="Total Quantity"
+          valueText={row.totalQuantity}
+        />
+        <SummaryLine
+          label="Total SQM"
+          valueText={row.totalSqm}
+        />
+        <SummaryLine
+          label="Sub Total"
+          value={row.subTotalNum}
+        />
+        {row.otherAmountNum > 0 ? (
+          <SummaryLine
+            label="Additional Charges"
+            value={row.otherAmountNum}
+          />
+        ) : null}
+        <SummaryLine
+          label="Taxable Amount"
+          value={row.taxableAmountNum}
+        />
+        {gstMode === "intra" ? (
+          <>
+            <SummaryLine
+              label="CGST (9%)"
+              value={row.cgstNum}
+            />
+            <SummaryLine
+              label="SGST (9%)"
+              value={row.sgstNum}
+            />
+          </>
+        ) : gstMode === "inter" ? (
+          <SummaryLine
+            label="IGST (18%)"
+            value={row.igstNum}
+          />
+        ) : null}
+        <Divider sx={{ borderColor: theme.customTokens.borders.default }} />
+        <SummaryLine
+          emphasize
+          label="Total"
+          value={row.totalNum}
+        />
+      </Stack>
+    </Box>
+  );
+}
+
+function SummaryLine({
+  emphasize = false,
+  label,
+  value,
+  valueText,
+}: {
+  emphasize?: boolean;
+  label: string;
+  value?: number;
+  valueText?: string;
+}) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 2,
+      }}
+    >
+      <Typography
+        sx={(theme) => ({
+          fontSize: emphasize ? "0.875rem" : "0.8125rem",
+          fontWeight: emphasize ? 700 : 500,
+          color: emphasize
+            ? theme.palette.text.primary
+            : theme.customTokens.text.secondary,
+        })}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: emphasize ? "0.875rem" : "0.8125rem",
+          fontWeight: emphasize ? 700 : 600,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {valueText !== undefined ? valueText : formatAmount(value ?? 0)}
+      </Typography>
+    </Box>
+  );
+}
+
+function getDriverMobileValidationError(value: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return "";
+  }
+
+  const digitCount = (trimmedValue.match(/\d/g) ?? []).length;
+  const hasValidCharacters = /^\+?[0-9().\-\s]+$/.test(trimmedValue);
+  if (!hasValidCharacters || digitCount < 6 || digitCount > 15) {
+    return "Enter a valid Driver Mobile Number.";
+  }
+
+  return "";
+}
+
+function isValidOptionalDate(value: Date | null): boolean {
+  return value === null || (value instanceof Date && !Number.isNaN(value.getTime()));
+}
+
+function buildActiveTransportDetails(
+  transportMode: string,
+  roadDetails: RoadDetailsState,
+  airDetails: AirDetailsState,
+  railDetails: RailDetailsState,
+  shipDetails: ShipDetailsState,
+) {
+  if (transportMode === "Road") {
+    return {
+      vehicleNumber: roadDetails.vehicleNumber.trim(),
+      driverName: roadDetails.driverName.trim(),
+      driverMobileNumber: roadDetails.driverMobileNumber.trim(),
+    };
+  }
+
+  if (transportMode === "Air") {
+    return {
+      airlineName: airDetails.airlineName.trim(),
+      awbNumber: airDetails.awbNumber.trim(),
+      flightNumber: airDetails.flightNumber.trim(),
+      originAirport: airDetails.originAirport.trim(),
+      destinationAirport: airDetails.destinationAirport.trim(),
+    };
+  }
+
+  if (transportMode === "Rail") {
+    return {
+      rrNumber: railDetails.rrNumber.trim(),
+      trainNumber: railDetails.trainNumber.trim(),
+      containerNumber: railDetails.containerNumber.trim(),
+      originRailwayStation: railDetails.originRailwayStation.trim(),
+      destinationRailwayStation: railDetails.destinationRailwayStation.trim(),
+    };
+  }
+
+  if (transportMode === "Ship") {
+    return {
+      shippingLineName: shipDetails.shippingLineName.trim(),
+      vesselName: shipDetails.vesselName.trim(),
+      voyageNumber: shipDetails.voyageNumber.trim(),
+      billOfLadingNumber: shipDetails.billOfLadingNumber.trim(),
+      blDate: shipDetails.blDate,
+      containerNumber: shipDetails.containerNumber.trim(),
+      containerType: shipDetails.containerType.trim(),
+      sealNumber: shipDetails.sealNumber.trim(),
+      portOfLoading: shipDetails.portOfLoading.trim(),
+      portOfDischarge: shipDetails.portOfDischarge.trim(),
+    };
+  }
+
+  return null;
+}
+
 function buildDispatchInitialValues(
   record: PackingRecord | undefined,
 ): DispatchFormState {
@@ -1319,7 +2283,6 @@ function buildDispatchInitialValues(
     return {
       dispatchDate: new Date(),
       customerName: "",
-      orderCategories: [],
       productCategories: [],
       packingList: [],
       buyerAddress: "",
@@ -1334,7 +2297,6 @@ function buildDispatchInitialValues(
   return {
     dispatchDate: record.dispatchDate ?? new Date(),
     customerName: record.customerName,
-    orderCategories: [record.orderType].filter(Boolean),
     productCategories: [record.productCategory].filter(Boolean),
     packingList: [`${record.packingId} - ${record.orderNo}`],
     buyerAddress: record.dispatchBuyerAddress ?? "",
@@ -1355,7 +2317,9 @@ function mapDispatchItemRow(
   const totalSheetsNum = parseInt(record.noOfSheets, 10) || 0;
   const originalAmount = parseAmount(record.amount);
   const originalSqm = parseAmount(record.sqm);
+  const originalSqf = parseAmount(record.sqf);
   const sqmPerSheet = totalSheetsNum > 0 ? originalSqm / totalSheetsNum : 0;
+  const sqfPerSheet = totalSheetsNum > 0 ? originalSqf / totalSheetsNum : 0;
   const amountPerSheet = totalSheetsNum > 0 ? originalAmount / totalSheetsNum : 0;
 
   const currentSqm = sqmPerSheet * dispatchQty;
@@ -1390,6 +2354,7 @@ function mapDispatchItemRow(
     remainingQuantity: String(remainingQty),
     noOfSheets: String(dispatchQty),
     sqm: formatPlainNumber(currentSqm, 3),
+    sqf: formatPlainNumber(sqfPerSheet * dispatchQty, 3),
     rate: formatAmount(rate),
     itemAmount: formatAmount(currentAmount),
     discountPercent: "0",
@@ -1404,7 +2369,10 @@ function mapDispatchItemRow(
   };
 }
 
-function buildSummaryRow(rows: readonly DispatchItemRow[]): DispatchSummaryRow {
+function buildSummaryRow(
+  rows: readonly DispatchItemRow[],
+  gstMode: "intra" | "inter" | "none" = "intra",
+): DispatchSummaryRow {
   const totalQuantity = rows.reduce(
     (total, row) => total + parseAmount(row.noOfSheets),
     0,
@@ -1415,18 +2383,30 @@ function buildSummaryRow(rows: readonly DispatchItemRow[]): DispatchSummaryRow {
     0,
   );
   const otherAmount = 0;
-  const expenseAmountWithGst = otherAmount * 1.18;
-  const baseAmountWithGst = baseAmount * 1.18;
-  const grandTotal = baseAmountWithGst + expenseAmountWithGst;
+  const taxableAmount = baseAmount + otherAmount;
+  const totalGstRate = gstMode === "none" ? 0 : 0.18;
+  const totalGstAmount = taxableAmount * totalGstRate;
+  const halfGstAmount = totalGstAmount / 2;
+  const cgst = gstMode === "intra" ? halfGstAmount : 0;
+  const sgst = gstMode === "intra" ? halfGstAmount : 0;
+  const igst = gstMode === "inter" ? totalGstAmount : 0;
+  const grandTotal = taxableAmount + totalGstAmount;
 
   return {
     totalQuantity: formatPlainNumber(totalQuantity, 0),
     totalSqm: formatPlainNumber(totalSqm, 3),
     baseAmountWithoutGst: formatAmount(baseAmount),
     otherAmount: formatAmount(otherAmount),
-    expenseAmountWithGst: formatAmount(expenseAmountWithGst),
-    baseAmountWithGst: formatAmount(baseAmountWithGst),
+    expenseAmountWithGst: formatAmount(otherAmount * 1.18),
+    baseAmountWithGst: formatAmount(taxableAmount + totalGstAmount),
     grandTotal: formatAmount(grandTotal),
+    subTotalNum: baseAmount,
+    cgstNum: cgst,
+    sgstNum: sgst,
+    igstNum: igst,
+    taxableAmountNum: taxableAmount,
+    totalNum: grandTotal,
+    otherAmountNum: otherAmount,
   };
 }
 
@@ -1512,26 +2492,151 @@ const fieldSx: SxProps<Theme> = (theme) => ({
   },
 });
 
-const loadButtonSx: SxProps<Theme> = (theme) => ({
-  minHeight: 28,
-  px: theme.spacing(1.75),
-  borderRadius: `${theme.customTokens.radius.md}px`,
-  backgroundColor: theme.customTokens.brand.primary,
-  color: theme.customTokens.text.inverse,
-  fontSize: theme.typography.caption.fontSize,
-  fontWeight: 700,
-  lineHeight: 1,
-  textTransform: "none",
-  boxShadow: "none",
-  "&:hover": {
-    backgroundColor: theme.customTokens.brand.primaryScale[800],
-    boxShadow: "none",
-  },
-  "&.Mui-disabled": {
-    backgroundColor: theme.customTokens.neutrals[200],
-    color: theme.customTokens.neutrals[500],
+const transportDetailsGridSx: SxProps<Theme> = (theme) => ({
+  alignItems: "start",
+  display: "grid",
+  gap: theme.spacing(1.25),
+  gridTemplateColumns: {
+    xs: "1fr",
+    md: "repeat(2, minmax(0, 1fr))",
+    xl: "repeat(4, minmax(0, 1fr))",
   },
 });
+
+const fiveColumnTransportDetailsGridSx: SxProps<Theme> = (theme) => ({
+  alignItems: "start",
+  display: "grid",
+  gap: theme.spacing(1.25),
+  gridTemplateColumns: {
+    xs: "1fr",
+    md: "repeat(2, minmax(0, 1fr))",
+    xl: "repeat(5, minmax(0, 1fr))",
+  },
+});
+
+const dispatchDetailsGridSx: SxProps<Theme> = (theme) => ({
+  alignItems: "end",
+  display: "grid",
+  gap: theme.spacing(1.25),
+  gridTemplateColumns: {
+    xs: "1fr",
+    md: "repeat(2, minmax(0, 1fr))",
+    xl: "repeat(3, minmax(0, 1fr)) auto",
+  },
+});
+
+const buyerShippingGridSx: SxProps<Theme> = (theme) => ({
+  display: "grid",
+  gap: theme.spacing(1.25),
+  gridTemplateColumns: {
+    xs: "1fr",
+    md: "repeat(2, minmax(0, 1fr))",
+    xl: "repeat(3, minmax(0, 1fr))",
+  },
+});
+
+const compactHintSx: SxProps<Theme> = (theme) => ({
+  color: theme.customTokens.text.secondary,
+  fontSize: theme.typography.caption.fontSize,
+  lineHeight: 1.4,
+});
+
+const sectionSubtitleSx: SxProps<Theme> = (theme) => ({
+  color: theme.customTokens.text.secondary,
+  fontSize: theme.typography.body2.fontSize,
+  lineHeight: 1.4,
+});
+
+const createLoadButtonSx: SxProps<Theme> = (theme) => ({
+  ...loadButtonSx(theme),
+  height: 34,
+  minHeight: 34,
+  minWidth: { xs: "100%", sm: 96 },
+});
+
+const itemCountChipSx: SxProps<Theme> = (theme) => ({
+  height: 22,
+  border: `1px solid ${theme.customTokens.borders.default}`,
+  borderRadius: `${theme.customTokens.radius.pill}px`,
+  backgroundColor: theme.customTokens.surfaces.surface,
+  color: theme.customTokens.brand.primary,
+  fontSize: theme.typography.caption.fontSize,
+  fontWeight: 700,
+});
+
+const emptyStateSx: SxProps<Theme> = (theme) => ({
+  alignItems: "center",
+  border: `1px dashed ${theme.customTokens.borders.default}`,
+  borderRadius: `${theme.customTokens.radius.md}px`,
+  color: theme.customTokens.text.secondary,
+  display: "flex",
+  fontSize: theme.typography.body2.fontSize,
+  justifyContent: "center",
+  minHeight: 74,
+  px: theme.spacing(2),
+  textAlign: "center",
+});
+
+const dispatchSummaryPlacementSx: SxProps<Theme> = {
+  display: "flex",
+  justifyContent: "flex-end",
+  width: "100%",
+};
+
+const dispatchSummaryPanelSx: SxProps<Theme> = (theme) => ({
+  backgroundColor: theme.customTokens.surfaces.alt,
+  border: `1px solid ${theme.customTokens.borders.default}`,
+  borderRadius: `${theme.customTokens.radius.md}px`,
+  maxWidth: "100%",
+  minWidth: { xs: 0, sm: 380 },
+  overflow: "hidden",
+  px: theme.spacing(1.75),
+  pb: theme.spacing(1.5),
+  pt: theme.spacing(1.5),
+  width: { xs: "100%", md: 440 },
+});
+
+const stickyActionBarSx: SxProps<Theme> = (theme) => ({
+  alignItems: "center",
+  backgroundColor: theme.customTokens.surfaces.surface,
+  border: `1px solid ${theme.customTokens.borders.default}`,
+  borderRadius: `${theme.customTokens.radius.md}px`,
+  bottom: theme.spacing(1),
+  display: "flex",
+  flexWrap: "wrap",
+  gap: theme.spacing(1.25),
+  justifyContent: { xs: "stretch", sm: "flex-end" },
+  px: theme.spacing(1.5),
+  py: theme.spacing(1.25),
+  position: "sticky",
+  zIndex: 5,
+  "& .MuiButton-root": {
+    flex: { xs: "1 1 140px", sm: "0 0 auto" },
+  },
+});
+
+function loadButtonSx(theme: Theme) {
+  return {
+    minHeight: 28,
+    px: theme.spacing(1.75),
+    borderRadius: `${theme.customTokens.radius.md}px`,
+    backgroundColor: theme.customTokens.brand.primary,
+    color: theme.customTokens.text.inverse,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: 700,
+    lineHeight: 1,
+    textTransform: "none" as const,
+    boxShadow: "none",
+    "&:hover": {
+      backgroundColor: theme.customTokens.brand.primaryScale[800],
+      boxShadow: "none",
+    },
+    "&.Mui-disabled": {
+      backgroundColor: theme.customTokens.neutrals[200],
+      color: theme.customTokens.neutrals[500],
+    },
+  };
+}
 
 const tableContainerSx: SxProps<Theme> = (theme) => ({
   border: `1px solid ${theme.customTokens.borders.default}`,

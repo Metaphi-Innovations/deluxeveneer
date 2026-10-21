@@ -9,7 +9,7 @@ import {
 export function formSectionCardSx(theme: Theme) {
   return {
     border: `1px solid ${theme.customTokens.borders.default}`,
-    borderRadius: "8px",
+    borderRadius: `${theme.customTokens.radius.md}px`,
     backgroundColor: theme.customTokens.surfaces.surface,
     px: 1.75,
     py: 1.5,

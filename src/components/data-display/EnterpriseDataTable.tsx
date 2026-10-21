@@ -1004,6 +1004,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                           backgroundColor: isSelected
                             ? theme.customTokens.navigation.activeBackground
                             : theme.customTokens.surfaces.surface,
+                          transition: "background-color 0.15s ease",
                         },
                         "&:hover td": {
                           backgroundColor: isSelected

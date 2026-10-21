@@ -55,7 +55,7 @@ export function calculateTotalSplicingLeaves(
   items: readonly { values: Record<string, string> }[],
 ) {
   return items.reduce(
-    (total, item) => total + readWholeLeafCount(item.values.noOfLeaves),
+    (total, item) => total + readWholeLeafCount(item.values.noOfSheets),
     0,
   );
 }
@@ -122,8 +122,6 @@ export function validateSplicingRow({
 }) {
   const calculatedValues = calculateSplicingRow(values);
   const fieldErrors: Record<string, string> = {};
-  const leavesText = String(values.noOfLeaves ?? "").trim();
-  const leaves = readWholeLeafCount(leavesText);
   const sheetsText = String(values.noOfSheets ?? "").trim();
   const sheets = readWholeLeafCount(sheetsText);
 
@@ -136,26 +134,19 @@ export function validateSplicingRow({
   if (resolveSlicingDimensionMetres(values.width) <= 0) {
     fieldErrors.width = "Width must be greater than 0.";
   }
-  if (!leavesText) {
-    fieldErrors.noOfLeaves = "No. of Leaves is required.";
-  } else if (!/^\d+$/u.test(leavesText)) {
-    fieldErrors.noOfLeaves = "No. of Leaves must be a whole number.";
-  } else if (leaves <= 0) {
-    fieldErrors.noOfLeaves = "No. of Leaves must be greater than 0.";
-  } else if (leaves > maximumLeaves) {
-    fieldErrors.noOfLeaves = `Only ${maximumLeaves} leaves are available for this Splicing item.`;
-  }
   if (!sheetsText) {
     fieldErrors.noOfSheets = "No. of Sheets is required.";
   } else if (!/^\d+$/u.test(sheetsText)) {
     fieldErrors.noOfSheets = "No. of Sheets must be a whole number.";
   } else if (sheets <= 0) {
     fieldErrors.noOfSheets = "No. of Sheets must be greater than 0.";
+  } else if (sheets > maximumLeaves) {
+    fieldErrors.noOfSheets = `Only ${maximumLeaves} sheets are available for this Splicing item.`;
   }
 
   const sqm = parseNumericValue(calculatedValues.sqm) ?? 0;
   const sqf = parseNumericValue(calculatedValues.sqf);
-  if (sqm <= 0 && !fieldErrors.length && !fieldErrors.width && !fieldErrors.noOfLeaves) {
+  if (sqm <= 0 && !fieldErrors.length && !fieldErrors.width && !fieldErrors.noOfSheets) {
     fieldErrors.sqm = "Calculated SQM must be greater than 0.";
   }
   if (sqf !== null && sqf < 0) {
@@ -180,7 +171,7 @@ export function validateSplicingForm({
   sourceAvailableLeaves: number;
   sourceRow: Record<string, unknown> | undefined;
 }) {
-  if (sourceAvailableLeaves <= 0) return "No leaves are available for Splicing.";
+  if (sourceAvailableLeaves <= 0) return "No sheets are available for Splicing.";
   if (items.length === 0) return "Add at least one Process Detail item before saving.";
 
   for (const item of items) {
@@ -191,31 +182,13 @@ export function validateSplicingForm({
     if (validation.message) return validation.message;
   }
 
-  const totalLeavesUsed = calculateTotalSplicingLeaves(items);
-  if (totalLeavesUsed > sourceAvailableLeaves) {
-    return `Splicing quantity exceeds available leaves. Available Leaves: ${Math.max(
+  const totalSheetsUsed = calculateTotalSplicingLeaves(items);
+  if (totalSheetsUsed > sourceAvailableLeaves) {
+    return `Splicing quantity exceeds available sheets. Available Sheets: ${Math.max(
       0,
       sourceAvailableLeaves -
-        (totalLeavesUsed - readWholeLeafCount(items.at(-1)?.values.noOfLeaves)),
+        (totalSheetsUsed - readWholeLeafCount(items.at(-1)?.values.noOfSheets)),
     )}`;
-  }
-
-  const expected = calculateSplicingAvailableDetails({
-    sourceAvailableLeaves,
-    sourceRow,
-    totalLeavesUsed,
-  });
-  const actualLeaves = readNonNegativeWholeLeafCount(availableValues.noOfLeaves);
-  const actualSqm = parseNumericValue(availableValues.sqm);
-  const actualSqf = parseNumericValue(availableValues.sqf);
-  if (
-    actualLeaves !== Number(expected.noOfLeaves) ||
-    actualSqm === null ||
-    actualSqf === null ||
-    Math.abs(actualSqm - (parseNumericValue(expected.sqm) ?? 0)) > 0.001 ||
-    Math.abs(actualSqf - (parseNumericValue(expected.sqf) ?? 0)) > 0.001
-  ) {
-    return "Available Details do not match the calculated remaining leaves.";
   }
   return "";
 }
@@ -243,6 +216,7 @@ export function orderSplicingCreateFields(
   const visibleFields = fields
     .filter(
       (field) =>
+        field.key !== "noOfLeaves" &&
         field.key !== "itemSubCategory" &&
         field.key !== "subCategory" &&
         field.key !== "grade" &&

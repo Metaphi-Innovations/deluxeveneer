@@ -10,6 +10,7 @@ import {
   Box,
   Button,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -23,7 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { Info, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Info, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
@@ -851,12 +852,14 @@ export interface OrderLineItemsTableHandle {
 export const OrderLineItemsTable = forwardRef<
   OrderLineItemsTableHandle,
   {
+    createLayout?: boolean;
     items: readonly OrderLineItem[];
     onChange: (items: OrderLineItem[]) => void;
     readOnly?: boolean;
     variant?: OrderCreateVariant | null;
   }
 >(function OrderLineItemsTable({
+  createLayout = false,
   items,
   onChange,
   readOnly = false,
@@ -1048,9 +1051,28 @@ export const OrderLineItemsTable = forwardRef<
         >
           <Stack sx={{ gap: 1.15 }}>
             <FormSectionHeader
+              endAdornment={createLayout ? (
+                <Box
+                  sx={(theme) => ({
+                    backgroundColor: theme.customTokens.navigation.hoverBackground,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
+                    borderRadius: "999px",
+                    color: theme.customTokens.brand.primary,
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    px: 1.1,
+                    py: 0.55,
+                    whiteSpace: "nowrap",
+                  })}
+                >
+                  {lineItems.length} {lineItems.length === 1 ? "item" : "items"} added
+                </Box>
+              ) : undefined}
               title={
-                `${isFinishedOrder ? "Finished Order Item" : "Raw Order Item"}${editingRowId ? " · Editing" : ""
-                }`
+                createLayout
+                  ? `Add Order Item${editingRowId ? " · Editing" : ""}`
+                  : `${isFinishedOrder ? "Finished Order Item" : "Raw Order Item"}${editingRowId ? " · Editing" : ""}`
               }
             />
 
@@ -1156,8 +1178,30 @@ export const OrderLineItemsTable = forwardRef<
         </Box>
       ) : null}
 
-      {lineItems.length > 0 ? (
-        <Stack spacing={2}>
+      {createLayout || lineItems.length > 0 ? (
+        <Box
+          sx={(theme) => createLayout
+            ? ({ ...formSectionCardSx(theme) })
+            : ({})}
+        >
+          {createLayout ? (
+            <FormSectionHeader
+              endAdornment={
+                <Typography
+                  sx={(theme) => ({
+                    color: theme.customTokens.text.secondary,
+                    fontSize: "11px",
+                    fontWeight: 600,
+                  })}
+                >
+                  {lineItems.length} {lineItems.length === 1 ? "item" : "items"} total
+                </Typography>
+              }
+              title="Order Items"
+            />
+          ) : null}
+          {lineItems.length > 0 ? (
+          <Stack spacing={1.5} sx={{ mt: createLayout ? 1.25 : 0 }}>
           {Array.from(
             lineItems.reduce((map, item, globalIdx) => {
               const groupKey = formatProductTypeLabel(getUnifiedProductType(item)) || "Items";
@@ -1280,7 +1324,28 @@ export const OrderLineItemsTable = forwardRef<
               </Box>
             );
           })}
-        </Stack>
+          </Stack>
+          ) : (
+            <Box
+              sx={(theme) => ({
+                alignItems: "center",
+                backgroundColor: theme.customTokens.surfaces.alt,
+                border: `1px dashed ${theme.customTokens.borders.default}`,
+                borderRadius: "7px",
+                color: theme.customTokens.text.secondary,
+                display: "flex",
+                fontSize: "13px",
+                justifyContent: "center",
+                mt: 1.25,
+                px: 2,
+                py: 2.25,
+                textAlign: "center",
+              })}
+            >
+              Add an order item above to build this order.
+            </Box>
+          )}
+        </Box>
       ) : null}
 
       <ItemDetailsDialog
@@ -2203,10 +2268,19 @@ function ItemDetailsDialog({
   onClose: () => void;
   open: boolean;
 }) {
+  const detailValue = (key: string) => formatMasterValue(item?.[key]);
+  const identityFields = itemDetailColumns
+    .filter((column) => ["itemName", "itemCode", "category", "subCategory"].includes(column.key))
+    .map((column) => ({ label: column.label, value: detailValue(column.key) }));
+  const classificationFields = itemDetailColumns
+    .filter((column) => ["color", "hsn", "gst"].includes(column.key))
+    .map((column) => ({ label: column.label, value: detailValue(column.key) }));
+  const remark = detailValue("remark");
+
   return (
     <Dialog
       fullWidth
-      maxWidth={false}
+      maxWidth="lg"
       onClose={onClose}
       open={open}
       slotProps={{
@@ -2214,10 +2288,10 @@ function ItemDetailsDialog({
           sx: (theme) => ({
             borderRadius: `${theme.customTokens.radius.md}px`,
             boxShadow: theme.customTokens.elevation.md,
-            maxHeight: "none",
-            overflow: "visible",
+            maxHeight: "calc(100% - 32px)",
+            overflow: "hidden",
             outline: "none",
-            width: "min(96vw, 1760px)",
+            width: "min(94vw, 1120px)",
             "&:focus, &:focus-visible": {
               outline: "none",
             },
@@ -2227,89 +2301,165 @@ function ItemDetailsDialog({
     >
       <DialogTitle
         sx={(theme) => ({
+          alignItems: "center",
+          backgroundColor: theme.customTokens.surfaces.surface,
           borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-          fontSize: theme.typography.h3.fontSize,
-          fontWeight: 700,
-          px: theme.spacing(2),
-          py: theme.spacing(1.5),
+          display: "flex",
+          gap: 1.25,
+          px: 2.5,
+          py: 1.5,
         })}
       >
-        Item Details
+        <Box
+          sx={(theme) => ({
+            alignItems: "center",
+            backgroundColor: theme.customTokens.brand.primary,
+            borderRadius: "7px",
+            color: theme.customTokens.text.inverse,
+            display: "flex",
+            flexShrink: 0,
+            height: 34,
+            justifyContent: "center",
+            width: 34,
+          })}
+        >
+          <Info size={17} />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontSize: 17, fontWeight: 750, lineHeight: 1.25 }}>
+            Item Details
+          </Typography>
+          <Typography color="text.secondary" sx={{ fontSize: 12.5, mt: 0.2 }}>
+            Master information for the selected order item
+          </Typography>
+        </Box>
+        <IconButton
+          aria-label="Close item details"
+          onClick={onClose}
+          size="small"
+          sx={(theme) => ({
+            color: theme.customTokens.text.secondary,
+            "&:hover": {
+              backgroundColor: theme.customTokens.navigation.hoverBackground,
+              color: theme.customTokens.brand.primary,
+            },
+          })}
+        >
+          <X size={18} />
+        </IconButton>
       </DialogTitle>
 
       <DialogContent
         sx={(theme) => ({
-          px: theme.spacing(2),
-          py: theme.spacing(2),
+          backgroundColor: theme.customTokens.surfaces.alt,
+          p: "16px !important",
         })}
       >
-        <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
+        <Box
+          sx={(theme) => ({
+            display: "grid",
+            gap: theme.spacing(1.5),
+            gridTemplateColumns: { xs: "1fr", md: "1.15fr 0.85fr" },
+          })}
+        >
+          <ItemDetailSection fields={identityFields} title="Item Information" />
+          <ItemDetailSection fields={classificationFields} title="Classification & Tax" />
+          <ItemDetailSection
+            fields={[{ label: "Remark", value: remark }]}
+            fullWidth
+            title="Remark"
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions
+        sx={(theme) => ({
+          backgroundColor: theme.customTokens.surfaces.surface,
+          borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          px: 2.5,
+          py: 1.25,
+        })}
+      >
+        <Button
+          disableElevation
+          onClick={onClose}
+          sx={recordFormActionButtonSx}
+          variant="contained"
+        >
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function ItemDetailSection({
+  fields,
+  fullWidth = false,
+  title,
+}: {
+  fields: readonly { label: string; value: string }[];
+  fullWidth?: boolean;
+  title: string;
+}) {
+  return (
+    <Box
+      sx={(theme) => ({
+        ...formSectionCardSx(theme),
+        gridColumn: fullWidth ? "1 / -1" : "auto",
+      })}
+    >
+      <FormSectionHeader title={title} />
+      <Box
+        sx={(theme) => ({
+          display: "grid",
+          gap: theme.spacing(1),
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: fullWidth ? "1fr" : "repeat(2, minmax(0, 1fr))",
+          },
+          pt: 1.15,
+        })}
+      >
+        {fields.map((field) => (
           <Box
+            key={field.label}
             sx={(theme) => ({
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              borderRadius: `${theme.customTokens.radius.sm}px`,
-              overflow: "hidden",
-              backgroundColor: theme.customTokens.surfaces.surface,
+              backgroundColor: theme.customTokens.surfaces.alt,
+              border: `1px solid ${theme.customTokens.borders.divider}`,
+              borderRadius: "7px",
+              minHeight: fullWidth ? 62 : 68,
+              minWidth: 0,
+              px: 1.25,
+              py: 1,
             })}
           >
-            <Box sx={{ overflow: "hidden" }}>
-              <Table
-                size="small"
-                sx={{
-                  minWidth: "100%",
-                  tableLayout: "fixed",
-                  width: "100%",
-                }}
-              >
-                <TableHead>
-                  <TableRow>
-                    {itemDetailColumns.map((column) => (
-                      <TableCell
-                        key={column.key}
-                        sx={(theme) => ({
-                          ...getHeaderCellSx(theme, column.minWidth),
-                          overflowWrap: "anywhere",
-                          whiteSpace: "normal",
-                        })}
-                      >
-                        {column.label}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  <TableRow>
-                    {itemDetailColumns.map((column) => (
-                      <TableCell
-                        key={column.key}
-                        sx={(theme) => ({
-                          ...getBodyCellSx(theme),
-                          overflowWrap: "anywhere",
-                          whiteSpace: "normal",
-                        })}
-                      >
-                        {formatMasterValue(item?.[column.key])}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </Box>
-          </Box>
-
-          <Box sx={{ display: "flex", justifyContent: "center" }}>
-            <Button
-              disableElevation
-              onClick={onClose}
-              sx={recordFormActionButtonSx}
-              variant="contained"
+            <Typography
+              sx={(theme) => ({
+                color: theme.customTokens.text.secondary,
+                fontSize: 11.5,
+                fontWeight: 600,
+                letterSpacing: "0.02em",
+                mb: 0.45,
+                textTransform: "uppercase",
+              })}
             >
-              Close
-            </Button>
+              {field.label}
+            </Typography>
+            <Typography
+              sx={(theme) => ({
+                color: theme.customTokens.text.primary,
+                fontSize: 13.5,
+                fontWeight: 600,
+                lineHeight: 1.45,
+                overflowWrap: "anywhere",
+              })}
+            >
+              {field.value || "-"}
+            </Typography>
           </Box>
-        </Stack>
-      </DialogContent>
-    </Dialog>
+        ))}
+      </Box>
+    </Box>
   );
 }
 

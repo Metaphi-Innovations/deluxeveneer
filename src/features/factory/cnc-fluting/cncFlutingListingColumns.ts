@@ -5,8 +5,12 @@ import type { FactoryRecord } from "../shared/types";
 const flutingHiddenOutsideHistory = new Set(["warehouseName"]);
 const flutingHiddenKeys = new Set([
   "amount",
+  "bundleNo",
+  "bundleNumber",
   "issuedFrom",
   "issuedFor",
+  "palletNo",
+  "palletNumber",
   "rate",
   "ratePerSqf",
 ]);

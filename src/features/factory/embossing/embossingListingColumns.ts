@@ -7,6 +7,10 @@ const embossingHiddenKeys = new Set([
   "issuedFrom",
   "issuedFor",
   "amount",
+  "bundleNo",
+  "bundleNumber",
+  "palletNo",
+  "palletNumber",
   "ratePerSqf",
 ]);
 

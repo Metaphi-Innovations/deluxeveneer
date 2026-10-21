@@ -4,6 +4,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Stack,
   Table,
   TableBody,
@@ -39,6 +40,12 @@ import {
 import { FactoryPageShell } from "./FactoryPageShell";
 import { FactoryProcessCreatePage } from "./FactoryProcessCreatePage";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
+import {
+  getStandardFactoryStatus,
+  getStandardFactoryStatusColor,
+  StandardFactoryRecordView,
+  usesStandardFactoryRecordView,
+} from "./StandardFactoryRecordView";
 import {
   buildFactoryInitialValues,
   getFactoryPageSubtitle,
@@ -325,12 +332,26 @@ export function FactoryForm<Row extends FactoryRecord>({
         { label: definition.title, to: listPath },
         { label: mode === "add" ? "Add" : mode === "edit" ? "Edit" : "View" },
       ]}
+      actions={
+        mode === "view" && row && usesStandardFactoryRecordView(definition.slug) ? (
+          <Chip
+            color={getStandardFactoryStatusColor(row)}
+            label={getStandardFactoryStatus(row)}
+            size="small"
+            sx={{ fontWeight: 600 }}
+          />
+        ) : undefined
+      }
       subtitle={getFactoryPageSubtitle(definition, mode)}
       title={getFactoryPageTitle(definition, mode)}
     >
       {mode === "view" ? (
         row ? (
-          <FactoryRecordView definition={definition} onBack={leaveView} row={row} />
+          usesStandardFactoryRecordView(definition.slug) ? (
+            <StandardFactoryRecordView definition={definition} onBack={leaveView} row={row} />
+          ) : (
+            <FactoryRecordView definition={definition} onBack={leaveView} row={row} />
+          )
         ) : null
       ) : (
       <MasterSectionCard>

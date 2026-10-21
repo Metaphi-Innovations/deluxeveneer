@@ -17,10 +17,12 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ArrowLeft, CheckCircle2, ChevronRight, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Plus } from "lucide-react";
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
+import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
+import { FactoryContextualStatusMessage } from "../../shared/StandardFactoryRecordView";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -460,8 +462,6 @@ export const SawingViewPage: React.FC = () => {
         }
       >
         <Stack spacing={2.5}>
-
-
           {/* 2. CBM AVAILABILITY CARD */}
           <Box sx={(t) => formSectionCardSx(t)}>
             <Stack spacing={2}>
@@ -1821,94 +1821,15 @@ export const SawingViewPage: React.FC = () => {
                 </Stack>
               </Box>
 
-              {/* FACTORY FLOW VISUAL */}
-              <Box
-                sx={{
-                  pt: 1.5,
-                  borderTop: `1px solid ${theme.customTokens.borders.default}`,
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                    display: "block",
-                    mb: 1.5,
-                  }}
-                >
-                  Production Pipeline
-                </Typography>
-                <Box
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 1,
-                  }}
-                >
-                  {[
-                    { label: "Storage Warehouse", state: "done" },
-                    { label: "Sawing", state: "done" },
-                    { label: "Sawing Done", state: "current" },
-                    {
-                      label: "Sawing Inspection",
-                      state: isAlreadyIssued ? (inspectionPass || inspectionFail ? "done" : "current") : "upcoming",
-                    },
-                  ].map((step, idx, arr) => {
-                    const isStepCurrent = step.state === "current";
-                    const isStepDone = step.state === "done";
-                    return (
-                      <React.Fragment key={step.label}>
-                        <Paper
-                          elevation={0}
-                          sx={{
-                            px: 1.5,
-                            py: 0.75,
-                            borderRadius: "6px",
-                            border: `1px solid ${
-                              isStepCurrent
-                                ? theme.customTokens.brand.primary
-                                : theme.customTokens.borders.default
-                            }`,
-                            backgroundColor: isStepCurrent
-                              ? theme.customTokens.brand.primaryScale[50] || "#fff0f2"
-                              : theme.customTokens.surfaces.surface,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.75,
-                          }}
-                        >
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              fontWeight: isStepCurrent ? 700 : 500,
-                              color: isStepCurrent
-                                ? theme.customTokens.brand.primary
-                                : isStepDone
-                                ? "text.primary"
-                                : "text.secondary",
-                              fontSize: "13px",
-                            }}
-                          >
-                            {isStepDone ? "✓ " : isStepCurrent ? "● " : "○ "}
-                            {step.label}
-                          </Typography>
-                        </Paper>
-                        {idx < arr.length - 1 && (
-                          <ChevronRight
-                            size={16}
-                            color={theme.customTokens.text.secondary}
-                          />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </Box>
-              </Box>
+              <FactoryProductionPipeline
+                currentStage={
+                  inspectionPass || inspectionFail
+                    ? "sawing-inspection-done"
+                    : isAlreadyIssued
+                      ? "sawing-inspection"
+                      : "sawing-done"
+                }
+              />
 
               {/* Inspection contextual message or details */}
               <Box
@@ -2336,6 +2257,49 @@ export const SawingViewPage: React.FC = () => {
                 No details available for ID {id}.
               </Typography>
             )}
+          </Stack>
+        </Box>
+
+        <Box sx={(t) => formSectionCardSx(t)}>
+          <Stack spacing={2.5}>
+            <FormSectionHeader title="PROCESS STATUS" />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  md: "repeat(4, minmax(0, 1fr))",
+                },
+                gap: 2,
+              }}
+            >
+              {[
+                { label: "Process", value: "Sawing" },
+                { label: "Current Stage", value: "Rejected at Sawing" },
+                { label: "Status", value: "Rejected" },
+                { label: "Next Process", value: "Not Available" },
+              ].map((field) => (
+                <Stack key={field.label} spacing={0.5}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", fontSize: "12px", fontWeight: 600, textTransform: "uppercase" }}
+                  >
+                    {field.label}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: "14px", fontWeight: 600 }}>
+                    {field.value}
+                  </Typography>
+                </Stack>
+              ))}
+            </Box>
+
+            <FactoryProductionPipeline currentStage="sawing" rejected />
+
+            <FactoryContextualStatusMessage
+              isRejected
+              message="This item was rejected during Sawing and cannot continue to the next production stage."
+            />
           </Stack>
         </Box>
       </Stack>

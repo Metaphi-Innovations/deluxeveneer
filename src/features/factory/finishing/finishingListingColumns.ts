@@ -3,7 +3,15 @@ import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
 const finishingHiddenOutsideHistory = new Set(["warehouseName", "issuedFor"]);
-const finishingHiddenKeys = new Set(["amount", "rate", "ratePerSqf"]);
+const finishingHiddenKeys = new Set([
+  "amount",
+  "bundleNo",
+  "bundleNumber",
+  "palletNo",
+  "palletNumber",
+  "rate",
+  "ratePerSqf",
+]);
 
 const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "designCode", label: "Design Code" },

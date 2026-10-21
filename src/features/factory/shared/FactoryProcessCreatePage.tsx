@@ -1382,12 +1382,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       sawingProcessedCbm,
     ),
   };
-  const usesReferenceLeafLimit =
-    definition.slug === "grouping" || definition.slug === "splicing";
+  const usesReferenceLeafLimit = definition.slug === "grouping";
   const groupingReferenceLeaves = usesReferenceLeafLimit
-    ? definition.slug === "splicing"
-      ? readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
-      : readGroupingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+    ? readGroupingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+    : 0;
+  const splicingReferenceSheets = definition.slug === "splicing"
+    ? readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
     : 0;
   const groupingCommittedLeaves = definition.slug === "grouping"
     ? calculateTotalGroupedLeaves(lineItems)
@@ -1431,14 +1431,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     : 0;
   const splicingDraftValidation = definition.slug === "splicing"
     ? validateSplicingRow({
-      maximumLeaves: getMaximumSplicingLeaves(groupingReferenceLeaves, lineItems),
+      maximumLeaves: getMaximumSplicingLeaves(splicingReferenceSheets, lineItems),
       values: draftValues,
     })
     : { fieldErrors: {}, message: "", values: draftValues };
   const splicingEditValidation = definition.slug === "splicing" && editingRowId
     ? validateSplicingRow({
       maximumLeaves: getMaximumSplicingLeaves(
-        groupingReferenceLeaves,
+        splicingReferenceSheets,
         lineItems,
         editingRowId,
       ),
@@ -1565,7 +1565,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     ? definition.slug === "grouping"
       ? Math.max(0, groupingReferenceLeaves - groupingLeavesForAvailable)
       : definition.slug === "splicing"
-        ? Math.max(0, groupingReferenceLeaves - splicingLeavesForAvailable)
+        ? Math.max(0, splicingReferenceSheets - splicingLeavesForAvailable)
         : sumGroupingOutputLeaves([
           { values: { noOfLeaves: rejectAvailableValues.noOfLeaves ?? "" } },
         ])
@@ -1593,7 +1593,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   useEffect(() => {
     if (definition.slug !== "grouping") return;
     const calculated = calculateGroupingAvailableDetails({
-      sourceAvailableLeaves: groupingReferenceLeaves,
+      sourceAvailableLeaves: splicingReferenceSheets,
       sourceRow: sourceRow as Record<string, unknown> | undefined,
       totalGroupedLeaves: groupingLeavesForAvailable,
     });
@@ -1605,7 +1605,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [
     definition.slug,
     groupingLeavesForAvailable,
-    groupingReferenceLeaves,
+    splicingReferenceSheets,
     sourceRow,
   ]);
   useEffect(() => {
@@ -2472,7 +2472,6 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   (column.key === "itemName" ||
                                     column.key === "length" ||
                                     column.key === "width" ||
-                                    column.key === "noOfLeaves" ||
                                     column.key === "noOfSheets")) ||
                                 (definition.slug === "cnc-fluting" &&
                                   (column.key === "itemName" ||
@@ -2674,8 +2673,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : groupingSubmitError || groupingDraftValidation.message}
                   </Typography>
                 ) : definition.slug === "splicing" &&
-                  (groupingReferenceLeaves <= 0 ||
-                    splicingCommittedLeaves >= groupingReferenceLeaves ||
+                  (splicingReferenceSheets <= 0 ||
+                    splicingCommittedLeaves >= splicingReferenceSheets ||
                     splicingSubmitError ||
                     (draftSubmitAttempted && splicingDraftValidation.message)) ? (
                   <Typography
@@ -2688,9 +2687,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       whiteSpace: "normal",
                     })}
                   >
-                    {groupingReferenceLeaves <= 0 ||
-                      splicingCommittedLeaves >= groupingReferenceLeaves
-                      ? "No leaves are available for Splicing."
+                    {splicingReferenceSheets <= 0 ||
+                      splicingCommittedLeaves >= splicingReferenceSheets
+                      ? "No sheets are available for Splicing."
                       : splicingSubmitError || splicingDraftValidation.message}
                   </Typography>
                 ) : definition.slug === "cnc-fluting" &&
@@ -2768,8 +2767,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       (groupingReferenceLeaves <= 0 ||
                         groupingCommittedLeaves >= groupingReferenceLeaves)) ||
                     (definition.slug === "splicing" &&
-                      (groupingReferenceLeaves <= 0 ||
-                        splicingCommittedLeaves >= groupingReferenceLeaves)) ||
+                      (splicingReferenceSheets <= 0 ||
+                        splicingCommittedLeaves >= splicingReferenceSheets)) ||
                     (definition.slug === "cnc-fluting" &&
                       (flutingReferenceSheets <= 0 ||
                         flutingCommittedSheets >= flutingReferenceSheets)) ||
@@ -3153,8 +3152,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               definition.slug === "cnc-fluting" ||
               definition.slug === "embossing" ||
               definition.slug === "pressing" ||
-              definition.slug === "finishing"
+                definition.slug === "finishing"
             }
+            hideType={definition.slug === "grouping"}
+            lockAllFields={definition.slug === "grouping"}
             showLeafCount={usesReferenceLeafLimit}
             showSheetCount={
               definition.slug === "cnc-fluting" || definition.slug === "embossing"
@@ -3222,7 +3223,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               sawingStockUnavailable ||
               slicingStockUnavailable ||
               (definition.slug === "grouping" && groupingReferenceLeaves <= 0) ||
-              (definition.slug === "splicing" && groupingReferenceLeaves <= 0) ||
+              (definition.slug === "splicing" && splicingReferenceSheets <= 0) ||
               (definition.slug === "cnc-fluting" && flutingReferenceSheets <= 0) ||
               (definition.slug === "embossing" && embossingReferenceSheets <= 0)
             }
@@ -3352,7 +3353,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : validateGroupingForm({
                         availableValues: rejectAvailableValues,
                         items: lineItems,
-                        sourceAvailableLeaves: groupingReferenceLeaves,
+                        sourceAvailableLeaves: splicingReferenceSheets,
                         sourceRow: sourceRow as Record<string, unknown> | undefined,
                       })
                   : "";

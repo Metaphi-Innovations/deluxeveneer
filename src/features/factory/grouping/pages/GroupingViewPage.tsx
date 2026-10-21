@@ -18,13 +18,20 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft, Eye, X } from "lucide-react";
+import { ChevronLeft, Eye, Info, X } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import {
+  buildFactoryOrderItemDetailFields,
+  FactoryContextualStatusMessage,
+  FactoryOrderItemDetailsDialog,
+  FactoryRoutePipeline,
+} from "../../shared/StandardFactoryRecordView";
 import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
 import { groupingDefinition } from "../../shared/factoryDefinitions";
+import type { FactoryRecord } from "../../shared/types";
 import {
   getFactoryIssuedWorkById,
   factoryIssuedWorkToRow,
@@ -35,6 +42,7 @@ import {
   formatSQF,
   parseNumericValue,
 } from "../../../shared/numberFormat";
+import { useOrderRecords } from "../../../orders/shared/ordersStore";
 import {
   getAvailableGroupedSheets,
   getReceivedGroupedLeaves,
@@ -115,6 +123,7 @@ function formatLeafInteger(value: unknown): string {
 
 export const GroupingViewPage: React.FC = () => {
   const theme = useTheme();
+  const orderRecords = useOrderRecords();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
@@ -158,6 +167,7 @@ export const GroupingViewPage: React.FC = () => {
 
   // Image preview modal state
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState(false);
 
   // ==================== 1. & 2. HEADER & IDENTIFIERS ====================
   const groupNo = String(
@@ -312,6 +322,9 @@ export const GroupingViewPage: React.FC = () => {
     record?.customerName || record?.clientName || "-",
   );
   const hasOrderAssignment = Boolean(orderNo);
+  const orderDialogFields = record
+    ? buildFactoryOrderItemDetailFields(record as FactoryRecord, orderRecords)
+    : [];
 
   const nextRouteDisplay = useMemo(() => {
     const issueTo = String(record?.issueTo || record?.issuedFor || record?.for || "");
@@ -323,6 +336,52 @@ export const GroupingViewPage: React.FC = () => {
     }
     return "Awaiting Issue (Splicing / Sample Sheet)";
   }, [record?.issueTo, record?.issuedFor, record?.for, hasOrderAssignment]);
+
+  const nextDestination = nextRouteDisplay.startsWith("Sample Sheet")
+    ? "Pressing"
+    : nextRouteDisplay === "Splicing"
+      ? "Splicing"
+      : "";
+  const downstreamRouteHint = [
+    record?.destinationProcess,
+    record?.issuedFor,
+    record?.orderType,
+    record?.productCategory,
+    record?.outputItemName,
+    record?.itemName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const downstreamStages = downstreamRouteHint.includes("flut")
+    ? ["Fluting", "Fluting Done", "Finishing", "Finishing Done"]
+    : downstreamRouteHint.includes("emboss")
+      ? ["Embossing", "Embossing Done", "Finishing", "Finishing Done"]
+      : downstreamRouteHint.includes("finish") || downstreamRouteHint.includes("decorative") || downstreamRouteHint.includes("marquetry")
+        ? ["Finishing", "Finishing Done"]
+        : [];
+  const groupingRouteStages = [
+    "Production Warehouse (Raw Veneer)",
+    "Grouping",
+    "Grouping Done",
+    ...(nextRouteDisplay.startsWith("Sample Sheet") ? [] : ["Splicing", "Splicing Done"]),
+    "Pressing",
+    "Pressing Done",
+    ...downstreamStages,
+  ];
+  const groupingPipelineStage = tab === "history" && nextDestination
+    ? nextDestination
+    : tab === "done"
+      ? "Grouping Done"
+      : "Grouping";
+  const contextualStatusMessage =
+    tab === "rejected"
+      ? "This grouped material was rejected and is not available for downstream issuing."
+      : tab === "history" && nextDestination
+        ? `This grouped item has been issued to ${nextDestination}.`
+        : nextDestination
+          ? `This grouped item is awaiting issue to ${nextDestination}.`
+          : "This grouped item is awaiting the next production process.";
 
   // Audit Info
   const createdBy = String(record?.createdBy || "-");
@@ -493,7 +552,8 @@ export const GroupingViewPage: React.FC = () => {
         </Box>
 
         {/* ==================== 3. GROUPING PROCESS DETAILS / OUTPUTS ==================== */}
-        <Box sx={(t) => formSectionCardSx(t)}>
+        {tab !== "issued" ? (
+          <Box sx={(t) => formSectionCardSx(t)}>
           <Stack spacing={2}>
             <FormSectionHeader title="GROUPING OUTPUTS" />
             <Box sx={{ overflowX: "auto" }}>
@@ -672,19 +732,20 @@ export const GroupingViewPage: React.FC = () => {
               </Table>
             </Box>
           </Stack>
-        </Box>
+          </Box>
+        ) : null}
 
-        {/* ==================== 4. PROCESS INFORMATION ==================== */}
+        {/* ==================== 4. PROCESS STATUS ==================== */}
         <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader title="PROCESS INFORMATION" />
+          <Stack spacing={2.5}>
+            <FormSectionHeader title="PROCESS STATUS" />
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(4, minmax(0, 1fr))",
+                  md: "repeat(6, minmax(0, 1fr))",
                 },
                 gap: 2,
               }}
@@ -700,7 +761,7 @@ export const GroupingViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Group No
+                  Process
                 </Typography>
                 <Typography
                   variant="body2"
@@ -710,7 +771,7 @@ export const GroupingViewPage: React.FC = () => {
                     fontSize: "0.875rem",
                   }}
                 >
-                  {groupNo}
+                  Grouping
                 </Typography>
               </Stack>
 
@@ -785,7 +846,59 @@ export const GroupingViewPage: React.FC = () => {
                   {statusLabel}
                 </Typography>
               </Stack>
+
+              <Stack spacing={0.5}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  Next Process
+                </Typography>
+                <Typography variant="body2" sx={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                  {nextDestination || "Awaiting Route"}
+                </Typography>
+              </Stack>
+
+              <Stack spacing={0.5}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  Issue Status
+                </Typography>
+                <Box sx={{ mt: 0.25 }}>
+                  <Chip
+                    label={rowIssues.length > 0 || tab === "history" ? "Issued" : "Awaiting Issue"}
+                    size="small"
+                    color={rowIssues.length > 0 || tab === "history" ? "success" : "default"}
+                    sx={{ fontWeight: 600, height: 24, fontSize: "0.75rem" }}
+                  />
+                </Box>
+              </Stack>
             </Box>
+
+            <FactoryRoutePipeline
+              currentStage={groupingPipelineStage}
+              rejectedStage={tab === "rejected" ? "Grouping" : undefined}
+              stages={groupingRouteStages}
+            />
+
+            <FactoryContextualStatusMessage
+              isRejected={tab === "rejected"}
+              message={contextualStatusMessage}
+            />
           </Stack>
         </Box>
 
@@ -793,7 +906,19 @@ export const GroupingViewPage: React.FC = () => {
         {hasOrderAssignment && (
           <Box sx={(t) => formSectionCardSx(t)}>
             <Stack spacing={2}>
-              <FormSectionHeader title="ORDER ASSIGNMENT" />
+              <FormSectionHeader
+                title="ORDER DETAILS"
+                endAdornment={
+                  <IconButton
+                    aria-label="View order item details"
+                    onClick={() => setOrderDetailsOpen(true)}
+                    size="small"
+                    sx={(t) => ({ color: t.customTokens.brand.primary })}
+                  >
+                    <Info size={16} />
+                  </IconButton>
+                }
+              />
               <Box
                 sx={{
                   display: "grid",
@@ -894,71 +1019,6 @@ export const GroupingViewPage: React.FC = () => {
             </Stack>
           </Box>
         )}
-
-        {/* ==================== 8. NEXT PROCESS / ROUTING ==================== */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader title="NEXT PROCESS" />
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, minmax(0, 1fr))",
-                },
-                gap: 2,
-              }}
-            >
-              <Stack spacing={0.5}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  Next Route
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: "text.primary",
-                    fontSize: "0.875rem",
-                    fontWeight: 600,
-                  }}
-                >
-                  {nextRouteDisplay}
-                </Typography>
-              </Stack>
-
-              <Stack spacing={0.5}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  Issue Status
-                </Typography>
-                <Box sx={{ mt: 0.25 }}>
-                  <Chip
-                    label={rowIssues.length > 0 ? "Issued" : "Awaiting Issue"}
-                    size="small"
-                    color={rowIssues.length > 0 ? "success" : "default"}
-                    sx={{ fontWeight: 600, height: 24, fontSize: "0.75rem" }}
-                  />
-                </Box>
-              </Stack>
-            </Box>
-          </Stack>
-        </Box>
 
         {/* ==================== 9. RECORD INFORMATION ==================== */}
         <Box sx={(t) => formSectionCardSx(t)}>
@@ -1131,6 +1191,13 @@ export const GroupingViewPage: React.FC = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <FactoryOrderItemDetailsDialog
+        fields={orderDialogFields}
+        onClose={() => setOrderDetailsOpen(false)}
+        open={orderDetailsOpen}
+        stageLabel="Grouping"
+      />
     </FactoryPageShell>
   );
 };
