@@ -101,6 +101,7 @@ import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions"
 import { FinishingIssueToPackingDialog } from "../finishing/FinishingIssueToPackingDialog";
 import { issueFinishingToPacking } from "../../packing/shared/packingStore";
 import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
+import { availableFactoryMeasures } from "./factoryAvailableMeasures";
 import {
   applyPressingIssuedForLabels,
   getPressingForLabel,
@@ -661,6 +662,30 @@ export function FactoryListing<Row extends FactoryRecord>({
             issuedForInspectionDate:
               sourceNormalizedRow.issuedForInspectionDate ?? sourceNormalizedRow.inspectionDate,
             availableLeaves: String(availableLeaves),
+          } as Row;
+        }
+
+        if (definition.slug === "finishing" && activeTab === "done") {
+          const receivedCount =
+            Number(
+              sourceNormalizedRow.receivedSheets ??
+                sourceNormalizedRow.finishedSheets ??
+                sourceNormalizedRow.outputNoOfSheets ??
+                sourceNormalizedRow.noOfSheets ??
+                0,
+            ) || 0;
+          const availableCount =
+            sourceNormalizedRow.availableSheets !== undefined &&
+            sourceNormalizedRow.availableSheets !== null &&
+            String(sourceNormalizedRow.availableSheets).trim() !== ""
+              ? Number(sourceNormalizedRow.availableSheets) || 0
+              : receivedCount;
+
+          return {
+            ...sourceNormalizedRow,
+            receivedSheets: String(receivedCount),
+            availableSheets: String(availableCount),
+            ...availableFactoryMeasures(sourceNormalizedRow, receivedCount, availableCount),
           } as Row;
         }
 
