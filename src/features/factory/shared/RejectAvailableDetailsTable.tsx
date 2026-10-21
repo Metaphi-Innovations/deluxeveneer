@@ -277,7 +277,9 @@ export function RejectAvailableDetailsTable({
   editableDerived = false,
   fieldIssues,
   hideAmount,
+  hideType = false,
   includeArea = false,
+  lockAllFields = false,
   lockMeasuredFields = false,
   onChange,
   showLeafCount = false,
@@ -291,7 +293,9 @@ export function RejectAvailableDetailsTable({
   editableDerived?: boolean;
   fieldIssues: RejectAvailableValidationIssues;
   hideAmount?: boolean;
+  hideType?: boolean;
   includeArea?: boolean;
+  lockAllFields?: boolean;
   lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   showLeafCount?: boolean;
@@ -305,7 +309,11 @@ export function RejectAvailableDetailsTable({
   const shouldHideAmount = hideAmount ?? title === "Available Details";
   const baseColumns = volumeMode ? rejectAvailableVolumeColumns : rejectAvailableColumns;
   const columns = baseColumns
-    .filter((col) => !(shouldHideAmount && col.key === "amount"))
+    .filter(
+      (col) =>
+        !(shouldHideAmount && col.key === "amount") &&
+        !(hideType && col.key === "type"),
+    )
     .map((col) =>
       useHeight && col.key === "thickness"
         ? { ...col, key: "height" as const, label: "Height" }
@@ -397,6 +405,7 @@ export function RejectAvailableDetailsTable({
                       column,
                       disabled: column.key === "type" && Boolean(disabledType),
                       editableDerived,
+                      lockAllFields,
                       lockMeasuredFields,
                       issue: fieldIssues[column.key],
                       onChange,
@@ -716,6 +725,7 @@ function renderRejectAvailableField({
   disabled,
   editableDerived = false,
   issue,
+  lockAllFields = false,
   lockMeasuredFields = false,
   onChange,
   theme,
@@ -725,6 +735,7 @@ function renderRejectAvailableField({
   disabled?: boolean;
   editableDerived?: boolean;
   issue: RejectAvailableValidationIssue | undefined;
+  lockAllFields?: boolean;
   lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
   theme: Theme;
@@ -769,17 +780,21 @@ function renderRejectAvailableField({
       fullWidth
       inputProps={{
         readOnly:
+          (lockAllFields && column.key !== "remark") ||
           (lockMeasuredFields && (isMeasuredField || column.key === "noOfLeaves")) ||
           (isDerivedAreaField && !editableDerived),
       }}
       size="small"
       value={value}
       onChange={(event) => onChange(column.key, event.target.value)}
-      sx={
-        isWarning
+      sx={{
+        ...(isWarning
           ? getWarningFieldSx(theme)
-          : getCompactFieldSx(theme, isError ? "error" : "default")
-      }
+          : getCompactFieldSx(theme, isError ? "error" : "default")),
+        ...(lockAllFields && column.key !== "remark"
+          ? { "& .MuiInputBase-root": { backgroundColor: theme.customTokens.surfaces.alt } }
+          : {}),
+      }}
     />
   );
 }

@@ -4,12 +4,9 @@ import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inpu
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
 import type { OrderRecord } from "../../orders/shared/ordersStore";
-import { pressingCompactInputSx } from "./pressingCompactTable";
 import type { PressingBaseMaterialType } from "./usePressingBaseStock";
 
 export type PressingPurpose = "" | "Order" | "Sample Sheet";
-
-const pressingPurposeOptions = ["Order", "Sample Sheet"] as const;
 
 export function PressingPurposeChoice({
   allocationError = "",
@@ -46,316 +43,101 @@ export function PressingPurposeChoice({
   showError: boolean;
   value: PressingPurpose;
 }) {
-  const missing = showError && value === "";
-  const orderMissing = showError && value === "Order" && !orderNo;
-  const itemMissing = showError && value === "Order" && !orderItemNo;
-  const sampleMissing = showError && value === "Sample Sheet" && !sampleNo;
-  const baseMissing = showError && baseType === "";
+  const selectedOrder = orderRecords.find((order) => order.orderNo === orderNo);
 
   return (
-    <Stack spacing={1}>
-      <Box
-        sx={(theme) => ({
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "flex-start",
-          gap: theme.spacing(1),
-        })}
-      >
-      <Box
+    <>
+      <Stack
         sx={(theme) => ({
           ...formSectionCardSx(theme),
           alignItems: "center",
-          display: "flex",
+          flexDirection: "row",
           flexWrap: "wrap",
           gap: theme.spacing(1),
-          py: 1,
-          width: "fit-content",
-          maxWidth: "100%",
+          padding: theme.spacing(1),
         })}
       >
-        <Typography
-          sx={(theme) => ({
-            color: theme.customTokens.text.primary,
-            fontSize: theme.typography.caption.fontSize,
-            fontWeight: 700,
-            lineHeight: "28px",
-            whiteSpace: "nowrap",
-          })}
-        >
-          Pressing For
-        </Typography>
-        <Box sx={(theme) => ({ display: "flex", gap: theme.spacing(1) })}>
-          {pressingPurposeOptions.map((option) => {
-            const selected = value === option;
-
-            return (
-              <Box
-                key={option}
-                aria-pressed={selected}
-                component="button"
-                onClick={() => onChange(option)}
-                type="button"
-                sx={(theme) => ({
-                  backgroundColor: selected
-                    ? theme.customTokens.brand.primary
-                    : theme.customTokens.surfaces.surface,
-                  border: `1px solid ${
-                    selected
-                      ? theme.customTokens.brand.primary
-                      : missing
-                        ? theme.palette.error.main
-                        : theme.customTokens.borders.default
-                  }`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
-                  color: selected
-                    ? theme.palette.common.white
-                    : theme.customTokens.text.primary,
-                  cursor: "pointer",
-                  font: "inherit",
-                  fontSize: theme.typography.caption.fontSize,
-                  fontWeight: 700,
-                  height: 28,
-                  px: 0,
-                  width: 104,
-                  "&:hover": {
-                    backgroundColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.surfaces.alt,
-                    borderColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.borders.hover,
-                  },
-                  "&:focus-visible": {
-                    outline: `2px solid ${theme.customTokens.brand.primary}`,
-                    outlineOffset: 2,
-                  },
-                })}
-              >
-                {option}
-              </Box>
-            );
-          })}
-        </Box>
-        {missing ? (
-          <Typography
-            sx={(theme) => ({
-              color: theme.palette.error.main,
-              fontSize: theme.typography.caption.fontSize,
-              fontWeight: 600,
-              lineHeight: "28px",
-            })}
-          >
-            Select Order or Sample Sheet.
-          </Typography>
+        <PressingToggleField
+          error={showError && !value}
+          label="Pressing For"
+          onChange={(next) => onChange(next as PressingPurpose)}
+          options={["Order", "Sample Sheet"]}
+          value={value}
+        />
+        {onBaseTypeChange ? (
+          <PressingToggleField
+            error={showError && !baseType}
+            label="Base Material"
+            onChange={(next) => onBaseTypeChange(next as PressingBaseMaterialType)}
+            options={["Plywood", "MDF"]}
+            value={baseType}
+          />
         ) : null}
-      </Box>
-      {onBaseTypeChange ? (
-      <Box
-        sx={(theme) => ({
-          ...formSectionCardSx(theme),
-          alignItems: "center",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: theme.spacing(1),
-          py: 1,
-          width: "fit-content",
-          maxWidth: "100%",
-        })}
-      >
-        <Typography
-          sx={(theme) => ({
-            color: theme.customTokens.text.primary,
-            fontSize: theme.typography.caption.fontSize,
-            fontWeight: 700,
-            lineHeight: "28px",
-            whiteSpace: "nowrap",
-          })}
-        >
-          Base Material
-        </Typography>
-        <Box sx={(theme) => ({ display: "flex", gap: theme.spacing(1) })}>
-          {(["Plywood", "MDF"] as const).map((option) => {
-            const selected = baseType === option;
+      </Stack>
 
-            return (
-              <Box
-                key={option}
-                aria-pressed={selected}
-                component="button"
-                onClick={() => onBaseTypeChange(option)}
-                type="button"
-                sx={(theme) => ({
-                  backgroundColor: selected
-                    ? theme.customTokens.brand.primary
-                    : theme.customTokens.surfaces.surface,
-                  border: `1px solid ${
-                    selected
-                      ? theme.customTokens.brand.primary
-                      : baseMissing
-                        ? theme.palette.error.main
-                        : theme.customTokens.borders.default
-                  }`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
-                  color: selected
-                    ? theme.palette.common.white
-                    : theme.customTokens.text.primary,
-                  cursor: "pointer",
-                  font: "inherit",
-                  fontSize: theme.typography.caption.fontSize,
-                  fontWeight: 700,
-                  height: 28,
-                  px: 0,
-                  width: 104,
-                  "&:hover": {
-                    backgroundColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.surfaces.alt,
-                    borderColor: selected
-                      ? theme.customTokens.brand.primary
-                      : theme.customTokens.borders.hover,
-                  },
-                  "&:focus-visible": {
-                    outline: `2px solid ${theme.customTokens.brand.primary}`,
-                    outlineOffset: 2,
-                  },
-                })}
-              >
-                {option}
-              </Box>
-            );
-          })}
-        </Box>
-        {baseMissing ? (
-          <Typography
-            sx={(theme) => ({
-              color: theme.palette.error.main,
-              fontSize: theme.typography.caption.fontSize,
-              fontWeight: 600,
-              lineHeight: "28px",
-            })}
-          >
-            Select Plywood or MDF.
-          </Typography>
-        ) : null}
-      </Box>
-      ) : null}
-      </Box>
-
-      {value === "Order" || value === "Sample Sheet" ? (
+      {value ? (
         <Stack
           sx={(theme) => ({
             ...formSectionCardSx(theme),
-            gap: theme.spacing(1),
+            gap: theme.spacing(1.5),
           })}
         >
-          <FormSectionHeader
-            title={value === "Sample Sheet" ? "Sample Sheet Details" : "Order Details"}
-          />
+          <FormSectionHeader title={value === "Order" ? "Order Selection" : "Sample Selection"} />
           <Box
             sx={(theme) => ({
               display: "grid",
-              gap: theme.spacing(1),
-              gridTemplateColumns:
-                value === "Order" ? "repeat(4, minmax(0, 1fr))" : "minmax(0, 280px)",
+              gap: theme.spacing(1.5),
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, minmax(0, 1fr))",
+                lg: "repeat(4, minmax(0, 1fr))",
+              },
             })}
           >
             {value === "Order" ? (
               <>
                 <PressingSelectField
-                  error={orderMissing}
+                  error={showError && !orderNo}
                   label="Order No"
                   onChange={onOrderNoChange}
                   options={orderOptions}
+                  placeholder="Select order no"
                   value={orderNo}
                 />
                 <PressingSelectField
-                  error={itemMissing}
+                  error={showError && !orderItemNo}
                   label="Order Item No"
                   onChange={onOrderItemNoChange}
                   options={orderItemOptions}
+                  placeholder="Select order item no"
                   value={orderItemNo}
                 />
-                <ReadOnlyPressingField
-                  label="Customer Name"
-                  value={
-                    orderRecords.find((order) => order.orderNo === orderNo)?.customerName ?? ""
-                  }
-                />
-                <ReadOnlyPressingField
-                  label="Order Date"
-                  value={formatOrderDate(
-                    orderRecords.find((order) => order.orderNo === orderNo)?.orderDate,
-                  )}
-                />
+                <ReadOnlyPressingField label="Customer Name" value={selectedOrder?.customerName ?? ""} />
+                <ReadOnlyPressingField label="Order Date" value={formatOrderDate(selectedOrder?.orderDate)} />
               </>
             ) : (
               <PressingSelectField
-                error={sampleMissing}
-                label="Sample Sheet No"
+                error={showError && !sampleNo}
+                label="Group No."
                 onChange={onSampleNoChange}
                 options={sampleOptions}
+                placeholder="Select group no"
                 value={sampleNo}
               />
             )}
           </Box>
           {allocationError ? (
-            <Typography
-              sx={(theme) => ({
-                color: theme.palette.error.main,
-                fontSize: theme.typography.caption.fontSize,
-                fontWeight: 600,
-              })}
-            >
+            <Typography color="error" sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>
               {allocationError}
             </Typography>
           ) : null}
         </Stack>
       ) : null}
-    </Stack>
+    </>
   );
 }
 
-function ReadOnlyPressingField({ label, value }: { label: string; value: string }) {
-  return (
-    <Stack spacing={0.5} sx={{ minWidth: 0 }}>
-      <Typography
-        component="label"
-        sx={(theme) => ({
-          color: theme.customTokens.text.primary,
-          fontSize: theme.typography.caption.fontSize,
-          fontWeight: 700,
-        })}
-      >
-        {label}
-      </Typography>
-      <TextField
-        disabled
-        size="small"
-        sx={(theme) => ({
-          ...getCompactFieldSx(theme),
-          ...pressingCompactInputSx(),
-          width: "100%",
-        })}
-        value={value || "-"}
-      />
-    </Stack>
-  );
-}
-
-function formatOrderDate(value: Date | undefined) {
-  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(value);
-}
-
-function PressingSelectField({
+function PressingToggleField({
   error,
   label,
   onChange,
@@ -369,26 +151,135 @@ function PressingSelectField({
   value: string;
 }) {
   return (
-    <Stack spacing={0.5} sx={{ minWidth: 0 }}>
-      <Typography
-        component="label"
+    <Stack
+      sx={{ alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 0.75, minWidth: 0 }}
+    >
+      <Typography component="span" sx={{ fontSize: "0.75rem", fontWeight: 700, whiteSpace: "nowrap" }}>
+        {label} *
+      </Typography>
+      <Box
         sx={(theme) => ({
-          color: theme.customTokens.text.primary,
-          fontSize: theme.typography.caption.fontSize,
-          fontWeight: 700,
+          alignItems: "center",
+          backgroundColor: theme.customTokens.surfaces.alt,
+          border: `1px solid ${error ? theme.palette.error.main : theme.customTokens.borders.default}`,
+          borderRadius: `${theme.customTokens.radius.md}px`,
+          display: "flex",
+          gap: "2px",
+          height: 30,
+          padding: "2px",
+          width: "fit-content",
         })}
       >
+        {options.map((option) => {
+          const selected = value === option;
+
+          return (
+            <Box
+              key={option}
+              aria-pressed={selected}
+              component="button"
+              onClick={() => onChange(option)}
+              type="button"
+              sx={(theme) => ({
+                alignItems: "center",
+                backgroundColor: selected ? theme.customTokens.brand.primary : "transparent",
+                border: "none",
+                borderRadius: `${Math.max(theme.customTokens.radius.md - 2, 4)}px`,
+                boxShadow: selected ? "0 1px 2px rgba(0,0,0,0.12)" : "none",
+                color: selected ? theme.palette.common.white : theme.customTokens.text.secondary,
+                cursor: "pointer",
+                display: "inline-flex",
+                font: "inherit",
+                fontSize: "0.75rem",
+                fontWeight: selected ? 700 : 600,
+                height: "100%",
+                justifyContent: "center",
+                minWidth: 84,
+                paddingX: 1.25,
+                transition: "all 0.15s ease-in-out",
+                whiteSpace: "nowrap",
+                "&:hover": {
+                  backgroundColor: selected
+                    ? theme.customTokens.brand.primary
+                    : theme.customTokens.surfaces.surface,
+                  color: selected ? theme.palette.common.white : theme.customTokens.text.primary,
+                },
+                "&:focus-visible": {
+                  outline: `2px solid ${theme.customTokens.brand.primary}`,
+                  outlineOffset: 1,
+                },
+              })}
+            >
+              {option}
+            </Box>
+          );
+        })}
+      </Box>
+      {error ? (
+        <Typography sx={(theme) => ({ color: theme.palette.error.main, fontSize: "0.75rem" })}>
+          {label} is required.
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+}
+
+function PressingSelectField({
+  error,
+  label,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: {
+  error: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  placeholder: string;
+  value: string;
+}) {
+  return (
+    <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+      <Typography component="label" sx={{ fontSize: "0.75rem", fontWeight: 700 }}>
         {label} *
       </Typography>
       <ErpSelectField
         helperText={error ? `${label} is required.` : " "}
         onChange={onChange}
         options={[...options]}
-        searchable
-        size="dense"
+        placeholder={placeholder}
+        searchable={options.length > 6}
+        size="regular"
         state={error ? "error" : "default"}
         value={value}
       />
     </Stack>
   );
+}
+
+function ReadOnlyPressingField({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+      <Typography component="label" sx={{ fontSize: "0.75rem", fontWeight: 700 }}>
+        {label}
+      </Typography>
+      <TextField
+        fullWidth
+        size="small"
+        slotProps={{ input: { readOnly: true } }}
+        sx={(theme) => getCompactFieldSx(theme)}
+        value={value || "-"}
+      />
+    </Stack>
+  );
+}
+
+function formatOrderDate(value: Date | undefined) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(value);
 }

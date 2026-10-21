@@ -234,9 +234,9 @@ export const deluxeTokens = {
   spacingUnit: 8,
   radius: {
     sm: 8,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    md: 10,
+    lg: 14,
+    xl: 18,
     pill: 999,
   },
   layout: {

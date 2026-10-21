@@ -14,11 +14,12 @@ const issuedOmittedKeys = new Set([
   "inwardItemCode",
   "issueTo",
   "logNo",
+  "noOfLeaves",
+  "storageSrNo",
   "totalAmount",
 ]);
 
 const issuedColumnOrder = [
-  "storageSrNo",
   "issuedDate",
   "itemName",
   "subCategory",
@@ -26,7 +27,8 @@ const issuedColumnOrder = [
   "length",
   "width",
   "height",
-  "noOfLeaves",
+  "receivedNoOfLeaves",
+  "availableNoOfLeaves",
   "sqm",
   "sqf",
   "remark",
@@ -37,9 +39,21 @@ const issuedColumnOrder = [
 ] as const;
 
 const issuedExtraLabels: Record<string, string> = {
+  availableNoOfLeaves: "Available Leaves",
   itemName: "Item Name",
+  receivedNoOfLeaves: "Received Leaves",
   subCategory: "Sub Category",
 };
+
+function formatGroupingDate(value: unknown) {
+  const date = value instanceof Date ? value : typeof value === "string" && value.trim() ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 function groupingIssuedColumns<Row extends FactoryRecord>(
   sourceColumns: readonly EnterpriseTableColumn<Row>[],
@@ -69,7 +83,7 @@ function groupingIssuedColumns<Row extends FactoryRecord>(
     columns.push(column);
   }
 
-  return columns;
+  return withAvailableFactoryMeasureColumns(columns);
 }
 
 const groupingDoneLeafColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
@@ -86,7 +100,9 @@ const groupingDoneHiddenKeys = new Set([
   "noOfLeaves",
   "noOfSheets",
   "receivedNoOfLeaves",
+  "storageSrNo",
 ]);
+
 
 function groupingDoneColumns<Row extends FactoryRecord>(
   sourceColumns: readonly EnterpriseTableColumn<Row>[],
@@ -134,8 +150,48 @@ export function applyGroupingListingColumns<Row extends FactoryRecord>(
   }
 
   if (activeTab === "done" || activeTab === "history" || activeTab === "rejected") {
-    return withAvailableFactoryMeasureColumns(groupingDoneColumns(sourceColumns));
+    let baseColumns = withAvailableFactoryMeasureColumns(groupingDoneColumns(sourceColumns));
+    if (activeTab === "rejected") {
+      baseColumns = baseColumns.map((column) =>
+        column.key === "issuedDate"
+          ? {
+              ...column,
+              label: "Rejected Date",
+              renderCell: (row: Row) =>
+                formatGroupingDate(row.rejectedDate ?? row.processDate ?? row.issuedDate),
+            }
+          : column,
+      );
+    }
+    if (activeTab === "history") {
+      const orderColumns: readonly EnterpriseTableColumn<Row>[] = [
+        { key: "issuedFor", label: "Issued For" },
+        { key: "orderType", label: "Order Type" },
+        { key: "orderNo", label: "Order No." },
+        { key: "orderItemNo", label: "Order Item No." },
+        { key: "customerName", label: "Customer Name" },
+        { key: "orderDate", label: "Order Date" },
+      ];
+      const missingOrderColumns = orderColumns.filter(
+        (orderColumn) =>
+          !baseColumns.some((column) => column.key === orderColumn.key),
+      );
+      const insertAfterKey = "groupPhoto";
+      const index = baseColumns.findIndex(
+        (column) => column.key === insertAfterKey,
+      );
+
+      return index === -1
+        ? [...missingOrderColumns, ...baseColumns]
+        : [
+            ...baseColumns.slice(0, index + 1),
+            ...missingOrderColumns,
+            ...baseColumns.slice(index + 1),
+          ];
+    }
+    return baseColumns;
   }
 
   return sourceColumns;
 }
+

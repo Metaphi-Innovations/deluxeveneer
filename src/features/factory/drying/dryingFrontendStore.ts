@@ -298,7 +298,7 @@ export function adjustDryingDoneLeaves(
   id: string,
   remainingLeaves: number,
   area: { sqf: string; sqm: string },
-  extra?: { issueForInspection?: string; status?: string },
+  extra?: { issueForInspection?: string; issuedForInspectionDate?: string; status?: string },
 ) {
   const state = readState();
   const rowId = String(id);
@@ -316,6 +316,9 @@ export function adjustDryingDoneLeaves(
                 sqm: area.sqm,
                 totalSqMeter: area.sqm,
                 ...(extra?.issueForInspection ? { issueForInspection: extra.issueForInspection } : {}),
+                ...(extra?.issuedForInspectionDate
+                  ? { issuedForInspectionDate: extra.issuedForInspectionDate }
+                  : {}),
                 ...(extra?.status ? { status: extra.status } : {}),
               }
             : row,

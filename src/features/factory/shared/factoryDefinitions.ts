@@ -92,11 +92,8 @@ const field = (
     return selectField(key, label, rows);
   }
 
-  if (key === "groupNo") {
-    return textField(key, label, { readOnly: true });
-  }
-
   return textField(key, label);
+
 };
 
 const columns = (
@@ -410,6 +407,7 @@ const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
     issueDate: row.issuedDate,
     processDate: row.issuedDate,
     sawingDate: row.issuedDate,
+    inspectionDate: row.issuedDate,
     subCategory: row.itemSubCategory,
     batchNoCode: `SW-CODE-${sequence}`,
     issuedFor: "Sawing Inspection",
@@ -476,6 +474,24 @@ const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
     Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
   ],
 }));
+
+const pressingListingRows = expandFactoryRowsForTabs("pressing", pressingRows).map((row) =>
+  row.id === "pressing-done-1"
+    ? {
+        ...row,
+        customerName: "",
+        isSample: true,
+        orderItemNo: "",
+        orderNo: "",
+        pressingFor: "Sample Sheet",
+        purpose: "SAMPLE",
+        for: "Sample",
+        forLabel: "Sample",
+        issuedFor: "Pressing",
+        remark: "Dummy Sample Sheet for testing the next-process actions.",
+      }
+    : row,
+);
 
 const cncFlutingRows = factoryRows("cnc-fluting", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
@@ -671,7 +687,6 @@ const marquetryListingColumns = columns([
 
 /** Grouping listing columns */
 const groupingListingColumns = columns([
-  ["storageSrNo", "Storage Sr No."],
   ["issuedDate", "Issued Date"],
   ["groupNo", "Group No."],
   ["groupingDate", "Grouping Date"],
@@ -881,19 +896,20 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
 }
 
 const groupingCreateFields = [
-  ["groupNo", "Group No."],
   ["groupingDate", "Grouping Date"],
 ] as const;
 
-const marquetryCreateFields = groupingCreateFields.filter(
-  ([key]) => key !== "groupNo",
-);
+
+const marquetryCreateFields = groupingCreateFields;
+
 
 const groupingAddItemFields = [
+  ["groupNo", "Group No."],
   ...commonFactoryItemFieldSpecs.filter(([key]) => key !== "remark"),
   ["groupPhoto", "Group Photo"],
   ["remark", "Remark"],
 ] as const;
+
 
 const splicingCreateFields = [
   ["issuedFor", "Issued For"],
@@ -1140,7 +1156,7 @@ export const pressingDefinition: FactoryDefinition = {
   title: "Pressing",
   listColumns: productionListingColumns,
   formSections: sectionSet(pressingRows, pressingCreateFields, pressingAddItemFields),
-  rows: expandFactoryRowsForTabs("pressing", pressingRows),
+  rows: pressingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 

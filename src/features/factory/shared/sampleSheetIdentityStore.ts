@@ -137,11 +137,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function createSampleNo(sequence: number) {
-  const year = new Date().getFullYear();
-  return `SMP-${year}-${String(sequence).padStart(4, "0")}`;
-}
-
 function getStringField(row: FactoryRecord | Record<string, unknown>, keys: readonly string[]) {
   for (const key of keys) {
     const value = row[key];
@@ -221,6 +216,14 @@ export function getSampleSheetByNo(sampleNo: string) {
   return readStore().samples.find((sample) => sample.sampleNo === sampleNo) ?? null;
 }
 
+export function getSampleGroupNo(sample: SampleSheetRecord) {
+  return (
+    getStringField(sample.sourceSnapshot, ["groupNo"]) ||
+    sample.groupingRowId ||
+    sample.sampleNo
+  );
+}
+
 export function useSampleSheetRecords() {
   const store = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   return [...store.samples];
@@ -235,7 +238,11 @@ export function createSampleSheetFromGrouping(input: {
 }): SampleSheetRecord {
   const store = readStore();
   const sequence = store.sequence + 1;
-  const sampleNo = createSampleNo(sequence);
+  const groupingRowId = String(input.groupingRow.id);
+  const sampleNo =
+    getStringField(input.groupingRow, ["groupNo"]) ||
+    groupingRowId ||
+    `sample-sheet-${sequence}`;
   const issueDate =
     input.issueDate instanceof Date
       ? input.issueDate.toISOString()
@@ -245,7 +252,7 @@ export function createSampleSheetFromGrouping(input: {
 
   const sample = withDerivedFields({
     sampleNo,
-    groupingRowId: String(input.groupingRow.id),
+    groupingRowId,
     issueDate,
     originalSheets: input.issueSheets,
     availableSheets: input.issueSheets,
@@ -327,7 +334,10 @@ export function storePressingSampleInProduction(row: FactoryRecord) {
 
   const store = readStore();
   const sequence = store.sequence + 1;
-  const createdSampleNo = sampleNo || createSampleNo(sequence);
+  const createdSampleNo =
+    sampleNo ||
+    getStringField(row, ["groupNo", "groupingRef", "id"]) ||
+    `sample-sheet-${sequence}`;
   const at = nowIso();
   const sheets = pressedSheets || 1;
   const sample = withDerivedFields({
@@ -406,7 +416,7 @@ export function isSampleEligibleForOrder(sample: SampleSheetRecord) {
   }
 
   const status = sample.currentStatus.toLowerCase();
-  return status === "pressing done" || status === "finishing done";
+  return status === "finishing done";
 }
 
 export function resolveSampleFinishedType(sample: SampleSheetRecord) {

@@ -3,7 +3,15 @@ import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
 const finishingHiddenOutsideHistory = new Set(["warehouseName", "issuedFor"]);
-const finishingHiddenKeys = new Set(["amount", "rate", "ratePerSqf"]);
+const finishingHiddenKeys = new Set([
+  "amount",
+  "bundleNo",
+  "bundleNumber",
+  "palletNo",
+  "palletNumber",
+  "rate",
+  "ratePerSqf",
+]);
 
 const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "designCode", label: "Design Code" },
@@ -15,6 +23,10 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   const visible = columns.filter((column) => {
+    if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
+      return false;
+    }
+
     if (finishingHiddenKeys.has(column.key)) {
       return false;
     }

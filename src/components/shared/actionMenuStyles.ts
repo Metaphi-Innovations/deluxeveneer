@@ -137,19 +137,20 @@ export function actionMenuIconSlotSx(_theme: Theme) {
 
 export function actionMenuTriggerSx(theme: Theme) {
   return {
-    width: 30,
-    height: 30,
-    minWidth: 30,
+    width: 26,
+    height: 26,
+    minWidth: 26,
     p: 0,
     borderRadius: "6px",
-    color: theme.customTokens.neutrals[700],
+    color: theme.customTokens.neutrals[600],
+    transition: "background-color 0.15s ease, color 0.15s ease",
     "&:hover": {
       backgroundColor: theme.customTokens.neutrals[100],
       color: theme.customTokens.brand.primary,
     },
     "& svg": {
-      width: portalIconSize.md,
-      height: portalIconSize.md,
+      width: 15,
+      height: 15,
       strokeWidth: portalIconStroke.default,
     },
   };

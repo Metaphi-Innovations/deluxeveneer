@@ -115,15 +115,35 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
 
 const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
-  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
+  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
+  { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
+  { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 120, getValue: (row) => row.length },
   { label: "Width", minWidth: 120, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
+  { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
+  { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
   { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
+  { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
+  { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
+  { label: "Photo No.", minWidth: 130, getValue: (row) => row.photoNo ?? "-" },
   { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
   { label: "SQF", minWidth: 120, getValue: (row) => row.totalSqm },
-  { label: "Rate per SQF", minWidth: 140, getValue: (row) => row.ratePerSqf },
+  {
+    label: "Rate",
+    minWidth: 140,
+    getValue: (row) => {
+      const prod = (row.productCategory ?? "").toLowerCase();
+      if (prod.includes("sawing")) {
+        return `${row.ratePerCbm || row.ratePerSqf} / CBM`;
+      }
+      if (prod.includes("veneer")) {
+        return `${row.ratePerSqf} / SQM`;
+      }
+      return `${row.ratePerSqf} / SQF`;
+    },
+  },
   { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
   { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
   { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
@@ -185,10 +205,14 @@ export function OrderRecordPage({
     [activeVariant, customerOptionsVersion, mode],
   );
   const pageTitle = getOrderPageTitle(mode, activeVariant);
+  const activeOrderTypeLabel = activeVariant
+    ? getOrderVariantLabel(activeVariant)
+    : "Order";
   const [values, setValues] = useState<Record<string, MasterFieldValue>>(() =>
     buildOrderInitialValues(activeFields, record, activeVariant),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const lineItemsTableRef = useRef<OrderLineItemsTableHandle>(null);
   const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
   const [lineItems, setLineItems] = useState<OrderLineItem[]>(() => {
@@ -349,7 +373,7 @@ export function OrderRecordPage({
                         : `Item ${index + 1}`}
                     </Typography>
                     <OrderLabelValueGrid
-                      items={getItemDetailColumns(recordVariant).map((column) => ({
+                      items={getDynamicLineItemDetailColumns(item).map((column) => ({
                         label: column.label,
                         value: formatDetailValue(column.getValue(item)),
                       }))}
@@ -402,13 +426,7 @@ export function OrderRecordPage({
       ]}
       contentGap={1.5}
       title={pageTitle}
-      subtitle={
-        activeVariant === "finished"
-          ? "Create a finished product customer order."
-          : activeVariant === "raw"
-            ? "Create a raw / non-finished material customer order."
-            : undefined
-      }
+      subtitle={getOrderFormSubtitle(mode, activeOrderTypeLabel)}
     >
       <Stack
         sx={(theme) => ({
@@ -416,10 +434,37 @@ export function OrderRecordPage({
           width: "100%",
         })}
       >
+        {errorMessage ? (
+          <Alert severity="error">
+            {errorMessage}
+          </Alert>
+        ) : null}
+
         <OrderCompactSectionCard>
           <Stack spacing={1.15}>
-            <OrderSectionTitle title="Order Details" />
+            <OrderSectionTitle
+              endAdornment={mode === "add" ? (
+                <Box
+                  sx={(theme) => ({
+                    backgroundColor: theme.customTokens.navigation.hoverBackground,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
+                    borderRadius: "999px",
+                    color: theme.customTokens.brand.primary,
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    px: 1.1,
+                    py: 0.55,
+                    whiteSpace: "nowrap",
+                  })}
+                >
+                  {activeOrderTypeLabel}
+                </Box>
+              ) : undefined}
+              title="Order Details"
+            />
             <OrderHeaderFields
+              createLayout={mode === "add"}
               fields={getOrderDetailsFields(activeFields as MasterFieldDefinition[])}
               fieldActions={{
                 customerName: (
@@ -470,6 +515,7 @@ export function OrderRecordPage({
         </OrderCompactSectionCard>
 
         <OrderLineItemsTable
+          createLayout={mode === "add"}
           ref={lineItemsTableRef}
           items={lineItems}
           onChange={setLineItems}
@@ -478,6 +524,7 @@ export function OrderRecordPage({
         />
 
         <OrderFormFooter
+          createLayout={mode === "add"}
           lineItems={lineItems}
           onCancel={() => navigate(paths.list)}
           onSave={() => {
@@ -486,14 +533,29 @@ export function OrderRecordPage({
             }
 
             setHasSubmitted(true);
+            setErrorMessage("");
 
+            const hasHeaderErrors = hasFormFieldErrors(activeFields, values);
             const lineItemsAreValid =
               lineItemsTableRef.current?.validate() ?? true;
 
-            if (
-              hasFormFieldErrors(activeFields, values) ||
-              !lineItemsAreValid
-            ) {
+            if (lineItems.length === 0) {
+              setErrorMessage("Please add at least one line item to the order.");
+              return;
+            }
+
+            if (hasHeaderErrors && !lineItemsAreValid) {
+              setErrorMessage("Please fill in all required order details and complete the line items information.");
+              return;
+            }
+
+            if (hasHeaderErrors) {
+              setErrorMessage("Please fill in all required order header details.");
+              return;
+            }
+
+            if (!lineItemsAreValid) {
+              setErrorMessage("Please correct errors in the line items table (all marked * fields are required).");
               return;
             }
 
@@ -558,8 +620,22 @@ function OrderCompactSectionCard({ children }: { children: ReactNode }) {
   );
 }
 
-function OrderSectionTitle({ title }: { title: string }) {
-  return <FormSectionHeader title={title} />;
+function OrderSectionTitle({
+  endAdornment,
+  title,
+}: {
+  endAdornment?: ReactNode;
+  title: string;
+}) {
+  return <FormSectionHeader endAdornment={endAdornment} title={title} />;
+}
+
+function getOrderFormSubtitle(mode: "add" | "edit" | "view", orderTypeLabel: string) {
+  if (mode === "add") {
+    return `Create a ${orderTypeLabel.toLowerCase()} with customer, delivery, and item details.`;
+  }
+
+  return undefined;
 }
 
 const orderDetailsFieldOrder = [
@@ -621,18 +697,61 @@ function getOrderDetailsFields(
 }
 
 function OrderHeaderFields({
+  createLayout,
   fieldActions,
   fields,
   onChange,
   showRequiredErrors,
   values,
 }: {
+  createLayout: boolean;
   fieldActions?: Record<string, ReactNode>;
   fields: readonly MasterFieldDefinition[];
   onChange: (key: string, value: MasterFieldValue) => void;
   showRequiredErrors: boolean;
   values: Record<string, MasterFieldValue>;
 }) {
+  if (createLayout) {
+    return (
+      <Box
+        sx={(theme) => ({
+          alignItems: "flex-start",
+          display: "grid",
+          gap: theme.spacing(1.25, 1.5),
+          gridTemplateColumns: {
+            xs: "minmax(0, 1fr)",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(4, minmax(0, 1fr))",
+          },
+          width: "100%",
+        })}
+      >
+        {fields.map((field) => (
+          <Box
+            key={field.key}
+            sx={{
+              gridColumn: {
+                xs: "1 / -1",
+                sm: field.key === "remark" ? "1 / -1" : "auto",
+                lg: field.key === "remark" ? "span 2" : "auto",
+              },
+              minWidth: 0,
+            }}
+          >
+            <MasterFormFields
+              compact
+              definition={{ fields: [field], gridColumns: 2 }}
+              {...(fieldActions ? { fieldActions } : {})}
+              onChange={onChange}
+              showRequiredErrors={showRequiredErrors}
+              values={values}
+            />
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
   return (
     <SizedMasterFormFields
       fieldActions={fieldActions}
@@ -646,93 +765,170 @@ function OrderHeaderFields({
 }
 
 function OrderFormFooter({
+  createLayout,
   lineItems,
   onCancel,
   onSave,
 }: {
+  createLayout: boolean;
   lineItems: readonly OrderLineItem[];
   onCancel: () => void;
   onSave: () => void;
 }) {
   const totals = computeOrderLineTotals(lineItems);
 
+  if (!createLayout) {
+    return (
+      <Box
+        sx={(theme) => ({
+          alignItems: "center",
+          backgroundColor: theme.customTokens.surfaces.surface,
+          border: `1px solid ${theme.customTokens.borders.default}`,
+          borderRadius: "8px",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: theme.spacing(1.5),
+          justifyContent: "space-between",
+          px: theme.spacing(1.75),
+          py: theme.spacing(1.25),
+        })}
+      >
+        <Box
+          sx={(theme) => ({
+            alignItems: "center",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: theme.spacing(2.5),
+            minWidth: 0,
+            rowGap: theme.spacing(1),
+          })}
+        >
+          <OrderTotalMetric label="Total Items" value={String(totals.totalItems)} />
+          <OrderTotalMetric label="Total Sheets" value={formatTotalNumber(totals.totalSheets, 0)} />
+          <OrderTotalMetric label="Total SQM" value={formatTotalNumber(totals.totalSqm, 3)} />
+          <OrderTotalMetric label="Total SQF" value={formatTotalNumber(totals.totalSqf, 3)} />
+          <OrderTotalMetric emphasize label="Order Amount" value={formatCurrency(totals.orderAmount, { withSymbol: true })} />
+        </Box>
+        <OrderFooterActions onCancel={onCancel} onSave={onSave} />
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={(theme) => ({
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: theme.spacing(1.5),
-        border: `1px solid ${theme.customTokens.borders.default}`,
-        borderRadius: "8px",
-        backgroundColor: theme.customTokens.surfaces.surface,
-        px: theme.spacing(1.75),
-        py: theme.spacing(1.25),
+        ...formSectionCardSx(theme),
       })}
     >
+      <FormSectionHeader title="Order Summary" />
       <Box
         sx={(theme) => ({
           display: "flex",
           flexWrap: "wrap",
           alignItems: "center",
-          gap: theme.spacing(2.5),
-          rowGap: theme.spacing(1),
-          minWidth: 0,
+          justifyContent: "space-between",
+          gap: theme.spacing(1.5),
+          pt: theme.spacing(1.25),
         })}
       >
-        <OrderTotalMetric label="Total Items" value={String(totals.totalItems)} />
-        <OrderTotalMetric label="Total Sheets" value={formatTotalNumber(totals.totalSheets, 0)} />
-        <OrderTotalMetric label="Total SQM" value={formatTotalNumber(totals.totalSqm, 3)} />
-        <OrderTotalMetric label="Total SQF" value={formatTotalNumber(totals.totalSqf, 3)} />
-        <OrderTotalMetric
-          emphasize
-          label="Order Amount"
-          value={formatCurrency(totals.orderAmount, { withSymbol: true })}
-        />
-      </Box>
+        <Box
+          sx={(theme) => ({
+            display: "grid",
+            flex: "1 1 720px",
+            gap: theme.spacing(1),
+            gridTemplateColumns: {
+              xs: "repeat(2, minmax(0, 1fr))",
+              sm: "repeat(3, minmax(0, 1fr))",
+              lg: `repeat(${totals.hasLeafBasedItems ? 6 : 5}, minmax(110px, 1fr))`,
+            },
+            minWidth: 0,
+          })}
+        >
+          <OrderTotalMetric card label="Total Items" value={String(totals.totalItems)} />
+          <OrderTotalMetric card label="Total Sheets" value={formatTotalNumber(totals.totalSheets, 0)} />
+          {totals.hasLeafBasedItems ? (
+            <OrderTotalMetric card label="Total Leaves" value={formatTotalNumber(totals.totalLeaves, 0)} />
+          ) : null}
+          <OrderTotalMetric card label="Total SQM" value={formatTotalNumber(totals.totalSqm, 3)} />
+          <OrderTotalMetric card label="Total SQF" value={formatTotalNumber(totals.totalSqf, 3)} />
+          <OrderTotalMetric
+            card
+            emphasize
+            label="Order Amount"
+            value={formatCurrency(totals.orderAmount, { withSymbol: true })}
+          />
+        </Box>
 
-      <Box
-        sx={(theme) => ({
-          display: "flex",
-          gap: theme.spacing(1.25),
-          flexShrink: 0,
-          ml: "auto",
-        })}
-      >
-        <Button
-          type="button"
-          onClick={onCancel}
-          sx={recordFormActionButtonSx}
-          variant="outlined"
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          onClick={onSave}
-          startIcon={<Save size={16} />}
-          sx={recordFormActionButtonSx}
-          variant="contained"
-        >
-          Save Order
-        </Button>
+        <OrderFooterActions onCancel={onCancel} onSave={onSave} responsive />
       </Box>
     </Box>
   );
 }
 
+function OrderFooterActions({
+  onCancel,
+  onSave,
+  responsive = false,
+}: {
+  onCancel: () => void;
+  onSave: () => void;
+  responsive?: boolean;
+}) {
+  return (
+    <Box
+      sx={(theme) => ({
+        alignItems: "center",
+        display: "flex",
+        flexShrink: 0,
+        gap: theme.spacing(1.25),
+        justifyContent: responsive ? { xs: "stretch", sm: "flex-end" } : "flex-end",
+        ml: "auto",
+        width: responsive ? { xs: "100%", sm: "auto" } : "auto",
+      })}
+    >
+      <Button type="button" onClick={onCancel} sx={recordFormActionButtonSx} variant="outlined">
+        Cancel
+      </Button>
+      <Button
+        type="button"
+        onClick={onSave}
+        startIcon={<Save size={16} />}
+        sx={recordFormActionButtonSx}
+        variant="contained"
+      >
+        Save Order
+      </Button>
+    </Box>
+  );
+}
+
 function OrderTotalMetric({
+  card = false,
   emphasize = false,
   label,
   value,
 }: {
+  card?: boolean;
   emphasize?: boolean;
   label: string;
   value: string;
 }) {
   return (
-    <Stack spacing={0.35} sx={{ minWidth: emphasize ? 150 : undefined }}>
+    <Stack
+      spacing={0.35}
+      sx={(theme) => card
+        ? ({
+            backgroundColor: emphasize
+              ? theme.customTokens.navigation.hoverBackground
+              : theme.customTokens.surfaces.alt,
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            borderRadius: "7px",
+            minWidth: 0,
+            px: 1.25,
+            py: 0.8,
+          })
+        : ({ minWidth: emphasize ? 150 : undefined })}
+    >
       <Typography
         sx={(theme) => ({
           color: theme.customTokens.text.secondary,
@@ -765,6 +961,8 @@ function computeOrderLineTotals(lineItems: readonly OrderLineItem[]) {
     (totals, item) => ({
       totalItems: totals.totalItems + 1,
       totalSheets: totals.totalSheets + parseOrderNumber(item.quantitySheets),
+      totalLeaves: totals.totalLeaves + parseOrderNumber(item.noOfLeaves),
+      hasLeafBasedItems: totals.hasLeafBasedItems || parseOrderNumber(item.noOfLeaves) > 0,
       totalSqm: totals.totalSqm + parseOrderNumber(item.sqm),
       totalSqf: totals.totalSqf + parseOrderNumber(item.totalSqm),
       orderAmount: totals.orderAmount + parseOrderNumber(item.amount),
@@ -772,6 +970,8 @@ function computeOrderLineTotals(lineItems: readonly OrderLineItem[]) {
     {
       totalItems: 0,
       totalSheets: 0,
+      totalLeaves: 0,
+      hasLeafBasedItems: false,
       totalSqm: 0,
       totalSqf: 0,
       orderAmount: 0,
@@ -1043,8 +1243,114 @@ function OrderTypeBanner(_props: { variant: OrderCreateVariant | null }) {
   return null;
 }
 
-function getItemDetailColumns(_variant: OrderCreateVariant | null) {
-  return unifiedItemDetailColumns;
+export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly DetailColumn<OrderLineItem>[] {
+  const normProduct = (item.productCategory || item.finishedType || "")
+    .trim()
+    .replace(/\s*\((?:Raw|Finished)\)$/i, "")
+    .toLowerCase();
+
+  const isSawing = normProduct === "sawing";
+  const isVeneer = normProduct === "veneer";
+  const isDecorative = normProduct === "decorative";
+  const isFluted = normProduct === "fluted";
+  const isEmbossed = normProduct === "embossed";
+  const isFinished = ["decorative", "marquetry", "fluted", "embossed", "plywood"].includes(normProduct);
+
+  const columns: DetailColumn<OrderLineItem>[] = [
+    { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
+    { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
+    { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
+  ];
+
+  if (isSawing) {
+    columns.push(
+      { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
+      { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
+    );
+  }
+
+  columns.push(
+    { label: "Length", minWidth: 120, getValue: (row) => row.length },
+    { label: "Width", minWidth: 120, getValue: (row) => row.width },
+    { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
+  );
+
+  if (isSawing) {
+    columns.push(
+      { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
+      { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+    );
+  }
+
+  if (!isVeneer && !isSawing) {
+    columns.push(
+      { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
+    );
+  }
+
+  if (isVeneer) {
+    columns.push(
+      { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
+    );
+  }
+
+  if (!isSawing) {
+    columns.push(
+      { label: "SQM", minWidth: 120, getValue: (row) => row.sqm },
+      { label: "SQF", minWidth: 120, getValue: (row) => row.totalSqm },
+    );
+  }
+
+  columns.push(
+    {
+      label: "Rate",
+      minWidth: 140,
+      getValue: (row) => {
+        const prod = (row.productCategory ?? "").toLowerCase();
+        if (prod.includes("sawing")) {
+          return `${row.ratePerCbm || row.ratePerSqf} / CBM`;
+        }
+        if (prod.includes("veneer")) {
+          return `${row.ratePerSqf} / SQM`;
+        }
+        return `${row.ratePerSqf} / SQF`;
+      },
+    },
+    { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
+  );
+
+  if (isDecorative) {
+    columns.push(
+      { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
+      { label: "Photo No.", minWidth: 130, getValue: (row) => row.photoNo ?? "-" },
+    );
+  }
+
+  if (isFinished) {
+    columns.push(
+      { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
+      { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
+      { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
+      { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
+      { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
+    );
+  }
+
+  if (isFluted) {
+    columns.push(
+      { label: "Design Code", minWidth: 130, getValue: (row) => row.designCode },
+    );
+  }
+
+  if (isEmbossed) {
+    columns.push(
+      { label: "Structured Code", minWidth: 140, getValue: (row) => row.structuredCode },
+    );
+  }
+
+  columns.push({ label: "Remark", minWidth: 200, getValue: (row) => row.remark });
+
+  return columns;
 }
 
 function getDetailTableMinWidth<TRow>(columns: readonly DetailColumn<TRow>[]) {
@@ -1187,7 +1493,7 @@ function buildSamplePrefillLineItem(
     baseWidth: draft.baseWidth || "",
     baseThickness: draft.baseThickness || "",
     amount: draft.amount || "",
-    remark: draft.remark || (samplePrefill.sampleNo ? `From Sample ${samplePrefill.sampleNo}` : ""),
+    remark: draft.remark || (samplePrefill.sampleNo ? `From Group ${samplePrefill.sampleNo}` : ""),
   };
 }
 

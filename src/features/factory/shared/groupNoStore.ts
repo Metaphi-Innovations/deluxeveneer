@@ -68,9 +68,23 @@ export function allocateNextGroupNo() {
 }
 
 /** Peek without consuming a sequence number (for display before save). */
-export function peekNextGroupNo() {
-  return formatGroupNo(readStore().sequence + 1);
+export function peekNextGroupNo(offset = 0) {
+  return formatGroupNo(readStore().sequence + 1 + Math.max(0, offset));
 }
+
+/** Update sequence if an assigned group number has a higher sequence. */
+export function syncGroupNoSequence(groupNo: string) {
+  const match = /^GRP-\d{4}-(\d+)$/i.exec(groupNo.trim());
+  if (match && match[1]) {
+    const seq = parseInt(match[1], 10);
+    const store = readStore();
+    if (seq > store.sequence) {
+      writeStore({ sequence: seq });
+    }
+  }
+}
+
+
 
 export function isGroupNoValue(value: unknown): value is string {
   return typeof value === "string" && /^GRP-\d{4}-\d{4}$/i.test(value.trim());

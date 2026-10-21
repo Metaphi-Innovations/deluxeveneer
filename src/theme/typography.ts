@@ -98,11 +98,11 @@ export const portalControlHeights = {
   dense: 33,
   button: 36,
 } as const;
-/** Table density targets (padding drives ~34–40px row height). */
+/** Table density targets (padding drives sleek ~34-36px row height with smooth aesthetic). */
 export const portalTableDensity = {
-  headerPy: 0.85,
-  headerPx: 1.35,
-  bodyPy: 0.85,
-  bodyPx: 1.35,
+  headerPy: 0.55,
+  headerPx: 1.25,
+  bodyPy: 0.5,
+  bodyPx: 1.25,
   iconSize: 13,
 } as const;

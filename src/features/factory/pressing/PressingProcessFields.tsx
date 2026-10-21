@@ -12,7 +12,7 @@ import {
 } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { FormSectionHeader, formSectionCardSx } from "../../shared/formSectionStyles";
+import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
   pressingCompactBodyCellSx,
@@ -81,13 +81,20 @@ export function PressingProcessFields({
   ];
   const columnWidths = inputWidths.map(pressingCellWidth);
   const dateError = showErrors && !values.pressingDate ? "Pressing date is required." : "";
+  const itemNameError =
+    showErrors && !values.outputItemName.trim() ? "Output item name is required." : "";
   const sheetsError =
     outputError ||
     (showErrors && !values.noOfSheets.trim() ? "No of sheets must be greater than 0." : "");
 
   return (
-    <Stack sx={(theme) => ({ ...formSectionCardSx(theme), gap: theme.spacing(1) })}>
-      <FormSectionHeader title="Pressing Details" />
+    <Stack
+      sx={(theme) => ({
+        ...formSectionCardSx(theme),
+        gap: theme.spacing(1.5),
+      })}
+    >
+      <FormSectionHeader title="Output Details" />
       <Box sx={(theme) => listingTableContainerSx(theme)}>
         <TableContainer sx={(theme) => pressingTableScrollSx(theme)}>
           <Table stickyHeader sx={pressingDetailsTableSx}>
@@ -118,9 +125,14 @@ export function PressingProcessFields({
                     width={inputWidths[0] ?? 200}
                   />
                 </DetailCell>
-                <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, columnWidths[1])}>
-                  {values.outputItemName || "-"}
-                </TableCell>
+                <DetailCell error={itemNameError} minWidth={columnWidths[1]}>
+                  <DetailInput
+                    error={itemNameError}
+                    onChange={(value) => onChange({ outputItemName: value })}
+                    value={values.outputItemName}
+                    width={inputWidths[1] ?? 160}
+                  />
+                </DetailCell>
                 <DetailCell minWidth={columnWidths[2]}>
                   <DetailInput
                     onChange={(value) => onChange({ itemSubCategory: value })}
