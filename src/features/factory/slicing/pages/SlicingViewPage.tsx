@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 import { ChevronLeft } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -638,6 +639,10 @@ export const SlicingViewPage: React.FC = () => {
                 </Typography>
               </Stack>
             </Box>
+            <FactoryProductionPipeline
+              currentStage={tab === "issued" || tab === "rejected" ? "slicing" : "slicing-done"}
+              rejected={tab === "rejected"}
+            />
           </Stack>
         </Box>
 

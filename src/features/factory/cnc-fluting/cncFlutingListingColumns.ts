@@ -5,7 +5,12 @@ import type { FactoryRecord } from "../shared/types";
 const flutingHiddenOutsideHistory = new Set(["warehouseName"]);
 const flutingHiddenKeys = new Set([
   "amount",
+  "bundleNo",
+  "bundleNumber",
+  "issuedFrom",
   "issuedFor",
+  "palletNo",
+  "palletNumber",
   "rate",
   "ratePerSqf",
 ]);
@@ -15,6 +20,10 @@ export function applyCncFlutingListingColumns<Row extends FactoryRecord>(
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   const visibleColumns = columns.filter((column) => {
+    if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
+      return false;
+    }
+
     if (flutingHiddenKeys.has(column.key)) {
       return false;
     }
@@ -26,12 +35,5 @@ export function applyCncFlutingListingColumns<Row extends FactoryRecord>(
     return !flutingHiddenOutsideHistory.has(column.key);
   });
 
-  if (visibleColumns.some((column) => column.key === "storageSrNo")) {
-    return visibleColumns;
-  }
-
-  return [
-    { key: "storageSrNo", label: "Storage Sr No." },
-    ...visibleColumns,
-  ];
+  return visibleColumns;
 }

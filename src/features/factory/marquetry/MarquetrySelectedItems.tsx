@@ -20,18 +20,9 @@ export type MarquetrySelectedDraft = {
 };
 
 const readOnlyColumns = [
-  { key: "storageSrNo", label: "Production/Storage Sr No", minWidth: 180 },
-  { key: "issueSrNo", label: "Issue Sr No", minWidth: 140 },
-  { key: "itemName", label: "Item Name", minWidth: 160 },
-  { key: "itemSubCategory", label: "Item Sub-Category", minWidth: 160 },
-  { key: "logNo", label: "Log No", minWidth: 120 },
-  { key: "bundleNumber", label: "Bundle No", minWidth: 120 },
-  { key: "palletNo", label: "Pallet No", minWidth: 120 },
-  { key: "length", label: "Length", minWidth: 100 },
-  { key: "width", label: "Width", minWidth: 100 },
-  { key: "thickness", label: "Thickness", minWidth: 110 },
-  { key: "color", label: "Color", minWidth: 110 },
-  { key: "grade", label: "Grade", minWidth: 100 },
+  { key: "groupNo", label: "Group No.", minWidth: 150 },
+  { key: "itemName", label: "Item Name", minWidth: 180 },
+  { key: "dimensions", label: "Dimensions (L × W × T)", minWidth: 220 },
   { key: "availableLeaves", label: "Available Leaves", minWidth: 140 },
 ] as const;
 
@@ -97,6 +88,23 @@ function displayValue(value: unknown) {
   }
 
   return typeof value === "string" && value.trim() ? value : "-";
+}
+
+function displaySelectedItemValue(
+  row: FactoryRecord,
+  key: (typeof readOnlyColumns)[number]["key"],
+) {
+  if (key === "groupNo") {
+    return displayValue(row.groupNo || row.storageSrNo || row.issueSrNo);
+  }
+
+  if (key === "dimensions") {
+    return [row.length, row.width, row.thickness || row.height]
+      .map(displayValue)
+      .join(" × ");
+  }
+
+  return displayValue(row[key]);
 }
 
 export function MarquetrySelectedItems<Row extends FactoryRecord>({
@@ -202,7 +210,7 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                             minWidth: getListingColumnMinWidth(column.key, column.label) ?? column.minWidth,
                           })}
                         >
-                          {displayValue(row[column.key])}
+                          {displaySelectedItemValue(row, column.key)}
                         </TableCell>
                       ))}
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>

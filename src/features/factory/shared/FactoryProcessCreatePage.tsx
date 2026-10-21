@@ -94,12 +94,12 @@ import {
   groupingHiddenSourceKeys,
   normalizeGroupingSourceDimension,
   orderGroupingCreateFields,
-  prependGroupingGroupNoField,
   readGroupingReferenceLeaves,
   sumGroupingOutputLeaves,
   validateGroupingForm,
   validateGroupingRow,
 } from "../grouping/groupingCreateRules";
+
 import {
   isMarquetryOrderDetailsInvalid,
   MarquetryOrderDetails,
@@ -146,6 +146,7 @@ import {
   getMaximumSplicingLeaves,
   orderSplicingCreateFields,
   readSplicingReferenceLeaves,
+  splicingApplyingTypeOptions,
   splicingCreateSourceColumns,
   validateSplicingForm,
   validateSplicingRow,
@@ -182,7 +183,12 @@ import {
 } from "./RejectAvailableDetailsTable";
 import { marquetryDefinition, pressingDefinition } from "./factoryDefinitions";
 import { getIssuedGroupedSheetsTotal } from "./groupedStockIssueStore";
-import { allocateNextGroupNo, getExistingGroupNo, peekNextGroupNo } from "./groupNoStore";
+import {
+  allocateNextGroupNo,
+  getExistingGroupNo,
+  peekNextGroupNo,
+  syncGroupNoSequence,
+} from "./groupNoStore";
 import {
   buildFactoryInitialValues,
   flattenFactorySections,
@@ -200,6 +206,14 @@ import {
   MarquetrySelectedItems,
   type MarquetrySelectedDraft,
 } from "../marquetry/MarquetrySelectedItems";
+import {
+  calculateMarquetryOutputDetails,
+  createEmptyMarquetryOutputDetails,
+  isMarquetryOutputDetailsInvalid,
+  MarquetryOutputDetails,
+  readMarquetryOutputDetails,
+  type MarquetryOutputDetailsValue,
+} from "../marquetry/MarquetryOutputDetails";
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import {
   getMarquetryEditContext,
@@ -531,9 +545,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     if (existing) {
       return existing;
     }
-    // Preview only — actual allocation happens on Grouping save.
-    return definition.slug === "grouping" ? peekNextGroupNo() : "";
-  }, [definition.slug, sourceRow]);
+    return "";
+  }, [sourceRow]);
+
   const lineItemFields = useMemo(
     () => buildLineItemFields(definition.slug, allFields, sourceRow),
     [allFields, definition.slug, sourceRow],
@@ -1000,6 +1014,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         purpose: "Order",
       };
     });
+  const [marquetryOutputDetails, setMarquetryOutputDetails] =
+    useState<MarquetryOutputDetailsValue>(() =>
+      marquetryEditContext
+        ? readMarquetryOutputDetails(marquetryEditContext.rows[0])
+        : createEmptyMarquetryOutputDetails(),
+    );
   const sourceOverviewItems = useMemo(
     () => {
       if (definition.slug === "pressing" && pressingPurpose === "Order" && pressingOrderNo) {
@@ -1347,7 +1367,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     [sourceRow],
   );
   const rejectAvailableValidationErrors = {
-    ...(definition.slug === "slicing"
+    ...(definition.slug === "slicing" ||
+    definition.slug === "splicing" ||
+    definition.slug === "marquetry"
       ? {}
       : getRejectAvailableValidationErrors(
         rejectAvailableValues,
@@ -1360,12 +1382,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       sawingProcessedCbm,
     ),
   };
-  const usesReferenceLeafLimit =
-    definition.slug === "grouping" || definition.slug === "splicing";
+  const usesReferenceLeafLimit = definition.slug === "grouping";
   const groupingReferenceLeaves = usesReferenceLeafLimit
-    ? definition.slug === "splicing"
-      ? readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
-      : readGroupingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+    ? readGroupingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
+    : 0;
+  const splicingReferenceSheets = definition.slug === "splicing"
+    ? readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined)
     : 0;
   const groupingCommittedLeaves = definition.slug === "grouping"
     ? calculateTotalGroupedLeaves(lineItems)
@@ -1409,14 +1431,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     : 0;
   const splicingDraftValidation = definition.slug === "splicing"
     ? validateSplicingRow({
-      maximumLeaves: getMaximumSplicingLeaves(groupingReferenceLeaves, lineItems),
+      maximumLeaves: getMaximumSplicingLeaves(splicingReferenceSheets, lineItems),
       values: draftValues,
     })
     : { fieldErrors: {}, message: "", values: draftValues };
   const splicingEditValidation = definition.slug === "splicing" && editingRowId
     ? validateSplicingRow({
       maximumLeaves: getMaximumSplicingLeaves(
-        groupingReferenceLeaves,
+        splicingReferenceSheets,
         lineItems,
         editingRowId,
       ),
@@ -1432,7 +1454,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     : lineItems;
   const splicingDraftHasProcessValues =
     definition.slug === "splicing" &&
-    Boolean(draftValues.noOfLeaves?.trim() || draftValues.noOfSheets?.trim());
+    Boolean(draftValues.noOfSheets?.trim());
   const splicingLeavesForAvailable = definition.slug === "splicing"
     ? calculateTotalSplicingLeaves(splicingProjectedItems) +
     (!editingRowId && splicingDraftHasProcessValues
@@ -1543,7 +1565,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     ? definition.slug === "grouping"
       ? Math.max(0, groupingReferenceLeaves - groupingLeavesForAvailable)
       : definition.slug === "splicing"
-        ? Math.max(0, groupingReferenceLeaves - splicingLeavesForAvailable)
+        ? Math.max(0, splicingReferenceSheets - splicingLeavesForAvailable)
         : sumGroupingOutputLeaves([
           { values: { noOfLeaves: rejectAvailableValues.noOfLeaves ?? "" } },
         ])
@@ -1571,7 +1593,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   useEffect(() => {
     if (definition.slug !== "grouping") return;
     const calculated = calculateGroupingAvailableDetails({
-      sourceAvailableLeaves: groupingReferenceLeaves,
+      sourceAvailableLeaves: splicingReferenceSheets,
       sourceRow: sourceRow as Record<string, unknown> | undefined,
       totalGroupedLeaves: groupingLeavesForAvailable,
     });
@@ -1583,7 +1605,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [
     definition.slug,
     groupingLeavesForAvailable,
-    groupingReferenceLeaves,
+    splicingReferenceSheets,
     sourceRow,
   ]);
   useEffect(() => {
@@ -1823,7 +1845,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     } else if (definition.slug === "slicing") {
       setDraftValues(buildDefaultSlicingLineItemValues(lineItemFields, sourceRow));
     } else if (definition.slug === "grouping") {
-      setDraftValues(buildDefaultGroupingLineItemValues(lineItemFields, sourceRow));
+      setDraftValues(
+        buildDefaultGroupingLineItemValues(
+          lineItemFields,
+          sourceRow,
+          nextLineItems.length,
+        ),
+      );
     } else if (definition.slug === "splicing") {
       setDraftValues(buildDefaultSplicingLineItemValues(lineItemFields, sourceRow));
     } else if (definition.slug === "cnc-fluting") {
@@ -1837,7 +1865,16 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   };
 
   const handleDeleteLineItem = (rowId: string) => {
-    setLineItems((current) => current.filter((row) => row.id !== rowId));
+    setLineItems((current) => {
+      const remaining = current.filter((row) => row.id !== rowId);
+      if (definition.slug === "grouping") {
+        setDraftValues((curDraft) => ({
+          ...curDraft,
+          groupNo: peekNextGroupNo(remaining.length),
+        }));
+      }
+      return remaining;
+    });
     setSawingSubmitError("");
     setSlicingSubmitError("");
     setGroupingSubmitError("");
@@ -1851,6 +1888,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       setEditingSubmitAttempted(false);
     }
   };
+
 
   const handleStartEdit = (row: LineItemRecord) => {
     setEditingRowId(row.id);
@@ -2339,7 +2377,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           sx={(currentTheme) => ({
             width: {
               xs: "100%",
-              sm: currentTheme.spacing(28),
+              sm: currentTheme.spacing(definition.slug === "splicing" ? 88 : 28),
             },
             maxWidth: "100%",
           })}
@@ -2361,13 +2399,27 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           />
         </Box>
 
+        {definition.slug === "marquetry" ? (
+          <MarquetryOutputDetails
+            onChange={setMarquetryOutputDetails}
+            showErrors={hasSubmitted}
+            value={marquetryOutputDetails}
+          />
+        ) : null}
+
         <Stack
           sx={(currentTheme) => ({
             ...formSectionCardSx(currentTheme),
             gap: currentTheme.spacing(1.5),
           })}
         >
-          <FactoryCreateSectionTitle title="Output Details" />
+          <FactoryCreateSectionTitle
+            title={
+              definition.slug === "marquetry"
+                ? "Issue to Marquetry Details"
+                : "Output Details"
+            }
+          />
           {definition.slug === "marquetry" ? (
             <MarquetryIssuedSelection
               columns={marquetrySelectionColumns}
@@ -2411,7 +2463,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                               required={
                                 isLineItemColumnRequired(column) ||
                                 (definition.slug === "grouping" &&
-                                  (column.key === "itemName" ||
+                                  (column.key === "groupNo" ||
+                                    column.key === "itemName" ||
                                     column.key === "length" ||
                                     column.key === "width" ||
                                     column.key === "noOfLeaves")) ||
@@ -2419,7 +2472,6 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   (column.key === "itemName" ||
                                     column.key === "length" ||
                                     column.key === "width" ||
-                                    column.key === "noOfLeaves" ||
                                     column.key === "noOfSheets")) ||
                                 (definition.slug === "cnc-fluting" &&
                                   (column.key === "itemName" ||
@@ -2621,8 +2673,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : groupingSubmitError || groupingDraftValidation.message}
                   </Typography>
                 ) : definition.slug === "splicing" &&
-                  (groupingReferenceLeaves <= 0 ||
-                    splicingCommittedLeaves >= groupingReferenceLeaves ||
+                  (splicingReferenceSheets <= 0 ||
+                    splicingCommittedLeaves >= splicingReferenceSheets ||
                     splicingSubmitError ||
                     (draftSubmitAttempted && splicingDraftValidation.message)) ? (
                   <Typography
@@ -2635,9 +2687,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       whiteSpace: "normal",
                     })}
                   >
-                    {groupingReferenceLeaves <= 0 ||
-                      splicingCommittedLeaves >= groupingReferenceLeaves
-                      ? "No leaves are available for Splicing."
+                    {splicingReferenceSheets <= 0 ||
+                      splicingCommittedLeaves >= splicingReferenceSheets
+                      ? "No sheets are available for Splicing."
                       : splicingSubmitError || splicingDraftValidation.message}
                   </Typography>
                 ) : definition.slug === "cnc-fluting" &&
@@ -2715,8 +2767,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       (groupingReferenceLeaves <= 0 ||
                         groupingCommittedLeaves >= groupingReferenceLeaves)) ||
                     (definition.slug === "splicing" &&
-                      (groupingReferenceLeaves <= 0 ||
-                        splicingCommittedLeaves >= groupingReferenceLeaves)) ||
+                      (splicingReferenceSheets <= 0 ||
+                        splicingCommittedLeaves >= splicingReferenceSheets)) ||
                     (definition.slug === "cnc-fluting" &&
                       (flutingReferenceSheets <= 0 ||
                         flutingCommittedSheets >= flutingReferenceSheets)) ||
@@ -2792,7 +2844,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                             required={
                               isLineItemColumnRequired(column) ||
                               (definition.slug === "grouping" &&
-                                (column.key === "itemName" ||
+                                (column.key === "groupNo" ||
+                                  column.key === "itemName" ||
                                   column.key === "length" ||
                                   column.key === "width" ||
                                   column.key === "noOfLeaves")) ||
@@ -3061,7 +3114,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           </Stack>
         ) : null}
 
-        {(
+        {definition.slug !== "splicing" && definition.slug !== "marquetry" ? (
           <RejectAvailableDetailsTable
             disabledType={
               definition.slug === "sawing" ||
@@ -3099,8 +3152,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               definition.slug === "cnc-fluting" ||
               definition.slug === "embossing" ||
               definition.slug === "pressing" ||
-              definition.slug === "finishing"
+                definition.slug === "finishing"
             }
+            hideType={definition.slug === "grouping"}
+            lockAllFields={definition.slug === "grouping"}
             showLeafCount={usesReferenceLeafLimit}
             showSheetCount={
               definition.slug === "cnc-fluting" || definition.slug === "embossing"
@@ -3141,7 +3196,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             }}
             values={rejectAvailableValues}
           />
-        )}
+        ) : null}
 
         <Box
           sx={{
@@ -3168,7 +3223,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               sawingStockUnavailable ||
               slicingStockUnavailable ||
               (definition.slug === "grouping" && groupingReferenceLeaves <= 0) ||
-              (definition.slug === "splicing" && groupingReferenceLeaves <= 0) ||
+              (definition.slug === "splicing" && splicingReferenceSheets <= 0) ||
               (definition.slug === "cnc-fluting" && flutingReferenceSheets <= 0) ||
               (definition.slug === "embossing" && embossingReferenceSheets <= 0)
             }
@@ -3204,6 +3259,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               const lineItemsInvalid =
                 definition.slug === "marquetry"
                   ? selectedMarquetryRows.length === 0 ||
+                  isMarquetryOutputDetailsInvalid(marquetryOutputDetails) ||
                   selectedMarquetryRows.some((row) =>
                     Boolean(
                       getMarquetryLeavesUsedError(
@@ -3297,7 +3353,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : validateGroupingForm({
                         availableValues: rejectAvailableValues,
                         items: lineItems,
-                        sourceAvailableLeaves: groupingReferenceLeaves,
+                        sourceAvailableLeaves: splicingReferenceSheets,
                         sourceRow: sourceRow as Record<string, unknown> | undefined,
                       })
                   : "";
@@ -3518,24 +3574,27 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   (typeof sourceRow?.workItemId === "string"
                     ? sourceRow.workItemId
                     : undefined);
-                const groupNo =
-                  getExistingGroupNo(sourceRow as Record<string, unknown> | undefined) ||
-                  allocateNextGroupNo();
-                const groupedSource = {
-                  ...(sourceRow as Record<string, unknown> | undefined),
-                  groupNo,
-                };
 
                 lineItems.forEach((lineItem, index) => {
                   const calculatedLineValues = calculateGroupingRow(lineItem.values);
+                  const itemGroupNo =
+                    (typeof lineItem.values.groupNo === "string" && lineItem.values.groupNo.trim()) ||
+                    allocateNextGroupNo();
+                  syncGroupNoSequence(itemGroupNo);
+
+                  const itemGroupedSource = {
+                    ...(sourceRow as Record<string, unknown> | undefined),
+                    groupNo: itemGroupNo,
+                  };
+
                   const resultSnapshot: Record<string, unknown> = {
                     ...(sourceRow ?? {}),
                     ...formValues,
                     ...calculatedLineValues,
-                    groupNo,
+                    groupNo: itemGroupNo,
                     listingState: "done",
                   };
-                  applyGroupingCreateSnapshot(resultSnapshot, groupedSource);
+                  applyGroupingCreateSnapshot(resultSnapshot, itemGroupedSource);
 
                   if (index === 0 && groupingWorkItemId) {
                     completeFactoryIssuedWork(groupingWorkItemId, resultSnapshot);
@@ -3553,6 +3612,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     },
                     sourceSlug: "grouping",
                   });
+
                   completeFactoryIssuedWork(issued.id, resultSnapshot);
                 });
                 navigate(paths.list);
@@ -3577,6 +3637,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                   });
                 }
 
+                const calculatedOutputDetails =
+                  calculateMarquetryOutputDetails(marquetryOutputDetails);
                 selectedMarquetryRows.forEach((row) => {
                   const selectedWorkItemId = readMarquetryWorkItemId(row);
                   if (!selectedWorkItemId) {
@@ -3595,8 +3657,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     ...(row as Record<string, unknown>),
                     ...formValues,
                     ...(usesOrderSelection ? marquetryOrderDetails : {}),
+                    ...calculatedOutputDetails,
                     leavesUsed: draft.leavesUsed,
-                    remark: draft.remark,
+                    marquetryIssueRemark: draft.remark,
                     sqfUsed: usedArea.sqf,
                     sqmUsed: usedArea.sqm,
                     listingState: "done",
@@ -3846,10 +3909,26 @@ function resolveProcessHeaderDateFields(
     },
   ];
 
-  // Group No. is assigned only in Grouping; later processes show it read-only when present.
-  if (slug === "grouping") {
-    prependGroupingGroupNoField(headerFields);
-  } else if (
+  if (slug === "splicing") {
+    headerFields.push({
+      key: "applyingType",
+      label: "Applying Type",
+      type: "select",
+      options: [...splicingApplyingTypeOptions],
+      required: true,
+    });
+    headerFields.push({
+      key: "splicingPersonName",
+      label: "Splicing Person Name",
+      type: "text",
+    });
+  }
+
+  // Group No. is assigned in Output Details for Grouping. Splicing keeps the
+  // association from its selected source row without showing a separate form field.
+  if (
+    slug !== "grouping" &&
+    slug !== "splicing" &&
     slug !== "marquetry" &&
     getExistingGroupNo(sourceRow as Record<string, unknown> | undefined)
   ) {
@@ -3860,6 +3939,7 @@ function resolveProcessHeaderDateFields(
       readOnly: true,
     });
   }
+
 
   return headerFields;
 }
@@ -4006,6 +4086,10 @@ function buildLineItemFields(
     dedupeFields(
       fields.filter((field) => {
         if (field.key === "remark") {
+          return true;
+        }
+
+        if (slug === "grouping" && field.key === "groupNo") {
           return true;
         }
 
@@ -4198,10 +4282,13 @@ function buildDefaultSlicingLineItemValues(
 function buildDefaultGroupingLineItemValues(
   fields: readonly MasterFieldDefinition[],
   sourceRow?: SourceRow,
+  offset = 0,
 ) {
   const defaults = buildDefaultLineItemValues(fields, sourceRow);
+  const nextGroupNo = peekNextGroupNo(offset);
   return calculateGroupingRow({
     ...defaults,
+    groupNo: nextGroupNo,
     length: normalizeGroupingSourceDimension(sourceRow?.length ?? defaults.length),
     width: normalizeGroupingSourceDimension(sourceRow?.width ?? defaults.width),
     height: normalizeGroupingSourceDimension(
@@ -4213,13 +4300,16 @@ function buildDefaultGroupingLineItemValues(
   });
 }
 
+
 function buildDefaultSplicingLineItemValues(
   fields: readonly MasterFieldDefinition[],
   sourceRow?: SourceRow,
 ) {
   return calculateSplicingRow({
     ...buildDefaultLineItemValues(fields, sourceRow),
-    noOfLeaves: "",
+    noOfLeaves: String(
+      readSplicingReferenceLeaves(sourceRow as Record<string, unknown> | undefined),
+    ),
     noOfSheets: "",
     sqm: "",
     sqf: "",
@@ -4404,11 +4494,17 @@ function mapFieldToColumn(
     key: field.key,
     label: field.label,
     minWidth:
-      field.key === "itemName" && (slug === "grouping" || slug === "slicing")
-        ? 220
-        : field.key === "groupPhoto"
-          ? 260
-          : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
+      field.key === "itemName" && slug === "grouping"
+        ? 150
+        : field.key === "color" && slug === "grouping"
+          ? 180
+          : field.key === "itemName" && slug === "slicing"
+            ? 220
+            : field.key === "groupNo"
+              ? 180
+              : field.key === "groupPhoto"
+                ? 260
+                : Math.max(120, Math.min(220, field.label.length * 10 + 48)),
     placeholder: field.placeholder ?? getDefaultPlaceholder(field),
     type:
       field.type === "select"
@@ -4416,9 +4512,10 @@ function mapFieldToColumn(
         : field.type === "file"
           ? "file"
           : "text",
-    readOnly: Boolean(field.readOnly),
+    readOnly: slug === "grouping" && field.key === "groupNo" ? false : Boolean(field.readOnly),
     ...(field.options ? { options: field.options } : {}),
   };
+
 }
 
 function getDefaultPlaceholder(field: MasterFieldDefinition) {

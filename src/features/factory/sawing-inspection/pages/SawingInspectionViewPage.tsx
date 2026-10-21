@@ -25,6 +25,7 @@ import {
   Upload,
 } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -766,6 +767,15 @@ export const SawingInspectionViewPage: React.FC = () => {
                 </Typography>
               </Stack>
             ) : null}
+            <FactoryProductionPipeline
+              currentStage={
+                isAlreadyTransferred
+                  ? "production-warehouse"
+                  : isPass || isFail
+                    ? "sawing-inspection-done"
+                    : "sawing-inspection"
+              }
+            />
           </Stack>
         </Box>
 

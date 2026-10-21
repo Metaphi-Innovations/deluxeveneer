@@ -50,14 +50,21 @@ export function orderGroupingCreateFields(fields: readonly MasterFieldDefinition
         field.key !== "grade",
     )
     .map((field) =>
-      field.key === "itemName" ? { ...field, readOnly: true } : field,
+      field.key === "itemName"
+        ? { ...field, readOnly: true }
+        : field,
     );
-  const colorField = groupingFields.find(
+  const groupNoField = groupingFields.find((field) => field.key === "groupNo");
+  const withoutGroupNo = groupNoField
+    ? groupingFields.filter((field) => field !== groupNoField)
+    : groupingFields;
+
+  const colorField = withoutGroupNo.find(
     (field) => field.key === "color" || field.key === "colour",
   );
   const withoutColor = colorField
-    ? groupingFields.filter((field) => field !== colorField)
-    : groupingFields;
+    ? withoutGroupNo.filter((field) => field !== colorField)
+    : withoutGroupNo;
   const logNoIndex = withoutColor.findIndex((field) => field.key === "logNo");
   const orderedFields = colorField && logNoIndex >= 0
     ? [
@@ -67,10 +74,13 @@ export function orderGroupingCreateFields(fields: readonly MasterFieldDefinition
       ]
     : withoutColor;
 
-  return insertFactoryCreateField(orderedFields, "groupPhoto", (withoutSpecialField) =>
+  const withPhoto = insertFactoryCreateField(orderedFields, "groupPhoto", (withoutSpecialField) =>
     withoutSpecialField.findIndex((field) => field.key === "remark"),
   );
+
+  return groupNoField ? [groupNoField, ...withPhoto] : withPhoto;
 }
+
 
 function readWholeLeafCount(value: unknown) {
   const text = String(value ?? "").trim();
@@ -228,6 +238,9 @@ export function validateGroupingRow({
   const leavesText = String(values.noOfLeaves ?? "").trim();
   const leaves = readWholeLeafCount(leavesText);
 
+  if (!String(values.groupNo ?? "").trim()) {
+    fieldErrors.groupNo = "Group No. is required.";
+  }
   if (!String(values.itemName ?? "").trim()) {
     fieldErrors.itemName = "Item Name is required.";
   }
@@ -343,7 +356,10 @@ export function applyGroupingCreateSnapshot(
   resultSnapshot: Record<string, unknown>,
   sourceRow: Record<string, unknown> | undefined,
 ) {
-  resultSnapshot.groupNo = getExistingGroupNo(sourceRow) || allocateNextGroupNo();
+  resultSnapshot.groupNo =
+    (typeof resultSnapshot.groupNo === "string" && resultSnapshot.groupNo.trim()) ||
+    getExistingGroupNo(sourceRow) ||
+    allocateNextGroupNo();
   // Grouping is stock/process — do not carry order/customer onto the batch.
   delete resultSnapshot.orderNo;
   delete resultSnapshot.orderDate;
@@ -351,3 +367,4 @@ export function applyGroupingCreateSnapshot(
   delete resultSnapshot.customerName;
   delete resultSnapshot.productName;
 }
+

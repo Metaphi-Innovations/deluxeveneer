@@ -3,6 +3,7 @@ export type InvoiceGstMode = "intra" | "inter";
 export type InvoiceTotalsSummary = {
   subTotal: number;
   additionalCharges: number;
+  discountTotal?: number;
   taxableAmount: number;
   gstLines: ReadonlyArray<{ label: string; value: number }>;
   total: number;
@@ -21,13 +22,14 @@ function withPercentLabel(base: string, percent: number): string {
 
 /**
  * Invoice totals order:
- * Sub Total → Additional Charges → Taxable Amount → GST (C/S or I) → Total
+ * Sub Total → Additional Charges → Discount (if applicable) → Taxable Amount → GST (C/S or I) → Total
  *
- * GST amounts come from line items; % labels are derived from item sub total.
+ * GST amounts come from line items; % labels are derived from item sub total or taxable amount.
  */
 export function buildInvoiceTotalsSummary(input: {
   itemSubTotal: number;
   additionalCharges: number;
+  discountTotal?: number;
   cgst: number;
   sgst: number;
   igst: number;
@@ -35,15 +37,18 @@ export function buildInvoiceTotalsSummary(input: {
 }): InvoiceTotalsSummary {
   const subTotal = Number(input.itemSubTotal) || 0;
   const additionalCharges = Number(input.additionalCharges) || 0;
+  const discountTotal = Math.max(0, Number(input.discountTotal) || 0);
   const cgst = Number(input.cgst) || 0;
   const sgst = Number(input.sgst) || 0;
   const igst = Number(input.igst) || 0;
 
-  const taxableAmount = subTotal + additionalCharges;
+  const baseTaxable = Math.max(0, subTotal - discountTotal);
+  const taxableAmount = baseTaxable + additionalCharges;
   const gstAmount = cgst + sgst + igst;
   const total = taxableAmount + gstAmount;
+  const effectiveBase = baseTaxable > 0 ? baseTaxable : subTotal;
   const effectiveRate =
-    subTotal > 0 ? (gstAmount / subTotal) * 100 : 0;
+    effectiveBase > 0 ? (gstAmount / effectiveBase) * 100 : 0;
 
   const gstLines =
     input.gstMode === "intra"
@@ -67,6 +72,7 @@ export function buildInvoiceTotalsSummary(input: {
   return {
     subTotal,
     additionalCharges,
+    discountTotal,
     taxableAmount,
     gstLines,
     total,

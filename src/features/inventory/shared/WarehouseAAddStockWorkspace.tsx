@@ -392,6 +392,12 @@ export const WarehouseAAddStockWorkspace = forwardRef<
                   label="Additional Charges"
                   value={invoiceSummary.additionalCharges}
                 />
+                {invoiceSummary.discountTotal !== undefined && invoiceSummary.discountTotal > 0 ? (
+                  <SummaryLine
+                    label="Discount"
+                    value={-invoiceSummary.discountTotal}
+                  />
+                ) : null}
                 <SummaryLine
                   label="Taxable Amount"
                   value={invoiceSummary.taxableAmount}

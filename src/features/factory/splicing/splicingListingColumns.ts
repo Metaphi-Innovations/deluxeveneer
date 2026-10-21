@@ -4,7 +4,6 @@ import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
 const splicingDoneOrderColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
-  { key: "issuedFor", label: "Issue For" },
   { key: "orderDate", label: "Order Date" },
   { key: "customerName", label: "Customer Name" },
   { key: "orderNo", label: "Order No" },
@@ -16,10 +15,20 @@ const splicingDoneOrderKeys = new Set(
 );
 
 const splicingDoneHiddenKeys = new Set([
-  "groupNo",
   "groupPhoto",
-  "groupingDate",
+  "issuedDate",
+  "storageSrNo",
 ]);
+
+function formatSplicingDate(value: unknown) {
+  const date = value instanceof Date ? value : typeof value === "string" && value.trim() ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 const splicingIssuedLeafColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "receivedNoOfLeaves", label: "Received No of Leaves" },
@@ -72,21 +81,66 @@ function withSplicingIssuedLeafColumns<Row extends FactoryRecord>(
   ];
 }
 
+function withIssuedPurposeColumn<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  const purposeColumn: EnterpriseTableColumn<Row> = {
+    key: "issuePurpose",
+    label: "Issued For",
+  };
+  const withoutPurpose = columns.filter(
+    (column) => column.key !== purposeColumn.key,
+  );
+  const groupNoIndex = withoutPurpose.findIndex(
+    (column) => column.key === "groupNo",
+  );
+
+  if (groupNoIndex === -1) {
+    return [purposeColumn, ...withoutPurpose];
+  }
+
+  return [
+    ...withoutPurpose.slice(0, groupNoIndex + 1),
+    purposeColumn,
+    ...withoutPurpose.slice(groupNoIndex + 1),
+  ];
+}
+
 export function applySplicingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
+  const withoutSharedHiddenColumns = columns.filter(
+    (column) => column.key !== "storageSrNo" && column.key !== "groupingDate",
+  );
+  const withIssuedPurpose = withIssuedPurposeColumn(withoutSharedHiddenColumns);
+
   if (activeTab === "issued") {
     return withAvailableFactoryMeasureColumns(
-      withOrderColumnsBeforeItem(withSplicingIssuedLeafColumns(columns)),
+      withOrderColumnsBeforeItem(
+        withSplicingIssuedLeafColumns(withIssuedPurpose),
+      ),
     );
   }
 
   if (activeTab !== "done") {
-    return columns;
+    return activeTab === "rejected"
+      ? withIssuedPurpose.map((column) =>
+          column.key === "issuedDate"
+            ? {
+                ...column,
+                label: "Rejected Date",
+                renderCell: (row: Row) =>
+                  formatSplicingDate(
+                    row.rejectedDate ?? row.rejectedAt ?? row.processDate ?? row.issuedDate,
+                  ),
+              }
+            : column,
+        )
+      : withIssuedPurpose;
   }
 
-  const withoutHiddenColumns = columns.filter(
+  const withoutHiddenColumns = withIssuedPurpose.filter(
     (column) => !splicingDoneHiddenKeys.has(column.key),
   );
 

@@ -60,25 +60,25 @@ export function WarehouseKpiCards({ cards, isLoading }: WarehouseKpiCardsProps) 
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: 26,
-                  height: 26,
+                  width: 28,
+                  height: 28,
                   flexShrink: 0,
                   borderRadius: "6px",
                   backgroundColor:
                     card.colorScheme === "success"
-                      ? theme.palette.success.light ?? "rgba(46, 125, 50, 0.1)"
+                      ? theme.customTokens.semanticScale.success[100]
                       : card.colorScheme === "warning"
-                      ? theme.palette.warning.light ?? "rgba(237, 108, 2, 0.1)"
-                      : theme.customTokens.brand.primaryScale[50],
+                      ? theme.customTokens.semanticScale.warning[100]
+                      : theme.customTokens.brand.primaryScale[100],
                   color:
                     card.colorScheme === "success"
-                      ? theme.palette.success.main
+                      ? theme.customTokens.semanticScale.success[800]
                       : card.colorScheme === "warning"
-                      ? theme.palette.warning.main
+                      ? theme.customTokens.semanticScale.warning[900]
                       : theme.customTokens.brand.primary,
                 })}
               >
-                <Icon size={14} strokeWidth={2} />
+                <Icon size={16} strokeWidth={2.25} />
               </Box>
 
               <Box sx={{ minWidth: 0, flex: 1 }}>

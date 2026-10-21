@@ -234,11 +234,11 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const theme = useTheme();
   const denseCellSx = dense
     ? {
-        fontSize: "12px",
-        lineHeight: 1.2,
-        px: 0.75,
-        py: 0.3,
-      }
+      fontSize: "12px",
+      lineHeight: 1.2,
+      px: 0.75,
+      py: 0.3,
+    }
     : {};
   const resolveColumnMinWidth = (columnKey: string, columnLabel: string) => {
     const width = getListingColumnMinWidth(columnKey, columnLabel);
@@ -736,9 +736,17 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         <TableContainer
           ref={tableScrollRef}
           sx={{
-            maxHeight: rowsPerPage === defaultRowsPerPage ? "none" : maxBodyHeight,
+            maxHeight: hidePagination
+              ? (maxBodyHeight ?? "none")
+              : rowsPerPage <= 10
+                ? "none"
+                : "530px",
             overflowX: "auto",
-            overflowY: rowsPerPage === defaultRowsPerPage ? "hidden" : "auto",
+            overflowY: hidePagination
+              ? (maxBodyHeight ? "auto" : "visible")
+              : rowsPerPage <= 10
+                ? "hidden"
+                : "auto",
             scrollbarWidth: "thin",
             scrollbarColor: subtleScrollbar
               ? `${theme.customTokens.neutrals[400]} transparent`
@@ -788,10 +796,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       selectionColumnLabel
                         ? [listingTableHeaderCellSx(theme), denseCellSx]
                         : [
-                            listingTableHeaderCellSx(theme),
-                            compactCheckboxCellSx,
-                            denseCellSx,
-                          ]
+                          listingTableHeaderCellSx(theme),
+                          compactCheckboxCellSx,
+                          denseCellSx,
+                        ]
                     }
                   >
                     <Box
@@ -844,10 +852,10 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                           : {}),
                         ...(pinBeforeActions
                           ? {
-                              right: actionColumnWidth,
-                              zIndex: 4,
-                              boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
-                            }
+                            right: actionColumnWidth,
+                            zIndex: 4,
+                            boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                          }
                           : {}),
                       }}
                     >
@@ -996,6 +1004,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                           backgroundColor: isSelected
                             ? theme.customTokens.navigation.activeBackground
                             : theme.customTokens.surfaces.surface,
+                          transition: "background-color 0.15s ease",
                         },
                         "&:hover td": {
                           backgroundColor: isSelected
@@ -1043,11 +1052,11 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                                 : {}),
                               ...(pinBeforeActions
                                 ? {
-                                    position: "sticky",
-                                    right: actionColumnWidth,
-                                    zIndex: 1,
-                                    boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
-                                  }
+                                  position: "sticky",
+                                  right: actionColumnWidth,
+                                  zIndex: 1,
+                                  boxShadow: `-1px 0 0 ${theme.customTokens.borders.default}`,
+                                }
                                 : {}),
                             }}
                           >
@@ -1105,6 +1114,13 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   );
                 })
                 : null}
+              {/* Spacer row to prevent horizontal scrollbar from overlaying or conflicting with the last data row */}
+              <TableRow sx={{ height: 10, visibility: "hidden" }}>
+                <TableCell
+                  colSpan={displayColumns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0)}
+                  sx={{ p: 0, border: "none", height: 10, lineHeight: 0 }}
+                />
+              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
@@ -1572,8 +1588,12 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
     return renderForPurposeBadge(row[column.key], theme);
   }
 
-  if (column.key === "groupPhoto") {
-    return renderGroupPhotoCell(row[column.key], theme);
+  if (column.key === "groupPhoto" || column.key === "inspectionImage") {
+    return renderPhotoPreviewCell(
+      row[column.key],
+      theme,
+      column.key === "inspectionImage" ? "Inspection Image" : "Group Photo",
+    );
   }
 
   const isStatusRelatedColumn =
@@ -1909,8 +1929,8 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
         px: 1,
         borderRadius: "999px",
         border: `1px solid ${isSample
-            ? theme.customTokens.brand.primary
-            : theme.customTokens.borders.default
+          ? theme.customTokens.brand.primary
+          : theme.customTokens.borders.default
           }`,
         backgroundColor: isSample
           ? `${theme.customTokens.brand.primary}14`
@@ -1931,13 +1951,21 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
   );
 }
 
-function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme }) {
+function PhotoPreviewCell({
+  photoUrl,
+  theme,
+  title,
+}: {
+  photoUrl: string;
+  theme: Theme;
+  title: string;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <Stack direction="row" alignItems="center" spacing={1}>
-        <Tooltip title="View Group Photo">
+        <Tooltip title={`View ${title}`}>
           <IconButton
             size="small"
             onClick={(e) => {
@@ -1982,13 +2010,13 @@ function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme })
         onClick={(e) => e.stopPropagation()}
       >
         <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="h6" fontWeight={600}>Group Photo</Typography>
+          <Typography variant="h6" fontWeight={600}>{title}</Typography>
         </DialogTitle>
         <DialogContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", p: 2 }}>
           <Box
             component="img"
             src={photoUrl}
-            alt="Group Photo"
+            alt={title}
             sx={{
               maxWidth: "100%",
               maxHeight: "70vh",
@@ -2008,7 +2036,11 @@ function GroupPhotoCell({ photoUrl, theme }: { photoUrl: string; theme: Theme })
   );
 }
 
-function renderGroupPhotoCell(value: EnterpriseTableCellValue, theme: Theme) {
+function renderPhotoPreviewCell(
+  value: EnterpriseTableCellValue,
+  theme: Theme,
+  title: string,
+) {
   const photoUrl = typeof value === "string" && value.trim() ? value.trim() : "";
   if (!photoUrl) {
     return (
@@ -2018,7 +2050,7 @@ function renderGroupPhotoCell(value: EnterpriseTableCellValue, theme: Theme) {
     );
   }
 
-  return <GroupPhotoCell photoUrl={photoUrl} theme={theme} />;
+  return <PhotoPreviewCell photoUrl={photoUrl} theme={theme} title={title} />;
 }
 
 function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
@@ -2053,40 +2085,40 @@ function renderQcStatusChip(value: EnterpriseTableCellValue, theme: Theme) {
   const label = isRecheck
     ? "Recheck"
     : normalizedValue === "partially pending"
-    ? "Partially Pending"
-    : normalizedValue === "inspection pass"
-    ? "Inspection Pass"
-    : normalizedValue === "inspection fail"
-      ? "Inspection Fail"
-      : isInspectionStatus
-        ? isDone || isPass
-          ? "Inspection Done"
-          : isPartial
-            ? "Partially Done"
-            : "Pending"
-        : normalizedValue === "done"
-          ? "Done"
-          : isDone
-            ? "QC Done"
-            : isPartial
-              ? "Partially Done"
-              : isPass
-                ? "QC Pass"
-                : isFail
-                  ? "QC Fail"
-                  : normalizedValue === "pending"
-                    ? "Pending"
-                    : formatEnterpriseValue(value);
+      ? "Partially Pending"
+      : normalizedValue === "inspection pass"
+        ? "Inspection Pass"
+        : normalizedValue === "inspection fail"
+          ? "Inspection Fail"
+          : isInspectionStatus
+            ? isDone || isPass
+              ? "Inspection Done"
+              : isPartial
+                ? "Partially Done"
+                : "Pending"
+            : normalizedValue === "done"
+              ? "Done"
+              : isDone
+                ? "QC Done"
+                : isPartial
+                  ? "Partially Done"
+                  : isPass
+                    ? "QC Pass"
+                    : isFail
+                      ? "QC Fail"
+                      : normalizedValue === "pending"
+                        ? "Pending"
+                        : formatEnterpriseValue(value);
 
   const palette = isRecheck
     ? theme.customTokens.semanticScale.info
     : isDone || isPass
-    ? theme.customTokens.semanticScale.success
-    : isPartial
-      ? theme.customTokens.semanticScale.info
-      : isFail
-        ? theme.customTokens.semanticScale.error
-        : theme.customTokens.semanticScale.warning;
+      ? theme.customTokens.semanticScale.success
+      : isPartial
+        ? theme.customTokens.semanticScale.info
+        : isFail
+          ? theme.customTokens.semanticScale.error
+          : theme.customTokens.semanticScale.warning;
 
   return (
     <Chip

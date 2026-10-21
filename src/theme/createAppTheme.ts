@@ -4,6 +4,7 @@ import { deluxeTokens } from "./tokens";
 import {
   portalControlHeights,
   portalFontFamily,
+  portalTableDensity,
   portalTypography,
 } from "./typography";
 
@@ -237,6 +238,29 @@ export const appTheme = createTheme({
           backgroundImage: "none",
           fontFamily: portalFontFamily,
         },
+        rounded: {
+          borderRadius: `${deluxeTokens.radius.md}px`,
+        },
+        outlined: {
+          borderColor: deluxeTokens.borders.default,
+          borderRadius: `${deluxeTokens.radius.md}px`,
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: `${deluxeTokens.radius.md}px`,
+          borderColor: deluxeTokens.borders.default,
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: `${deluxeTokens.radius.lg}px`,
+          border: `1px solid ${deluxeTokens.borders.default}`,
+        },
       },
     },
     MuiListItemButton: {
@@ -381,6 +405,17 @@ export const appTheme = createTheme({
         root: {
           ...controlTextSx,
           minHeight: portalControlHeights.standard,
+          borderRadius: `${deluxeTokens.radius.md}px`,
+          "& .MuiOutlinedInput-notchedOutline": {
+            borderColor: deluxeTokens.borders.default,
+            transition: "border-color 0.15s ease",
+          },
+          "&:hover .MuiOutlinedInput-notchedOutline": {
+            borderColor: deluxeTokens.borders.hover,
+          },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            borderColor: deluxeTokens.borders.focus,
+          },
         },
         input: {
           ...controlTextSx,
@@ -530,16 +565,35 @@ export const appTheme = createTheme({
           fontSize: portalTypography.tableBody.fontSize,
           fontWeight: portalTypography.tableBody.fontWeight,
           lineHeight: portalTypography.tableBody.lineHeight,
+          paddingTop: `${portalTableDensity.bodyPy * 8}px`,
+          paddingBottom: `${portalTableDensity.bodyPy * 8}px`,
+          paddingLeft: `${portalTableDensity.bodyPx * 8}px`,
+          paddingRight: `${portalTableDensity.bodyPx * 8}px`,
+          borderColor: deluxeTokens.borders.divider,
         },
         head: {
           fontSize: portalTypography.tableHeader.fontSize,
           fontWeight: portalTypography.tableHeader.fontWeight,
           lineHeight: portalTypography.tableHeader.lineHeight,
+          paddingTop: `${portalTableDensity.headerPy * 8}px`,
+          paddingBottom: `${portalTableDensity.headerPy * 8}px`,
+          paddingLeft: `${portalTableDensity.headerPx * 8}px`,
+          paddingRight: `${portalTableDensity.headerPx * 8}px`,
+          backgroundColor: "#F7F4F3",
+          borderColor: deluxeTokens.borders.default,
         },
         body: {
           fontSize: portalTypography.tableBody.fontSize,
           fontWeight: portalTypography.tableBody.fontWeight,
           lineHeight: portalTypography.tableBody.lineHeight,
+          borderColor: deluxeTokens.borders.divider,
+        },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          transition: "background-color 0.15s ease",
         },
       },
     },

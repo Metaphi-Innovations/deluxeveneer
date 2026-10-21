@@ -57,7 +57,7 @@ export function readMarquetryDrafts(
       String(row.id),
       {
         leavesUsed: readText(row.leavesUsed),
-        remark: readText(row.remark),
+        remark: readText(row.marquetryIssueRemark ?? row.remark),
       },
     ]),
   );

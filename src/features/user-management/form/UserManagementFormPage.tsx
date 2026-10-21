@@ -408,7 +408,12 @@ export function UserManagementFormPage({
       );
       return false;
     }
-    return !hasFormFieldErrors(activeFields, values);
+    const hasErrors = hasFormFieldErrors(activeFields, values);
+    if (hasErrors) {
+      setErrorMessage("Please fill in all required user details marked with *.");
+      return false;
+    }
+    return true;
   };
 
   const handleContinueToPermissions = () => {
@@ -442,6 +447,7 @@ export function UserManagementFormPage({
     }
 
     if (hasFormFieldErrors(activeFields, values)) {
+      setErrorMessage("Please fill in all required user details marked with * before saving.");
       setActiveStep("basic");
       return;
     }
