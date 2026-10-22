@@ -767,6 +767,7 @@ export function CustomerAddressesSection({
               >
                 <AddressTextField
                   label="Address"
+                  placeholder="Enter Address"
                   value={address.address}
                   readOnly={readOnly}
                   onChange={(value) => onChange(index, "address", value)}
@@ -781,6 +782,7 @@ export function CustomerAddressesSection({
                   inputMode="numeric"
                   label="Pincode"
                   maxLength={6}
+                  placeholder="400001"
                   value={address.pincode}
                   readOnly={readOnly}
                   onChange={(value) => handlePincodeChange(index, value)}
@@ -830,6 +832,7 @@ export function AddressTextField({
   helperText,
   inputMode,
   maxLength,
+  placeholder,
   readOnly,
   value,
 }: {
@@ -839,6 +842,7 @@ export function AddressTextField({
   helperText?: string;
   inputMode?: "numeric";
   maxLength?: number;
+  placeholder?: string;
   readOnly: boolean;
   value: string;
 }) {
@@ -847,15 +851,22 @@ export function AddressTextField({
       fullWidth
       error={error}
       helperText={helperText}
-      label={label}
       onChange={(event) => onChange(event.target.value)}
+      placeholder={placeholder ?? `Enter ${label}`}
       size="small"
-      sx={(theme) =>
-        getMastersCompactFieldSx(
+      sx={(theme) => ({
+        ...getMastersCompactFieldSx(
           theme,
           error ? "error" : readOnly ? "readOnly" : "default",
-        )
-      }
+        ),
+        "& .MuiInputBase-input::placeholder": {
+          color: theme.palette.text.disabled,
+          fontSize: "13px",
+          fontWeight: 400,
+          opacity: 1,
+          WebkitTextFillColor: theme.palette.text.disabled,
+        },
+      })}
       slotProps={{
         input: { readOnly },
         htmlInput: {
@@ -882,37 +893,19 @@ export function AddressSelectField({
   value: string;
 }) {
   return (
-    <Box sx={{ position: "relative", width: "100%" }}>
-      <Typography
-        sx={(theme) => ({
-          backgroundColor: theme.customTokens.surfaces.surface,
-          color: theme.customTokens.text.primary,
-          fontSize: "0.6875rem",
-          fontWeight: 600,
-          left: value.trim() ? 10 : 12,
-          lineHeight: value.trim() ? 1 : 1.2,
-          pointerEvents: "none",
-          px: value.trim() ? 0.5 : 0,
-          position: "absolute",
-          top: value.trim() ? -4 : 10,
-          zIndex: 1,
-        })}
-      >
-        {label}
-      </Typography>
-      <ErpSelectField
-        controlHeight={36}
-        controlRadius={6}
-        focusRing="subtle"
-        maxVisibleOptions={160}
-        onChange={onChange}
-        options={options}
-        searchable
-        size="regular"
-        state={readOnly ? "readOnly" : "default"}
-        value={value}
-      />
-    </Box>
+    <ErpSelectField
+      controlHeight={36}
+      controlRadius={6}
+      focusRing="subtle"
+      maxVisibleOptions={160}
+      onChange={onChange}
+      options={options}
+      placeholder={`Select ${label}`}
+      searchable
+      size="regular"
+      state={readOnly ? "readOnly" : "default"}
+      value={value}
+    />
   );
 }
 

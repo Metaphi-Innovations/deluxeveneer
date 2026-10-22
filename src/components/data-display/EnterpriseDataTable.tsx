@@ -48,6 +48,8 @@ import {
   buildActiveFilterChips,
   buildDistinctColumnFilterOptions,
   ColumnFilterPopoverRouter,
+  decodeAuditFilterValues,
+  encodeAuditFilterValues,
   getColumnFilterBadgeCount,
   isActiveColumnFilter,
   matchColumnFilter,
@@ -389,6 +391,29 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     > = {};
 
     displayColumns.forEach((column) => {
+      if (column.audit) {
+        const nameValues = rows.map((row) =>
+          formatEnterpriseValue(
+            row[column.audit?.nameKey ?? column.key],
+            column.audit?.nameKey,
+            column.label,
+          ),
+        );
+        const nameServerOptions = column.audit.nameKey
+          ? filterOptionsByColumn?.[column.audit.nameKey] ?? []
+          : [];
+        const nameOptions =
+          nameServerOptions.length > 0
+            ? nameServerOptions
+            : buildDistinctColumnFilterOptions(nameValues);
+        meta[column.key] = {
+          filterType: "audit",
+          options: nameOptions,
+          uniqueCount: nameOptions.length,
+        };
+        return;
+      }
+
       const sampleValues = rows.map((row) => row[column.key]);
       const filterType = resolveListingColumnFilterType({
         key: column.key,
@@ -435,10 +460,35 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
         }
 
         const rawValue = row[key as keyof Row & string];
+        const column = displayColumns.find((candidate) => candidate.key === key);
+
+        if (column?.audit) {
+          const auditValues = decodeAuditFilterValues(typedFilter.values);
+          const nameValue = formatEnterpriseValue(
+            row[column.audit.nameKey ?? column.key],
+            column.audit.nameKey,
+            column.label,
+          ).trim();
+          const dateValue = toDateInputValue(
+            row[column.audit.dateKey ?? column.key],
+          );
+          const matchesName =
+            auditValues.names.length === 0 || auditValues.names.includes(nameValue);
+          const matchesDateFrom =
+            !auditValues.dateFrom ||
+            (dateValue !== "" && dateValue >= auditValues.dateFrom);
+          const matchesDateTo =
+            !auditValues.dateTo ||
+            (dateValue !== "" && dateValue <= auditValues.dateTo);
+          if (auditValues.names.length > 0 || auditValues.dateFrom || auditValues.dateTo) {
+            return matchesName && matchesDateFrom && matchesDateTo;
+          }
+        }
+
         const cellValue = formatEnterpriseValue(
           rawValue,
           key,
-          displayColumns.find((column) => column.key === key)?.label,
+          column?.label,
         ).trim();
         return matchColumnFilter(rawValue, cellValue, typedFilter);
       }),
@@ -600,7 +650,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   ) => {
     setActiveFilterColumn(columnKey);
     setFilterMenuAnchor(event.currentTarget);
-    onColumnFilterOpen?.(columnKey);
+    const column = displayColumns.find((candidate) => candidate.key === columnKey);
+    onColumnFilterOpen?.(column?.audit?.nameKey ?? columnKey);
   };
 
   const handleCloseFilter = () => {
@@ -640,6 +691,16 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
           type: "multiSelect",
           values,
         },
+    );
+  };
+
+  const handleApplyAuditFilter = (
+    names: string[],
+    dateFrom: string,
+    dateTo: string,
+  ) => {
+    handleApplyMultiSelectFilter(
+      encodeAuditFilterValues(names, dateFrom, dateTo),
     );
   };
 
@@ -1139,13 +1200,6 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   );
                 })
                 : null}
-              {/* Spacer row to prevent horizontal scrollbar from overlaying or conflicting with the last data row */}
-              <TableRow sx={{ height: 10, visibility: "hidden" }}>
-                <TableCell
-                  colSpan={displayColumns.length + (selectable ? 1 : 0) + (hasActions ? 1 : 0)}
-                  sx={{ p: 0, border: "none", height: 10, lineHeight: 0 }}
-                />
-              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
@@ -1159,16 +1213,22 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
               gap: theme.spacing(2),
               flexWrap: "wrap",
               borderTop: `1px solid ${theme.customTokens.borders.divider}`,
-              px: { xs: theme.spacing(dense ? 0.75 : 1.25), md: theme.spacing(dense ? 1 : 1.5) },
-              py: theme.spacing(dense ? 0.5 : 1),
+              px: {
+                xs: theme.spacing(dense ? 0.75 : 1.25),
+                md: theme.spacing(dense ? 1 : 1.5),
+              },
+              py: theme.spacing(dense ? 0.375 : 0.875),
               backgroundColor: theme.customTokens.surfaces.surface,
-              minHeight: 34,
+              minHeight: dense ? 40 : 48,
             }}
           >
             <Typography
               variant="caption"
               color="text.secondary"
-              sx={{ fontSize: "12px", lineHeight: 1.35 }}
+              sx={{
+                fontSize: "13px",
+                lineHeight: 1.35,
+              }}
             >
               Showing {rangeStart}–{rangeEnd} of {totalCount}
               {hasActiveFilters ? " matching records" : " records"}
@@ -1177,15 +1237,15 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
             <Stack
               direction="row"
               alignItems="center"
-              spacing={1.5}
+              spacing={1}
               flexWrap="wrap"
               useFlexGap
             >
-              <Stack direction="row" alignItems="center" spacing={0.75}>
+              <Stack direction="row" alignItems="center" spacing={0.5}>
                 <Typography
                   variant="caption"
                   color="text.secondary"
-                  sx={{ fontSize: "12px" }}
+                  sx={{ fontSize: "13px", lineHeight: 1.35 }}
                 >
                   Rows per page
                 </Typography>
@@ -1198,16 +1258,21 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     goToPage(1);
                   }}
                   sx={{
-                    minWidth: 64,
-                    height: 30,
+                    minWidth: 72,
+                    height: 34,
+                    minHeight: "34px !important",
+                    maxHeight: 34,
                     borderRadius: `${theme.customTokens.radius.sm}px`,
-                    fontSize: "12px",
+                    fontSize: "13px",
                     fontWeight: 400,
                     "& .MuiOutlinedInput-notchedOutline": {
                       borderColor: theme.customTokens.borders.default,
                     },
                     "& .MuiSelect-select": {
-                      fontSize: "12px",
+                      minHeight: "0 !important",
+                      fontSize: "13px",
+                      lineHeight: 1,
+                      px: 0.75,
                       fontWeight: 400,
                       py: 0,
                       display: "flex",
@@ -1223,7 +1288,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                 </Select>
               </Stack>
 
-              <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+              <Stack direction="row" alignItems="center" spacing={0.25} flexWrap="wrap" useFlexGap>
                 <IconButton
                   aria-label="Previous page"
                   size="small"
@@ -1231,7 +1296,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   onClick={() => goToPage((current) => Math.max(current - 1, 1))}
                   sx={listingPaginationIconButtonSx(theme)}
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={portalIconSize.tableHeader} />
                 </IconButton>
 
                 {visiblePaginationPages.map((pageItem, index) =>
@@ -1268,20 +1333,24 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                   }
                   sx={listingPaginationIconButtonSx(theme)}
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={portalIconSize.tableHeader} />
                 </IconButton>
               </Stack>
 
               <Stack
                 direction="row"
                 alignItems="center"
-                spacing={0.75}
+                  spacing={0.5}
                 sx={{ position: "relative" }}
               >
                 <Typography
                   variant="caption"
                   color="text.secondary"
-                  sx={{ fontSize: "12px", whiteSpace: "nowrap" }}
+                  sx={{
+                    fontSize: "13px",
+                    lineHeight: 1.35,
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   Go to
                 </Typography>
@@ -1306,15 +1375,17 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     "aria-label": "Go to page",
                   }}
                   sx={{
-                    width: 52,
+                    width: 56,
                     "& .MuiOutlinedInput-root": {
-                      height: 30,
+                      height: 34,
+                      minHeight: "34px !important",
+                      maxHeight: 34,
                       borderRadius: `${theme.customTokens.radius.sm}px`,
-                      fontSize: "12px",
+                      fontSize: "13px",
                       backgroundColor: theme.customTokens.surfaces.surface,
                     },
                     "& .MuiOutlinedInput-input": {
-                      p: "4px 6px",
+                      p: "1px 4px",
                       textAlign: "center",
                     },
                     "& .MuiOutlinedInput-notchedOutline": {
@@ -1365,12 +1436,14 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     variant="outlined"
                     onClick={handleGoToPageSubmit}
                     sx={{
-                      minWidth: 36,
-                      height: 30,
+                      minWidth: 40,
+                      height: 34,
+                      minHeight: "34px !important",
+                      maxHeight: 34,
                       px: 1,
                       py: 0,
                       borderRadius: `${theme.customTokens.radius.sm}px`,
-                      fontSize: "12px",
+                      fontSize: "13px",
                       fontWeight: 500,
                       textTransform: "none",
                       borderColor: goToPageError
@@ -1427,6 +1500,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
           value={filters[activeFilterColumn!]}
           onApply={handleApplyFilter}
           onApplyMultiSelect={handleApplyMultiSelectFilter}
+          onApplyAudit={handleApplyAuditFilter}
           onClear={() => handleClearFilter()}
         />
       ) : null}
@@ -1741,12 +1815,12 @@ function getEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
       if (!createdAdded && hasCreatedAudit) {
         createdAdded = true;
         displayColumns.push({
-          key: (createdDateKey ?? createdNameKey ?? column.key) as keyof Row &
+          key: (createdNameKey ?? createdDateKey ?? column.key) as keyof Row &
             string,
           label: "Created",
           audit: {
-            ...(createdDateKey ? { dateKey: createdDateKey } : {}),
-            ...(createdNameKey ? { nameKey: createdNameKey } : {}),
+            dateKey: (createdDateKey ?? "createdAt") as keyof Row & string,
+            nameKey: (createdNameKey ?? "createdBy") as keyof Row & string,
             type: "created",
           },
         });
@@ -1758,12 +1832,12 @@ function getEnterpriseDisplayColumns<Row extends EnterpriseTableRow>(
     if (!updatedAdded && hasUpdatedAudit) {
       updatedAdded = true;
       displayColumns.push({
-        key: (updatedDateKey ?? updatedNameKey ?? column.key) as keyof Row &
+        key: (updatedNameKey ?? updatedDateKey ?? column.key) as keyof Row &
           string,
         label: "Updated",
         audit: {
-          ...(updatedDateKey ? { dateKey: updatedDateKey } : {}),
-          ...(updatedNameKey ? { nameKey: updatedNameKey } : {}),
+          dateKey: (updatedDateKey ?? "updatedAt") as keyof Row & string,
+          nameKey: (updatedNameKey ?? "updatedBy") as keyof Row & string,
           type: "updated",
         },
       });
@@ -2273,4 +2347,22 @@ function formatEnterpriseValue(
   }
 
   return String(value);
+}
+
+function toDateInputValue(value: unknown): string {
+  if (!value) return "";
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    return value.toISOString().slice(0, 10);
+  }
+  const str = String(value).trim();
+  if (!str) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return str;
+  }
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return "";
 }

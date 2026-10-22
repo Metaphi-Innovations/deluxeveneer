@@ -216,13 +216,19 @@ export function listingTableContainerSx(theme: Theme) {
 
 export function listingPaginationIconButtonSx(theme: Theme) {
   return {
-    width: 30,
-    height: 30,
-    minWidth: 30,
+    width: 34,
+    height: 34,
+    minWidth: 34,
+    minHeight: "34px !important",
+    maxHeight: 34,
     p: 0,
     borderRadius: `${theme.customTokens.radius.sm}px`,
     border: `1px solid ${theme.customTokens.borders.default}`,
     color: theme.customTokens.text.secondary,
+    "& svg": {
+      width: 18,
+      height: 18,
+    },
     "&.Mui-disabled": {
       opacity: 0.4,
     },
@@ -235,9 +241,11 @@ export function listingPaginationIconButtonSx(theme: Theme) {
 
 export function listingPageNumberButtonSx(theme: Theme, isActive: boolean) {
   return {
-    minWidth: 30,
-    height: 30,
-    px: 1,
+    minWidth: 34,
+    height: 34,
+    minHeight: "34px !important",
+    maxHeight: 34,
+    px: 0.5,
     py: 0,
     borderRadius: `${theme.customTokens.radius.sm}px`,
     border: `1px solid ${
@@ -251,7 +259,7 @@ export function listingPageNumberButtonSx(theme: Theme, isActive: boolean) {
     color: isActive
       ? theme.customTokens.text.inverse
       : theme.customTokens.text.secondary,
-    fontSize: portalTypography.helper.fontSize,
+    fontSize: "13px",
     fontWeight: isActive ? 600 : 500,
     textTransform: "none" as const,
     boxShadow: "none",
@@ -267,4 +275,3 @@ export function listingPageNumberButtonSx(theme: Theme, isActive: boolean) {
     },
   };
 }
-

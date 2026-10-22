@@ -12,7 +12,7 @@ import {
 import { Eye } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
-  isActiveColumnFilter,
+  toApiColumnFilters,
   type ColumnFilterValue,
 } from "../../../shared/columnFilters";
 import { mdfColumns, type MdfRow } from "../types/productionWarehouseTypes";
@@ -33,17 +33,6 @@ export interface MdfTabProps {
   canView: boolean;
   canEdit: boolean;
   onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
-}
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>,
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) continue;
-    filters[key] = filter.values;
-  }
-  return filters;
 }
 
 function mapApiItem(item: ProductionInventoryItem): MdfRow {

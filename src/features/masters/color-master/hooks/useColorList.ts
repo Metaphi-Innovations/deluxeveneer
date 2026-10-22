@@ -5,7 +5,7 @@ import { queryKeys } from "../../../../query/queryKeys";
 import { useColumnDropdownQuery } from "../../../../query/useColumnDropdownQuery";
 import { useMasterListQuery } from "../../../../query/useMasterListQuery";
 import type { ColumnFilterValue } from "../../../shared/columnFilters";
-import { isActiveColumnFilter } from "../../../shared/columnFilters";
+import { toApiColumnFilters } from "../../../shared/columnFilters";
 import type { MasterRecord } from "../../shared/types";
 import {
   fetchColorColumnDropdown,
@@ -33,22 +33,6 @@ function mapColorSortField(columnKey: string | null): string | undefined {
   }
 
   return COLOR_SORT_FIELD_MAP[columnKey];
-}
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>,
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) {
-      continue;
-    }
-
-    filters[key] = filter.values;
-  }
-
-  return filters;
 }
 
 export function useColorList() {

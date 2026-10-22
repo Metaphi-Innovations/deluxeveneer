@@ -448,7 +448,24 @@ export function MasterFormFields({
                   masters={isMastersVariant}
                 />
 
-                {fieldAction}
+                {fieldAction ? (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      height: "20px",
+                      minHeight: "20px",
+                      "& .MuiButton-root": {
+                        alignSelf: "center",
+                        height: "20px",
+                        minHeight: 0,
+                        py: 0,
+                      },
+                    }}
+                  >
+                    {fieldAction}
+                  </Box>
+                ) : null}
               </Stack>
 
               {isDetailsPresentation ? (
@@ -706,6 +723,7 @@ export function MasterFormFields({
                   }
                   onChange={(value) => handleFieldChange(field, value)}
                   options={getSelectOptions(field, locationOptions)}
+                  placeholder={getFieldPlaceholder(field)}
                   renderBottomAction={field.renderDropdownAction}
                   searchable
                   size={fieldControlSize}
@@ -1407,10 +1425,10 @@ function getFieldValidationError(
   }
 
   if (isHsnCodeField(field)) {
-    if (![4, 6, 8].includes(textValue.length)) {
-      return `HSN Code must be 4, 6, or 8 digits (${textValue.length} entered).`;
+    if (![2, 4, 6, 8].includes(textValue.length)) {
+      return `HSN Code must be 2, 4, 6, or 8 digits (${textValue.length} entered).`;
     }
-    if (!/^(?:\d{4}|\d{6}|\d{8})$/.test(textValue)) {
+    if (!/^(?:\d{2}|\d{4}|\d{6}|\d{8})$/.test(textValue)) {
       return "HSN Code must contain digits only.";
     }
   }

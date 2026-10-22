@@ -121,7 +121,8 @@ export function QuickAddUnitModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="sm"
@@ -288,6 +289,7 @@ export function QuickAddUnitModal({
           </Button>
         </DialogActions>
       </form>
+      </Dialog>
 
       <Snackbar
         open={Boolean(toastNotification)}
@@ -306,6 +308,6 @@ export function QuickAddUnitModal({
           </Alert>
         ) : undefined}
       </Snackbar>
-    </Dialog>
+    </>
   );
 }

@@ -49,7 +49,7 @@ import {
 } from "../inward/supportedInwardTypes";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
-  isActiveColumnFilter,
+  toApiColumnFilters,
   type ColumnFilterValue,
 } from "../../shared/columnFilters";
 import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
@@ -79,19 +79,6 @@ const INWARD_SORT_FIELD_MAP: Record<string, string> = {
 function mapInwardSortField(columnKey: string | null): string | undefined {
   if (!columnKey) return undefined;
   return INWARD_SORT_FIELD_MAP[columnKey];
-}
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>,
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) continue;
-    filters[key] = filter.values;
-  }
-
-  return filters;
 }
 
 const inwardInventoryTabs = [

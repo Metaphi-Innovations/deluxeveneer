@@ -97,6 +97,8 @@ export type WarehouseInventoryRow = {
   inspectionDate?: string;
   createdBy?: string;
   updatedBy?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 };
 
 type WarehouseTableConfig = {
@@ -153,7 +155,12 @@ export const warehouseInvoiceListingColumns: readonly EnterpriseTableColumn<Ware
   ];
 
 const warehouseBColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
-  [...warehouseBaseColumns, { key: "status", label: "Status" }];
+  [
+    ...warehouseBaseColumns,
+    { key: "status", label: "Status" },
+    { key: "createdBy", label: "Created By" },
+    { key: "updatedBy", label: "Updated By" },
+  ];
 
 const withQcStatusColumn = (
   columns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[],
@@ -322,6 +329,10 @@ function normalizeRawVeneerRow(
     avSqf: "",
     plywoodType: "",
     mdfType: "",
+    createdBy: String(row.createdBy ?? "Admin"),
+    updatedBy: String(row.updatedBy ?? row.createdBy ?? "Admin"),
+    createdAt: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
+    updatedAt: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
   };
 }
 
@@ -392,6 +403,10 @@ function normalizeStockRow(
     avSqf: formatSqfFromSqm(availableSqm),
     plywoodType: String(row.plywoodType ?? ""),
     mdfType: String(row.plywoodType ?? ""),
+    createdBy: String(row.createdBy ?? "Admin"),
+    updatedBy: String(row.updatedBy ?? row.createdBy ?? "Admin"),
+    createdAt: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
+    updatedAt: row.inwardDate instanceof Date ? row.inwardDate : new Date(),
   };
 }
 

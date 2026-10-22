@@ -3,7 +3,10 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 
 import { queryKeys } from "../../../query/queryKeys";
 import { useDebouncedValue } from "../../../query/useDebouncedValue";
-import type { ActiveColumnFilterChip } from "../../shared/columnFilters";
+import {
+  encodeAuditFilterValues,
+  type ActiveColumnFilterChip,
+} from "../../shared/columnFilters";
 import {
   fetchUserManagementPaginated,
   updateUserManagementStatus,
@@ -28,7 +31,11 @@ export function useUserList(canEdit: boolean) {
   const [phoneFilter, setPhoneFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [createdByFilter, setCreatedByFilter] = useState<string[]>([]);
+  const [createdDateFrom, setCreatedDateFrom] = useState("");
+  const [createdDateTo, setCreatedDateTo] = useState("");
   const [updatedByFilter, setUpdatedByFilter] = useState<string[]>([]);
+  const [updatedDateFrom, setUpdatedDateFrom] = useState("");
+  const [updatedDateTo, setUpdatedDateTo] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: SortColumnKey;
     direction: "asc" | "desc";
@@ -117,7 +124,13 @@ export function useUserList(canEdit: boolean) {
       if (createdByFilter.length > 0 && !createdByFilter.includes(row.createdBy)) {
         return false;
       }
+      if (!matchesAuditDateRange(row.createdDate, createdDateFrom, createdDateTo)) {
+        return false;
+      }
       if (updatedByFilter.length > 0 && !updatedByFilter.includes(row.updatedBy)) {
+        return false;
+      }
+      if (!matchesAuditDateRange(row.updatedDate, updatedDateFrom, updatedDateTo)) {
         return false;
       }
       return true;
@@ -190,6 +203,8 @@ export function useUserList(canEdit: boolean) {
     });
   }, [
     createdByFilter,
+    createdDateFrom,
+    createdDateTo,
     departmentFilter,
     emailFilter,
     phoneFilter,
@@ -197,6 +212,8 @@ export function useUserList(canEdit: boolean) {
     sortConfig,
     statusFilter,
     updatedByFilter,
+    updatedDateFrom,
+    updatedDateTo,
     userFilter,
   ]);
 
@@ -210,7 +227,11 @@ export function useUserList(canEdit: boolean) {
     phoneFilter,
     statusFilter,
     createdByFilter,
+    createdDateFrom,
+    createdDateTo,
     updatedByFilter,
+    updatedDateFrom,
+    updatedDateTo,
     rowsPerPage,
   ]);
 
@@ -302,29 +323,39 @@ export function useUserList(canEdit: boolean) {
         },
       });
     }
-    if (createdByFilter.length > 0) {
+    if (createdByFilter.length > 0 || createdDateFrom || createdDateTo) {
       chips.push({
         columnKey: "createdBy",
         columnLabel: "Created By",
-        filter: { type: "multiSelect", values: createdByFilter },
+        filter: {
+          type: "multiSelect",
+          values: encodeAuditFilterValues(createdByFilter, createdDateFrom, createdDateTo),
+        },
       });
     }
-    if (updatedByFilter.length > 0) {
+    if (updatedByFilter.length > 0 || updatedDateFrom || updatedDateTo) {
       chips.push({
         columnKey: "updatedBy",
         columnLabel: "Updated By",
-        filter: { type: "multiSelect", values: updatedByFilter },
+        filter: {
+          type: "multiSelect",
+          values: encodeAuditFilterValues(updatedByFilter, updatedDateFrom, updatedDateTo),
+        },
       });
     }
 
     return chips;
   }, [
     createdByFilter,
+    createdDateFrom,
+    createdDateTo,
     departmentFilter,
     emailFilter,
     phoneFilter,
     statusFilter,
     updatedByFilter,
+    updatedDateFrom,
+    updatedDateTo,
     userFilter,
   ]);
 
@@ -332,6 +363,8 @@ export function useUserList(canEdit: boolean) {
     activeFilterChips,
     createdByFilter,
     createdByOptions,
+    createdDateFrom,
+    createdDateTo,
     departmentFilter,
     departmentOptions,
     emailFilter,
@@ -348,6 +381,8 @@ export function useUserList(canEdit: boolean) {
     rowsPerPage,
     searchValue,
     setCreatedByFilter,
+    setCreatedDateFrom,
+    setCreatedDateTo,
     setDepartmentFilter,
     setEmailFilter,
     setPage,
@@ -356,6 +391,8 @@ export function useUserList(canEdit: boolean) {
     setSearchValue,
     setStatusFilter,
     setUpdatedByFilter,
+    setUpdatedDateFrom,
+    setUpdatedDateTo,
     setUserFilter,
     sortConfig,
     statusFilter,
@@ -363,7 +400,43 @@ export function useUserList(canEdit: boolean) {
     totalPages,
     updatedByFilter,
     updatedByOptions,
+    updatedDateFrom,
+    updatedDateTo,
     userFilter,
     userOptions,
   };
+}
+
+function toIsoDate(value: Date | string) {
+  const date = value instanceof Date ? value : value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function matchesAuditDateRange(
+  value: Date | string,
+  dateFrom: string,
+  dateTo: string,
+) {
+  if (!dateFrom && !dateTo) {
+    return true;
+  }
+
+  const dateValue = toIsoDate(value);
+  if (!dateValue) {
+    return false;
+  }
+
+  if (dateFrom && dateValue < dateFrom) {
+    return false;
+  }
+
+  if (dateTo && dateValue > dateTo) {
+    return false;
+  }
+
+  return true;
 }

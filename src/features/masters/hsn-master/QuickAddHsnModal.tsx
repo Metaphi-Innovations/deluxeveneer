@@ -23,6 +23,24 @@ import { fetchGstsApi } from "../gst-master/api/gstMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 
+const HSN_CODE_LENGTHS = [2, 4, 6, 8] as const;
+
+function getHsnCodeError(value: string) {
+  if (!value) {
+    return "HSN Code is required.";
+  }
+
+  if (!/^\d+$/.test(value)) {
+    return "HSN Code must contain digits only.";
+  }
+
+  if (!HSN_CODE_LENGTHS.includes(value.length as (typeof HSN_CODE_LENGTHS)[number])) {
+    return `HSN Code must be 2, 4, 6, or 8 digits (${value.length} entered).`;
+  }
+
+  return "";
+}
+
 interface QuickAddHsnModalProps {
   open: boolean;
   onClose: () => void;
@@ -87,6 +105,8 @@ export function QuickAddHsnModal({
     }
   }, [open]);
 
+  const hsnCodeFieldError = hsnCode ? getHsnCodeError(hsnCode) : "";
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const cleanCode = hsnCode.trim();
@@ -97,17 +117,10 @@ export function QuickAddHsnModal({
       return;
     }
 
-    if (!/^\d+$/.test(cleanCode)) {
-      const msg = "HSN Code must contain digits only.";
-      setError(msg);
-      setToastNotification({ message: msg, severity: "error" });
-      return;
-    }
-
-    if (![4, 6, 8].includes(cleanCode.length)) {
-      const msg = `HSN Code must be 4, 6, or 8 digits (${cleanCode.length} entered).`;
-      setError(msg);
-      setToastNotification({ message: msg, severity: "error" });
+    const hsnCodeError = getHsnCodeError(cleanCode);
+    if (hsnCodeError) {
+      setError(hsnCodeError);
+      setToastNotification({ message: hsnCodeError, severity: "error" });
       return;
     }
 
@@ -127,7 +140,13 @@ export function QuickAddHsnModal({
         hsnCode: cleanCode,
         description: hsnDescription.trim(),
         hsnCodeDescription: hsnDescription.trim(),
-        gstPercentage: gstPercentage.trim() ? (gstPercentage.trim().endsWith("%") ? gstPercentage.trim() : `${gstPercentage.trim()}%`) : undefined,
+        ...(gstPercentage.trim()
+          ? {
+              gstPercentage: gstPercentage.trim().endsWith("%")
+                ? gstPercentage.trim()
+                : `${gstPercentage.trim()}%`,
+            }
+          : {}),
         status: true,
       });
 
@@ -155,7 +174,8 @@ export function QuickAddHsnModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -212,15 +232,29 @@ export function QuickAddHsnModal({
               </Typography>
               <TextField
                 autoFocus
+                error={Boolean(hsnCodeFieldError)}
                 fullWidth
-                placeholder="Enter HSN code"
+                helperText={hsnCodeFieldError || " "}
+                placeholder="2, 4, 6, or 8 digits"
                 value={hsnCode}
                 onChange={(e) => {
                   const sanitized = e.target.value.replace(/\D/g, "").slice(0, 8);
                   setHsnCode(sanitized);
                   if (error) setError("");
                 }}
-                inputProps={{ maxLength: 8 }}
+                onKeyDown={(e) => {
+                  if (e.ctrlKey || e.metaKey || e.altKey) return;
+                  if (e.key.length === 1 && !/\d/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                slotProps={{
+                  htmlInput: {
+                    inputMode: "numeric",
+                    maxLength: 8,
+                    pattern: "[0-9]*",
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -263,7 +297,6 @@ export function QuickAddHsnModal({
               <Typography
                 component="label"
                 sx={(theme) => ({
-                  height: "20px",
                   fontSize: "12.5px",
                   fontWeight: 600,
                   color: theme.customTokens.text.primary,
@@ -276,6 +309,11 @@ export function QuickAddHsnModal({
                 fullWidth
                 value={gstPercentage}
                 onChange={(e) => setGstPercentage(e.target.value)}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -283,8 +321,16 @@ export function QuickAddHsnModal({
                     borderRadius: "6px",
                     fontSize: "13px",
                   },
+                  "& .MuiSelect-select": {
+                    color: gstPercentage
+                      ? theme.customTokens.text.primary
+                      : theme.palette.text.disabled,
+                  },
                 })}
               >
+                <MenuItem value="" disabled sx={{ color: "text.disabled", fontSize: "13px" }}>
+                  Select GST %
+                </MenuItem>
                 {gstOptions.map((opt) => (
                   <MenuItem key={opt} value={opt} sx={{ fontSize: "13px" }}>
                     {opt}%
@@ -321,7 +367,7 @@ export function QuickAddHsnModal({
             type="submit"
             variant="contained"
             size="small"
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(getHsnCodeError(hsnCode.trim()))}
             startIcon={<Save size={16} />}
             sx={(theme) => ({
               borderRadius: "6px",
@@ -338,6 +384,7 @@ export function QuickAddHsnModal({
           </Button>
         </DialogActions>
       </form>
+      </Dialog>
 
       <Snackbar
         open={Boolean(toastNotification)}
@@ -356,6 +403,6 @@ export function QuickAddHsnModal({
           </Alert>
         ) : undefined}
       </Snackbar>
-    </Dialog>
+    </>
   );
 }

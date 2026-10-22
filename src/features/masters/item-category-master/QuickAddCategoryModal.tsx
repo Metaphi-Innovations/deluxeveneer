@@ -23,7 +23,6 @@ import {
 } from "./api/itemCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
-import { QuickAddHsnModal } from "../hsn-master/QuickAddHsnModal";
 
 interface QuickAddCategoryModalProps {
   open: boolean;
@@ -43,7 +42,6 @@ export function QuickAddCategoryModal({
   const [hsnOptions, setHsnOptions] = useState<string[]>([]);
   const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
-  const [quickAddHsnOpen, setQuickAddHsnOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [toastNotification, setToastNotification] = useState<{
@@ -153,7 +151,8 @@ export function QuickAddCategoryModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -238,7 +237,6 @@ export function QuickAddCategoryModal({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  height: "20px",
                 }}
               >
                 <Typography
@@ -251,31 +249,17 @@ export function QuickAddCategoryModal({
                 >
                   HSN Code
                 </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setQuickAddHsnOpen(true)}
-                  sx={(theme) => ({
-                    p: 0,
-                    minWidth: "auto",
-                    fontSize: "11px",
-                    lineHeight: 1.3,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      backgroundColor: "transparent",
-                      textDecoration: "underline",
-                    },
-                  })}
-                >
-                  + Add HSN
-                </Button>
               </Box>
               <TextField
                 select
                 fullWidth
                 value={hsn}
                 onChange={(e) => handleHsnChange(e.target.value)}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -283,8 +267,16 @@ export function QuickAddCategoryModal({
                     borderRadius: "6px",
                     fontSize: "13px",
                   },
+                  "& .MuiSelect-select": {
+                    color: hsn
+                      ? theme.customTokens.text.primary
+                      : theme.palette.text.disabled,
+                  },
                 })}
               >
+                <MenuItem value="" disabled sx={{ color: "text.disabled", fontSize: "13px" }}>
+                  Select HSN Code
+                </MenuItem>
                 {hsnOptions.map((code) => (
                   <MenuItem key={code} value={code} sx={{ fontSize: "13px" }}>
                     {code}
@@ -306,6 +298,7 @@ export function QuickAddCategoryModal({
               </Typography>
               <TextField
                 fullWidth
+                placeholder="Select GST %"
                 value={gst}
                 slotProps={{
                   input: { readOnly: true },
@@ -399,21 +392,7 @@ export function QuickAddCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
-
-      <QuickAddHsnModal
-        open={quickAddHsnOpen}
-        onClose={() => setQuickAddHsnOpen(false)}
-        onSuccess={(newHsnCode, record) => {
-          setHsnOptions((prev) => [...new Set([newHsnCode, ...prev])]);
-          if (record) {
-            setHsnRows((prev) => [record, ...prev]);
-            handleHsnChange(newHsnCode, [record, ...hsnRows]);
-          } else {
-            setHsn(newHsnCode);
-          }
-          loadHsns();
-        }}
-      />
+      </Dialog>
 
       <Snackbar
         open={Boolean(toastNotification)}
@@ -432,6 +411,6 @@ export function QuickAddCategoryModal({
           </Alert>
         ) : undefined}
       </Snackbar>
-    </Dialog>
+    </>
   );
 }

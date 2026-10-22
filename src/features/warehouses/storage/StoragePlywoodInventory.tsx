@@ -5,7 +5,7 @@ import {
   type EnterpriseTableAction,
 } from "../../../components/data-display/EnterpriseDataTable";
 import {
-  isActiveColumnFilter,
+  toApiColumnFilters,
   type ColumnFilterValue,
 } from "../../shared/columnFilters";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
@@ -19,17 +19,6 @@ import {
   STORAGE_SHEET_GOODS_HISTORY_COLUMNS,
   type StorageInventoryPanelProps,
 } from "./types";
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) continue;
-    filters[key] = filter.values;
-  }
-  return filters;
-}
 
 interface StoragePlywoodInventoryProps extends StorageInventoryPanelProps {
   actions?: readonly EnterpriseTableAction<WarehouseInventoryRow>[];

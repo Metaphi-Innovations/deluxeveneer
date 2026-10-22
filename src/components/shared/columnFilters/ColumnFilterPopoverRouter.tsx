@@ -1,6 +1,7 @@
 import { SearchableMultiSelectColumnFilter } from "../SearchableMultiSelectColumnFilter";
 import type { ColumnFilterOption as MultiSelectOption } from "../SearchableMultiSelectColumnFilter";
 import {
+  decodeAuditFilterValues,
   isActiveColumnFilter,
   type ColumnFilterType,
   type ColumnFilterValue,
@@ -16,9 +17,11 @@ export function ColumnFilterPopoverRouter({
   anchorEl,
   onClose,
   label,
+  filterType = "multiSelect",
   options,
   value,
   onApplyMultiSelect,
+  onApplyAudit,
   onClear,
 }: {
   open: boolean;
@@ -32,10 +35,12 @@ export function ColumnFilterPopoverRouter({
   value: ColumnFilterValue | undefined;
   onApply?: (nextFilter: ColumnFilterValue | null) => void;
   onApplyMultiSelect: (values: string[]) => void;
+  onApplyAudit?: (names: string[], dateFrom: string, dateTo: string) => void;
   onClear: () => void;
 }) {
   const selectedValues =
     value?.type === "multiSelect" ? value.values : EMPTY_SELECTED_VALUES;
+  const auditValues = decodeAuditFilterValues(selectedValues);
 
   return (
     <SearchableMultiSelectColumnFilter
@@ -44,8 +49,19 @@ export function ColumnFilterPopoverRouter({
       onClose={onClose}
       label={label}
       options={options}
-      selectedValues={selectedValues}
+      selectedValues={filterType === "audit" ? auditValues.names : selectedValues}
       onApply={onApplyMultiSelect}
+      {...(filterType === "audit"
+        ? {
+          dateRange: {
+            from: auditValues.dateFrom,
+            to: auditValues.dateTo,
+          },
+          primaryLabel: "Name",
+          onApplyCombined: (names: string[], dateFrom: string, dateTo: string) =>
+            onApplyAudit?.(names, dateFrom, dateTo),
+        }
+        : {})}
       onClear={onClear}
       searchable
       searchPlaceholder="Search values..."

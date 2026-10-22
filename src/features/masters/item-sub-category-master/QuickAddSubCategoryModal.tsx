@@ -146,7 +146,8 @@ export function QuickAddSubCategoryModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -229,7 +230,6 @@ export function QuickAddSubCategoryModal({
               <Typography
                 component="label"
                 sx={(theme) => ({
-                  height: "20px",
                   fontSize: "12.5px",
                   fontWeight: 600,
                   color: theme.customTokens.text.primary,
@@ -245,6 +245,11 @@ export function QuickAddSubCategoryModal({
                 fullWidth
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -252,8 +257,16 @@ export function QuickAddSubCategoryModal({
                     borderRadius: "6px",
                     fontSize: "13px",
                   },
+                  "& .MuiSelect-select": {
+                    color: category
+                      ? theme.customTokens.text.primary
+                      : theme.palette.text.disabled,
+                  },
                 })}
               >
+                <MenuItem value="" disabled sx={{ color: "text.disabled", fontSize: "13px" }}>
+                  Select Category
+                </MenuItem>
                 {categoryOptions.map((opt) => (
                   <MenuItem key={opt} value={opt} sx={{ fontSize: "13px" }}>
                     {opt}
@@ -339,6 +352,7 @@ export function QuickAddSubCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={Boolean(toastNotification)}
@@ -357,6 +371,6 @@ export function QuickAddSubCategoryModal({
           </Alert>
         ) : undefined}
       </Snackbar>
-    </Dialog>
+    </>
   );
 }

@@ -89,6 +89,9 @@ export function EditItemMasterPage() {
           if (nextRecord.category) {
             setSelectedCategory(String(nextRecord.category));
           }
+          if (nextRecord.subCategory) {
+            setSelectedSubCategory(String(nextRecord.subCategory));
+          }
         }
       })
       .catch((error) => {
@@ -286,6 +289,10 @@ export function EditItemMasterPage() {
         onFieldChange={(key, value) => {
           if (key === "category" && typeof value === "string") {
             setSelectedCategory(value);
+            setSelectedSubCategory("");
+          }
+          if (key === "subCategory" && typeof value === "string") {
+            setSelectedSubCategory(value);
           }
           if (key === "color" && typeof value === "string") {
             setSelectedColor(value);

@@ -79,6 +79,112 @@ function hasRemarkField(fields: readonly MasterFieldDefinition[]) {
   });
 }
 
+function getAutoFillMatchCandidates(matchKey: string, row: MasterRecord) {
+  const primary = row[matchKey];
+
+  if (matchKey === "categoryName" || matchKey === "category" || matchKey === "name") {
+    return [primary, row.categoryName, row.category, row.name];
+  }
+
+  if (matchKey === "hsnCode" || matchKey === "hsn" || matchKey === "code") {
+    return [primary, row.hsnCode, row.code, row.hsn];
+  }
+
+  return [primary];
+}
+
+function findAutoFillRow(
+  rows: MasterRecord[],
+  matchKey: string,
+  value: string,
+) {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) {
+    return undefined;
+  }
+
+  return rows.find((row) =>
+    getAutoFillMatchCandidates(matchKey, row).some(
+      (candidate) => String(candidate ?? "").trim().toLowerCase() === normalized,
+    ),
+  );
+}
+
+function resolveAutoFillValue(
+  rows: MasterRecord[],
+  matchKey: string,
+  valueKey: string,
+  value: string,
+) {
+  const matchedRow = findAutoFillRow(rows, matchKey, value);
+  const resolved = matchedRow ? String(matchedRow[valueKey] ?? "").trim() : "";
+
+  if (resolved || !matchedRow) {
+    return resolved;
+  }
+
+  if (valueKey === "gst" || valueKey === "gstPercentage" || valueKey === "gstNo") {
+    return String(
+      matchedRow.gst ?? matchedRow.gstPercentage ?? matchedRow.gstNo ?? "",
+    ).trim();
+  }
+
+  if (valueKey === "hsnCode" || valueKey === "hsn") {
+    return String(matchedRow.hsnCode ?? matchedRow.hsn ?? matchedRow.code ?? "").trim();
+  }
+
+  return resolved;
+}
+
+function applyAutoFilledValues(
+  fields: readonly MasterFieldDefinition[],
+  values: Record<string, MasterFieldValue>,
+) {
+  const nextValues: Record<string, MasterFieldValue> = { ...values };
+
+  const fillFromSource = (sourceKey: string, sourceValue: MasterFieldValue) => {
+    fields.forEach((field) => {
+      const autoFillConfig = field.autoFillFrom;
+
+      if (!autoFillConfig || autoFillConfig.sourceKey !== sourceKey) {
+        return;
+      }
+
+      if (typeof sourceValue !== "string") {
+        nextValues[field.key] = "";
+        return;
+      }
+
+      nextValues[field.key] = resolveAutoFillValue(
+        autoFillConfig.rows,
+        autoFillConfig.sourceMatchKey,
+        autoFillConfig.sourceValueKey,
+        sourceValue,
+      );
+    });
+  };
+
+  fields.forEach((field) => {
+    const autoFillConfig = field.autoFillFrom;
+    if (!autoFillConfig) {
+      return;
+    }
+    fillFromSource(autoFillConfig.sourceKey, nextValues[autoFillConfig.sourceKey]);
+  });
+
+  // Second pass fills chained fields (HSN -> GST).
+  fields.forEach((field) => {
+    const autoFillConfig = field.autoFillFrom;
+    if (!autoFillConfig) {
+      return;
+    }
+    fillFromSource(autoFillConfig.sourceKey, nextValues[autoFillConfig.sourceKey]);
+  });
+
+  return nextValues;
+}
+
 function getMasterFormDefinitionForMode(
   definition: MasterDefinition,
   mode: "add" | "edit" | "view",
@@ -153,7 +259,23 @@ export function MasterFormPage({
     description: "",
     action: () => undefined,
   });
-  const formDefinition = getMasterFormDefinitionForMode(localDefinition, mode);
+  const formDefinition = useMemo(
+    () => getMasterFormDefinitionForMode(localDefinition, mode),
+    [localDefinition, mode],
+  );
+  const autoFillSignature = useMemo(
+    () =>
+      formDefinition.fields
+        .map((field) => {
+          const config = field.autoFillFrom;
+          if (!config) {
+            return field.key;
+          }
+          return `${field.key}:${config.sourceKey}:${config.sourceMatchKey}:${config.sourceValueKey}:${config.rows.length}:${config.rows.map((row) => row.id).join(",")}`;
+        })
+        .join("|"),
+    [formDefinition.fields],
+  );
 
   const handleCancel = () => {
     setLeaveConfirmation({
@@ -195,6 +317,20 @@ export function MasterFormPage({
       return nextValues;
     });
   }, [localDefinition, row, mode]);
+
+  useEffect(() => {
+    setValues((current) => {
+      const merged = {
+        ...current,
+        ...(additionalValues ?? {}),
+      };
+      const nextValues = applyAutoFilledValues(formDefinition.fields, merged);
+      const changed = Object.keys({ ...current, ...nextValues }).some(
+        (key) => current[key] !== nextValues[key],
+      );
+      return changed ? nextValues : current;
+    });
+  }, [additionalValues, autoFillSignature, formDefinition]);
 
   if (loading) {
     return (
@@ -367,61 +503,14 @@ export function MasterFormPage({
         [key]: value,
       };
 
-      // First pass: resolve direct auto-fills for the changed key
-      const autoFilledKeys = new Set<string>();
+      if (
+        key === "category" &&
+        formDefinition.fields.some((field) => field.key === "subCategory")
+      ) {
+        nextValues.subCategory = "";
+      }
 
-      formDefinition.fields.forEach((field) => {
-        const autoFillConfig = field.autoFillFrom;
-
-        if (!autoFillConfig || autoFillConfig.sourceKey !== key) {
-          return;
-        }
-
-        if (typeof value !== "string") {
-          nextValues[field.key] = "";
-          autoFilledKeys.add(field.key);
-          return;
-        }
-
-        const matchedRow = autoFillConfig.rows.find(
-          (row) => String(row[autoFillConfig.sourceMatchKey] ?? "") === value,
-        );
-
-        nextValues[field.key] = matchedRow
-          ? String(matchedRow[autoFillConfig.sourceValueKey] ?? "")
-          : "";
-        autoFilledKeys.add(field.key);
-      });
-
-      // Second pass: resolve chained auto-fills for any field that was just auto-filled
-      autoFilledKeys.forEach((autoFilledKey) => {
-        const autoFilledValue = nextValues[autoFilledKey];
-
-        formDefinition.fields.forEach((field) => {
-          const autoFillConfig = field.autoFillFrom;
-
-          if (!autoFillConfig || autoFillConfig.sourceKey !== autoFilledKey) {
-            return;
-          }
-
-          if (typeof autoFilledValue !== "string") {
-            nextValues[field.key] = "";
-            return;
-          }
-
-          const matchedRow = autoFillConfig.rows.find(
-            (row) =>
-              String(row[autoFillConfig.sourceMatchKey] ?? "") ===
-              autoFilledValue,
-          );
-
-          nextValues[field.key] = matchedRow
-            ? String(matchedRow[autoFillConfig.sourceValueKey] ?? "")
-            : "";
-        });
-      });
-
-      return nextValues;
+      return applyAutoFilledValues(formDefinition.fields, nextValues);
     });
   };
 

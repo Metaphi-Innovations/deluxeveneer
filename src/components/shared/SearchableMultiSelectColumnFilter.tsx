@@ -27,7 +27,17 @@ type SearchableMultiSelectColumnFilterProps = {
   options: readonly ColumnFilterOption[];
   selectedValues: readonly string[];
   onApply: (values: string[]) => void;
+  onApplyCombined?: (
+    primaryValues: string[],
+    dateFrom: string,
+    dateTo: string,
+  ) => void;
   onClear: () => void;
+  primaryLabel?: string;
+  dateRange?: {
+    from: string;
+    to: string;
+  };
   searchable?: boolean;
   searchPlaceholder?: string;
 };
@@ -40,12 +50,17 @@ export function SearchableMultiSelectColumnFilter({
   options,
   selectedValues,
   onApply,
+  onApplyCombined,
   onClear,
+  primaryLabel = "Values",
+  dateRange,
   searchable = true,
   searchPlaceholder,
 }: SearchableMultiSelectColumnFilterProps) {
   const theme = useTheme();
   const [draftValues, setDraftValues] = useState<string[]>([...selectedValues]);
+  const [draftDateFrom, setDraftDateFrom] = useState(dateRange?.from ?? "");
+  const [draftDateTo, setDraftDateTo] = useState(dateRange?.to ?? "");
   const [searchValue, setSearchValue] = useState("");
 
   useEffect(() => {
@@ -57,6 +72,8 @@ export function SearchableMultiSelectColumnFilter({
     // identity — parents often pass a new `[]` each render, which would wipe
     // checkbox selections (e.g. after async filter options load).
     setDraftValues([...selectedValues]);
+    setDraftDateFrom(dateRange?.from ?? "");
+    setDraftDateTo(dateRange?.to ?? "");
     setSearchValue("");
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally open-only
   }, [open]);
@@ -108,12 +125,18 @@ export function SearchableMultiSelectColumnFilter({
   };
 
   const handleApply = () => {
-    onApply(draftValues);
+    if (dateRange && onApplyCombined) {
+      onApplyCombined(draftValues, draftDateFrom, draftDateTo);
+    } else {
+      onApply(draftValues);
+    }
     onClose();
   };
 
   const handleClear = () => {
     setDraftValues([]);
+    setDraftDateFrom("");
+    setDraftDateTo("");
     onClear();
     onClose();
   };
@@ -130,9 +153,9 @@ export function SearchableMultiSelectColumnFilter({
         paper: {
           sx: {
             mt: 0.5,
-            width: 260,
+            width: dateRange ? 320 : 260,
             minWidth: 240,
-            maxWidth: `min(280px, calc(100vw - 24px))`,
+            maxWidth: `min(${dateRange ? "340px" : "280px"}, calc(100vw - 24px))`,
             borderRadius: "8px",
             border: `1px solid ${theme.customTokens.borders.default}`,
             boxShadow: theme.customTokens.elevation.sm,
@@ -141,8 +164,80 @@ export function SearchableMultiSelectColumnFilter({
         },
       }}
     >
-      <Stack>
+      <Box
+        component="form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleApply();
+        }}
+      >
+        <Stack>
+        {dateRange ? (
+          <Box
+            sx={{
+              px: 1.25,
+              pt: 1.25,
+              pb: 1,
+              borderBottom: `1px solid ${theme.customTokens.borders.divider}`,
+            }}
+          >
+            <Typography
+              sx={{
+                mb: 0.75,
+                fontSize: "12.5px",
+                fontWeight: 600,
+                color: theme.customTokens.text.primary,
+              }}
+            >
+              Date Range
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: "11.5px", color: "text.secondary" }}>
+                  From
+                </Typography>
+                <TextField
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={draftDateFrom}
+                  onChange={(event) => setDraftDateFrom(event.target.value)}
+                  inputProps={{ max: draftDateTo || undefined }}
+                  sx={[getCompactFieldSx(theme), { "& .MuiOutlinedInput-root": { height: 34 } }]}
+                />
+              </Stack>
+              <Stack spacing={0.5} sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: "11.5px", color: "text.secondary" }}>
+                  To
+                </Typography>
+                <TextField
+                  type="date"
+                  size="small"
+                  fullWidth
+                  value={draftDateTo}
+                  onChange={(event) => setDraftDateTo(event.target.value)}
+                  inputProps={{ min: draftDateFrom || undefined }}
+                  sx={[getCompactFieldSx(theme), { "& .MuiOutlinedInput-root": { height: 34 } }]}
+                />
+              </Stack>
+            </Stack>
+          </Box>
+        ) : null}
+
         <Box sx={{ px: 1.25, pt: 1.25, pb: 1 }}>
+          {dateRange ? (
+            <Typography
+              sx={{
+                mb: 0.75,
+                fontSize: "12.5px",
+                fontWeight: 600,
+                color: theme.customTokens.text.primary,
+              }}
+            >
+              {primaryLabel}
+            </Typography>
+          ) : null}
           <TextField
             value={searchValue}
             onChange={(event) => setSearchValue(event.target.value)}
@@ -303,7 +398,14 @@ export function SearchableMultiSelectColumnFilter({
             type="button"
             variant="text"
             onClick={handleClear}
-            disabled={draftValues.length === 0 && selectedValues.length === 0}
+            disabled={
+              draftValues.length === 0 &&
+              !draftDateFrom &&
+              !draftDateTo &&
+              selectedValues.length === 0 &&
+              !dateRange?.from &&
+              !dateRange?.to
+            }
             sx={{
               minHeight: 32,
               px: 1,
@@ -342,7 +444,8 @@ export function SearchableMultiSelectColumnFilter({
             Apply
           </Button>
         </Stack>
-      </Stack>
+        </Stack>
+      </Box>
     </Popover>
   );
 }

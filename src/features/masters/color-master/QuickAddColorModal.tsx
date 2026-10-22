@@ -104,7 +104,8 @@ export function QuickAddColorModal({
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="xs"
@@ -244,6 +245,7 @@ export function QuickAddColorModal({
           </Button>
         </DialogActions>
       </form>
+      </Dialog>
 
       <Snackbar
         open={Boolean(toastNotification)}
@@ -262,6 +264,6 @@ export function QuickAddColorModal({
           </Alert>
         ) : undefined}
       </Snackbar>
-    </Dialog>
+    </>
   );
 }
