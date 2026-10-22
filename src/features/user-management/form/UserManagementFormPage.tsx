@@ -10,7 +10,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { Pencil, Save } from "lucide-react";
+import { FileCheck, MapPin, MessageSquare, Pencil, Save, ShieldCheck, UserCheck } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -63,14 +63,14 @@ type WorkflowStep = "basic" | "permissions";
 
 const ACCOUNT_FIELD_KEYS = [
   "userName",
-  "firstName",
-  "lastName",
+  "department",
   "email",
   "phoneNo",
 ] as const;
 
 const PERSONAL_FIELD_KEYS = [
-  "department",
+  "firstName",
+  "lastName",
   "dateOfBirth",
   "age",
   "bloodGroup",
@@ -326,9 +326,9 @@ export function UserManagementFormPage({
     String(values.email ?? "") ||
     (row
       ? `${row.firstName} ${row.lastName}`.trim() ||
-        row.userName ||
-        row.email ||
-        "User"
+      row.userName ||
+      row.email ||
+      "User"
       : "New User");
 
   const liveIdentityEmail =
@@ -477,9 +477,9 @@ export function UserManagementFormPage({
           Boolean(currentUser.id && currentUser.id === savedUser.id) ||
           Boolean(
             currentUser.email &&
-              savedUser.email &&
-              currentUser.email.trim().toLowerCase() ===
-                savedUser.email.trim().toLowerCase(),
+            savedUser.email &&
+            currentUser.email.trim().toLowerCase() ===
+            savedUser.email.trim().toLowerCase(),
           );
 
         if (isSelfEdit) {
@@ -531,158 +531,156 @@ export function UserManagementFormPage({
 
   const compactFieldChromeSx = {
     "& .MuiOutlinedInput-root": {
-      height: 36,
-      minHeight: 36,
+      height: 32,
+      minHeight: 32,
       borderRadius: "6px",
     },
     "& .MuiInputLabel-root": {
-      fontSize: "0.75rem",
+      fontSize: "0.72rem",
+      transform: "translate(14px, 7px) scale(1)",
+      "&.MuiInputLabel-shrink": {
+        transform: "translate(14px, -8px) scale(0.75)",
+      },
     },
     "& .MuiInputBase-input": {
-      fontSize: "0.8125rem",
+      fontSize: "0.8rem",
+      py: "5px",
     },
-  };
-
-  const uniformFieldGridSx = {
-    ...compactFieldChromeSx,
-    "& > div": {
-      display: "grid !important",
-      width: "100%",
-      gridTemplateColumns: {
-        xs: "1fr !important",
-        sm: "repeat(2, 1fr) !important",
-        md: "repeat(3, 1fr) !important",
-        lg: "repeat(3, 1fr) !important",
-      },
-      columnGap: "16px !important",
-      rowGap: "16px !important",
-      justifyItems: "stretch !important",
-    },
-    "& > div > .MuiStack-root": {
-      width: "100% !important",
-      minWidth: "0 !important",
-      maxWidth: "100% !important",
-    },
-    "& > div > .MuiStack-root .MuiFormControl-root": {
-      width: "100% !important",
-    },
-    "& .MuiBox-root": {
-      width: "100%",
+    "& .MuiFormHelperText-root": {
+      fontSize: "0.68rem",
+      mt: 0.25,
     },
   };
 
   const accountFieldGridSx = {
     ...compactFieldChromeSx,
     width: "100%",
-    overflowX: "auto",
+    p: 1.25,
     "& > div": {
       display: "grid !important",
       width: "100%",
-      minWidth: { xs: 0, lg: 960 },
       gridTemplateColumns: {
         xs: "1fr !important",
-        sm: "repeat(2, 1fr) !important",
-        md: "repeat(3, 1fr) !important",
-        lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 185px) !important",
+        sm: "repeat(2, minmax(0, 1fr)) !important",
+        md: "repeat(4, minmax(0, 1fr)) !important",
       },
       columnGap: "16px !important",
-      rowGap: "16px !important",
-      justifyItems: "stretch !important",
+      rowGap: "10px !important",
+      alignItems: "start !important",
     },
     "& > div > .MuiStack-root": {
       width: "100% !important",
       minWidth: "0 !important",
       maxWidth: "100% !important",
     },
-    "& > div > .MuiStack-root:nth-of-type(5) > .MuiBox-root": {
-      gridTemplateColumns: "65px minmax(0, 1fr) !important",
+    "& > div > .MuiStack-root .MuiFormControl-root": {
+      width: "100% !important",
+    },
+    "& > div > .MuiStack-root:nth-of-type(4) > .MuiBox-root": {
+      gridTemplateColumns: "70px minmax(0, 1fr) !important",
       gap: "6px !important",
-    },
-    "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-select": {
-      paddingLeft: "8px !important",
-      paddingRight: "20px !important",
-      fontSize: "0.775rem !important",
-    },
-    "& > div > .MuiStack-root:nth-of-type(5) .MuiSelect-icon": {
-      right: "3px !important",
     },
   };
 
   const personalFieldGridSx = {
     ...compactFieldChromeSx,
+    width: "100%",
+    p: 1.25,
     "& > div": {
       display: "grid !important",
       width: "100%",
       gridTemplateColumns: {
         xs: "1fr !important",
-        sm: "repeat(2, minmax(0, 200px)) !important",
-        md: "repeat(4, minmax(0, 200px)) !important",
+        sm: "repeat(6, minmax(0, 1fr)) !important",
       },
       columnGap: "16px !important",
-      rowGap: "16px !important",
-      justifyContent: "start !important",
-      justifyItems: "start !important",
+      rowGap: "10px !important",
+      alignItems: "start !important",
     },
     "& > div > .MuiStack-root": {
       width: "100% !important",
       minWidth: "0 !important",
-      maxWidth: "200px !important",
+      maxWidth: "100% !important",
+    },
+    /* Row 1: First Name & Last Name (span 3 of 6 each) */
+    "& > div > .MuiStack-root:nth-of-type(1)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 3 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(2)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 3 !important" },
+    },
+    /* Row 2: Date of Birth, Age, Blood Group (span 2 of 6 each) */
+    "& > div > .MuiStack-root:nth-of-type(3)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(4)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(5)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
     },
     "& > div > .MuiStack-root .MuiFormControl-root": {
       width: "100% !important",
-    },
-    "& .MuiBox-root": {
-      width: "100%",
     },
   };
 
   const addressFieldGridSx = {
     ...compactFieldChromeSx,
     width: "100%",
-    overflowX: "auto",
+    p: 1.25,
     "& > div": {
       display: "grid !important",
       width: "100%",
-      minWidth: { xs: 0, lg: 960 },
       gridTemplateColumns: {
         xs: "1fr !important",
-        sm: "repeat(2, 1fr) !important",
-        md: "repeat(3, 1fr) !important",
-        lg: "minmax(280px, 2.5fr) minmax(130px, 1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) !important",
+        sm: "repeat(6, minmax(0, 1fr)) !important",
       },
       columnGap: "16px !important",
-      rowGap: "16px !important",
-      justifyItems: "stretch !important",
+      rowGap: "10px !important",
+      alignItems: "start !important",
     },
     "& > div > .MuiStack-root": {
       width: "100% !important",
       minWidth: "0 !important",
       maxWidth: "100% !important",
     },
+    /* Row 1: Address (span 4 of 6) and Pincode (span 2 of 6) */
+    "& > div > .MuiStack-root:nth-of-type(1)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 4 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(2)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
+    /* Row 2: Country, State, City (span 2 of 6 each) */
+    "& > div > .MuiStack-root:nth-of-type(3)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(4)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
+    "& > div > .MuiStack-root:nth-of-type(5)": {
+      gridColumn: { xs: "span 1 !important", sm: "span 2 !important" },
+    },
     "& > div > .MuiStack-root .MuiFormControl-root": {
       width: "100% !important",
-    },
-    "& .MuiBox-root": {
-      width: "100%",
     },
   };
 
   const identityDocumentGridSx = {
     ...compactFieldChromeSx,
     width: "100%",
-    overflowX: "auto",
+    p: 1.25,
     "& > div": {
       display: "grid !important",
       width: "100%",
-      minWidth: { xs: 0, lg: 960 },
       gridTemplateColumns: {
         xs: "1fr !important",
         sm: "repeat(2, minmax(0, 1fr)) !important",
-        lg: "repeat(4, minmax(0, 1fr)) !important",
+        md: "repeat(4, minmax(0, 1fr)) !important",
       },
       columnGap: "16px !important",
-      rowGap: "16px !important",
-      justifyItems: "stretch !important",
+      rowGap: "10px !important",
+      alignItems: "start !important",
     },
     "& > div > .MuiStack-root": {
       width: "100% !important",
@@ -692,13 +690,28 @@ export function UserManagementFormPage({
     "& > div > .MuiStack-root .MuiFormControl-root": {
       width: "100% !important",
     },
-    "& > div > .MuiStack-root > .MuiBox-root": {
-      width: "100%",
-      minWidth: 0,
-    },
   };
 
-  const additionalFieldGridSx = uniformFieldGridSx;
+  const additionalFieldGridSx = {
+    ...compactFieldChromeSx,
+    width: "100%",
+    p: 1.25,
+    "& > div": {
+      display: "block !important",
+      width: "100%",
+    },
+    "& > div > .MuiStack-root": {
+      width: "100% !important",
+      maxWidth: "100% !important",
+    },
+    "& > div > .MuiStack-root .MuiFormControl-root": {
+      width: "100% !important",
+    },
+    "& .MuiOutlinedInput-root": {
+      height: "auto !important",
+      minHeight: 46,
+    },
+  };
 
   const actionButtonSx = {
     minHeight: 36,
@@ -838,87 +851,162 @@ export function UserManagementFormPage({
                   </Stack>
                 ) : null}
 
+                {/* Account Information Card */}
                 <Box
                   sx={(theme) => ({
                     ...formSectionCardSx(theme),
                     borderRadius: "8px",
                   })}
                 >
-                    <InlineFormSection title="Account Information" variant="cardTop">
-                      <Stack spacing={2}>
-                        <Box sx={accountFieldGridSx}>
-                          <MasterFormFields
-                            definition={{
-                              fields: accountFields,
-                              gridColumns: 3,
-                            }}
-                            onChange={handleFieldChange}
-                            readOnly={mode === "view"}
-                            showRequiredErrors={mode !== "view" && hasSubmitted}
-                            values={values}
-                          />
-                        </Box>
+                  <FormSectionHeader
+                    title="Account Information"
+                    icon={ShieldCheck}
+                    variant="cardTop"
+                  />
+                  <Box sx={accountFieldGridSx}>
+                    <MasterFormFields
+                      definition={{
+                        fields: accountFields,
+                        gridColumns: 4,
+                      }}
+                      onChange={handleFieldChange}
+                      readOnly={mode === "view"}
+                      showRequiredErrors={mode !== "view" && hasSubmitted}
+                      values={values}
+                    />
+                  </Box>
+                </Box>
 
-                        <Box sx={personalFieldGridSx}>
-                          <MasterFormFields
-                            definition={{
-                              fields: personalFields,
-                              gridColumns: 4,
-                            }}
-                            onChange={handleFieldChange}
-                            readOnly={mode === "view"}
-                            showRequiredErrors={mode !== "view" && hasSubmitted}
-                            values={values}
-                          />
-                        </Box>
+                {/* 2-Column Row for Personal Information & Contact & Address */}
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+                    gap: 1.25,
+                    alignItems: "stretch",
+                  }}
+                >
+                  {/* Personal Information Card */}
+                  <Box
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
+                  >
+                    <FormSectionHeader
+                      title="Personal Information"
+                      icon={UserCheck}
+                      variant="cardTop"
+                    />
+                    <Box sx={{ ...personalFieldGridSx, flex: 1 }}>
+                      <MasterFormFields
+                        definition={{
+                          fields: personalFields,
+                          gridColumns: 3,
+                        }}
+                        onChange={handleFieldChange}
+                        readOnly={mode === "view"}
+                        showRequiredErrors={mode !== "view" && hasSubmitted}
+                        values={values}
+                      />
+                    </Box>
+                  </Box>
 
-                        <Divider
-                          sx={{
-                            borderColor: theme.customTokens.borders.divider,
-                            my: 0.5,
-                          }}
-                        />
+                  {/* Contact & Address Card */}
+                  <Box
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
+                  >
+                    <FormSectionHeader
+                      title="Contact & Address"
+                      icon={MapPin}
+                      variant="cardTop"
+                    />
+                    <Box sx={{ ...addressFieldGridSx, flex: 1 }}>
+                      <MasterFormFields
+                        definition={{
+                          fields: addressFields,
+                          gridColumns: 3,
+                        }}
+                        onChange={handleFieldChange}
+                        readOnly={mode === "view"}
+                        showRequiredErrors={mode !== "view" && hasSubmitted}
+                        values={values}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
 
-                        <Box sx={addressFieldGridSx}>
-                          <MasterFormFields
-                            definition={{
-                              fields: addressFields,
-                              gridColumns: 5,
-                            }}
-                            onChange={handleFieldChange}
-                            readOnly={mode === "view"}
-                            showRequiredErrors={mode !== "view" && hasSubmitted}
-                            values={values}
-                          />
-                        </Box>
+                {/* 2-Column Row for Identity Documents & Remarks */}
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", lg: "3fr 2fr" },
+                    gap: 1.25,
+                    alignItems: "stretch",
+                  }}
+                >
+                  {/* Identity Documents Card */}
+                  <Box
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
+                  >
+                    <FormSectionHeader
+                      title="Identity Documents"
+                      icon={FileCheck}
+                      variant="cardTop"
+                    />
+                    <Box sx={{ ...identityDocumentGridSx, flex: 1 }}>
+                      <MasterFormFields
+                        definition={{
+                          fields: identityDocumentFields,
+                          gridColumns: 4,
+                        }}
+                        onChange={handleFieldChange}
+                        readOnly={mode === "view"}
+                        showRequiredErrors={mode !== "view" && hasSubmitted}
+                        values={values}
+                      />
+                    </Box>
+                  </Box>
 
-                        <Box sx={identityDocumentGridSx}>
-                          <MasterFormFields
-                            definition={{
-                              fields: identityDocumentFields,
-                              gridColumns: 4,
-                            }}
-                            onChange={handleFieldChange}
-                            readOnly={mode === "view"}
-                            showRequiredErrors={mode !== "view" && hasSubmitted}
-                            values={values}
-                          />
-                        </Box>
-
-                        <Box sx={additionalFieldGridSx}>
-                          <MasterFormFields
-                            definition={{
-                              fields: additionalFields,
-                              gridColumns: 3,
-                            }}
-                            onChange={handleFieldChange}
-                            readOnly={mode === "view"}
-                            showRequiredErrors={mode !== "view" && hasSubmitted}
-                            values={values}
-                          />
-                        </Box>
-                      </Stack>
-                    </InlineFormSection>
+                  {/* Remarks Card */}
+                  <Box
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
+                  >
+                    <FormSectionHeader
+                      title="Remarks"
+                      icon={MessageSquare}
+                      variant="cardTop"
+                    />
+                    <Box sx={{ ...additionalFieldGridSx, flex: 1 }}>
+                      <MasterFormFields
+                        definition={{
+                          fields: additionalFields,
+                          gridColumns: 1,
+                        }}
+                        onChange={handleFieldChange}
+                        readOnly={mode === "view"}
+                        showRequiredErrors={mode !== "view" && hasSubmitted}
+                        values={values}
+                      />
+                    </Box>
+                  </Box>
                 </Box>
               </Stack>
             )}
@@ -1084,9 +1172,8 @@ function SectionTabs({
               color: selected
                 ? theme.customTokens.brand.primary
                 : theme.customTokens.text.secondary,
-              borderBottom: `2px solid ${
-                selected ? theme.customTokens.brand.primary : "transparent"
-              }`,
+              borderBottom: `2px solid ${selected ? theme.customTokens.brand.primary : "transparent"
+                }`,
               "&:hover": {
                 color: theme.customTokens.brand.primary,
               },
@@ -1169,19 +1256,19 @@ function getCompactFieldGridSx(
     ...fieldWidthRules,
     ...(phoneFieldIndex
       ? {
-          [`& > div > .MuiStack-root:nth-of-type(${phoneFieldIndex}) > .MuiBox-root`]:
-            {
-              width: "100%",
-              maxWidth: {
-                xs: "100%",
-                md: 308,
-              },
-              gridTemplateColumns: {
-                xs: "80px minmax(0, 1fr) !important",
-                md: "80px 220px !important",
-              },
-            },
-        }
+        [`& > div > .MuiStack-root:nth-of-type(${phoneFieldIndex}) > .MuiBox-root`]:
+        {
+          width: "100%",
+          maxWidth: {
+            xs: "100%",
+            md: 308,
+          },
+          gridTemplateColumns: {
+            xs: "80px minmax(0, 1fr) !important",
+            md: "80px 220px !important",
+          },
+        },
+      }
       : {}),
   };
 }

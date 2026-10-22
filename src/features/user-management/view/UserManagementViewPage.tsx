@@ -17,7 +17,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft, Eye, FileText, Pencil, X } from "lucide-react";
+import { ChevronLeft, Eye, FileCheck, FileText, MapPin, MessageSquare, Pencil, UserCheck, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
@@ -175,20 +175,10 @@ export function UserManagementViewPage() {
         { label: "View User" },
       ]}
       title="View User"
-      subtitle=" "
       contentGap={1.5}
       actions={
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={14} />}
-            sx={[recordViewActionButtonSx, actionButtonSx]}
-            variant="outlined"
-          >
-            Back
-          </Button>
-
-          {row && canEdit ? (
+        row && canEdit ? (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button
               onClick={() => navigate(paths.edit(row.id))}
               startIcon={<Pencil size={14} />}
@@ -197,8 +187,8 @@ export function UserManagementViewPage() {
             >
               Edit
             </Button>
-          ) : null}
-        </Stack>
+          </Stack>
+        ) : null
       }
     >
       <Box
@@ -215,89 +205,98 @@ export function UserManagementViewPage() {
         {isLoading || !row ? (
           <ContentLoader label="Loading..." minHeight={200} />
         ) : (
-          <Stack spacing={1.5}>
+          <Stack spacing={2}>
+            {/* Compact Professional Profile Header Card */}
             <Box
               sx={{
                 display: "flex",
                 alignItems: "center",
+                justifyContent: "space-between",
                 gap: 2,
                 flexWrap: "wrap",
-                minHeight: 112,
-                px: 2,
+                px: 2.25,
                 py: 1.75,
-                borderRadius: "10px",
+                borderRadius: "8px",
                 border: `1px solid ${theme.customTokens.borders.default}`,
                 backgroundColor: theme.customTokens.surfaces.surface,
               }}
             >
-              <Avatar
-                sx={{
-                  width: 52,
-                  height: 52,
-                  bgcolor: theme.customTokens.brand.primaryScale[100],
-                  color: theme.customTokens.brand.primary,
-                  fontSize: "1rem",
-                  fontWeight: 700,
-                  flexShrink: 0,
-                }}
-              >
-                {initials}
-              </Avatar>
-
-              <Stack spacing={0.35} sx={{ minWidth: 0, flex: "1 1 180px" }}>
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={1}
-                  flexWrap="wrap"
-                  useFlexGap
-                >
-                  <Typography
-                    sx={{
-                      fontSize: "1.1875rem",
-                      fontWeight: 600,
-                      letterSpacing: "-0.01em",
-                      color: theme.customTokens.text.primary,
-                      lineHeight: 1.25,
-                    }}
-                  >
-                    {displayName}
-                  </Typography>
-
-                  <Chip
-                    label={isActive ? "Active" : "Inactive"}
-                    size="small"
-                    sx={{
-                      height: 22,
-                      borderRadius: "6px",
-                      fontSize: "0.6875rem",
-                      fontWeight: 600,
-                      backgroundColor: isActive
-                        ? theme.customTokens.semanticScale.success[100]
-                        : theme.customTokens.neutrals[100],
-                      color: isActive
-                        ? theme.customTokens.semanticScale.success[800]
-                        : theme.customTokens.neutrals[700],
-                      border: `1px solid ${isActive
-                          ? theme.customTokens.semanticScale.success[200]
-                          : theme.customTokens.neutrals[200]
-                        }`,
-                      "& .MuiChip-label": {
-                        px: 1,
-                      },
-                    }}
-                  />
-                </Stack>
-
-                <Typography
+              <Stack direction="row" alignItems="center" spacing={2} sx={{ minWidth: 0, flex: "1 1 auto" }}>
+                <Avatar
                   sx={{
-                    fontSize: "0.8125rem",
-                    color: theme.customTokens.text.secondary,
-                    lineHeight: 1.3,
+                    width: 48,
+                    height: 48,
+                    bgcolor: theme.customTokens.brand.primaryScale[100],
+                    color: theme.customTokens.brand.primary,
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    flexShrink: 0,
                   }}
                 >
-                  {[row.userName ? `@${row.userName}` : "", row.email || ""].filter(Boolean).join(" • ") || "—"}
-                </Typography>
+                  {initials}
+                </Avatar>
+
+                <Stack spacing={0.35} sx={{ minWidth: 0 }}>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={1.25}
+                    flexWrap="wrap"
+                    useFlexGap
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "1.125rem",
+                        fontWeight: 700,
+                        color: theme.customTokens.text.primary,
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      {displayName}
+                    </Typography>
+
+                    <Chip
+                      label={isActive ? "Active" : "Inactive"}
+                      size="small"
+                      sx={{
+                        height: 20,
+                        borderRadius: "5px",
+                        fontSize: "0.6875rem",
+                        fontWeight: 600,
+                        backgroundColor: isActive
+                          ? theme.customTokens.semanticScale.success[100]
+                          : theme.customTokens.neutrals[100],
+                        color: isActive
+                          ? theme.customTokens.semanticScale.success[800]
+                          : theme.customTokens.neutrals[700],
+                        border: `1px solid ${isActive
+                          ? theme.customTokens.semanticScale.success[200]
+                          : theme.customTokens.neutrals[200]
+                          }`,
+                        "& .MuiChip-label": {
+                          px: 0.85,
+                        },
+                      }}
+                    />
+                  </Stack>
+
+                  <Typography
+                    sx={{
+                      fontSize: "0.8125rem",
+                      color: theme.customTokens.text.secondary,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {[
+                      row.userName ? `@${row.userName}` : "",
+                      row.department || "",
+                      row.email || "",
+                      row.role ? `Role: ${row.role}` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Typography>
+                </Stack>
               </Stack>
             </Box>
 
@@ -309,7 +308,7 @@ export function UserManagementViewPage() {
                 borderBottom: `1px solid ${theme.customTokens.borders.divider}`,
                 "& .MuiTab-root": {
                   minHeight: 36,
-                  px: 1.25,
+                  px: 1.5,
                   py: 0.75,
                   color: theme.customTokens.text.secondary,
                   fontSize: "0.875rem",
@@ -337,134 +336,161 @@ export function UserManagementViewPage() {
                 onToggle={() => undefined}
               />
             ) : (
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                })}
-              >
-                <Stack spacing={2}>
-                  <Box>
-                    <FormSectionHeader title="Account Information" variant="cardTop" />
+              <Stack spacing={2}>
+                {/* 2-Column Responsive Layout: Personal Information & Contact/Address */}
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      lg: "repeat(2, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                  }}
+                >
+                  {/* Personal Information Card */}
+                  <Box
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
+                  >
+                    <FormSectionHeader
+                      title="Personal Information"
+                      icon={UserCheck}
+                      variant="cardTop"
+                    />
                     <Box
                       sx={{
                         display: "grid",
                         gridTemplateColumns: {
                           xs: "1fr",
-                          sm: "repeat(2, 1fr)",
-                          md: "repeat(3, 1fr)",
-                          lg: "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.45fr) minmax(170px, 185px)",
+                          sm: "repeat(2, minmax(0, 1fr))",
                         },
-                        columnGap: 2,
+                        columnGap: 2.5,
                         rowGap: 1.5,
                         mt: 1.5,
                       }}
                     >
-                      <DetailField label="User Name" value={row.userName} />
-                      <DetailField label="First Name" value={row.firstName} />
-                      <DetailField label="Last Name" value={row.lastName} />
-                      <DetailField label="Email" value={row.email} />
-                      <DetailField label="Phone No" value={row.phoneNo} />
+                      <ProfileField label="First Name" value={row.firstName} />
+                      <ProfileField label="Last Name" value={row.lastName} />
+                      <ProfileField
+                        label="Date Of Birth"
+                        value={formatDisplayDate(row.dateOfBirth)}
+                      />
+                      <ProfileField label="Age" value={row.age} />
+                      <ProfileField label="Blood Group" value={row.bloodGroup} />
+                      <ProfileField label="Gender" value={row.gender} />
                     </Box>
                   </Box>
 
+                  {/* Contact & Address Card */}
                   <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 200px))",
-                        md: "repeat(4, minmax(0, 200px))",
-                      },
-                      columnGap: 2,
-                      rowGap: 1.5,
-                    }}
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                      display: "flex",
+                      flexDirection: "column",
+                    })}
                   >
-                    <DetailField label="Department" value={row.department} />
-                    <DetailField
-                      label="Date Of Birth"
-                      value={formatDisplayDate(row.dateOfBirth)}
+                    <FormSectionHeader
+                      title="Contact & Address"
+                      icon={MapPin}
+                      variant="cardTop"
                     />
-                    <DetailField label="Age" value={row.age} />
-                    <DetailField label="Blood Group" value={row.bloodGroup} />
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                        },
+                        columnGap: 2.5,
+                        rowGap: 1.5,
+                        mt: 1.5,
+                      }}
+                    >
+                      <ProfileField label="Phone Number" value={row.phoneNo} isPhone />
+                      <ProfileField label="City" value={row.city} />
+                      <ProfileField label="State" value={row.state} />
+                      <ProfileField label="Country" value={row.country} />
+                      <ProfileField label="Pincode" value={row.pincode} />
+                      <Box sx={{ gridColumn: { xs: "span 1", sm: "span 2" } }}>
+                        <ProfileField label="Address" value={row.address} allowWrap />
+                      </Box>
+                    </Box>
                   </Box>
+                </Box>
 
-                  <Divider
-                    sx={{
-                      borderColor: theme.customTokens.borders.divider,
-                      my: 0.5,
-                    }}
+                {/* Identity Documents Card */}
+                <Box
+                  sx={(theme) => ({
+                    ...formSectionCardSx(theme),
+                    borderRadius: "8px",
+                  })}
+                >
+                  <FormSectionHeader
+                    title="Identity Documents"
+                    icon={FileCheck}
+                    variant="cardTop"
                   />
-
                   <Box
                     sx={{
                       display: "grid",
                       gridTemplateColumns: {
                         xs: "1fr",
-                        sm: "repeat(2, 1fr)",
-                        md: "repeat(3, 1fr)",
-                        lg: "minmax(280px, 2.5fr) minmax(130px, 1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr) minmax(140px, 1.1fr)",
+                        sm: "repeat(2, minmax(0, 1fr))",
+                        md: "repeat(4, minmax(0, 1fr))",
                       },
-                      columnGap: 2,
+                      columnGap: 2.5,
                       rowGap: 1.5,
+                      mt: 1.5,
                     }}
                   >
-                    <DetailField label="Address" value={row.address} />
-                    <DetailField label="Pincode" value={row.pincode} />
-                    <DetailField label="Country" value={row.country} />
-                    <DetailField label="State" value={row.state} />
-                    <DetailField label="City" value={row.city} />
-                  </Box>
-
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, 1fr)",
-                        md: "repeat(4, 1fr)",
-                      },
-                      columnGap: 2,
-                      rowGap: 1.5,
-                    }}
-                  >
-                    <DetailField label="Aadhaar No" value={row.aadhaarNo ?? ""} />
-                    <DetailField
-                      label="Aadhaar Upload"
-                      value={row.aadhaarUpload ?? ""}
-                      onPreview={() =>
-                        openDocumentPreview(
-                          "Aadhaar Document",
-                          row.aadhaarUpload,
-                        )
-                      }
+                    <ProfileField
+                      label="Aadhaar Number"
+                      value={row.aadhaarNo}
                     />
-                    <DetailField label="PAN No" value={row.panNo ?? ""} />
-                    <DetailField
-                      label="PAN Upload"
-                      value={row.panUpload ?? ""}
-                      onPreview={() =>
-                        openDocumentPreview("PAN Document", row.panUpload)
-                      }
+                    <DocumentStatusField
+                      label="Aadhaar Document"
+                      fileUrl={row.aadhaarUpload}
+                      title="Aadhaar Document"
+                      onPreview={openDocumentPreview}
+                    />
+                    <ProfileField
+                      label="PAN Number"
+                      value={row.panNo}
+                    />
+                    <DocumentStatusField
+                      label="PAN Document"
+                      fileUrl={row.panUpload}
+                      title="PAN Document"
+                      onPreview={openDocumentPreview}
                     />
                   </Box>
+                </Box>
 
+                {/* Remarks (Only shown if present) */}
+                {row.remarks && row.remarks.trim() ? (
                   <Box
-                    sx={{
-                      display: "grid",
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, 1fr)",
-                        md: "repeat(3, 1fr)",
-                      },
-                      columnGap: 2,
-                      rowGap: 1.5,
-                    }}
+                    sx={(theme) => ({
+                      ...formSectionCardSx(theme),
+                      borderRadius: "8px",
+                    })}
                   >
-                    <DetailField label="Remarks" value={row.remarks} allowWrap />
+                    <FormSectionHeader
+                      title="Remarks"
+                      icon={MessageSquare}
+                      variant="cardTop"
+                    />
+                    <Box sx={{ mt: 1.5 }}>
+                      <ProfileField label="Remarks" value={row.remarks} allowWrap />
+                    </Box>
                   </Box>
-                </Stack>
-              </Box>
+                ) : null}
+              </Stack>
             )}
           </Stack>
         )}
@@ -555,218 +581,179 @@ export function UserManagementViewPage() {
   );
 }
 
-function DetailField({
+function ProfileField({
   label,
   value,
+  isPhone = false,
   allowWrap = false,
-  onPreview,
 }: {
   label: string;
-  value: string;
+  value?: string | number | null;
+  isPhone?: boolean;
   allowWrap?: boolean;
-  onPreview?: (() => void) | undefined;
 }) {
   const theme = useTheme();
-  const hasValue = Boolean(value?.trim());
-  const isPhoneField = /phone|mobile/i.test(label);
+  const rawValue = value !== undefined && value !== null ? String(value).trim() : "";
+  const hasValue = Boolean(rawValue);
 
   return (
-    <Stack spacing={0.5}>
+    <Box sx={{ minWidth: 0, py: 0.25 }}>
       <Typography
         sx={{
           fontSize: "0.75rem",
-          fontWeight: 500,
+          fontWeight: 700,
           color: theme.customTokens.text.secondary,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
           lineHeight: 1.3,
+          mb: 0.35,
         }}
       >
         {label}
       </Typography>
-      <Stack direction="row" alignItems="center" spacing={1.5}>
-        {onPreview ? (
-          hasValue ? (() => {
-            const isPdf =
-              value.toLowerCase().includes(".pdf") ||
-              value.startsWith("data:application/pdf");
 
-            return (
-              <Box
-                onClick={onPreview}
-                title="Click to view"
-                sx={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  bgcolor: theme.customTokens.brand.primaryScale[50] || "#f8fafc",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease-in-out",
-                  position: "relative",
-                  "&:hover": {
-                    borderColor: theme.customTokens.navigation.activeText,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.14)",
-                    "& .preview-overlay": {
-                      opacity: 1,
-                    },
-                  },
-                }}
-              >
-                {isPdf ? (
-                  <FileText
-                    size={24}
-                    color={theme.customTokens.navigation.activeText}
-                  />
-                ) : (
-                  <Box
-                    component="img"
-                    src={value}
-                    alt={label}
-                    sx={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={(e: any) => {
-                      e.target.style.display = "none";
-                    }}
-                  />
-                )}
-                <Box
-                  className="preview-overlay"
-                  sx={{
-                    position: "absolute",
-                    inset: 0,
-                    bgcolor: "rgba(0,0,0,0.4)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: 0,
-                    transition: "opacity 0.15s ease-in-out",
-                    color: "#fff",
-                  }}
-                >
-                  <Eye size={18} />
-                </Box>
-              </Box>
-            );
-          })() : (
-            <Typography
-              sx={{
-                fontSize: "0.875rem",
-                fontWeight: 400,
-                color: theme.customTokens.text.primary,
-                lineHeight: 1.45,
-              }}
-            >
-              —
-            </Typography>
-          )
-        ) : isPhoneField ? (
-          hasValue ? (
-            <Typography
-              component="a"
-              href={`tel:${value.replace(/[^\d+]/g, "")}`}
-              sx={{
-                fontSize: "0.875rem",
-                fontWeight: 400,
-                color: theme.customTokens.brand.primary,
-                lineHeight: 1.45,
-                textDecoration: "none",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                "&:hover": {
-                  textDecoration: "underline",
-                },
-              }}
-            >
-              {value}
-            </Typography>
-          ) : (
-            <Typography
-              sx={{
-                fontSize: "0.875rem",
-                fontWeight: 400,
-                color: theme.customTokens.text.primary,
-                lineHeight: 1.45,
-              }}
-            >
-              —
-            </Typography>
-          )
-        ) : (
-          <Typography
+      {isPhone && hasValue ? (
+        <Typography
+          component="a"
+          href={`tel:${rawValue.replace(/[^\d+]/g, "")}`}
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: theme.customTokens.brand.primary,
+            lineHeight: 1.4,
+            textDecoration: "none",
+            display: "inline-block",
+            "&:hover": {
+              textDecoration: "underline",
+            },
+          }}
+        >
+          {rawValue}
+        </Typography>
+      ) : (
+        <Typography
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: hasValue
+              ? theme.customTokens.text.primary
+              : theme.customTokens.text.secondary,
+            lineHeight: 1.4,
+            whiteSpace: allowWrap ? "pre-wrap" : "nowrap",
+            overflow: allowWrap ? "visible" : "hidden",
+            textOverflow: allowWrap ? "clip" : "ellipsis",
+            wordBreak: allowWrap ? "break-word" : "normal",
+          }}
+        >
+          {hasValue ? rawValue : "—"}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+function DocumentStatusField({
+  label,
+  fileUrl,
+  title,
+  onPreview,
+}: {
+  label: string;
+  fileUrl?: string | null;
+  title: string;
+  onPreview: (url: string, name: string) => void;
+}) {
+  const theme = useTheme();
+  const hasFile = Boolean(fileUrl?.trim());
+
+  return (
+    <Box sx={{ minWidth: 0, py: 0.25 }}>
+      <Typography
+        sx={{
+          fontSize: "0.75rem",
+          fontWeight: 700,
+          color: theme.customTokens.text.secondary,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          lineHeight: 1.3,
+          mb: 0.35,
+        }}
+      >
+        {label}
+      </Typography>
+
+      {hasFile ? (
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <Box
+            onClick={() => onPreview(fileUrl!, title)}
             sx={{
-              fontSize: "0.875rem",
-              fontWeight: 400,
-              color: theme.customTokens.text.primary,
-              lineHeight: 1.45,
-              whiteSpace: allowWrap ? "pre-wrap" : "nowrap",
-              overflow: allowWrap ? "visible" : "hidden",
-              textOverflow: allowWrap ? "clip" : "ellipsis",
-              wordBreak: allowWrap ? "break-word" : "normal",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.75,
+              px: 1.25,
+              py: 0.4,
+              borderRadius: "6px",
+              cursor: "pointer",
+              bgcolor: theme.customTokens.brand.primaryScale[50] || "#fef2f2",
+              border: `1px solid ${theme.customTokens.brand.primaryScale[200] || "#fecaca"}`,
+              color: theme.customTokens.brand.primary,
+              transition: "all 0.15s ease",
+              "&:hover": {
+                bgcolor: theme.customTokens.brand.primaryScale[100] || "#fee2e2",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+              },
             }}
           >
-            {hasValue ? value : "—"}
-          </Typography>
-        )}
-      </Stack>
-    </Stack>
+            <Eye size={14} />
+            <Typography
+              sx={{
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                color: "inherit",
+              }}
+            >
+              Uploaded (View)
+            </Typography>
+          </Box>
+        </Stack>
+      ) : (
+        <Typography
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: theme.customTokens.text.secondary,
+            lineHeight: 1.4,
+          }}
+        >
+          Not Uploaded
+        </Typography>
+      )}
+    </Box>
   );
 }
 
-function SummaryMetaLabel({ children }: { children: ReactNode }) {
-  const theme = useTheme();
-
-  return (
-    <Typography
-      sx={{
-        fontSize: "0.75rem",
-        fontWeight: 500,
-        color: theme.customTokens.text.secondary,
-        lineHeight: 1.35,
-      }}
-    >
-      {children}
-    </Typography>
-  );
-}
-
-function SummaryMetaValue({ children }: { children: ReactNode }) {
-  const theme = useTheme();
-
-  return (
-    <Typography
-      sx={{
-        fontSize: "0.8125rem",
-        fontWeight: 500,
-        color: theme.customTokens.text.primary,
-        lineHeight: 1.35,
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </Typography>
-  );
-}
-
-function formatDisplayDate(value: Date | string | undefined) {
-  if (!value) {
-    return "—";
+function maskAadhaar(val?: string | null) {
+  if (!val || !val.trim()) return "—";
+  const cleaned = val.replace(/\s+/g, "");
+  if (cleaned.length >= 4) {
+    return `XXXX XXXX ${cleaned.slice(-4)}`;
   }
+  return val;
+}
 
+function maskPan(val?: string | null) {
+  if (!val || !val.trim()) return "—";
+  const cleaned = val.trim();
+  if (cleaned.length >= 4) {
+    return `*****${cleaned.slice(-4)}`;
+  }
+  return cleaned;
+}
+
+function formatDisplayDate(value: Date | string | undefined | null) {
+  if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "—";
-  }
-
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -774,15 +761,26 @@ function formatDisplayDate(value: Date | string | undefined) {
   }).format(date);
 }
 
+function formatDisplayDateTime(value: Date | string | undefined | null) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    return "?";
-  }
-
+  if (parts.length === 0) return "?";
   return parts
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
 }
+

@@ -1740,47 +1740,6 @@ function FilterableColumnHeader({
           <SortIndicator active={sortActive} direction={sortDirection} />
         </IconButton>
       ) : null}
-
-      {onOpen ? (
-        <IconButton
-          size="small"
-          aria-label={`Filter by ${label}`}
-          onClick={onOpen}
-          sx={(currentTheme) => ({
-            ...listingTableHeaderIconButtonSx(currentTheme),
-            position: "relative",
-            color: active
-              ? currentTheme.customTokens.brand.primary
-              : currentTheme.customTokens.text.secondary,
-          })}
-        >
-          <ListFilter
-            size={portalIconSize.tableHeader}
-            strokeWidth={portalIconStroke.default}
-          />
-          {active && selectedCount ? (
-            <Box
-              sx={{
-                position: "absolute",
-                top: -3,
-                right: -4,
-                minWidth: 14,
-                height: 14,
-                px: 0.35,
-                borderRadius: "999px",
-                backgroundColor: theme.customTokens.brand.primary,
-                color: "#FFFFFF",
-                fontSize: "0.625rem",
-                fontWeight: 700,
-                lineHeight: "14px",
-                textAlign: "center",
-              }}
-            >
-              {selectedCount > 9 ? "9+" : selectedCount}
-            </Box>
-          ) : null}
-        </IconButton>
-      ) : null}
     </Stack>
   );
 }

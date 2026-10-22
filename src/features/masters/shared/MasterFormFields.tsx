@@ -316,44 +316,46 @@ export function MasterFormFields({
       <Box
         sx={(theme) => ({
           display: "grid",
-          gap: theme.spacing(
-            isMastersVariant
-              ? mastersFormGridGap.row
-              : compact
-                ? 1.25
-                : 1.5,
-          ),
-          rowGap: theme.spacing(
-            isMastersVariant
-              ? mastersFormGridGap.row
-              : compact
-                ? 1.25
-                : 1.5,
-          ),
-          columnGap: theme.spacing(
-            isMastersVariant
-              ? mastersFormGridGap.column
-              : compact
-                ? 1.5
-                : 1.75,
-          ),
+          rowGap: isDetailsPresentation
+            ? 2
+            : theme.spacing(
+              isMastersVariant
+                ? mastersFormGridGap.row
+                : compact
+                  ? 1.25
+                  : 1.5,
+            ),
+          columnGap: isDetailsPresentation
+            ? 3
+            : theme.spacing(
+              isMastersVariant
+                ? mastersFormGridGap.column
+                : compact
+                  ? 1.5
+                  : 1.75,
+            ),
           width: "100%",
-          gridTemplateColumns: useSingleColumn
-            ? "minmax(0, 1fr)"
-            : {
+          gridTemplateColumns: isDetailsPresentation
+            ? {
               xs: "repeat(1, minmax(0, 1fr))",
-              sm: compact
-                ? "repeat(2, minmax(140px, 1fr))"
-                : "repeat(1, minmax(0, 1fr))",
-              md: compact
-                ? "repeat(3, minmax(150px, 1fr))"
-                : "repeat(2, minmax(160px, 1fr))",
-              lg:
-                desktopColumns >= 5
-                  ? "repeat(5, minmax(140px, 1fr))"
-                  : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-              xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
-            },
+              sm: "repeat(2, minmax(0, 1fr))",
+            }
+            : useSingleColumn
+              ? "minmax(0, 1fr)"
+              : {
+                xs: "repeat(1, minmax(0, 1fr))",
+                sm: compact
+                  ? "repeat(2, minmax(140px, 1fr))"
+                  : "repeat(1, minmax(0, 1fr))",
+                md: compact
+                  ? "repeat(3, minmax(150px, 1fr))"
+                  : "repeat(2, minmax(160px, 1fr))",
+                lg:
+                  desktopColumns >= 5
+                    ? "repeat(5, minmax(140px, 1fr))"
+                    : `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+                xl: `repeat(${desktopColumns}, minmax(160px, 1fr))`,
+              },
         })}
       >
         {fields.map((field) => {
@@ -400,34 +402,40 @@ export function MasterFormFields({
             <Stack
               key={field.key}
               sx={(theme) => ({
-                gap: theme.spacing(
-                  isMastersVariant
-                    ? mastersFormGridGap.labelToField
-                    : compact
-                      ? 0.65
-                      : 0.75,
-                ),
+                gap: isDetailsPresentation
+                  ? 0.35
+                  : theme.spacing(
+                    isMastersVariant
+                      ? mastersFormGridGap.labelToField
+                      : compact
+                        ? 0.65
+                        : 0.75,
+                  ),
                 width: "100%",
-                maxWidth: field.maxWidth ?? undefined,
+                maxWidth: isDetailsPresentation ? undefined : (field.maxWidth ?? undefined),
                 minWidth: 0,
-                gridColumn: field.columnSpan
-                  ? {
-                    xs: "span 1",
-                    sm: `span ${Math.min(field.columnSpan, 2)}`,
-                    md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
-                    lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
-                  }
-                  : isFullWidth
+                gridColumn: isDetailsPresentation
+                  ? isFullWidth || field.columnSpan === 2
+                    ? { xs: "span 1", sm: "span 2" }
+                    : "span 1"
+                  : field.columnSpan
                     ? {
                       xs: "span 1",
-                      lg: useSingleColumn
-                        ? "span 1"
-                        : `span ${Math.min(desktopColumns, 2)}`,
-                      xl: useSingleColumn
-                        ? "span 1"
-                        : `span ${Math.min(desktopColumns, 2)}`,
+                      sm: `span ${Math.min(field.columnSpan, 2)}`,
+                      md: `span ${Math.min(field.columnSpan, desktopColumns)}`,
+                      lg: `span ${Math.min(field.columnSpan, desktopColumns)}`,
                     }
-                    : undefined,
+                    : isFullWidth
+                      ? {
+                        xs: "span 1",
+                        lg: useSingleColumn
+                          ? "span 1"
+                          : `span ${Math.min(desktopColumns, 2)}`,
+                        xl: useSingleColumn
+                          ? "span 1"
+                          : `span ${Math.min(desktopColumns, 2)}`,
+                      }
+                      : undefined,
               })}
             >
               <Stack
@@ -436,17 +444,31 @@ export function MasterFormFields({
                 justifyContent="space-between"
                 sx={() => ({
                   gap: 1,
-                  height: "20px",
-                  minHeight: "20px",
-                  maxHeight: "20px",
+                  height: isDetailsPresentation ? "auto" : "20px",
+                  minHeight: isDetailsPresentation ? undefined : "20px",
+                  maxHeight: isDetailsPresentation ? undefined : "20px",
                 })}
               >
-                <FieldLabel
-                  compact={compact}
-                  label={field.label}
-                  required={fieldRequired && !isDetailsPresentation}
-                  masters={isMastersVariant}
-                />
+                {isDetailsPresentation ? (
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      textTransform: "uppercase",
+                      color: theme.customTokens.text.secondary,
+                    })}
+                  >
+                    {getDisplayFieldLabel(field.label)}
+                  </Typography>
+                ) : (
+                  <FieldLabel
+                    compact={compact}
+                    label={field.label}
+                    required={fieldRequired && !isDetailsPresentation}
+                    masters={isMastersVariant}
+                  />
+                )}
 
                 {fieldAction}
               </Stack>
@@ -458,6 +480,40 @@ export function MasterFormFields({
                     value={fieldValue}
                     onPreview={(preview) => setPreviewState(preview)}
                   />
+                ) : isStatusField(field) || field.type === "toggle" ? (
+                  (() => {
+                    const statusStr = String(formatDetailFieldValue(field, fieldValue, values));
+                    const isRowActive = statusStr.toLowerCase() === "active" || statusStr.toLowerCase() === "enabled";
+                    return (
+                      <Box sx={{ display: "flex", alignItems: "center", minHeight: 24, mt: 0.25 }}>
+                        <Box
+                          component="span"
+                          sx={(currentTheme) => ({
+                            display: "inline-flex",
+                            alignItems: "center",
+                            px: 1.2,
+                            py: 0.25,
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            backgroundColor: isRowActive
+                              ? currentTheme.customTokens.semanticScale.success[100]
+                              : currentTheme.customTokens.neutrals[100],
+                            color: isRowActive
+                              ? currentTheme.customTokens.semanticScale.success[800]
+                              : currentTheme.customTokens.neutrals[700],
+                            border: `1px solid ${isRowActive
+                              ? currentTheme.customTokens.semanticScale.success[200]
+                              : currentTheme.customTokens.neutrals[200]
+                              }`,
+                          })}
+                        >
+                          {statusStr}
+                        </Box>
+                      </Box>
+                    );
+                  })()
                 ) : isPhoneField(field) && formatDetailFieldValue(field, fieldValue, values) !== "—" ? (
                   <Typography
                     component="a"
@@ -465,10 +521,9 @@ export function MasterFormFields({
                     onClick={(event) => event.stopPropagation()}
                     sx={(currentTheme) => ({
                       color: currentTheme.customTokens.brand.primary,
-                      fontSize: "14px",
-                      fontWeight: 400,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
                       lineHeight: 1.4,
-                      minHeight: currentTheme.spacing(2.5),
                       wordBreak: "break-word",
                       textDecoration: "none",
                       cursor: "pointer",
@@ -483,10 +538,9 @@ export function MasterFormFields({
                   <Typography
                     sx={(currentTheme) => ({
                       color: currentTheme.customTokens.text.primary,
-                      fontSize: "14px",
-                      fontWeight: 400,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
                       lineHeight: 1.4,
-                      minHeight: currentTheme.spacing(2.5),
                       wordBreak: "break-word",
                     })}
                   >
