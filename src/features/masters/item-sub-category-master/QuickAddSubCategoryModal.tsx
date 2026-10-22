@@ -15,7 +15,6 @@ import {
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { fetchItemCategoriesApi } from "../item-category-master/api/itemCategoryMasterApi";
-import { QuickAddCategoryModal } from "../item-category-master/QuickAddCategoryModal";
 import {
   createItemSubCategoryApi,
   fetchItemSubCategoriesApi,
@@ -28,7 +27,10 @@ interface QuickAddSubCategoryModalProps {
   open: boolean;
   defaultCategory?: string;
   onClose: () => void;
-  onSuccess: (newSubCategoryName: string, subCategoryRecord?: MasterRecord) => void;
+  onSuccess: (
+    newSubCategoryName: string,
+    subCategoryRecord?: MasterRecord,
+  ) => void;
 }
 
 export function QuickAddSubCategoryModal({
@@ -40,7 +42,6 @@ export function QuickAddSubCategoryModal({
   const [subCategoryName, setSubCategoryName] = useState("");
   const [category, setCategory] = useState(defaultCategory);
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
-  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -55,7 +56,9 @@ export function QuickAddSubCategoryModal({
       fetchItemCategoriesApi({ status: true, limit: 1000 })
         .then((records) => {
           const names = records
-            .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
+            .filter(
+              (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+            )
             .map((r) => String(r.categoryName || r.name || "").trim())
             .filter((n) => Boolean(n) && isNaN(Number(n)));
           setCategoryOptions([...new Set(names)]);
@@ -145,7 +148,10 @@ export function QuickAddSubCategoryModal({
           <Box
             sx={(theme) => ({
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, minmax(0, 1fr))",
+              },
               gap: 2,
               alignItems: "start",
             })}
@@ -159,7 +165,10 @@ export function QuickAddSubCategoryModal({
                   color: theme.customTokens.text.primary,
                 })}
               >
-                Item Sub Category <Box component="span" sx={{ color: "error.main" }}>*</Box>
+                Item Sub Category{" "}
+                <Box component="span" sx={{ color: "error.main" }}>
+                  *
+                </Box>
               </Typography>
               <TextField
                 autoFocus
@@ -179,37 +188,20 @@ export function QuickAddSubCategoryModal({
             </Stack>
 
             <Stack spacing={0.75}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ height: "20px", minHeight: "20px" }}>
-                <Typography
-                  component="label"
-                  sx={(theme) => ({
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: theme.customTokens.text.primary,
-                  })}
-                >
-                  Category <Box component="span" sx={{ color: "error.main" }}>*</Box>
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setQuickAddCategoryOpen(true)}
-                  sx={(theme) => ({
-                    p: 0,
-                    minWidth: "auto",
-                    fontSize: "11px",
-                    lineHeight: 1.3,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      backgroundColor: "transparent",
-                      textDecoration: "underline",
-                    },
-                  })}
-                >
-                  + Add Category
-                </Button>
-              </Stack>
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  height: "20px",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
+              >
+                Category{" "}
+                <Box component="span" sx={{ color: "error.main" }}>
+                  *
+                </Box>
+              </Typography>
               <TextField
                 select
                 fullWidth
@@ -309,14 +301,6 @@ export function QuickAddSubCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
-      <QuickAddCategoryModal
-        open={quickAddCategoryOpen}
-        onClose={() => setQuickAddCategoryOpen(false)}
-        onSuccess={(newCategory) => {
-          setCategoryOptions((current) => [...new Set([newCategory, ...current])]);
-          setCategory(newCategory);
-        }}
-      />
     </Dialog>
   );
 }

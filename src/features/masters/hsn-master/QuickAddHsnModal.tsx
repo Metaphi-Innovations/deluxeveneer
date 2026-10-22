@@ -13,9 +13,12 @@ import {
   Typography,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
-import { createHsnApi, fetchHsnsApi, syncHsnMasterToStorage } from "./api/hsnMasterApi";
+import {
+  createHsnApi,
+  fetchHsnsApi,
+  syncHsnMasterToStorage,
+} from "./api/hsnMasterApi";
 import { fetchGstsApi } from "../gst-master/api/gstMasterApi";
-import { QuickAddGstModal } from "../gst-master/QuickAddGstModal";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 
@@ -34,7 +37,6 @@ export function QuickAddHsnModal({
   const [hsnDescription, setHsnDescription] = useState("");
   const [gstPercentage, setGstPercentage] = useState("");
   const [gstOptions, setGstOptions] = useState<string[]>([]);
-  const [quickAddGstOpen, setQuickAddGstOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -131,7 +133,11 @@ export function QuickAddHsnModal({
         })}
       >
         <span>Add HSN Code</span>
-        <IconButton size="small" onClick={onClose} sx={{ color: "text.secondary" }}>
+        <IconButton
+          size="small"
+          onClick={onClose}
+          sx={{ color: "text.secondary" }}
+        >
           <X size={18} />
         </IconButton>
       </DialogTitle>
@@ -201,42 +207,17 @@ export function QuickAddHsnModal({
             </Stack>
 
             <Stack spacing={0.75} sx={{ flex: 1 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ height: "20px", minHeight: "20px" }}
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  height: "20px",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
               >
-                <Typography
-                  component="label"
-                  sx={(theme) => ({
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: theme.customTokens.text.primary,
-                  })}
-                >
-                  GST %
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setQuickAddGstOpen(true)}
-                  sx={(theme) => ({
-                    p: 0,
-                    minWidth: "auto",
-                    fontSize: "11px",
-                    lineHeight: 1.3,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      backgroundColor: "transparent",
-                      textDecoration: "underline",
-                    },
-                  })}
-                >
-                  + Add GST
-                </Button>
-              </Stack>
+                GST %
+              </Typography>
               <TextField
                 select
                 fullWidth
@@ -304,16 +285,6 @@ export function QuickAddHsnModal({
           </Button>
         </DialogActions>
       </form>
-
-      <QuickAddGstModal
-        open={quickAddGstOpen}
-        onClose={() => setQuickAddGstOpen(false)}
-        onSuccess={(newGst) => {
-          setGstOptions((prev) => (prev.includes(newGst) ? prev : [...prev, newGst]));
-          setGstPercentage(newGst);
-          loadGstOptions();
-        }}
-      />
     </Dialog>
   );
 }

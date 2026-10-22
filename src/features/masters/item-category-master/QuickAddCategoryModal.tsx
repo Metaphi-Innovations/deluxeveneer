@@ -13,10 +13,13 @@ import {
   Typography,
   Box,
 } from "@mui/material";
-import { X, Plus, Save } from "lucide-react";
+import { X, Save } from "lucide-react";
 import { fetchHsnsApi } from "../hsn-master/api/hsnMasterApi";
-import { QuickAddHsnModal } from "../hsn-master/QuickAddHsnModal";
-import { createItemCategoryApi, fetchItemCategoriesApi, syncItemCategoryMasterToStorage } from "./api/itemCategoryMasterApi";
+import {
+  createItemCategoryApi,
+  fetchItemCategoriesApi,
+  syncItemCategoryMasterToStorage,
+} from "./api/itemCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
 
@@ -37,7 +40,6 @@ export function QuickAddCategoryModal({
   const [remark, setRemark] = useState("");
   const [hsnOptions, setHsnOptions] = useState<string[]>([]);
   const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
-  const [quickAddHsnOpen, setQuickAddHsnOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -152,7 +154,10 @@ export function QuickAddCategoryModal({
           <Box
             sx={(theme) => ({
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(4, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(4, minmax(0, 1fr))",
+              },
               gap: 2,
               alignItems: "start",
             })}
@@ -166,7 +171,10 @@ export function QuickAddCategoryModal({
                   color: theme.customTokens.text.primary,
                 })}
               >
-                Category Name <Box component="span" sx={{ color: "error.main" }}>*</Box>
+                Category Name{" "}
+                <Box component="span" sx={{ color: "error.main" }}>
+                  *
+                </Box>
               </Typography>
               <TextField
                 autoFocus
@@ -186,37 +194,17 @@ export function QuickAddCategoryModal({
             </Stack>
 
             <Stack spacing={0.75}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ height: "20px", minHeight: "20px" }}>
-                <Typography
-                  component="label"
-                  sx={(theme) => ({
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: theme.customTokens.text.primary,
-                  })}
-                >
-                  HSN Code
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setQuickAddHsnOpen(true)}
-                  sx={(theme) => ({
-                    p: 0,
-                    minWidth: "auto",
-                    fontSize: "11px",
-                    lineHeight: 1.3,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      backgroundColor: "transparent",
-                      textDecoration: "underline",
-                    },
-                  })}
-                >
-                  + Add HSN
-                </Button>
-              </Stack>
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  height: "20px",
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
+              >
+                HSN Code
+              </Typography>
               <TextField
                 select
                 fullWidth
@@ -345,20 +333,6 @@ export function QuickAddCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
-      <QuickAddHsnModal
-        open={quickAddHsnOpen}
-        onClose={() => setQuickAddHsnOpen(false)}
-        onSuccess={(newHsnCode, hsnRecord) => {
-          setHsnOptions((current) => [...new Set([newHsnCode, ...current])]);
-          setHsn(newHsnCode);
-          if (hsnRecord?.gstPercentage) {
-            setGst(String(hsnRecord.gstPercentage));
-          }
-          if (hsnRecord) {
-            setHsnRows((current) => [hsnRecord, ...current]);
-          }
-        }}
-      />
     </Dialog>
   );
 }
