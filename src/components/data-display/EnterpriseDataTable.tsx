@@ -149,7 +149,10 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   isStatusChangeDisabled?: (row: Row) => boolean;
   maxBodyHeight?: number;
   onSelectionChange?: (rows: Row[]) => void;
-  onStatusChange?: (row: Row, checked: boolean) => Promise<void> | void;
+  onStatusChange?: (
+    row: Row,
+    checked: boolean,
+  ) => Promise<boolean | void> | boolean | void;
   renderActionCell?: (row: Row) => ReactNode;
   rows: readonly Row[];
   rowsPerPageOptions?: readonly number[];
@@ -283,6 +286,28 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const [statusOverrides, setStatusOverrides] = useState<Record<string, boolean>>(
     {},
   );
+
+  useEffect(() => {
+    setStatusOverrides((current) => {
+      let next = current;
+
+      for (const row of rows) {
+        for (const column of columns) {
+          const sourceStatus = getEnterpriseStatusToggleState(column, row[column.key]);
+          const toggleKey = `${row.id}:${column.key}`;
+
+          if (sourceStatus !== null && current[toggleKey] === Boolean(sourceStatus)) {
+            if (next === current) {
+              next = { ...current };
+            }
+            delete next[toggleKey];
+          }
+        }
+      }
+
+      return next;
+    });
+  }, [columns, rows]);
 
   const usesActionMenu = actions.length > 0 || Boolean(getRowActions);
   const hasActions = usesActionMenu || Boolean(renderActionCell);
@@ -1664,12 +1689,23 @@ function renderEnterpriseTableCell<Row extends EnterpriseTableRow>(
           [toggleKey]: nextChecked,
         }));
 
-        Promise.resolve(onStatusChange?.(row, nextChecked)).catch(() => {
-          setStatusOverrides((current) => ({
-            ...current,
-            [toggleKey]: checked,
-          }));
-        });
+        Promise.resolve(onStatusChange?.(row, nextChecked))
+          .then((accepted) => {
+            if (accepted === false) {
+              setStatusOverrides((current) => {
+                const next = { ...current };
+                delete next[toggleKey];
+                return next;
+              });
+            }
+          })
+          .catch(() => {
+            setStatusOverrides((current) => {
+              const next = { ...current };
+              delete next[toggleKey];
+              return next;
+            });
+          });
       }}
     />
   );

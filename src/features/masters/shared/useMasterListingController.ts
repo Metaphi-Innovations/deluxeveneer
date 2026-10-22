@@ -84,6 +84,7 @@ export function useMasterListingController({
         setActionError(
           error instanceof Error ? error.message : statusErrorMessage,
         );
+        throw error;
       }
     },
     [master, queryClient, statusErrorMessage, updateStatus],
