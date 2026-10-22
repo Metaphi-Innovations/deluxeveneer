@@ -11,6 +11,7 @@ import {
   Alert,
   IconButton,
   Typography,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import {
@@ -39,6 +40,11 @@ export function QuickAddHsnModal({
   const [gstOptions, setGstOptions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [existingHsns, setExistingHsns] = useState<string[]>([]);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
 
   const loadGstOptions = () => {
     fetchGstsApi({ status: true, limit: 1000 })
@@ -47,12 +53,25 @@ export function QuickAddHsnModal({
           (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
         );
         const gsts = active
-          .map((r) => String(r.gstPercentage || r.percentage || "").trim())
+          .map((r) => String(r.gstPercentage || r.percentage || "").trim().replace(/%+$/, ""))
           .filter(Boolean);
         setGstOptions([...new Set(gsts)]);
       })
       .catch((err) => {
         console.warn("Failed to load GST options:", err);
+      });
+  };
+
+  const loadExistingHsns = () => {
+    fetchHsnsApi({ limit: 1000 })
+      .then((records) => {
+        const codes = records
+          .map((r) => String(r.hsnCode || r.code || "").trim().toLowerCase())
+          .filter(Boolean);
+        setExistingHsns(codes);
+      })
+      .catch((err) => {
+        console.warn("Failed to load existing HSNs:", err);
       });
   };
 
@@ -64,13 +83,39 @@ export function QuickAddHsnModal({
       setError("");
 
       loadGstOptions();
+      loadExistingHsns();
     }
   }, [open]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!hsnCode.trim()) {
-      setError("HSN Code is required");
+    const cleanCode = hsnCode.trim();
+    if (!cleanCode) {
+      const msg = "HSN Code is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (!/^\d+$/.test(cleanCode)) {
+      const msg = "HSN Code must contain digits only.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (![4, 6, 8].includes(cleanCode.length)) {
+      const msg = `HSN Code must be 4, 6, or 8 digits (${cleanCode.length} entered).`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    // Check if HSN code is already there
+    if (existingHsns.includes(cleanCode.toLowerCase())) {
+      const msg = `HSN Code "${cleanCode}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -78,11 +123,11 @@ export function QuickAddHsnModal({
       setIsSubmitting(true);
       setError("");
       const created = await createHsnApi({
-        code: hsnCode.trim(),
-        hsnCode: hsnCode.trim(),
+        code: cleanCode,
+        hsnCode: cleanCode,
         description: hsnDescription.trim(),
         hsnCodeDescription: hsnDescription.trim(),
-        gstPercentage: gstPercentage.trim(),
+        gstPercentage: gstPercentage.trim() ? (gstPercentage.trim().endsWith("%") ? gstPercentage.trim() : `${gstPercentage.trim()}%`) : undefined,
         status: true,
       });
 
@@ -94,13 +139,16 @@ export function QuickAddHsnModal({
       }
 
       void invalidateMaster("hsn");
-      onSuccess(hsnCode.trim(), created || undefined);
-      onClose();
+      setToastNotification({ message: `HSN Code "${cleanCode}" added successfully!`, severity: "success" });
+      onSuccess(cleanCode, created || undefined);
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
       console.warn("Failed to create HSN:", err);
-      // Fallback
-      onSuccess(hsnCode.trim());
-      onClose();
+      const msg = err?.message || "Failed to create HSN code.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -167,7 +215,12 @@ export function QuickAddHsnModal({
                 fullWidth
                 placeholder="Enter HSN code"
                 value={hsnCode}
-                onChange={(e) => setHsnCode(e.target.value)}
+                onChange={(e) => {
+                  const sanitized = e.target.value.replace(/\D/g, "").slice(0, 8);
+                  setHsnCode(sanitized);
+                  if (error) setError("");
+                }}
+                inputProps={{ maxLength: 8 }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -285,6 +338,24 @@ export function QuickAddHsnModal({
           </Button>
         </DialogActions>
       </form>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Dialog>
   );
 }

@@ -10,6 +10,7 @@ import {
   Alert,
   IconButton,
   Typography,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { createColorApi, fetchColorsApi, syncColorMasterToStorage } from "./api/colorMasterApi";
@@ -30,19 +31,43 @@ export function QuickAddColorModal({
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [existingColors, setExistingColors] = useState<string[]>([]);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
 
   useEffect(() => {
     if (open) {
       setColorName("");
       setRemark("");
       setError("");
+
+      fetchColorsApi({ limit: 1000 })
+        .then((records) => {
+          const names = records
+            .map((r) => String(r.colorName || r.name || "").trim().toLowerCase())
+            .filter(Boolean);
+          setExistingColors(names);
+        })
+        .catch(() => {});
     }
   }, [open]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!colorName.trim()) {
-      setError("Color name is required");
+    const cleanColor = colorName.trim();
+    if (!cleanColor) {
+      const msg = "Color name is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingColors.includes(cleanColor.toLowerCase())) {
+      const msg = `Color Name "${cleanColor}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -50,8 +75,8 @@ export function QuickAddColorModal({
       setIsSubmitting(true);
       setError("");
       const created = await createColorApi({
-        colorName: colorName.trim(),
-        name: colorName.trim(),
+        colorName: cleanColor,
+        name: cleanColor,
         remark: remark.trim() || null,
         status: true,
       });
@@ -64,13 +89,15 @@ export function QuickAddColorModal({
       }
 
       void invalidateMaster("color");
-      onSuccess(colorName.trim());
-      onClose();
+      setToastNotification({ message: `Color "${cleanColor}" added successfully!`, severity: "success" });
+      onSuccess(cleanColor);
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      console.warn("Failed to create color:", err);
-      // Fallback
-      onSuccess(colorName.trim());
-      onClose();
+      const msg = err?.message || "Failed to create color.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -217,6 +244,24 @@ export function QuickAddColorModal({
           </Button>
         </DialogActions>
       </form>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Dialog>
   );
 }

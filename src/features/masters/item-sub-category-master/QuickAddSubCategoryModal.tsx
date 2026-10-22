@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -12,6 +12,7 @@ import {
   IconButton,
   Typography,
   Box,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { fetchItemCategoriesApi } from "../item-category-master/api/itemCategoryMasterApi";
@@ -42,9 +43,39 @@ export function QuickAddSubCategoryModal({
   const [subCategoryName, setSubCategoryName] = useState("");
   const [category, setCategory] = useState(defaultCategory);
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [existingSubCategories, setExistingSubCategories] = useState<string[]>([]);
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
+
+  const loadCategories = useCallback(() => {
+    fetchItemCategoriesApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const names = records
+          .filter(
+            (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+          )
+          .map((r) => String(r.categoryName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setCategoryOptions([...new Set(names)]);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadExistingSubCategories = useCallback(() => {
+    fetchItemSubCategoriesApi({ limit: 1000 })
+      .then((records) => {
+        const names = records
+          .map((r) => String(r.itemSubCategory || r.name || "").trim().toLowerCase())
+          .filter(Boolean);
+        setExistingSubCategories(names);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -53,28 +84,30 @@ export function QuickAddSubCategoryModal({
       setRemark("");
       setError("");
 
-      fetchItemCategoriesApi({ status: true, limit: 1000 })
-        .then((records) => {
-          const names = records
-            .filter(
-              (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
-            )
-            .map((r) => String(r.categoryName || r.name || "").trim())
-            .filter((n) => Boolean(n) && isNaN(Number(n)));
-          setCategoryOptions([...new Set(names)]);
-        })
-        .catch(() => {});
+      loadCategories();
+      loadExistingSubCategories();
     }
-  }, [open, defaultCategory]);
+  }, [open, defaultCategory, loadCategories, loadExistingSubCategories]);
 
   const handleSave = async () => {
     const trimmedSub = subCategoryName.trim();
     if (!trimmedSub) {
-      setError("Item Sub Category is required.");
+      const msg = "Item Sub Category is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
     if (!category.trim()) {
-      setError("Category is required.");
+      const msg = "Category is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingSubCategories.includes(trimmedSub.toLowerCase())) {
+      const msg = `Item Sub Category "${trimmedSub}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -98,10 +131,15 @@ export function QuickAddSubCategoryModal({
 
       void invalidateMaster("itemSubCategory");
 
+      setToastNotification({ message: `Sub Category "${trimmedSub}" added successfully!`, severity: "success" });
       onSuccess(trimmedSub, created ?? undefined);
-      onClose();
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      setError(err?.message || "Failed to create sub category");
+      const msg = err?.message || "Failed to create sub category.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -301,6 +339,24 @@ export function QuickAddSubCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Dialog>
   );
 }

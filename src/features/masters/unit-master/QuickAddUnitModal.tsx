@@ -10,6 +10,7 @@ import {
   Alert,
   IconButton,
   Typography,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { createUnitApi, fetchUnitsApi, syncUnitMasterToStorage } from "./api/unitMasterApi";
@@ -31,6 +32,14 @@ export function QuickAddUnitModal({
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [existingUnits, setExistingUnits] = useState<{ names: string[]; symbols: string[] }>({
+    names: [],
+    symbols: [],
+  });
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -38,13 +47,43 @@ export function QuickAddUnitModal({
       setSymbolicName("");
       setRemark("");
       setError("");
+
+      fetchUnitsApi({ limit: 1000 })
+        .then((records) => {
+          const names = records
+            .map((r) => String(r.unitName || r.name || "").trim().toLowerCase())
+            .filter(Boolean);
+          const symbols = records
+            .map((r) => String(r.symbolicName || "").trim().toLowerCase())
+            .filter(Boolean);
+          setExistingUnits({ names, symbols });
+        })
+        .catch(() => {});
     }
   }, [open]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!unitName.trim()) {
-      setError("Unit name is required");
+    const cleanUnit = unitName.trim();
+    if (!cleanUnit) {
+      const msg = "Unit name is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingUnits.names.includes(cleanUnit.toLowerCase())) {
+      const msg = `Unit Name "${cleanUnit}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    const cleanSymbol = symbolicName.trim();
+    if (cleanSymbol && existingUnits.symbols.includes(cleanSymbol.toLowerCase())) {
+      const msg = `Symbolic Name "${cleanSymbol}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -52,9 +91,9 @@ export function QuickAddUnitModal({
       setIsSubmitting(true);
       setError("");
       const created = await createUnitApi({
-        unitName: unitName.trim(),
-        name: unitName.trim(),
-        symbolicName: symbolicName.trim() || null,
+        unitName: cleanUnit,
+        name: cleanUnit,
+        symbolicName: cleanSymbol || null,
         remark: remark.trim() || null,
         status: true,
       });
@@ -67,13 +106,15 @@ export function QuickAddUnitModal({
       }
 
       void invalidateMaster("unit");
-      onSuccess(unitName.trim());
-      onClose();
+      setToastNotification({ message: `Unit "${cleanUnit}" added successfully!`, severity: "success" });
+      onSuccess(cleanUnit);
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      console.warn("Failed to create unit:", err);
-      // Fallback
-      onSuccess(unitName.trim());
-      onClose();
+      const msg = err?.message || "Failed to create unit.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -247,6 +288,24 @@ export function QuickAddUnitModal({
           </Button>
         </DialogActions>
       </form>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Dialog>
   );
 }

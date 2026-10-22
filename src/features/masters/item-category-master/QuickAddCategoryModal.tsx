@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -12,6 +12,7 @@ import {
   IconButton,
   Typography,
   Box,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { fetchHsnsApi } from "../hsn-master/api/hsnMasterApi";
@@ -22,6 +23,7 @@ import {
 } from "./api/itemCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
 import type { MasterRecord } from "../shared/types";
+import { QuickAddHsnModal } from "../hsn-master/QuickAddHsnModal";
 
 interface QuickAddCategoryModalProps {
   open: boolean;
@@ -40,8 +42,40 @@ export function QuickAddCategoryModal({
   const [remark, setRemark] = useState("");
   const [hsnOptions, setHsnOptions] = useState<string[]>([]);
   const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
+  const [existingCategories, setExistingCategories] = useState<string[]>([]);
+  const [quickAddHsnOpen, setQuickAddHsnOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
+
+  const loadCategories = useCallback(() => {
+    fetchItemCategoriesApi({ limit: 1000 })
+      .then((records) => {
+        const names = records
+          .map((r) => String(r.categoryName || r.name || "").trim().toLowerCase())
+          .filter(Boolean);
+        setExistingCategories(names);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadHsns = useCallback(() => {
+    fetchHsnsApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const active = records.filter(
+          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        );
+        const codes = active
+          .map((r) => String(r.hsnCode || r.code || "").trim())
+          .filter(Boolean);
+        setHsnOptions([...new Set(codes)]);
+        setHsnRows(active);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -51,24 +85,15 @@ export function QuickAddCategoryModal({
       setRemark("");
       setError("");
 
-      fetchHsnsApi({ status: true, limit: 1000 })
-        .then((records) => {
-          const active = records.filter(
-            (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
-          );
-          const codes = active
-            .map((r) => String(r.hsnCode || r.code || "").trim())
-            .filter(Boolean);
-          setHsnOptions([...new Set(codes)]);
-          setHsnRows(active);
-        })
-        .catch(() => {});
+      loadHsns();
+      loadCategories();
     }
-  }, [open]);
+  }, [open, loadHsns, loadCategories]);
 
-  const handleHsnChange = (selectedHsn: string) => {
+  const handleHsnChange = (selectedHsn: string, customRows?: MasterRecord[]) => {
     setHsn(selectedHsn);
-    const matched = hsnRows.find(
+    const rowsToSearch = customRows || hsnRows;
+    const matched = rowsToSearch.find(
       (r) => String(r.hsnCode || r.code || "").trim() === selectedHsn.trim(),
     );
     if (matched) {
@@ -81,7 +106,16 @@ export function QuickAddCategoryModal({
   const handleSave = async () => {
     const trimmed = categoryName.trim();
     if (!trimmed) {
-      setError("Category Name is required.");
+      const msg = "Category Name is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingCategories.includes(trimmed.toLowerCase())) {
+      const msg = `Category Name "${trimmed}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -104,10 +138,15 @@ export function QuickAddCategoryModal({
 
       void invalidateMaster("itemCategory");
 
+      setToastNotification({ message: `Category "${trimmed}" added successfully!`, severity: "success" });
       onSuccess(trimmed, created ?? undefined);
-      onClose();
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      setError(err?.message || "Failed to create category");
+      const msg = err?.message || "Failed to create category.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
@@ -194,17 +233,44 @@ export function QuickAddCategoryModal({
             </Stack>
 
             <Stack spacing={0.75}>
-              <Typography
-                component="label"
-                sx={(theme) => ({
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   height: "20px",
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: theme.customTokens.text.primary,
-                })}
+                }}
               >
-                HSN Code
-              </Typography>
+                <Typography
+                  component="label"
+                  sx={(theme) => ({
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    color: theme.customTokens.text.primary,
+                  })}
+                >
+                  HSN Code
+                </Typography>
+                <Button
+                  size="small"
+                  onClick={() => setQuickAddHsnOpen(true)}
+                  sx={(theme) => ({
+                    p: 0,
+                    minWidth: "auto",
+                    fontSize: "11px",
+                    lineHeight: 1.3,
+                    fontWeight: 600,
+                    textTransform: "none",
+                    color: theme.customTokens.brand.primary,
+                    "&:hover": {
+                      backgroundColor: "transparent",
+                      textDecoration: "underline",
+                    },
+                  })}
+                >
+                  + Add HSN
+                </Button>
+              </Box>
               <TextField
                 select
                 fullWidth
@@ -333,6 +399,39 @@ export function QuickAddCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
+
+      <QuickAddHsnModal
+        open={quickAddHsnOpen}
+        onClose={() => setQuickAddHsnOpen(false)}
+        onSuccess={(newHsnCode, record) => {
+          setHsnOptions((prev) => [...new Set([newHsnCode, ...prev])]);
+          if (record) {
+            setHsnRows((prev) => [record, ...prev]);
+            handleHsnChange(newHsnCode, [record, ...hsnRows]);
+          } else {
+            setHsn(newHsnCode);
+          }
+          loadHsns();
+        }}
+      />
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Dialog>
   );
 }
