@@ -1,16 +1,36 @@
-import { Box, IconButton, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { Trash2 } from "lucide-react";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { FormSectionHeader, formSectionCardSx } from "../../shared/formSectionStyles";
+import {
+  formSectionCardSx,
+  plainFormSectionHeadingSx,
+} from "../../shared/formSectionStyles";
 import {
   getListingColumnMinWidth,
   listingTableBodyCellSx,
   listingTableContainerSx,
   listingTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
-import { formatSQF, formatSQM, parseNumericValue, SQM_TO_SQF } from "../../shared/numberFormat";
+import {
+  formatSQF,
+  formatSQM,
+  parseNumericValue,
+  SQM_TO_SQF,
+} from "../../shared/numberFormat";
 import { calculateSlicingSqmValue } from "../shared/slicingAreaCalculation";
 import type { FactoryRecord } from "../shared/types";
 
@@ -115,7 +135,10 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
   showErrors,
 }: {
   drafts: Readonly<Record<string, MarquetrySelectedDraft>>;
-  onDraftChange: (rowId: string, patch: Partial<MarquetrySelectedDraft>) => void;
+  onDraftChange: (
+    rowId: string,
+    patch: Partial<MarquetrySelectedDraft>,
+  ) => void;
   onRemove: (rowId: string) => void;
   rows: readonly Row[];
   showErrors: boolean;
@@ -127,7 +150,9 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
         gap: theme.spacing(1.5),
       })}
     >
-      <FormSectionHeader title="Selected Marquetry Items" />
+      <Typography component="h2" sx={plainFormSectionHeadingSx}>
+        Selected Marquetry Items
+      </Typography>
       {rows.length === 0 ? (
         <Typography
           sx={(theme) => ({
@@ -158,31 +183,62 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                       key={column.key}
                       sx={(theme) => ({
                         ...listingTableHeaderCellSx(theme),
-                        minWidth: getListingColumnMinWidth(column.key, column.label) ?? column.minWidth,
+                        minWidth:
+                          getListingColumnMinWidth(column.key, column.label) ??
+                          column.minWidth,
                       })}
                     >
                       {column.label}
                     </TableCell>
                   ))}
-                  <TableCell sx={(theme) => ({ ...listingTableHeaderCellSx(theme), minWidth: 132 })}>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableHeaderCellSx(theme),
+                      minWidth: 132,
+                    })}
+                  >
                     Leaves Used
                   </TableCell>
-                  <TableCell sx={(theme) => ({ ...listingTableHeaderCellSx(theme), minWidth: 110 })}>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableHeaderCellSx(theme),
+                      minWidth: 110,
+                    })}
+                  >
                     SQM Used
                   </TableCell>
-                  <TableCell sx={(theme) => ({ ...listingTableHeaderCellSx(theme), minWidth: 110 })}>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableHeaderCellSx(theme),
+                      minWidth: 110,
+                    })}
+                  >
                     SQF Used
                   </TableCell>
-                  <TableCell sx={(theme) => ({ ...listingTableHeaderCellSx(theme), minWidth: 180 })}>
+                  <TableCell
+                    sx={(theme) => ({
+                      ...listingTableHeaderCellSx(theme),
+                      minWidth: 180,
+                    })}
+                  >
                     Remark
                   </TableCell>
-                  <TableCell sx={(theme) => actionHeaderCellSx(theme)}>Action</TableCell>
+                  <TableCell sx={(theme) => actionHeaderCellSx(theme)}>
+                    Action
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {rows.map((row) => {
-                  const draft = drafts[String(row.id)] ?? { leavesUsed: "", remark: "" };
-                  const area = calculateMarquetryUsedArea(row.length, row.width, draft.leavesUsed);
+                  const draft = drafts[String(row.id)] ?? {
+                    leavesUsed: "",
+                    remark: "",
+                  };
+                  const area = calculateMarquetryUsedArea(
+                    row.length,
+                    row.width,
+                    draft.leavesUsed,
+                  );
                   const leavesError = getMarquetryLeavesUsedError(
                     draft.leavesUsed,
                     row.availableLeaves,
@@ -207,7 +263,11 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                           key={column.key}
                           sx={(theme) => ({
                             ...listingTableBodyCellSx(theme),
-                            minWidth: getListingColumnMinWidth(column.key, column.label) ?? column.minWidth,
+                            minWidth:
+                              getListingColumnMinWidth(
+                                column.key,
+                                column.label,
+                              ) ?? column.minWidth,
                           })}
                         >
                           {displaySelectedItemValue(row, column.key)}
@@ -219,13 +279,18 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                           helperText={leavesError}
                           onChange={(event) =>
                             onDraftChange(String(row.id), {
-                              leavesUsed: sanitizeMarquetryLeavesUsed(event.target.value),
+                              leavesUsed: sanitizeMarquetryLeavesUsed(
+                                event.target.value,
+                              ),
                             })
                           }
                           placeholder="Enter leaves used"
                           size="small"
                           sx={(theme) => ({
-                            ...getCompactFieldSx(theme, leavesError ? "error" : "default"),
+                            ...getCompactFieldSx(
+                              theme,
+                              leavesError ? "error" : "default",
+                            ),
                             width: 120,
                           })}
                           value={draft.leavesUsed}
@@ -240,7 +305,9 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                         <TextField
                           onChange={(event) =>
-                            onDraftChange(String(row.id), { remark: event.target.value })
+                            onDraftChange(String(row.id), {
+                              remark: event.target.value,
+                            })
                           }
                           placeholder="Enter remark"
                           size="small"
@@ -251,7 +318,10 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                           value={draft.remark}
                         />
                       </TableCell>
-                      <TableCell align="center" sx={(theme) => actionBodyCellSx(theme)}>
+                      <TableCell
+                        align="center"
+                        sx={(theme) => actionBodyCellSx(theme)}
+                      >
                         <IconButton
                           aria-label="Remove selected marquetry item"
                           onClick={() => onRemove(String(row.id))}
@@ -259,7 +329,8 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                           sx={(theme) => ({
                             color: theme.customTokens.navigation.activeText,
                             "&:hover": {
-                              backgroundColor: theme.customTokens.navigation.hoverBackground,
+                              backgroundColor:
+                                theme.customTokens.navigation.hoverBackground,
                             },
                           })}
                         >

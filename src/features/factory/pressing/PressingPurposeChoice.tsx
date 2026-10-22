@@ -2,7 +2,10 @@ import { Box, Stack, TextField, Typography } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
-import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../shared/formSectionStyles";
 import type { OrderRecord } from "../../orders/shared/ordersStore";
 import type { PressingBaseMaterialType } from "./usePressingBaseStock";
 
@@ -15,14 +18,11 @@ export function PressingPurposeChoice({
   onChange,
   onOrderItemNoChange,
   onOrderNoChange,
-  onSampleNoChange,
   orderItemNo,
   orderItemOptions,
   orderNo,
   orderOptions,
   orderRecords,
-  sampleNo,
-  sampleOptions,
   showError,
   value,
 }: {
@@ -32,14 +32,11 @@ export function PressingPurposeChoice({
   onChange: (value: PressingPurpose) => void;
   onOrderItemNoChange: (value: string) => void;
   onOrderNoChange: (value: string) => void;
-  onSampleNoChange: (value: string) => void;
   orderItemNo: string;
   orderItemOptions: readonly string[];
   orderNo: string;
   orderOptions: readonly string[];
   orderRecords: readonly OrderRecord[];
-  sampleNo: string;
-  sampleOptions: readonly string[];
   showError: boolean;
   value: PressingPurpose;
 }) {
@@ -68,21 +65,23 @@ export function PressingPurposeChoice({
           <PressingToggleField
             error={showError && !baseType}
             label="Base Material"
-            onChange={(next) => onBaseTypeChange(next as PressingBaseMaterialType)}
+            onChange={(next) =>
+              onBaseTypeChange(next as PressingBaseMaterialType)
+            }
             options={["Plywood", "MDF"]}
             value={baseType}
           />
         ) : null}
       </Stack>
 
-      {value ? (
+      {value === "Order" ? (
         <Stack
           sx={(theme) => ({
             ...formSectionCardSx(theme),
             gap: theme.spacing(1.5),
           })}
         >
-          <FormSectionHeader title={value === "Order" ? "Order Selection" : "Sample Selection"} />
+          <FormSectionHeader title="Order Selection" />
           <Box
             sx={(theme) => ({
               display: "grid",
@@ -94,40 +93,38 @@ export function PressingPurposeChoice({
               },
             })}
           >
-            {value === "Order" ? (
-              <>
-                <PressingSelectField
-                  error={showError && !orderNo}
-                  label="Order No"
-                  onChange={onOrderNoChange}
-                  options={orderOptions}
-                  placeholder="Select order no"
-                  value={orderNo}
-                />
-                <PressingSelectField
-                  error={showError && !orderItemNo}
-                  label="Order Item No"
-                  onChange={onOrderItemNoChange}
-                  options={orderItemOptions}
-                  placeholder="Select order item no"
-                  value={orderItemNo}
-                />
-                <ReadOnlyPressingField label="Customer Name" value={selectedOrder?.customerName ?? ""} />
-                <ReadOnlyPressingField label="Order Date" value={formatOrderDate(selectedOrder?.orderDate)} />
-              </>
-            ) : (
+            <>
               <PressingSelectField
-                error={showError && !sampleNo}
-                label="Group No."
-                onChange={onSampleNoChange}
-                options={sampleOptions}
-                placeholder="Select group no"
-                value={sampleNo}
+                error={showError && !orderNo}
+                label="Order No"
+                onChange={onOrderNoChange}
+                options={orderOptions}
+                placeholder="Select order no"
+                value={orderNo}
               />
-            )}
+              <PressingSelectField
+                error={showError && !orderItemNo}
+                label="Order Item No"
+                onChange={onOrderItemNoChange}
+                options={orderItemOptions}
+                placeholder="Select order item no"
+                value={orderItemNo}
+              />
+              <ReadOnlyPressingField
+                label="Customer Name"
+                value={selectedOrder?.customerName ?? ""}
+              />
+              <ReadOnlyPressingField
+                label="Order Date"
+                value={formatOrderDate(selectedOrder?.orderDate)}
+              />
+            </>
           </Box>
           {allocationError ? (
-            <Typography color="error" sx={{ fontSize: "0.8125rem", fontWeight: 600 }}>
+            <Typography
+              color="error"
+              sx={{ fontSize: "0.8125rem", fontWeight: 600 }}
+            >
               {allocationError}
             </Typography>
           ) : null}
@@ -152,9 +149,18 @@ function PressingToggleField({
 }) {
   return (
     <Stack
-      sx={{ alignItems: "center", flexDirection: "row", flexWrap: "wrap", gap: 0.75, minWidth: 0 }}
+      sx={{
+        alignItems: "center",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 0.75,
+        minWidth: 0,
+      }}
     >
-      <Typography component="span" sx={{ fontSize: "0.75rem", fontWeight: 700, whiteSpace: "nowrap" }}>
+      <Typography
+        component="span"
+        sx={{ fontSize: "0.75rem", fontWeight: 700, whiteSpace: "nowrap" }}
+      >
         {label} *
       </Typography>
       <Box
@@ -182,11 +188,15 @@ function PressingToggleField({
               type="button"
               sx={(theme) => ({
                 alignItems: "center",
-                backgroundColor: selected ? theme.customTokens.brand.primary : "transparent",
+                backgroundColor: selected
+                  ? theme.customTokens.brand.primary
+                  : "transparent",
                 border: "none",
                 borderRadius: `${Math.max(theme.customTokens.radius.md - 2, 4)}px`,
                 boxShadow: selected ? "0 1px 2px rgba(0,0,0,0.12)" : "none",
-                color: selected ? theme.palette.common.white : theme.customTokens.text.secondary,
+                color: selected
+                  ? theme.palette.common.white
+                  : theme.customTokens.text.secondary,
                 cursor: "pointer",
                 display: "inline-flex",
                 font: "inherit",
@@ -202,7 +212,9 @@ function PressingToggleField({
                   backgroundColor: selected
                     ? theme.customTokens.brand.primary
                     : theme.customTokens.surfaces.surface,
-                  color: selected ? theme.palette.common.white : theme.customTokens.text.primary,
+                  color: selected
+                    ? theme.palette.common.white
+                    : theme.customTokens.text.primary,
                 },
                 "&:focus-visible": {
                   outline: `2px solid ${theme.customTokens.brand.primary}`,
@@ -216,7 +228,12 @@ function PressingToggleField({
         })}
       </Box>
       {error ? (
-        <Typography sx={(theme) => ({ color: theme.palette.error.main, fontSize: "0.75rem" })}>
+        <Typography
+          sx={(theme) => ({
+            color: theme.palette.error.main,
+            fontSize: "0.75rem",
+          })}
+        >
           {label} is required.
         </Typography>
       ) : null}
@@ -241,7 +258,10 @@ function PressingSelectField({
 }) {
   return (
     <Stack spacing={0.5} sx={{ minWidth: 0 }}>
-      <Typography component="label" sx={{ fontSize: "0.75rem", fontWeight: 700 }}>
+      <Typography
+        component="label"
+        sx={{ fontSize: "0.75rem", fontWeight: 700 }}
+      >
         {label} *
       </Typography>
       <ErpSelectField
@@ -258,10 +278,19 @@ function PressingSelectField({
   );
 }
 
-function ReadOnlyPressingField({ label, value }: { label: string; value: string }) {
+function ReadOnlyPressingField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <Stack spacing={0.5} sx={{ minWidth: 0 }}>
-      <Typography component="label" sx={{ fontSize: "0.75rem", fontWeight: 700 }}>
+      <Typography
+        component="label"
+        sx={{ fontSize: "0.75rem", fontWeight: 700 }}
+      >
         {label}
       </Typography>
       <TextField

@@ -8,6 +8,8 @@ import {
   Chip,
   CircularProgress,
   Divider,
+  IconButton,
+  Popover,
   Stack,
   Table,
   TableBody,
@@ -16,11 +18,12 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
   useTheme,
 } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { ChevronLeft, Info, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -180,13 +183,8 @@ const baseItemTableColumns: readonly ItemColumnConfig[] = [
   { key: "orderNo", label: "Order No", minWidth: 140 },
   { key: "salesItemName", label: "Sales Item Name", minWidth: 200 },
   { key: "orderItemNo", label: "Order Item No", minWidth: 130 },
-  { key: "productCategory", label: "Product Category", minWidth: 160 },
   { key: "groupNo", label: "Group No", minWidth: 120 },
   { key: "itemName", label: "Item Name", minWidth: 180 },
-  { key: "itemSubCategory", label: "Item Sub Category", minWidth: 170 },
-  { key: "length", label: "Length", minWidth: 110 },
-  { key: "width", label: "Width", minWidth: 110 },
-  { key: "thickness", label: "Thickness", minWidth: 120 },
   { key: "totalQuantity", label: "Total Qty", minWidth: 110 },
   { key: "dispatchQuantity", label: "Dispatch Qty", minWidth: 130 },
   { key: "remainingQuantity", label: "Remaining Qty", minWidth: 130 },
@@ -1976,9 +1974,16 @@ function DispatchItemsTable({
   columns: readonly ItemColumnConfig[];
   onQuantityChange?: (recordId: string, quantity: number) => void;
 }) {
+  const [popoverAnchor, setPopoverAnchor] = useState<{
+    element: HTMLElement;
+    row: DispatchItemRow;
+  } | null>(null);
+
+  const activeRow = popoverAnchor?.row;
+
   return (
     <TableContainer sx={tableContainerSx}>
-      <Table sx={{ minWidth: 3000 }}>
+      <Table sx={{ minWidth: 1800 }}>
         <TableHead>
           <TableRow>
             {columns.map((column) => (
@@ -2029,6 +2034,42 @@ function DispatchItemsTable({
                   );
                 }
 
+                if (column.key === "orderItemNo") {
+                  return (
+                    <TableCell key={column.key} sx={(theme) => getBodyCellSx(theme)}>
+                      <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+                        <Typography component="span" sx={{ fontSize: "inherit", fontWeight: "inherit" }}>
+                          {row.orderItemNo}
+                        </Typography>
+                        <Tooltip title="View item details">
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPopoverAnchor({
+                                element: e.currentTarget,
+                                row,
+                              });
+                            }}
+                            sx={(theme) => ({
+                              p: 0.35,
+                              borderRadius: `${theme.customTokens.radius.sm}px`,
+                              color: theme.customTokens.brand.primary,
+                              backgroundColor: `${theme.customTokens.brand.primary}12`,
+                              border: `1px solid ${theme.customTokens.brand.primary}25`,
+                              "&:hover": {
+                                backgroundColor: `${theme.customTokens.brand.primary}22`,
+                              },
+                            })}
+                          >
+                            <Info size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  );
+                }
+
                 return (
                   <TableCell key={column.key} sx={(theme) => getBodyCellSx(theme)}>
                     {row[column.key]}
@@ -2039,6 +2080,91 @@ function DispatchItemsTable({
           ))}
         </TableBody>
       </Table>
+
+      <Popover
+        open={Boolean(popoverAnchor)}
+        anchorEl={popoverAnchor?.element}
+        onClose={() => setPopoverAnchor(null)}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
+        }}
+        PaperProps={{
+          sx: (theme) => ({
+            mt: 0.5,
+            p: 1.75,
+            minWidth: 320,
+            maxWidth: 380,
+            borderRadius: `${theme.customTokens.radius.md}px`,
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            backgroundColor: theme.customTokens.surfaces.surface,
+            boxShadow: theme.shadows[3],
+          }),
+        }}
+      >
+        {activeRow ? (
+          <Stack spacing={1.25}>
+            <Box sx={{ pb: 0.75, borderBottom: (theme) => `1px solid ${theme.customTokens.borders.default}` }}>
+              <Typography variant="caption" sx={(theme) => ({ color: theme.customTokens.text.secondary, textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.04em", fontSize: "0.6875rem" })}>
+                Order Item #{activeRow.orderItemNo}
+              </Typography>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.875rem" }}>
+                {activeRow.itemName}
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                rowGap: 1,
+                columnGap: 2,
+                fontSize: "0.8125rem",
+              }}
+            >
+              <Box>
+                <Typography variant="caption" sx={(theme) => ({ color: theme.customTokens.text.secondary, display: "block" })}>
+                  Order No
+                </Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: "0.8125rem" }}>
+                  {activeRow.orderNo}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={(theme) => ({ color: theme.customTokens.text.secondary, display: "block" })}>
+                  Sales Item Name
+                </Typography>
+                <Typography sx={{ fontWeight: 600, fontSize: "0.8125rem" }}>
+                  {activeRow.salesItemName}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={(theme) => ({ color: theme.customTokens.text.secondary, display: "block" })}>
+                  Product Category
+                </Typography>
+                <Typography sx={{ fontWeight: 500, fontSize: "0.8125rem" }}>
+                  {activeRow.productCategory || "-"}
+                </Typography>
+              </Box>
+
+              <Box>
+                <Typography variant="caption" sx={(theme) => ({ color: theme.customTokens.text.secondary, display: "block" })}>
+                  Group No / Series
+                </Typography>
+                <Typography sx={{ fontWeight: 500, fontSize: "0.8125rem" }}>
+                  {activeRow.groupNo || "-"}
+                </Typography>
+              </Box>
+            </Box>
+          </Stack>
+        ) : null}
+      </Popover>
     </TableContainer>
   );
 }

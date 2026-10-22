@@ -3,6 +3,7 @@ import {
   Alert,
   Box,
   Button,
+  Divider,
   IconButton,
   Stack,
   Table,
@@ -25,6 +26,7 @@ import {
 } from "../../../shared/buttonStyles";
 import {
   formInlineActionButtonSx,
+  plainFormSectionHeadingSx,
   formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
@@ -121,7 +123,8 @@ export function SawingEditPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams<{ id: string }>();
-  const locationRecord = (location.state as { record?: SawingRow } | null)?.record;
+  const locationRecord = (location.state as { record?: SawingRow } | null)
+    ?.record;
   const selectedRow = useMemo(
     () =>
       locationRecord ??
@@ -158,9 +161,7 @@ export function SawingEditPage() {
   );
   const [editingValues, setEditingValues] = useState<Record<string, string>>(
     () =>
-      selectedRow && sourceRow
-        ? buildItemValues(selectedRow, sourceRow)
-        : {},
+      selectedRow && sourceRow ? buildItemValues(selectedRow, sourceRow) : {},
   );
   const [sawingDate, setSawingDate] = useState<Date | null>(() =>
     readDate(selectedRow?.sawingDate || selectedRow?.processDate),
@@ -213,7 +214,9 @@ export function SawingEditPage() {
         ]}
         title="Edit Sawing"
       >
-        <Alert severity="warning">The selected Sawing Done record was not found.</Alert>
+        <Alert severity="warning">
+          The selected Sawing Done record was not found.
+        </Alert>
       </FactoryPageShell>
     );
   }
@@ -236,13 +239,19 @@ export function SawingEditPage() {
 
   const sourceOverviewItems = [
     { label: "Storage Sr No.", value: text(sourceRow.storageSrNo) || "-" },
-    { label: "Issue Date", value: text(sourceRow.issueDate || sourceRow.issuedDate) || "-" },
+    {
+      label: "Issue Date",
+      value: text(sourceRow.issueDate || sourceRow.issuedDate) || "-",
+    },
     { label: "Item Name", value: text(sourceRow.itemName) || "-" },
     {
       label: "Sub Category",
       value: text(sourceRow.subCategory || sourceRow.itemSubCategory) || "-",
     },
-    { label: "Log No.", value: text(sourceRow.batchNo || sourceRow.logNo) || "-" },
+    {
+      label: "Log No.",
+      value: text(sourceRow.batchNo || sourceRow.logNo) || "-",
+    },
     { label: "Source Length", value: decimal(sourceRow.length) },
     { label: "Source Width", value: decimal(sourceRow.width) },
     { label: "Source Height", value: decimal(sourceRow.height) },
@@ -257,17 +266,16 @@ export function SawingEditPage() {
         ) || "-",
     },
   ];
-  const editError =
-    editingRowId
-      ? getSawingProcessDetailError({
-          otherProcessedCbm: sumSawingLineCbm(
-            projectedItems.filter((row) => row.id !== editingRowId),
-            sourceMeasures,
-          ),
-          source: sourceMeasures,
-          values: editingValues,
-        })
-      : "";
+  const editError = editingRowId
+    ? getSawingProcessDetailError({
+        otherProcessedCbm: sumSawingLineCbm(
+          projectedItems.filter((row) => row.id !== editingRowId),
+          sourceMeasures,
+        ),
+        source: sourceMeasures,
+        values: editingValues,
+      })
+    : "";
   const availableIssues = {
     ...getRejectAvailableValidationErrors(
       availableValues,
@@ -354,7 +362,7 @@ export function SawingEditPage() {
       <Stack spacing={2}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
-        <FactorySourceOverviewPanel items={sourceOverviewItems} />
+        <FactorySourceOverviewPanel items={sourceOverviewItems} plain />
 
         <Box sx={(currentTheme) => formSectionCardSx(currentTheme)}>
           <Stack spacing={1.5}>
@@ -368,7 +376,11 @@ export function SawingEditPage() {
                 Sawing Date *
               </Typography>
               <ErpDatePickerField
-                helperText={hasSubmitted && !sawingDate ? "Sawing Date is required." : undefined}
+                helperText={
+                  hasSubmitted && !sawingDate
+                    ? "Sawing Date is required."
+                    : undefined
+                }
                 onChange={setSawingDate}
                 size="dense"
                 state={hasSubmitted && !sawingDate ? "error" : "default"}
@@ -378,194 +390,222 @@ export function SawingEditPage() {
           </Stack>
         </Box>
 
-        <Box sx={(currentTheme) => formSectionCardSx(currentTheme)}>
-          <Stack spacing={1.5}>
-            <FormSectionHeader title="Output Details" />
-            <Box
-              sx={{
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: "8px",
-                backgroundColor: theme.customTokens.surfaces.surface,
-                overflow: "hidden",
-              }}
-            >
-              <Box sx={{ overflowX: "auto" }}>
-                <Table size="medium" sx={{ minWidth: 1100, tableLayout: "auto" }}>
-                  <TableHead>
-                    <TableRow>
-                      {itemFields.map((field) => (
-                        <TableCell
-                          key={field.key}
-                          sx={{
-                            ...transactionTableHeaderCellSx(theme),
-                            borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                          }}
-                        >
-                          {field.label}
-                          {field.key === "width" || field.key === "thickness" ? " *" : ""}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      {itemFields.map((field) => (
-                        <TableCell
-                          key={field.key}
-                          sx={{
-                            ...transactionTableBodyCellSx(theme),
-                            borderRight: `1px solid ${theme.customTokens.borders.divider}`,
-                          }}
-                        >
-                          {field.readOnly ? (
-                            <Typography
-                              sx={{
-                                alignItems: "center",
-                                display: "flex",
-                                minHeight: theme.spacing(4.5),
-                              }}
-                              variant="body2"
-                            >
-                              {editingValues[field.key] || "-"}
-                            </Typography>
-                          ) : (
-                            <TextField
-                              error={
-                                hasSubmitted &&
-                                (field.key === "width" || field.key === "thickness") &&
-                                Boolean(editError)
-                              }
-                              fullWidth
-                              onChange={(event) =>
-                                setEditingValues((current) =>
-                                  lockSawingProcessDetailValues(
-                                    { ...current, [field.key]: event.target.value },
-                                    sourceRow,
-                                  ),
-                                )
-                              }
-                              size="small"
-                              sx={getCompactFieldSx(theme)}
-                              value={editingValues[field.key] ?? ""}
-                            />
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </Box>
-            </Box>
+        <Divider />
 
-            <Box
-              sx={{
-                alignItems: "center",
-                display: "flex",
-                gap: 1.5,
-                justifyContent: "flex-end",
-                flexWrap: "wrap",
-              }}
-            >
-              {editError ? (
-                <Typography
-                  color="error"
-                  sx={{ flex: "1 1 260px" }}
-                  variant="body2"
-                >
-                  {editError}
-                </Typography>
-              ) : null}
-              <Button
-                disabled={!editingRowId}
-                onClick={commitEditing}
-                startIcon={<Save size={15} />}
-                sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
-                variant="contained"
+        <Typography component="h2" sx={plainFormSectionHeadingSx}>
+          Output Details
+        </Typography>
+
+        <Box
+          sx={(currentTheme) => ({
+            backgroundColor: currentTheme.customTokens.surfaces.surface,
+            border: `1px solid ${currentTheme.customTokens.borders.default}`,
+            borderRadius: "8px",
+            p: 1.5,
+          })}
+        >
+          <Box>
+            <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  borderRadius: "8px",
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                  overflow: "hidden",
+                }}
               >
-                Update Item
-              </Button>
-            </Box>
-          </Stack>
-        </Box>
-
-        <Box sx={(currentTheme) => formSectionCardSx(currentTheme)}>
-          <Stack spacing={1.5}>
-            <FormSectionHeader title={`Processed Items (${lineItems.length})`} />
-            <Box
-              sx={{
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: "8px",
-                backgroundColor: theme.customTokens.surfaces.surface,
-                overflow: "hidden",
-              }}
-            >
-              <Box sx={{ overflowX: "auto" }}>
-              <Table size="small" sx={{ minWidth: 1100, tableLayout: "auto" }}>
-                <TableHead>
-                  <TableRow>
-                    {itemFields.map((field) => (
-                      <TableCell
-                        key={field.key}
-                        sx={transactionTableHeaderCellSx(theme)}
-                      >
-                        {field.label}
-                      </TableCell>
-                    ))}
-                    <TableCell
-                      align="center"
-                      sx={transactionTableHeaderCellSx(theme)}
-                    >
-                      Action
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {lineItems.map((item) => {
-                    const isEditing = item.id === editingRowId;
-                    return (
-                      <TableRow
-                        key={item.id}
-                        hover
-                        sx={{
-                          "& td": {
-                            backgroundColor: isEditing
-                              ? theme.customTokens.navigation.activeBackground
-                              : theme.customTokens.surfaces.surface,
-                          },
-                        }}
-                      >
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table
+                    size="medium"
+                    sx={{ minWidth: 1100, tableLayout: "auto" }}
+                  >
+                    <TableHead>
+                      <TableRow>
                         {itemFields.map((field) => (
                           <TableCell
                             key={field.key}
-                            sx={transactionTableBodyCellSx(theme)}
+                            sx={{
+                              ...transactionTableHeaderCellSx(theme),
+                              borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                            }}
                           >
-                            <Typography variant="body2">
-                              {item.values[field.key] || "-"}
-                            </Typography>
+                            {field.label}
+                            {field.key === "width" || field.key === "thickness"
+                              ? " *"
+                              : ""}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <TableRow>
+                        {itemFields.map((field) => (
+                          <TableCell
+                            key={field.key}
+                            sx={{
+                              ...transactionTableBodyCellSx(theme),
+                              borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+                            }}
+                          >
+                            {field.readOnly ? (
+                              <Typography
+                                sx={{
+                                  alignItems: "center",
+                                  display: "flex",
+                                  minHeight: theme.spacing(4.5),
+                                }}
+                                variant="body2"
+                              >
+                                {editingValues[field.key] || "-"}
+                              </Typography>
+                            ) : (
+                              <TextField
+                                error={
+                                  hasSubmitted &&
+                                  (field.key === "width" ||
+                                    field.key === "thickness") &&
+                                  Boolean(editError)
+                                }
+                                fullWidth
+                                onChange={(event) =>
+                                  setEditingValues((current) =>
+                                    lockSawingProcessDetailValues(
+                                      {
+                                        ...current,
+                                        [field.key]: event.target.value,
+                                      },
+                                      sourceRow,
+                                    ),
+                                  )
+                                }
+                                size="small"
+                                sx={getCompactFieldSx(theme)}
+                                value={editingValues[field.key] ?? ""}
+                              />
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Box>
+              </Box>
+
+              <Box
+                sx={{
+                  alignItems: "center",
+                  display: "flex",
+                  gap: 1.5,
+                  justifyContent: "flex-end",
+                  flexWrap: "wrap",
+                }}
+              >
+                {editError ? (
+                  <Typography
+                    color="error"
+                    sx={{ flex: "1 1 260px" }}
+                    variant="body2"
+                  >
+                    {editError}
+                  </Typography>
+                ) : null}
+                <Button
+                  disabled={!editingRowId}
+                  onClick={commitEditing}
+                  startIcon={<Save size={15} />}
+                  sx={(currentTheme) => formInlineActionButtonSx(currentTheme)}
+                  variant="contained"
+                >
+                  Update Item
+                </Button>
+              </Box>
+            </Stack>
+          </Box>
+
+          <Box sx={{ mt: 1.5 }}>
+            <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  border: `1px solid ${theme.customTokens.borders.default}`,
+                  borderRadius: "8px",
+                  backgroundColor: theme.customTokens.surfaces.surface,
+                  overflow: "hidden",
+                }}
+              >
+                <Box sx={{ overflowX: "auto" }}>
+                  <Table
+                    size="small"
+                    sx={{ minWidth: 1100, tableLayout: "auto" }}
+                  >
+                    <TableHead>
+                      <TableRow>
+                        {itemFields.map((field) => (
+                          <TableCell
+                            key={field.key}
+                            sx={transactionTableHeaderCellSx(theme)}
+                          >
+                            {field.label}
                           </TableCell>
                         ))}
                         <TableCell
                           align="center"
-                          sx={transactionTableBodyCellSx(theme)}
+                          sx={transactionTableHeaderCellSx(theme)}
                         >
-                          <IconButton
-                            aria-label="Edit item"
-                            color={isEditing ? "primary" : "default"}
-                            onClick={() => startEditing(item)}
-                            size="small"
-                          >
-                            <Pencil size={16} />
-                          </IconButton>
+                          Action
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    </TableHead>
+                    <TableBody>
+                      {lineItems.map((item) => {
+                        const isEditing = item.id === editingRowId;
+                        return (
+                          <TableRow
+                            key={item.id}
+                            hover
+                            sx={{
+                              "& td": {
+                                backgroundColor: isEditing
+                                  ? theme.customTokens.navigation
+                                      .activeBackground
+                                  : theme.customTokens.surfaces.surface,
+                              },
+                            }}
+                          >
+                            {itemFields.map((field) => (
+                              <TableCell
+                                key={field.key}
+                                sx={transactionTableBodyCellSx(theme)}
+                              >
+                                <Typography variant="body2">
+                                  {item.values[field.key] || "-"}
+                                </Typography>
+                              </TableCell>
+                            ))}
+                            <TableCell
+                              align="center"
+                              sx={transactionTableBodyCellSx(theme)}
+                            >
+                              <IconButton
+                                aria-label="Edit item"
+                                color={isEditing ? "primary" : "default"}
+                                onClick={() => startEditing(item)}
+                                size="small"
+                              >
+                                <Pencil size={16} />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Box>
               </Box>
-            </Box>
-          </Stack>
+            </Stack>
+          </Box>
         </Box>
+
+        <Divider />
 
         <RejectAvailableDetailsTable
           disabledType
@@ -577,15 +617,10 @@ export function SawingEditPage() {
           hideAmount
           onChange={(key, value) =>
             setAvailableValues((current) =>
-              getNextRejectAvailableValues(
-                current,
-                key,
-                value,
-                true,
-                true,
-              ),
+              getNextRejectAvailableValues(current, key, value, true, true),
             )
           }
+          plain
           title="Available Details"
           useHeight
           values={availableValues}

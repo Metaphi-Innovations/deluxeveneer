@@ -1,9 +1,6 @@
 import type { Theme } from "@mui/material/styles";
 
-import {
-  portalControlHeights,
-  portalTypography,
-} from "../../theme/typography";
+import { portalControlHeights, portalTypography } from "../../theme/typography";
 
 /** Compact white section surface for Order / Factory / Packing create forms. */
 export function formSectionCardSx(theme: Theme) {
@@ -37,6 +34,24 @@ export function formFieldLabelSx(theme: Theme) {
     lineHeight: portalTypography.formLabel.lineHeight,
     whiteSpace: "nowrap" as const,
   };
+}
+
+/** Standalone section heading without a card or highlighted strip. */
+export function plainFormSectionHeadingSx(theme: Theme) {
+  return {
+    alignItems: "center",
+    borderLeft: `4px solid ${theme.customTokens.brand.primary}`,
+    color: theme.customTokens.neutrals[900],
+    display: "flex",
+    fontSize: "1.125rem",
+    fontWeight: 700,
+    letterSpacing: "-0.01em",
+    lineHeight: 1.35,
+    m: 0,
+    minHeight: 28,
+    pl: 1.25,
+    py: 0.25,
+  } as const;
 }
 
 export function formHelperTextSx(theme: Theme) {

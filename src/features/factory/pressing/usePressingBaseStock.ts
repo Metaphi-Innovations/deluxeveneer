@@ -11,6 +11,7 @@ import {
 import type { FactoryRecord } from "../shared/types";
 import { availableFactoryMeasures } from "../shared/factoryAvailableMeasures";
 import { getPressingAvailableQuantity, pressingText } from "./pressingQuantity";
+import { buildPressingDummyBaseStock } from "./pressingDummyBaseStock";
 
 export type PressingBaseMaterialType = "" | "Plywood" | "MDF";
 
@@ -60,8 +61,10 @@ function mapProductionStockRow(
     warehouseId: warehouse.id,
     warehouseName: warehouse.label || "Production Warehouse",
     warehouseType: "Production",
-    storageSrNo: pressingText(item.storageSrNo) || pressingText(item.productionSrNo),
-    inwardSrNo: pressingText(item.inwardItemCode) || pressingText(item.inwardSrNo),
+    storageSrNo:
+      pressingText(item.storageSrNo) || pressingText(item.productionSrNo),
+    inwardSrNo:
+      pressingText(item.inwardItemCode) || pressingText(item.inwardSrNo),
     itemName: pressingText(item.itemName),
     itemSubCategory: pressingText(item.subCategory),
     palletNo: pressingText(item.palletNo) || pressingText(item.palletNumber),
@@ -125,7 +128,9 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
       return [];
     }
 
-    return liveRows.map((row) => {
+    const dummyRows = buildPressingDummyBaseStock(materialType);
+
+    return [...liveRows, ...dummyRows].map((row) => {
       const received = parseNumericValue(row.receivedSheets) ?? 0;
       const available = parseNumericValue(row.availableSheets) ?? received;
       return {
@@ -135,7 +140,8 @@ export function usePressingBaseStock(materialType: PressingBaseMaterialType) {
     });
   }, [materialType, productionWarehouses, stockQueries]);
 
-  const isLoading = warehousesQuery.isLoading || stockQueries.some((query) => query.isLoading);
+  const isLoading =
+    warehousesQuery.isLoading || stockQueries.some((query) => query.isLoading);
   const emptyLabel = !materialSelected
     ? "Select a base material."
     : isLoading

@@ -9,10 +9,11 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
 } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import { plainFormSectionHeadingSx } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
   pressingCompactBodyCellSx,
@@ -23,7 +24,10 @@ import {
   pressingTableScrollSx,
   pressingValueInputWidth,
 } from "./pressingCompactTable";
-import { calculatePressingUsedArea, sanitizePressingInteger } from "./pressingQuantity";
+import {
+  calculatePressingUsedArea,
+  sanitizePressingInteger,
+} from "./pressingQuantity";
 
 export type PressingProcessValues = {
   cutColor: string;
@@ -64,7 +68,11 @@ export function PressingProcessFields({
   showErrors: boolean;
   values: PressingProcessValues;
 }) {
-  const area = calculatePressingUsedArea(values.length, values.width, values.noOfSheets);
+  const area = calculatePressingUsedArea(
+    values.length,
+    values.width,
+    values.noOfSheets,
+  );
   const inputWidths = [
     200,
     pressingValueInputWidth(values.outputItemName, 160, 240),
@@ -80,21 +88,27 @@ export function PressingProcessFields({
     pressingValueInputWidth(values.remark, 140, 220),
   ];
   const columnWidths = inputWidths.map(pressingCellWidth);
-  const dateError = showErrors && !values.pressingDate ? "Pressing date is required." : "";
+  const dateError =
+    showErrors && !values.pressingDate ? "Pressing date is required." : "";
   const itemNameError =
-    showErrors && !values.outputItemName.trim() ? "Output item name is required." : "";
+    showErrors && !values.outputItemName.trim()
+      ? "Output item name is required."
+      : "";
   const sheetsError =
     outputError ||
-    (showErrors && !values.noOfSheets.trim() ? "No of sheets must be greater than 0." : "");
+    (showErrors && !values.noOfSheets.trim()
+      ? "No of sheets must be greater than 0."
+      : "");
 
   return (
     <Stack
       sx={(theme) => ({
-        ...formSectionCardSx(theme),
         gap: theme.spacing(1.5),
       })}
     >
-      <FormSectionHeader title="Output Details" />
+      <Typography component="h2" sx={plainFormSectionHeadingSx}>
+        Output Details
+      </Typography>
       <Box sx={(theme) => listingTableContainerSx(theme)}>
         <TableContainer sx={(theme) => pressingTableScrollSx(theme)}>
           <Table stickyHeader sx={pressingDetailsTableSx}>
@@ -103,7 +117,9 @@ export function PressingProcessFields({
                 {headerLabels.map((label, index) => (
                   <TableCell
                     key={label}
-                    sx={(theme) => pressingCompactHeaderCellSx(theme, columnWidths[index])}
+                    sx={(theme) =>
+                      pressingCompactHeaderCellSx(theme, columnWidths[index])
+                    }
                   >
                     {label}
                   </TableCell>
@@ -113,7 +129,9 @@ export function PressingProcessFields({
             <TableBody>
               <TableRow
                 sx={(theme) => ({
-                  "& td": { backgroundColor: theme.customTokens.surfaces.surface },
+                  "& td": {
+                    backgroundColor: theme.customTokens.surfaces.surface,
+                  },
                 })}
               >
                 <DetailCell error={dateError} minWidth={columnWidths[0]}>
@@ -164,15 +182,25 @@ export function PressingProcessFields({
                 <DetailCell error={sheetsError} minWidth={columnWidths[6]}>
                   <DetailInput
                     error={sheetsError}
-                    onChange={(value) => onChange({ noOfSheets: sanitizePressingInteger(value) })}
+                    onChange={(value) =>
+                      onChange({ noOfSheets: sanitizePressingInteger(value) })
+                    }
                     value={values.noOfSheets}
                     width={inputWidths[6] ?? 96}
                   />
                 </DetailCell>
-                <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, columnWidths[7])}>
+                <TableCell
+                  sx={(theme) =>
+                    pressingCompactBodyCellSx(theme, columnWidths[7])
+                  }
+                >
                   {area.sqm || "-"}
                 </TableCell>
-                <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, columnWidths[8])}>
+                <TableCell
+                  sx={(theme) =>
+                    pressingCompactBodyCellSx(theme, columnWidths[8])
+                  }
+                >
                   {area.sqf || "-"}
                 </TableCell>
                 <DetailCell minWidth={columnWidths[9]}>

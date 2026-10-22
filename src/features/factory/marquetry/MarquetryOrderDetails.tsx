@@ -2,7 +2,10 @@ import { type Dispatch, type SetStateAction } from "react";
 import { Box, Stack, Typography } from "@mui/material";
 
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
-import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import {
+  formSectionCardSx,
+  plainFormSectionHeadingSx,
+} from "../../shared/formSectionStyles";
 import { SelectedOrderDetails } from "../shared/SelectedOrderDetails";
 import {
   getOrderLineItems,
@@ -26,7 +29,9 @@ export function MarquetryOrderDetails({
   orderRecords: readonly OrderRecord[];
   value: MarquetryOrderDetailsValue;
 }) {
-  const selectedOrder = orderRecords.find((order) => order.orderNo === value.orderNo);
+  const selectedOrder = orderRecords.find(
+    (order) => order.orderNo === value.orderNo,
+  );
   const orderItemOptions = selectedOrder
     ? getOrderLineItems(selectedOrder.id).map((_, index) => String(index + 1))
     : [];
@@ -49,7 +54,9 @@ export function MarquetryOrderDetails({
         gap: theme.spacing(1.5),
       })}
     >
-      <FormSectionHeader title="Order Details" />
+      <Typography component="h2" sx={plainFormSectionHeadingSx}>
+        Order Details
+      </Typography>
       <Box
         sx={(theme) => ({
           display: "grid",
@@ -61,22 +68,25 @@ export function MarquetryOrderDetails({
           },
         })}
       >
-            <MarquetrySelectField
-              error={orderNoError}
-              label="Order No"
-              onChange={(nextValue) => update("orderNo", nextValue)}
-              options={orderRecords.map((order) => order.orderNo)}
-              value={value.orderNo}
-            />
-            <MarquetrySelectField
-              error={orderItemError}
-              label="Order Item No"
-              onChange={(nextValue) => update("orderItemNo", nextValue)}
-              options={orderItemOptions}
-              value={value.orderItemNo}
-            />
+        <MarquetrySelectField
+          error={orderNoError}
+          label="Order No"
+          onChange={(nextValue) => update("orderNo", nextValue)}
+          options={orderRecords.map((order) => order.orderNo)}
+          value={value.orderNo}
+        />
+        <MarquetrySelectField
+          error={orderItemError}
+          label="Order Item No"
+          onChange={(nextValue) => update("orderItemNo", nextValue)}
+          options={orderItemOptions}
+          value={value.orderItemNo}
+        />
       </Box>
-      <SelectedOrderDetails order={selectedOrder} orderItemNo={value.orderItemNo} />
+      <SelectedOrderDetails
+        order={selectedOrder}
+        orderItemNo={value.orderItemNo}
+      />
     </Stack>
   );
 }
@@ -119,6 +129,8 @@ function MarquetrySelectField({
   );
 }
 
-export function isMarquetryOrderDetailsInvalid(value: MarquetryOrderDetailsValue) {
+export function isMarquetryOrderDetailsInvalid(
+  value: MarquetryOrderDetailsValue,
+) {
   return !value.orderNo || !value.orderItemNo;
 }

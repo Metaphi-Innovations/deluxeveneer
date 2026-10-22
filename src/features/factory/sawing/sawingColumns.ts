@@ -13,10 +13,35 @@ export function formatSawingCbmDisplay(value: unknown) {
   return parsed.toFixed(3);
 }
 
+export function formatSawingStorageSerial(value: unknown) {
+  const original = String(value ?? "").trim();
+  if (!original) return "-";
+
+  const segments = original.split(/[-/]/u).filter(Boolean);
+  const yearSegment = [...segments]
+    .reverse()
+    .find((segment) => /^(?:\d{2}|\d{4})$/u.test(segment));
+  const year = yearSegment
+    ? yearSegment.slice(-2)
+    : String(new Date().getFullYear()).slice(-2);
+  const rawSequence = segments.at(-1) ?? original;
+  const sequence = /^\d+$/u.test(rawSequence)
+    ? rawSequence.slice(-4).padStart(4, "0")
+    : rawSequence.slice(-4).toUpperCase();
+
+  return `ST-${year}-${sequence}`;
+}
+
+const storageSerialColumn: EnterpriseTableColumn<any> = {
+  key: "storageSrNo",
+  label: "Storage Sr No.",
+  renderCell: (row) => formatSawingStorageSerial(row.storageSrNo),
+};
+
 // ── Issued Tab Columns ──────────────────────────────────────────────
 // storage sr no., Item Name, Log No., Length, Width, Height, Received CBM, Available CBM, remark, created by, updated by, action
 export const SAWING_ISSUED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
-  { key: "storageSrNo", label: "Storage Sr No." },
+  storageSerialColumn,
   { key: "issueDate", label: "Issue Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -34,7 +59,7 @@ export const SAWING_ISSUED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 // ── Done Tab Columns ────────────────────────────────────────────────
 // Storage Sr No., Sawing Date, Item Name, Sub Category, Log No., Batch No, Length, Width, Thickness, CBM, CBF, Remark, Created By, Updated By, Action
 export const SAWING_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
-  { key: "storageSrNo", label: "Storage Sr No." },
+  storageSerialColumn,
   { key: "processDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -61,7 +86,7 @@ export const SAWING_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 // ── History Tab Columns ─────────────────────────────────────────────
 // Storage Sr No., Inspection Date, Item Name, Sub Category, Log No., Batch No, Length, Width, Thickness, CBM, CBF, Remark, Created By, Updated By
 export const SAWING_HISTORY_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
-  { key: "storageSrNo", label: "Storage Sr No." },
+  storageSerialColumn,
   { key: "processDate", label: "Issued Inspection Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -79,7 +104,7 @@ export const SAWING_HISTORY_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 
 // ── Rejected Tab Columns ────────────────────────────────────
 export const SAWING_REJECTED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
-  { key: "storageSrNo", label: "Storage Sr No." },
+  storageSerialColumn,
   { key: "processDate", label: "Rejected Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
@@ -97,7 +122,7 @@ export const SAWING_REJECTED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 
 // ── Available Tab Columns ───────────────────────────────────────────
 export const SAWING_AVAILABLE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
-  { key: "storageSrNo", label: "Storage Sr No." },
+  storageSerialColumn,
   { key: "processDate", label: "Date" },
   { key: "itemName", label: "Item Name" },
   { key: "batchNo", label: "Log No." },
