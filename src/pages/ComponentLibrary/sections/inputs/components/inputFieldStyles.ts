@@ -155,11 +155,11 @@ export function getFieldSx(
               paddingTop: 0,
               paddingBottom: 0,
               "&::placeholder": {
-                color: theme.palette.text.disabled,
+                color: theme.customTokens.text.secondary || theme.palette.text.disabled,
                 fontSize: portalTypography.placeholder.fontSize,
                 fontWeight: portalTypography.placeholder.fontWeight,
-                opacity: 1,
-                WebkitTextFillColor: theme.palette.text.disabled,
+                opacity: 0.55,
+                WebkitTextFillColor: "rgba(0, 0, 0, 0.35)",
               },
             },
             "&.MuiInputBase-multiline": {

@@ -807,6 +807,11 @@ export function ErpSelectField({
               "& .MuiInputBase-input": {
                 ...getSelectClosedValueSx(theme, size === "dense"),
                 py: 0,
+                "&::placeholder": {
+                  color: theme.palette.text.disabled,
+                  opacity: 1,
+                  WebkitTextFillColor: theme.palette.text.disabled,
+                },
               },
               "& .MuiInputAdornment-root": {
                 marginLeft: theme.spacing(0.5),
@@ -1117,6 +1122,7 @@ export function ErpDatePickerField({
       >
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <FieldValue
+            placeholder={_placeholder}
             size={size}
             theme={theme}
             value={displayValue}

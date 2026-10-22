@@ -2,14 +2,14 @@ import type { Theme } from "@mui/material/styles";
 
 import { portalControlHeights, portalTypography } from "../../theme/typography";
 
-/** Compact white section surface for Order / Factory / Packing create forms. */
+/** Compact white section surface for View pages and Order / Factory / Packing create forms. */
 export function formSectionCardSx(theme: Theme) {
   return {
     border: `1px solid ${theme.customTokens.borders.default}`,
     borderRadius: `${theme.customTokens.radius.md}px`,
     backgroundColor: theme.customTokens.surfaces.surface,
     px: 1.75,
-    py: 1.5,
+    py: 1.15,
     overflow: "hidden",
   } as const;
 }

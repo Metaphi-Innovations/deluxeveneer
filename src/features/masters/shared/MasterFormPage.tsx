@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Alert, Box, Button, Snackbar, Stack, Typography } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { ChevronLeft, Clock, FileText, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -18,6 +18,7 @@ import {
   mastersFormPrimaryButtonSx,
   mastersFormSectionCardSx,
 } from "./mastersFormStyles";
+import { FormSectionHeader } from "../../shared/formSectionStyles";
 import {
   buildLocalMasterDefinition,
   createLocalMasterRecord,
@@ -45,14 +46,14 @@ interface MasterFormPageProps {
   fieldActions?: Partial<Record<string, ReactNode>> | undefined;
   loading?: boolean;
   mode: "add" | "edit" | "view";
-  renderFields?: (context: {
+  renderFields?: ((context: {
     definition: MasterDefinition;
     values: Record<string, MasterFieldValue>;
     onChange: (key: string, value: MasterFieldValue) => void;
     readOnly: boolean;
     showRequiredErrors: boolean;
     hasSubmitted: boolean;
-  }) => ReactNode;
+  }) => ReactNode) | undefined;
   /** When provided, used instead of looking up the row from local mock store. */
   record?: MasterRecord;
   onFieldChange?: (key: string, value: MasterFieldValue) => void;
@@ -143,7 +144,10 @@ function applyAutoFilledValues(
 ) {
   const nextValues: Record<string, MasterFieldValue> = { ...values };
 
-  const fillFromSource = (sourceKey: string, sourceValue: MasterFieldValue) => {
+  const fillFromSource = (
+    sourceKey: string,
+    sourceValue: MasterFieldValue | undefined,
+  ) => {
     fields.forEach((field) => {
       const autoFillConfig = field.autoFillFrom;
 
@@ -198,6 +202,20 @@ function getMasterFormDefinitionForMode(
     ...definition,
     fields: hasRemarkField(fields) ? fields : [...fields, remarkField],
   };
+}
+
+function formatAuditDateTime(value: any) {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
 }
 
 export function MasterFormPage({
@@ -538,6 +556,64 @@ export function MasterFormPage({
             gap: theme.spacing(1.5),
           })}
         >
+          {mode === "view" ? (
+            <FormSectionHeader
+              title={`${localDefinition.title.toUpperCase()} DETAILS`}
+              icon={FileText}
+              variant="cardTop"
+              startAdornment={
+                values.status !== undefined && values.status !== null ? (() => {
+                  const statusVal = String(values.status).trim();
+                  const isActive =
+                    statusVal.toLowerCase() === "active" ||
+                    statusVal.toLowerCase() === "enabled" ||
+                    values.status === true;
+                  return (
+                    <Box
+                      component="span"
+                      sx={(theme) => ({
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 0.6,
+                        px: 1.25,
+                        py: 0.25,
+                        borderRadius: "12px",
+                        fontSize: "0.725rem",
+                        fontWeight: 700,
+                        letterSpacing: "0.03em",
+                        textTransform: "uppercase",
+                        backgroundColor: isActive
+                          ? theme.customTokens.semanticScale.success[100]
+                          : theme.customTokens.neutrals[100],
+                        color: isActive
+                          ? theme.customTokens.semanticScale.success[800]
+                          : theme.customTokens.neutrals[700],
+                        border: `1px solid ${
+                          isActive
+                            ? theme.customTokens.semanticScale.success[300]
+                            : theme.customTokens.neutrals[300]
+                        }`,
+                      })}
+                    >
+                      <Box
+                        component="span"
+                        sx={(theme) => ({
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          bgcolor: isActive
+                            ? theme.customTokens.semanticScale.success[600]
+                            : theme.customTokens.neutrals[500],
+                        })}
+                      />
+                      {isActive ? "Active" : "Inactive"}
+                    </Box>
+                  );
+                })() : undefined
+              }
+            />
+          ) : null}
+
           {errorMessage || saveError ? (
             <Alert severity="error">{errorMessage || saveError}</Alert>
           ) : null}
@@ -554,7 +630,16 @@ export function MasterFormPage({
           ) : (
             <MasterFormFields
               compact
-              definition={formDefinition}
+              definition={
+                mode === "view"
+                  ? {
+                      ...formDefinition,
+                      fields: formDefinition.fields.filter(
+                        (f) => f.key.toLowerCase() !== "status",
+                      ),
+                    }
+                  : formDefinition
+              }
               fieldActions={fieldActions}
               onChange={handleFieldChange}
               presentation={mode === "view" ? "details" : "form"}
@@ -567,6 +652,139 @@ export function MasterFormPage({
 
           {afterFields}
 
+          {/* Created & Updated audit fields inside the same single card (except customer, supplier, transporter) */}
+          {mode === "view" &&
+          !["customer", "supplier", "transporter", "customers", "suppliers", "transporters"].some(
+            (excluded) => localDefinition.slug?.toLowerCase().includes(excluded),
+          ) ? (
+            <Stack
+              spacing={2}
+              sx={{
+                mt: 2,
+              }}
+            >
+              {/* Row 1: Created By & Created At in one line */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "repeat(1, minmax(0, 1fr))",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                  },
+                  columnGap: 3,
+                  rowGap: 2,
+                }}
+              >
+                <Box>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      mb: 0.25,
+                    })}
+                  >
+                    Created By
+                  </Typography>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: theme.customTokens.text.primary,
+                    })}
+                  >
+                    {String(row?.createdBy || row?.created_by || "System")}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      mb: 0.25,
+                    })}
+                  >
+                    Created At
+                  </Typography>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: theme.customTokens.text.primary,
+                    })}
+                  >
+                    {formatAuditDateTime(row?.createdAt || row?.created_at || row?.createdDate)}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Row 2: Updated By & Updated At in one line */}
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "repeat(1, minmax(0, 1fr))",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                  },
+                  columnGap: 3,
+                  rowGap: 2,
+                }}
+              >
+                <Box>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      mb: 0.25,
+                    })}
+                  >
+                    Updated By
+                  </Typography>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: theme.customTokens.text.primary,
+                    })}
+                  >
+                    {String(row?.updatedBy || row?.updated_by || row?.createdBy || "System")}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      mb: 0.25,
+                    })}
+                  >
+                    Updated At
+                  </Typography>
+                  <Typography
+                    sx={(theme) => ({
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: theme.customTokens.text.primary,
+                    })}
+                  >
+                    {formatAuditDateTime(row?.updatedAt || row?.updated_at || row?.updatedDate || row?.createdAt || row?.created_at)}
+                  </Typography>
+                </Box>
+              </Box>
+            </Stack>
+          ) : null}
+
           <Box
             sx={(theme) => ({
               display: "flex",
@@ -578,31 +796,20 @@ export function MasterFormPage({
             })}
           >
             {mode === "view" ? (
-              <>
+              canEdit ? (
                 <Button
-                  variant="outlined"
-                  startIcon={<ChevronLeft size={16} />}
-                  onClick={handleBack}
-                  sx={(theme) => mastersFormOutlinedButtonSx(theme)}
+                  variant="contained"
+                  startIcon={<Pencil size={16} />}
+                  sx={(theme) => mastersFormPrimaryButtonSx(theme)}
+                  onClick={() => {
+                    if (row) {
+                      navigate(paths.edit(row.id));
+                    }
+                  }}
                 >
-                  Back
+                  Edit
                 </Button>
-
-                {canEdit ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<Pencil size={16} />}
-                    sx={(theme) => mastersFormPrimaryButtonSx(theme)}
-                    onClick={() => {
-                      if (row) {
-                        navigate(paths.edit(row.id));
-                      }
-                    }}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
-              </>
+              ) : null
             ) : (
               <>
                 <Button

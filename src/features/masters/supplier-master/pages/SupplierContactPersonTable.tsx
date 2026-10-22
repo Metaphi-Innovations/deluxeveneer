@@ -21,6 +21,11 @@ import {
   getSelectDropdownOptionSx,
   getSelectDropdownPaperSx,
 } from "../../../shared/dropdownMenuStyles";
+import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../../shared/formSectionStyles";
+import { UserCheck } from "lucide-react";
 
 interface SupplierContactPerson {
   contactPersonName: string;
@@ -145,14 +150,20 @@ export const SupplierContactPersonTable = forwardRef<
   );
 
   return (
-    <Stack
+    <Box
       sx={(currentTheme) => ({
-        gap: currentTheme.spacing(1.5),
+        ...formSectionCardSx(currentTheme),
+        borderRadius: "8px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 1.5,
       })}
     >
-      <Typography variant="h3" color="text.primary">
-        Contact Person Details
-      </Typography>
+      <FormSectionHeader
+        title="CONTACT PERSON DETAILS"
+        icon={UserCheck}
+        variant="cardTop"
+      />
 
       {tableError ? (
         <Typography variant="caption" color="error">
@@ -426,7 +437,7 @@ export const SupplierContactPersonTable = forwardRef<
           </TableBody>
         </Table>
       </Box>
-    </Stack>
+    </Box>
   );
 });
 

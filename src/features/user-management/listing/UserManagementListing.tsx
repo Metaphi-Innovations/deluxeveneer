@@ -11,7 +11,6 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
-  LinearProgress,
   MenuItem,
   Select,
   Snackbar,
@@ -680,22 +679,6 @@ export function UserManagementListing() {
           boxShadow: theme.customTokens.elevation.xs,
         }}
       >
-        {isLoading ? (
-          <LinearProgress
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 10,
-              height: 3,
-              backgroundColor: theme.customTokens.surfaces.alt,
-              "& .MuiLinearProgress-bar": {
-                backgroundColor: theme.customTokens.brand.primary,
-              },
-            }}
-          />
-        ) : null}
         <TableContainer
           sx={{
             overflowX: "auto",
@@ -871,13 +854,45 @@ export function UserManagementListing() {
             <TableBody>
               {currentPageRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} sx={{ py: isLoading ? 3 : 6, textAlign: "center" }}>
+                  <TableCell
+                    colSpan={9}
+                    sx={{
+                      position: "sticky",
+                      left: 0,
+                      py: isLoading ? 3 : 6,
+                      textAlign: "center",
+                    }}
+                  >
                     {isLoading ? (
-                      <ContentLoader label="Loading..." minHeight={160} />
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <ContentLoader label="Loading..." minHeight={160} />
+                      </Box>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        No users found.
-                      </Typography>
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No users found.
+                        </Typography>
+                      </Box>
                     )}
                   </TableCell>
                 </TableRow>
@@ -1822,47 +1837,6 @@ function FilterableColumnHeader({
           sx={(currentTheme) => listingTableHeaderIconButtonSx(currentTheme)}
         >
           <SortIndicator active={sortActive} direction={sortDirection} />
-        </IconButton>
-      ) : null}
-
-      {onOpen ? (
-        <IconButton
-          size="small"
-          aria-label={`Filter by ${label}`}
-          onClick={onOpen}
-          sx={(currentTheme) => ({
-            ...listingTableHeaderIconButtonSx(currentTheme),
-            position: "relative",
-            color: active
-              ? currentTheme.customTokens.brand.primary
-              : currentTheme.customTokens.text.secondary,
-          })}
-        >
-          <ListFilter
-            size={portalIconSize.tableHeader}
-            strokeWidth={portalIconStroke.default}
-          />
-          {active && selectedCount ? (
-            <Box
-              sx={{
-                position: "absolute",
-                top: -3,
-                right: -4,
-                minWidth: 14,
-                height: 14,
-                px: 0.35,
-                borderRadius: "999px",
-                backgroundColor: theme.customTokens.brand.primary,
-                color: "#FFFFFF",
-                fontSize: "0.625rem",
-                fontWeight: 700,
-                lineHeight: "14px",
-                textAlign: "center",
-              }}
-            >
-              {selectedCount > 9 ? "9+" : selectedCount}
-            </Box>
-          ) : null}
         </IconButton>
       ) : null}
     </Stack>

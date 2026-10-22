@@ -14,7 +14,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { Plus, Trash2 } from "lucide-react";
+import { MapPin, Plus, Trash2 } from "lucide-react";
 import { useParams } from "react-router";
 
 import {
@@ -25,6 +25,10 @@ import {
 } from "../../../shared/locationOptions";
 import { ErpSelectField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getMastersCompactFieldSx } from "../../shared/mastersFormStyles";
+import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../../shared/formSectionStyles";
 import {
   MasterFormFields,
   MasterFormPage,
@@ -47,7 +51,7 @@ import {
   type CustomerMasterDetail,
 } from "../api/customerMasterApi";
 
-interface CustomerAddress {
+export interface CustomerAddress {
   address: string;
   pincode: string;
   country: string;
@@ -195,11 +199,11 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
       current.map((address, addressIndex) =>
         addressIndex === index
           ? {
-              ...address,
-              [key]: value,
-              ...(key === "country" ? { state: "", city: "" } : {}),
-              ...(key === "state" ? { city: "" } : {}),
-            }
+            ...address,
+            [key]: value,
+            ...(key === "country" ? { state: "", city: "" } : {}),
+            ...(key === "state" ? { city: "" } : {}),
+          }
           : address,
       ),
     );
@@ -231,7 +235,42 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
       loading={isLoading}
       mode={mode}
       {...(record ? { record } : {})}
-      renderFields={({ definition: formDefinition, values, onChange, readOnly, showRequiredErrors }) => {
+      afterFields={
+        <CustomerAddressesSection
+          addresses={
+            addresses.length > 0
+              ? addresses
+              : [
+                {
+                  address: typeof record?.address === "string" ? record.address : "",
+                  pincode: typeof record?.pincode === "string" ? record.pincode : "",
+                  country: typeof record?.country === "string" ? record.country : "",
+                  state: typeof record?.state === "string" ? record.state : "",
+                  city: typeof record?.city === "string" ? record.city : "",
+                },
+              ]
+          }
+          primaryIndex={primaryIndex}
+          onMakePrimary={(index) => {
+            setPrimaryIndex(index);
+          }}
+          onAdd={() =>
+            setAddresses((current) => [
+              ...current,
+              { ...EMPTY_ADDRESS },
+            ])
+          }
+          onChange={handleAddressChange}
+          onPatch={handleAddressPatch}
+          onRemove={(index) => {
+            setAddresses((current) => current.filter((_, i) => i !== index));
+            if (index === primaryIndex) setPrimaryIndex(0);
+            else if (index < primaryIndex) setPrimaryIndex((c) => Math.max(0, c - 1));
+          }}
+          readOnly={mode === "view"}
+        />
+      }
+      renderFields={mode === "view" ? undefined : ({ definition: formDefinition, values, onChange, readOnly, showRequiredErrors }) => {
         const line1Keys = ["customerType", "customerName", "companyName", "email", "phoneNumber", "dob"];
         const line3Keys = ["gstNo", "gstUpload", "panNo", "panUpload", "remark"];
 
@@ -242,89 +281,6 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
         const line3Fields = line3Keys
           .map((key) => formDefinition.fields.find((f) => f.key === key))
           .filter(Boolean) as typeof formDefinition.fields;
-
-        // Effective address list: addresses from state, or default from initial form values
-        const effectiveAddresses: CustomerAddress[] =
-          addresses.length > 0
-            ? addresses
-            : [
-                {
-                  address: typeof values.address === "string" ? values.address : "",
-                  pincode: typeof values.pincode === "string" ? values.pincode : "",
-                  country: typeof values.country === "string" ? values.country : "",
-                  state: typeof values.state === "string" ? values.state : "",
-                  city: typeof values.city === "string" ? values.city : "",
-                },
-              ];
-
-        const effectivePrimaryIndex =
-          primaryIndex >= 0 && primaryIndex < effectiveAddresses.length
-            ? primaryIndex
-            : 0;
-
-        const syncPrimaryToForm = (addr: CustomerAddress) => {
-          onChange("address", addr.address);
-          onChange("pincode", addr.pincode);
-          onChange("country", addr.country);
-          onChange("state", addr.state);
-          onChange("city", addr.city);
-        };
-
-        const handleItemChange = (
-          index: number,
-          key: keyof CustomerAddress,
-          val: string,
-        ) => {
-          if (addresses.length === 0) {
-            setAddresses(effectiveAddresses);
-          }
-          handleAddressChange(index, key, val);
-          if (index === effectivePrimaryIndex) {
-            onChange(key, val);
-            if (key === "country") {
-              onChange("state", "");
-              onChange("city", "");
-            } else if (key === "state") {
-              onChange("city", "");
-            }
-          }
-        };
-
-        const handleItemPatch = (index: number, patch: Partial<CustomerAddress>) => {
-          if (addresses.length === 0) {
-            setAddresses(effectiveAddresses);
-          }
-          handleAddressPatch(index, patch);
-          if (index === effectivePrimaryIndex) {
-            Object.entries(patch).forEach(([k, v]) => {
-              onChange(k, v ?? "");
-            });
-          }
-        };
-
-        // When user clicks 'Set as Primary': keep the address row in its place, just set primaryIndex
-        const handleMakePrimary = (index: number) => {
-          if (index === effectivePrimaryIndex) return;
-          const chosen = effectiveAddresses[index];
-          if (!chosen) return;
-
-          setPrimaryIndex(index);
-          syncPrimaryToForm(chosen);
-        };
-
-        const handleRemove = (index: number) => {
-          const updatedList = effectiveAddresses.filter((_, i) => i !== index);
-          setAddresses(updatedList);
-
-          if (index === effectivePrimaryIndex) {
-            setPrimaryIndex(0);
-            if (updatedList[0]) {
-              syncPrimaryToForm(updatedList[0]);
-            }
-          } else if (index < effectivePrimaryIndex) {
-            setPrimaryIndex((current) => Math.max(0, current - 1));
-          }
-        };
 
         return (
           <Stack spacing={1.5} sx={{ width: "100%" }}>
@@ -369,7 +325,7 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                   gridColumns: 5,
                 }}
                 onChange={onChange}
-                presentation={mode === "view" ? "details" : "form"}
+                presentation={readOnly ? "details" : "form"}
                 readOnly={readOnly}
                 showRequiredErrors={showRequiredErrors}
                 values={values}
@@ -406,30 +362,13 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
                   gridColumns: 5,
                 }}
                 onChange={onChange}
-                presentation={mode === "view" ? "details" : "form"}
+                presentation={readOnly ? "details" : "form"}
                 readOnly={readOnly}
                 showRequiredErrors={showRequiredErrors}
                 values={values}
                 variant="masters"
               />
             </Box>
-
-            {/* Address Management Section */}
-            <CustomerAddressesSection
-              addresses={effectiveAddresses}
-              primaryIndex={effectivePrimaryIndex}
-              onMakePrimary={handleMakePrimary}
-              onAdd={() =>
-                setAddresses((current) => [
-                  ...(current.length > 0 ? current : effectiveAddresses),
-                  { ...EMPTY_ADDRESS },
-                ])
-              }
-              onChange={handleItemChange}
-              onPatch={handleItemPatch}
-              onRemove={handleRemove}
-              readOnly={readOnly}
-            />
           </Stack>
         );
       }}
@@ -438,14 +377,14 @@ export function CustomerMasterFormPage({ mode }: { mode: "add" | "edit" | "view"
           addresses.length > 0
             ? addresses
             : [
-                {
-                  address: typeof values.address === "string" ? values.address : "",
-                  pincode: typeof values.pincode === "string" ? values.pincode : "",
-                  country: typeof values.country === "string" ? values.country : "",
-                  state: typeof values.state === "string" ? values.state : "",
-                  city: typeof values.city === "string" ? values.city : "",
-                },
-              ];
+              {
+                address: typeof values.address === "string" ? values.address : "",
+                pincode: typeof values.pincode === "string" ? values.pincode : "",
+                country: typeof values.country === "string" ? values.country : "",
+                state: typeof values.state === "string" ? values.state : "",
+                city: typeof values.city === "string" ? values.city : "",
+              },
+            ];
         const effectivePrimaryIndex =
           primaryIndex >= 0 && primaryIndex < effectiveList.length
             ? primaryIndex
@@ -513,17 +452,17 @@ export function CustomerAddressesSection({
       addresses.flatMap((address) => [
         address.country
           ? loadLocationStateOptions(address.country).then(
-              (options) => [`state:${address.country}`, options] as const,
-            )
+            (options) => [`state:${address.country}`, options] as const,
+          )
           : Promise.resolve(null),
         address.country
           ? loadLocationCityOptions(address.country, address.state).then(
-              (options) =>
-                [
-                  `city:${address.country}:${address.state}`,
-                  options,
-                ] as const,
-            )
+            (options) =>
+              [
+                `city:${address.country}:${address.state}`,
+                options,
+              ] as const,
+          )
           : Promise.resolve(null),
       ]),
     ).then((loadedOptions) => {
@@ -611,53 +550,51 @@ export function CustomerAddressesSection({
   return (
     <Box
       sx={(theme) => ({
-        border: `1px solid ${theme.customTokens.borders.default}`,
+        ...formSectionCardSx(theme),
         borderRadius: "8px",
-        p: 1.5,
+        display: "flex",
+        flexDirection: "column",
+        gap: 1.5,
       })}
     >
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        spacing={1}
-        sx={{ mb: 1.5 }}
-      >
-        <Typography sx={{ fontSize: "0.875rem", fontWeight: 700 }}>
-          Customer Addresses
-        </Typography>
-        {!readOnly ? (
-          <Button
-            disabled={!canAddAddress}
-            onClick={handleAddAddress}
-            size="small"
-            startIcon={<Plus size={15} strokeWidth={2.5} />}
-            variant="contained"
-            sx={(theme) => ({
-              textTransform: "none",
-              fontWeight: 600,
-              fontSize: "0.8125rem",
-              borderRadius: "6px",
-              px: 1.75,
-              py: 0.6,
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-              boxShadow: "0 1px 3px rgba(116, 22, 22, 0.2)",
-              "&:hover": {
-                backgroundColor: theme.customTokens.brand.primaryScale[800],
-                boxShadow: "0 2px 6px rgba(116, 22, 22, 0.3)",
-              },
-              "&.Mui-disabled": {
-                opacity: 0.5,
-                backgroundColor: theme.palette.action.disabledBackground,
-                color: theme.palette.action.disabled,
-              },
-            })}
-          >
-            Add Address
-          </Button>
-        ) : null}
-      </Stack>
+      <FormSectionHeader
+        title="CUSTOMER ADDRESSES"
+        icon={MapPin}
+        variant="cardTop"
+        endAdornment={
+          !readOnly ? (
+            <Button
+              disabled={!canAddAddress}
+              onClick={handleAddAddress}
+              size="small"
+              startIcon={<Plus size={15} strokeWidth={2.5} />}
+              variant="contained"
+              sx={(theme) => ({
+                textTransform: "none",
+                fontWeight: 600,
+                fontSize: "0.8125rem",
+                borderRadius: "6px",
+                px: 1.75,
+                py: 0.6,
+                backgroundColor: theme.customTokens.brand.primary,
+                color: "#FFFFFF",
+                boxShadow: "0 1px 3px rgba(116, 22, 22, 0.2)",
+                "&:hover": {
+                  backgroundColor: theme.customTokens.brand.primaryScale[800],
+                  boxShadow: "0 2px 6px rgba(116, 22, 22, 0.3)",
+                },
+                "&.Mui-disabled": {
+                  opacity: 0.5,
+                  backgroundColor: theme.palette.action.disabledBackground,
+                  color: theme.palette.action.disabled,
+                },
+              })}
+            >
+              Add Address
+            </Button>
+          ) : undefined
+        }
+      />
 
       <Snackbar
         open={Boolean(toastMessage)}
@@ -808,7 +745,7 @@ export function CustomerAddressesSection({
                   label="City"
                   options={mergeOption(
                     cityOptions[
-                      `city:${address.country}:${address.state}`
+                    `city:${address.country}:${address.state}`
                     ] ?? [],
                     address.city,
                   )}
@@ -847,35 +784,49 @@ export function AddressTextField({
   value: string;
 }) {
   return (
-    <TextField
-      fullWidth
-      error={error}
-      helperText={helperText}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder ?? `Enter ${label}`}
-      size="small"
-      sx={(theme) => ({
-        ...getMastersCompactFieldSx(
-          theme,
-          error ? "error" : readOnly ? "readOnly" : "default",
-        ),
-        "& .MuiInputBase-input::placeholder": {
-          color: theme.palette.text.disabled,
-          fontSize: "13px",
-          fontWeight: 400,
-          opacity: 1,
-          WebkitTextFillColor: theme.palette.text.disabled,
-        },
-      })}
-      slotProps={{
-        input: { readOnly },
-        htmlInput: {
-          ...(inputMode ? { inputMode } : {}),
-          ...(maxLength ? { maxLength } : {}),
-        },
-      }}
-      value={value}
-    />
+    <Stack spacing={0.5} sx={{ width: "100%", minWidth: 0 }}>
+      <Typography
+        variant="subtitle2"
+        sx={(theme) => ({
+          color: theme.customTokens.text.secondary,
+          fontSize: "12px",
+          fontWeight: 600,
+          lineHeight: 1.3,
+          whiteSpace: "nowrap",
+        })}
+      >
+        {label}
+      </Typography>
+      <TextField
+        fullWidth
+        error={error}
+        helperText={helperText}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder ?? `Enter ${label}`}
+        size="small"
+        sx={(theme) => ({
+          ...getMastersCompactFieldSx(
+            theme,
+            error ? "error" : readOnly ? "readOnly" : "default",
+          ),
+          "& .MuiInputBase-input::placeholder": {
+            color: theme.palette.text.disabled,
+            fontSize: "13px",
+            fontWeight: 400,
+            opacity: 1,
+            WebkitTextFillColor: theme.palette.text.disabled,
+          },
+        })}
+        slotProps={{
+          input: { readOnly },
+          htmlInput: {
+            ...(inputMode ? { inputMode } : {}),
+            ...(maxLength ? { maxLength } : {}),
+          },
+        }}
+        value={value}
+      />
+    </Stack>
   );
 }
 
@@ -893,19 +844,33 @@ export function AddressSelectField({
   value: string;
 }) {
   return (
-    <ErpSelectField
-      controlHeight={36}
-      controlRadius={6}
-      focusRing="subtle"
-      maxVisibleOptions={160}
-      onChange={onChange}
-      options={options}
-      placeholder={`Select ${label}`}
-      searchable
-      size="regular"
-      state={readOnly ? "readOnly" : "default"}
-      value={value}
-    />
+    <Stack spacing={0.5} sx={{ width: "100%", minWidth: 0 }}>
+      <Typography
+        variant="subtitle2"
+        sx={(theme) => ({
+          color: theme.customTokens.text.secondary,
+          fontSize: "12px",
+          fontWeight: 600,
+          lineHeight: 1.3,
+          whiteSpace: "nowrap",
+        })}
+      >
+        {label}
+      </Typography>
+      <ErpSelectField
+        controlHeight={36}
+        controlRadius={6}
+        focusRing="subtle"
+        maxVisibleOptions={160}
+        onChange={onChange}
+        options={options}
+        placeholder={`Select ${label}`}
+        searchable
+        size="regular"
+        state={readOnly ? "readOnly" : "default"}
+        value={value}
+      />
+    </Stack>
   );
 }
 
@@ -947,10 +912,10 @@ export function isCustomerAddressComplete(address: CustomerAddress | undefined) 
 
   return Boolean(
     address.address.trim() &&
-      address.pincode.trim() &&
-      /^\d{1,6}$/.test(address.pincode.trim()) &&
-      address.country.trim() &&
-      address.state.trim() &&
-      address.city.trim(),
+    address.pincode.trim() &&
+    /^\d{1,6}$/.test(address.pincode.trim()) &&
+    address.country.trim() &&
+    address.state.trim() &&
+    address.city.trim(),
   );
 }

@@ -1059,13 +1059,37 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     sx={emptyStateCellSx(theme)}
                   >
                     {loading ? (
-                      <ContentLoader
-                        label={loadingLabel}
-                        minHeight={160}
-                        size={32}
-                      />
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <ContentLoader
+                          label={loadingLabel}
+                          minHeight={160}
+                          size={32}
+                        />
+                      </Box>
                     ) : (
-                      emptyStateLabel
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        {emptyStateLabel}
+                      </Box>
                     )}
                   </TableCell>
                 </TableRow>
@@ -1581,6 +1605,8 @@ function actionBodyCellSx(
 function emptyStateCellSx(theme: Theme) {
   return {
     ...listingTableBodyCellSx(theme),
+    position: "sticky" as const,
+    left: 0,
     py: theme.spacing(4),
     textAlign: "center",
     color: theme.customTokens.text.secondary,

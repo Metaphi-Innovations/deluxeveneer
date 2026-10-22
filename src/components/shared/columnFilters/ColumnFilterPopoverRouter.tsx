@@ -77,6 +77,19 @@ export function getColumnFilterBadgeCount(
   }
 
   if (filter.type === "multiSelect") {
+    const auditValues = decodeAuditFilterValues(filter.values);
+    const hasAuditValues =
+      auditValues.names.length > 0 ||
+      Boolean(auditValues.dateFrom) ||
+      Boolean(auditValues.dateTo);
+
+    if (hasAuditValues) {
+      return (
+        auditValues.names.length +
+        (auditValues.dateFrom || auditValues.dateTo ? 1 : 0)
+      );
+    }
+
     return filter.values.length;
   }
 

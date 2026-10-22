@@ -48,9 +48,6 @@ export function useMasterListQuery<T>({
 
   const listQuery = useQuery({
     queryKey: queryKeys.masters.list(master, listParams),
-    gcTime: 0,
-    refetchOnMount: "always",
-    staleTime: 0,
     queryFn: async () => {
       const result = await fetchPage({
         page,

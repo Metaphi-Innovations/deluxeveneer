@@ -112,6 +112,14 @@ export function getMastersCompactFieldSx(
           : theme.customTokens.brand.primary,
         borderWidth: 1,
       },
+      "& input::placeholder, & textarea::placeholder": {
+        color:
+          ("tertiary" in theme.customTokens.text
+            ? (theme.customTokens.text as { tertiary?: string }).tertiary
+            : undefined) || "rgba(0, 0, 0, 0.38)",
+        opacity: 0.65,
+        WebkitTextFillColor: "rgba(0, 0, 0, 0.38)",
+      },
     },
   };
 }

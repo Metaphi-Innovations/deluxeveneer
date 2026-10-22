@@ -5,14 +5,13 @@ import { queryKeys } from "./queryKeys";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,
+      staleTime: 0,
+      gcTime: 0,
+      refetchOnMount: "always",
       retry: 1,
-      refetchOnWindowFocus: false,
     },
   },
 });
-
-export const DROPDOWN_STALE_TIME = 5 * 60 * 1000;
 
 export function invalidateMaster(name: string) {
   return queryClient.invalidateQueries({ queryKey: queryKeys.masters.all(name) });
