@@ -2,12 +2,29 @@ import { formatSQF, formatSQM, SQM_TO_SQF } from "../../shared/numberFormat";
 import { calculateSlicingSqmValue } from "../shared/slicingAreaCalculation";
 import type { FactoryRecord } from "../shared/types";
 
-const plywoodNames = ["Commercial Plywood", "Marine Plywood", "BWR Plywood", "Flexible Plywood"] as const;
-const mdfNames = ["Plain MDF", "Exterior MDF", "HDF Board", "Moisture Resistant MDF"] as const;
-const subCategories = ["MR Grade", "BWR Grade", "Commercial", "Premium"] as const;
+const plywoodNames = [
+  "Commercial Plywood",
+  "Marine Plywood",
+  "BWR Plywood",
+  "Flexible Plywood",
+] as const;
+const mdfNames = [
+  "Plain MDF",
+  "Exterior MDF",
+  "HDF Board",
+  "Moisture Resistant MDF",
+] as const;
+const subCategories = [
+  "MR Grade",
+  "BWR Grade",
+  "Commercial",
+  "Premium",
+] as const;
 const grades = ["A", "A+", "B", "Premium"] as const;
 
-export function buildPressingDummyBaseStock(materialType: "Plywood" | "MDF"): FactoryRecord[] {
+export function buildPressingDummyBaseStock(
+  materialType: "Plywood" | "MDF",
+): FactoryRecord[] {
   const names = materialType === "MDF" ? mdfNames : plywoodNames;
   const prefix = materialType === "MDF" ? "MDF" : "PLY";
 
@@ -23,6 +40,10 @@ export function buildPressingDummyBaseStock(materialType: "Plywood" | "MDF"): Fa
 
     return {
       id: `pressing-dummy-base-${prefix.toLowerCase()}-${sequence}`,
+      warehouseId: "pressing-demo-production-warehouse",
+      warehouseName: "Production Warehouse",
+      warehouseType: "Production",
+      baseType: materialType,
       storageSrNo: `PRS-${prefix}-${String(sequence).padStart(4, "0")}`,
       inwardSrNo: `INW-${prefix}-${String(1800 + sequence)}`,
       itemName,

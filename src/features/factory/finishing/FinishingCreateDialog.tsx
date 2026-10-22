@@ -42,13 +42,21 @@ function displayDetail(value: unknown) {
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
+    return Number.isInteger(value)
+      ? String(value)
+      : Number(value.toFixed(3)).toString();
   }
 
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value.trim());
-    if (!Number.isNaN(numeric) && !value.includes("-") && !value.includes("/")) {
-      return Number.isInteger(numeric) ? value.trim() : Number(numeric.toFixed(3)).toString();
+    if (
+      !Number.isNaN(numeric) &&
+      !value.includes("-") &&
+      !value.includes("/")
+    ) {
+      return Number.isInteger(numeric)
+        ? value.trim()
+        : Number(numeric.toFixed(3)).toString();
     }
     return value.trim();
   }
@@ -103,6 +111,7 @@ function todayInputValue() {
 export function buildFinishingDoneSnapshot(
   row: FactoryRecord,
   entry: {
+    damagedSheets: number;
     finishingDate?: string;
     finishingType: FinishingType;
     flutingDate?: string;
@@ -114,16 +123,26 @@ export function buildFinishingDoneSnapshot(
   const sheets = String(entry.noOfSheets);
   const remark = entry.remark.trim();
   const flutingDate = entry.flutingDate?.trim() || "";
+  const outputSqf = scaleMeasure(row.sqf, availableSheets, entry.noOfSheets);
+  const outputSqm = scaleMeasure(row.sqm, availableSheets, entry.noOfSheets);
 
   return {
     ...row,
+    damagedSheets: String(entry.damagedSheets),
+    finishingDamagedSheets: String(entry.damagedSheets),
     finishedSheets: sheets,
     finishingType: entry.finishingType,
     listingState: "done",
     noOfSheets: sheets,
     outputNoOfSheets: sheets,
-    sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
-    sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    receivedSheets: sheets,
+    availableSheets: sheets,
+    sqf: outputSqf,
+    sqm: outputSqm,
+    receivedSqf: outputSqf,
+    availableSqf: outputSqf,
+    receivedSqm: outputSqm,
+    availableSqm: outputSqm,
     ...(flutingDate ? { flutingDate, cncDate: flutingDate } : {}),
     ...(remark ? { remark } : {}),
   };
@@ -139,6 +158,7 @@ export function FinishingCreateDialog({
   mode?: "create" | "edit";
   onClose: () => void;
   onSave: (entry: {
+    damagedSheets: number;
     finishingDate?: string;
     finishingType: FinishingType;
     flutingDate?: string;
@@ -149,25 +169,48 @@ export function FinishingCreateDialog({
   row: FactoryRecord | null;
 }) {
   const [sheets, setSheets] = useState("");
+  const [damagedSheets, setDamagedSheets] = useState("0");
   const [finishingType, setFinishingType] = useState("");
   const [flutingDate, setFlutingDate] = useState("");
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const availableSheets = availableSheetCount(row);
+  const availableSheets =
+    mode === "edit"
+      ? Math.max(
+          availableSheetCount(row),
+          sheetCount(row?.noOfSheets ?? row?.finishedSheets) +
+            sheetCount(row?.finishingDamagedSheets ?? row?.damagedSheets),
+        )
+      : availableSheetCount(row);
 
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && row) {
-      setSheets(String(row.noOfSheets ?? row.finishedSheets ?? row.outputNoOfSheets ?? ""));
+      setSheets(
+        String(
+          row.noOfSheets ?? row.finishedSheets ?? row.outputNoOfSheets ?? "",
+        ),
+      );
+      setDamagedSheets(
+        String(row.finishingDamagedSheets ?? row.damagedSheets ?? "0"),
+      );
       setFinishingType(
         row.finishingType === "Glossy" || row.finishingType === "Rough"
           ? (row.finishingType as FinishingType)
           : "",
       );
-      setFlutingDate(String(row.flutingDate ?? row.cncDate ?? row.finishingDate ?? todayInputValue()));
+      setFlutingDate(
+        String(
+          row.flutingDate ??
+            row.cncDate ??
+            row.finishingDate ??
+            todayInputValue(),
+        ),
+      );
       setRemark(String(row.remark ?? ""));
     } else {
       setSheets("");
+      setDamagedSheets("0");
       setFinishingType("");
       setFlutingDate(todayInputValue());
       setRemark("");
@@ -176,10 +219,13 @@ export function FinishingCreateDialog({
   }, [mode, open, row]);
 
   const parsedSheets = sheets === "" ? Number.NaN : Number(sheets);
+  const parsedDamagedSheets =
+    damagedSheets === "" ? Number.NaN : Number(damagedSheets);
   const exceedsAvailable =
     availableSheets > 0 &&
     Number.isInteger(parsedSheets) &&
-    parsedSheets > availableSheets;
+    Number.isInteger(parsedDamagedSheets) &&
+    parsedSheets + parsedDamagedSheets > availableSheets;
   const sheetsMissing = submitted && sheets.trim() === "";
   const sheetsNotPositive =
     submitted &&
@@ -192,6 +238,20 @@ export function FinishingCreateDialog({
       ? "Enter a whole number greater than 0."
       : sheetsMissing
         ? "Number of sheets is required."
+        : "";
+  const damagedSheetsMissing = submitted && damagedSheets.trim() === "";
+  const damagedSheetsNotValid =
+    submitted &&
+    damagedSheets.trim() !== "" &&
+    (!Number.isInteger(parsedDamagedSheets) || parsedDamagedSheets < 0);
+  const damagedSheetsInvalid =
+    damagedSheetsMissing || damagedSheetsNotValid || exceedsAvailable;
+  const damagedSheetsError = exceedsAvailable
+    ? `Processed and damaged sheets cannot exceed ${availableSheets}.`
+    : damagedSheetsNotValid
+      ? "Enter a whole number of 0 or more."
+      : damagedSheetsMissing
+        ? "Damaged sheets is required."
         : "";
   const typeInvalid = finishingType !== "Glossy" && finishingType !== "Rough";
 
@@ -210,7 +270,11 @@ export function FinishingCreateDialog({
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },
     { label: "Thickness", minWidth: 110, value: row?.thickness || row?.height },
-    { label: "No of Sheets", minWidth: 140, value: availableSheets || row?.noOfSheets },
+    {
+      label: "No of Sheets",
+      minWidth: 140,
+      value: availableSheets || row?.noOfSheets,
+    },
     { label: "SQM", minWidth: 120, value: row?.sqm },
     { label: "SQF", minWidth: 120, value: row?.sqf },
     { label: "Remark", minWidth: 180, value: row?.remark },
@@ -263,7 +327,10 @@ export function FinishingCreateDialog({
                 })}
               >
                 <Box sx={(theme) => getDialogScrollableTableSx(theme)}>
-                  <Table size="small" sx={{ minWidth: 2200, tableLayout: "auto" }}>
+                  <Table
+                    size="small"
+                    sx={{ minWidth: 2200, tableLayout: "auto" }}
+                  >
                     <TableHead>
                       <TableRow>
                         {details.map((item) => (
@@ -271,7 +338,9 @@ export function FinishingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogHeaderCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {item.label}
@@ -286,7 +355,9 @@ export function FinishingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogBodyCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {displayDetail(item.value)}
@@ -315,6 +386,16 @@ export function FinishingCreateDialog({
                 })}
               >
                 <Stack spacing={0.75}>
+                  <DialogFieldLabel>Available Sheets</DialogFieldLabel>
+                  <TextField
+                    disabled
+                    fullWidth
+                    size="small"
+                    value={availableSheets}
+                    sx={(theme) => getCompactFieldSx(theme, "disabled")}
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
                   <DialogFieldLabel>Number of Sheets *</DialogFieldLabel>
                   <TextField
                     autoFocus
@@ -334,7 +415,36 @@ export function FinishingCreateDialog({
                       },
                     }}
                     sx={(theme) =>
-                      getCompactFieldSx(theme, sheetsInvalid ? "error" : "default")
+                      getCompactFieldSx(
+                        theme,
+                        sheetsInvalid ? "error" : "default",
+                      )
+                    }
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Damage No. of Sheets *</DialogFieldLabel>
+                  <TextField
+                    error={damagedSheetsInvalid}
+                    fullWidth
+                    helperText={damagedSheetsError || " "}
+                    onChange={(event) =>
+                      setDamagedSheets(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="Enter damaged sheets"
+                    size="small"
+                    value={damagedSheets}
+                    slotProps={{
+                      htmlInput: {
+                        inputMode: "numeric",
+                        pattern: "[0-9]*",
+                      },
+                    }}
+                    sx={(theme) =>
+                      getCompactFieldSx(
+                        theme,
+                        damagedSheetsInvalid ? "error" : "default",
+                      )
                     }
                   />
                 </Stack>
@@ -386,15 +496,20 @@ export function FinishingCreateDialog({
           py: theme.spacing(1.5),
         })}
       >
-        <Button onClick={onClose} sx={recordFormActionButtonSx} variant="outlined">
+        <Button
+          onClick={onClose}
+          sx={recordFormActionButtonSx}
+          variant="outlined"
+        >
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
         <Button
           onClick={() => {
             setSubmitted(true);
-            if (sheetsInvalid || typeInvalid) return;
+            if (sheetsInvalid || damagedSheetsInvalid || typeInvalid) return;
             onSave({
+              damagedSheets: parsedDamagedSheets,
               finishingType: finishingType as FinishingType,
               flutingDate: flutingDate.trim(),
               noOfSheets: parsedSheets,

@@ -37,13 +37,21 @@ function displayDetail(value: unknown) {
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
+    return Number.isInteger(value)
+      ? String(value)
+      : Number(value.toFixed(3)).toString();
   }
 
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value.trim());
-    if (!Number.isNaN(numeric) && !value.includes("-") && !value.includes("/")) {
-      return Number.isInteger(numeric) ? value.trim() : Number(numeric.toFixed(3)).toString();
+    if (
+      !Number.isNaN(numeric) &&
+      !value.includes("-") &&
+      !value.includes("/")
+    ) {
+      return Number.isInteger(numeric)
+        ? value.trim()
+        : Number(numeric.toFixed(3)).toString();
     }
     return value.trim();
   }
@@ -99,6 +107,7 @@ export function buildCncFlutingDoneSnapshot(
   row: FactoryRecord,
   entry: {
     cncDate: string;
+    damagedSheets: number;
     designCode: string;
     noOfSheets: number;
     remark: string;
@@ -109,18 +118,28 @@ export function buildCncFlutingDoneSnapshot(
   const remark = entry.remark.trim();
   const designCode = entry.designCode.trim();
   const cncDate = entry.cncDate.trim();
+  const outputSqf = scaleMeasure(row.sqf, availableSheets, entry.noOfSheets);
+  const outputSqm = scaleMeasure(row.sqm, availableSheets, entry.noOfSheets);
 
   return {
     ...row,
     cncDate,
     flutingDate: cncDate,
     ...(designCode ? { designCode } : {}),
+    damagedSheets: String(entry.damagedSheets),
+    flutingDamagedSheets: String(entry.damagedSheets),
     flutedSheets: sheets,
     listingState: "done",
     noOfSheets: sheets,
     outputNoOfSheets: sheets,
-    sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
-    sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    receivedSheets: sheets,
+    availableSheets: sheets,
+    sqf: outputSqf,
+    sqm: outputSqm,
+    receivedSqf: outputSqf,
+    availableSqf: outputSqf,
+    receivedSqm: outputSqm,
+    availableSqm: outputSqm,
     ...(remark ? { remark } : {}),
   };
 }
@@ -136,6 +155,7 @@ export function CncFlutingCreateDialog({
   onClose: () => void;
   onSave: (entry: {
     cncDate: string;
+    damagedSheets: number;
     designCode: string;
     noOfSheets: number;
     remark: string;
@@ -146,31 +166,50 @@ export function CncFlutingCreateDialog({
   const [cncDate, setCncDate] = useState("");
   const [designCode, setDesignCode] = useState("");
   const [sheets, setSheets] = useState("");
+  const [damagedSheets, setDamagedSheets] = useState("0");
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const availableSheets = availableSheetCount(row);
+  const availableSheets =
+    mode === "edit"
+      ? Math.max(
+          availableSheetCount(row),
+          sheetCount(row?.noOfSheets ?? row?.flutedSheets) +
+            sheetCount(row?.flutingDamagedSheets ?? row?.damagedSheets),
+        )
+      : availableSheetCount(row);
 
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && row) {
       setCncDate(String(row.cncDate ?? row.flutingDate ?? todayInputValue()));
       setDesignCode(String(row.designCode ?? ""));
-      setSheets(String(row.noOfSheets ?? row.flutedSheets ?? row.outputNoOfSheets ?? ""));
+      setSheets(
+        String(
+          row.noOfSheets ?? row.flutedSheets ?? row.outputNoOfSheets ?? "",
+        ),
+      );
+      setDamagedSheets(
+        String(row.flutingDamagedSheets ?? row.damagedSheets ?? "0"),
+      );
       setRemark(String(row.remark ?? ""));
     } else {
       setCncDate(todayInputValue());
       setDesignCode(String(row?.designCode ?? ""));
       setSheets(availableSheets > 0 ? String(availableSheets) : "");
+      setDamagedSheets("0");
       setRemark("");
     }
     setSubmitted(false);
   }, [availableSheets, mode, open, row]);
 
   const parsedSheets = sheets === "" ? Number.NaN : Number(sheets);
+  const parsedDamagedSheets =
+    damagedSheets === "" ? Number.NaN : Number(damagedSheets);
   const exceedsAvailable =
     availableSheets > 0 &&
     Number.isInteger(parsedSheets) &&
-    parsedSheets > availableSheets;
+    Number.isInteger(parsedDamagedSheets) &&
+    parsedSheets + parsedDamagedSheets > availableSheets;
   const sheetsMissing = submitted && sheets.trim() === "";
   const sheetsNotPositive =
     submitted &&
@@ -183,6 +222,20 @@ export function CncFlutingCreateDialog({
       ? "Enter a whole number greater than 0."
       : sheetsMissing
         ? "Number of sheets is required."
+        : "";
+  const damagedSheetsMissing = submitted && damagedSheets.trim() === "";
+  const damagedSheetsNotValid =
+    submitted &&
+    damagedSheets.trim() !== "" &&
+    (!Number.isInteger(parsedDamagedSheets) || parsedDamagedSheets < 0);
+  const damagedSheetsInvalid =
+    damagedSheetsMissing || damagedSheetsNotValid || exceedsAvailable;
+  const damagedSheetsError = exceedsAvailable
+    ? `Processed and damaged sheets cannot exceed ${availableSheets}.`
+    : damagedSheetsNotValid
+      ? "Enter a whole number of 0 or more."
+      : damagedSheetsMissing
+        ? "Damaged sheets is required."
         : "";
 
   const details: Array<{ label: string; minWidth?: number; value: unknown }> = [
@@ -200,7 +253,11 @@ export function CncFlutingCreateDialog({
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },
     { label: "Thickness", minWidth: 110, value: row?.thickness || row?.height },
-    { label: "No of Sheets", minWidth: 140, value: availableSheets || row?.noOfSheets },
+    {
+      label: "No of Sheets",
+      minWidth: 140,
+      value: availableSheets || row?.noOfSheets,
+    },
     { label: "SQM", minWidth: 120, value: row?.sqm },
     { label: "SQF", minWidth: 120, value: row?.sqf },
     { label: "Remark", minWidth: 180, value: row?.remark },
@@ -253,7 +310,10 @@ export function CncFlutingCreateDialog({
                 })}
               >
                 <Box sx={(theme) => getDialogScrollableTableSx(theme)}>
-                  <Table size="small" sx={{ minWidth: 2200, tableLayout: "auto" }}>
+                  <Table
+                    size="small"
+                    sx={{ minWidth: 2200, tableLayout: "auto" }}
+                  >
                     <TableHead>
                       <TableRow>
                         {details.map((item) => (
@@ -261,7 +321,9 @@ export function CncFlutingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogHeaderCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {item.label}
@@ -276,7 +338,9 @@ export function CncFlutingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogBodyCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {displayDetail(item.value)}
@@ -304,7 +368,32 @@ export function CncFlutingCreateDialog({
                   },
                 })}
               >
-                {/* 2x2 Grid: Date, Design Code, No of Sheets, Remark */}
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Damage No. of Sheets *</DialogFieldLabel>
+                  <TextField
+                    error={damagedSheetsInvalid}
+                    fullWidth
+                    helperText={damagedSheetsError || " "}
+                    onChange={(event) =>
+                      setDamagedSheets(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="Enter damaged sheets"
+                    size="small"
+                    value={damagedSheets}
+                    slotProps={{
+                      htmlInput: {
+                        inputMode: "numeric",
+                        pattern: "[0-9]*",
+                      },
+                    }}
+                    sx={(theme) =>
+                      getCompactFieldSx(
+                        theme,
+                        damagedSheetsInvalid ? "error" : "default",
+                      )
+                    }
+                  />
+                </Stack>
                 <Stack spacing={0.75}>
                   <DialogFieldLabel>Fluting Date *</DialogFieldLabel>
                   <TextField
@@ -314,6 +403,16 @@ export function CncFlutingCreateDialog({
                     type="date"
                     value={cncDate}
                     sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Available Sheets</DialogFieldLabel>
+                  <TextField
+                    disabled
+                    fullWidth
+                    size="small"
+                    value={availableSheets}
+                    sx={(theme) => getCompactFieldSx(theme, "disabled")}
                   />
                 </Stack>
                 <Stack spacing={0.75}>
@@ -347,7 +446,10 @@ export function CncFlutingCreateDialog({
                       },
                     }}
                     sx={(theme) =>
-                      getCompactFieldSx(theme, sheetsInvalid ? "error" : "default")
+                      getCompactFieldSx(
+                        theme,
+                        sheetsInvalid ? "error" : "default",
+                      )
                     }
                   />
                 </Stack>
@@ -374,16 +476,21 @@ export function CncFlutingCreateDialog({
           py: theme.spacing(1.5),
         })}
       >
-        <Button onClick={onClose} sx={recordFormActionButtonSx} variant="outlined">
+        <Button
+          onClick={onClose}
+          sx={recordFormActionButtonSx}
+          variant="outlined"
+        >
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
         <Button
           onClick={() => {
             setSubmitted(true);
-            if (sheetsInvalid) return;
+            if (sheetsInvalid || damagedSheetsInvalid) return;
             onSave({
               cncDate: cncDate.trim(),
+              damagedSheets: parsedDamagedSheets,
               designCode: designCode.trim(),
               noOfSheets: parsedSheets,
               remark: remark.trim(),

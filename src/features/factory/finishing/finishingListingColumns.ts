@@ -14,10 +14,11 @@ const finishingHiddenKeys = new Set([
   "ratePerSqf",
 ]);
 
-const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
-  { key: "designCode", label: "Design Code" },
-  { key: "structureCode", label: "Structure Code" },
-];
+const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  [
+    { key: "designCode", label: "Design Code" },
+    { key: "structureCode", label: "Structure Code" },
+  ];
 
 export function applyFinishingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
@@ -40,7 +41,22 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
   });
 
   if (activeTab === "issued") {
-    return insertColumnsAfter(visible, "itemSubCategory", finishingIssuedCodeColumns);
+    const withCodes = insertColumnsAfter(
+      visible,
+      "itemSubCategory",
+      finishingIssuedCodeColumns,
+    );
+    const withReceivedSheets = withCodes.map((column) =>
+      column.key === "noOfSheets"
+        ? { ...column, key: "receivedSheets", label: "Received Sheets" }
+        : column,
+    );
+    const withAvailableSheets = insertColumnsAfter(
+      withReceivedSheets,
+      "receivedSheets",
+      [{ key: "availableSheets", label: "Available Sheets" }],
+    );
+    return withAvailableFactoryMeasureColumns(withAvailableSheets);
   }
 
   if (activeTab === "done") {
@@ -53,9 +69,11 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
       }
       return column;
     });
-    const withAvailableSheets = insertColumnsAfter(withReceivedSheets, "receivedSheets", [
-      { key: "availableSheets", label: "Available Sheets" },
-    ]);
+    const withAvailableSheets = insertColumnsAfter(
+      withReceivedSheets,
+      "receivedSheets",
+      [{ key: "availableSheets", label: "Available Sheets" }],
+    );
     return withAvailableFactoryMeasureColumns(withAvailableSheets);
   }
 
