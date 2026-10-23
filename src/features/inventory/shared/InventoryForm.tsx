@@ -7,7 +7,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { Pencil, Save } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { env } from "../../../config/env";
@@ -727,14 +727,6 @@ function InventoryFormContent<Row extends InventoryRecord>({
           >
             {mode === "view" ? (
               <>
-                <Button
-                  variant="outlined"
-                  startIcon={<ChevronLeft size={16} />}
-                  onClick={handleBack}
-                  sx={recordViewActionButtonSx}
-                >
-                  Back
-                </Button>
 
                 {row && canEdit ? (
                   <Button

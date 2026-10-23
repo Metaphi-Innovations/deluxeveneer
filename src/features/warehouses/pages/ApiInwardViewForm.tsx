@@ -18,7 +18,6 @@ import type { Theme } from "@mui/material/styles";
 import {
   Building2,
   Calendar,
-  ChevronLeft,
   DollarSign,
   FileCheck,
   FileSpreadsheet,
@@ -413,11 +412,6 @@ export function ApiInwardViewForm({
           <Alert severity="error">
             {errorMessage || "The requested inward record could not be found."}
           </Alert>
-          <Box sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={closeForm}>
-              Back
-            </Button>
-          </Box>
         </MasterSectionCard>
       </InventoryPageShell>
     );
@@ -439,14 +433,6 @@ export function ApiInwardViewForm({
       title={viewStockTitle}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          <Button
-            variant="outlined"
-            startIcon={<ChevronLeft size={16} />}
-            onClick={closeForm}
-            sx={recordViewActionButtonSx}
-          >
-            Back
-          </Button>
           {canEdit && !editLocked && !isStorageWarehouseView ? (
             <Button
               variant="contained"

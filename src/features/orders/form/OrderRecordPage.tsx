@@ -16,7 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { ChevronLeft, Info, Pencil, Save } from "lucide-react";
+import { Info, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router";
 
 import {
@@ -391,14 +391,6 @@ export function OrderRecordPage({
               gap: theme.spacing(1.25),
             })}
           >
-            <Button
-              onClick={() => navigate(paths.list)}
-              startIcon={<ChevronLeft size={16} />}
-              sx={recordViewActionButtonSx}
-              variant="outlined"
-            >
-              Back
-            </Button>
 
             <Button
               onClick={() => {

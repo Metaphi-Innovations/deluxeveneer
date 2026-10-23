@@ -11,7 +11,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -764,14 +764,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
           >
             {mode === "view" ? (
               <>
-                <Button
-                  onClick={handleRequestBack}
-                  startIcon={<ChevronLeft size={16} />}
-                  sx={recordViewActionButtonSx}
-                  variant="outlined"
-                >
-                  Back
-                </Button>
 
                 {canEdit ? (
                   <Button

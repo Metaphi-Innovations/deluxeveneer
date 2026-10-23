@@ -11,7 +11,6 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import {
@@ -1228,20 +1227,6 @@ export const DryingInspectionViewPage: React.FC = () => {
             gap: 1.5,
           }}
         >
-          <Button
-            onClick={() => navigate(listPath)}
-            startIcon={<ChevronLeft size={16} />}
-            variant="outlined"
-            sx={{
-              borderRadius: "8px",
-              fontWeight: 600,
-              textTransform: "none",
-              px: 2.5,
-              height: 38,
-            }}
-          >
-            Back
-          </Button>
 
           <Stack direction="row" spacing={1.5}>
             {/* If pending: show Update Inspection */}

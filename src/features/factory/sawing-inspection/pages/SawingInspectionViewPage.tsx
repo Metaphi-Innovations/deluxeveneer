@@ -18,7 +18,6 @@ import {
 } from "@mui/material";
 import {
   AlertCircle,
-  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   ChevronRight,
@@ -376,25 +375,6 @@ export const SawingInspectionViewPage: React.FC = () => {
         to: `/factory/sawing-inspection?tab=${tab}`,
         onBack: () => navigate(`/factory/sawing-inspection?tab=${tab}`),
       }}
-      actions={
-        <Stack direction="row" spacing={1.5} alignItems="center">
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<ArrowLeft size={15} />}
-            onClick={() => navigate(`/factory/sawing-inspection?tab=${tab}`)}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              borderRadius: "8px",
-              height: 34,
-              px: 1.75,
-            }}
-          >
-            Back
-          </Button>
-        </Stack>
-      }
     >
       <Stack spacing={2.5}>
         {/* SOURCE TRACEABILITY */}

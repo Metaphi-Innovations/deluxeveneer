@@ -251,14 +251,16 @@ export function ProductionInventoryRecordPage({
 
   const headerActions = (
     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-      <Button
-        variant="outlined"
-        startIcon={<ChevronLeft size={16} />}
-        onClick={closeForm}
-        sx={recordViewActionButtonSx}
-      >
-        Back
-      </Button>
+      {mode === "edit" ? (
+        <Button
+          variant="outlined"
+          startIcon={<ChevronLeft size={16} />}
+          onClick={closeForm}
+          sx={recordViewActionButtonSx}
+        >
+          Back
+        </Button>
+      ) : null}
       {mode === "edit" ? (
         <Button
           variant="contained"
@@ -306,11 +308,13 @@ export function ProductionInventoryRecordPage({
             {errorMessage ||
               "The requested production inventory record could not be found."}
           </Alert>
-          <Box sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={closeForm}>
-              Back
-            </Button>
-          </Box>
+          {mode === "edit" ? (
+            <Box sx={{ mt: 2 }}>
+              <Button variant="outlined" onClick={closeForm}>
+                Back
+              </Button>
+            </Box>
+          ) : null}
         </MasterSectionCard>
       </InventoryPageShell>
     );
