@@ -137,7 +137,7 @@ export const SAWING_AVAILABLE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 ] as const;
 
 export const SAWING_PROCESS_TABS = [
-  { label: "Issue for Sawing", value: "issued" },
+  { label: "Issued for Sawing", value: "issued" },
   { label: "Sawing Done", value: "done" },
   { label: "Sawing History", value: "history" },
   { label: "Rejected Sawing", value: "rejected" },

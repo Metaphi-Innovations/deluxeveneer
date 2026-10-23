@@ -1186,6 +1186,7 @@ export function MasterFormFields({
                 component="iframe"
                 src={url}
                 title={previewState.name}
+                sandbox=""
                 sx={{
                   width: "100%",
                   height: "70vh",

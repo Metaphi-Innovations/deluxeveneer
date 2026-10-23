@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -163,10 +163,9 @@ export function ViewSupplierMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Supplier Master", to: paths.list },
-          { label: "View Supplier" },
+          { label: "View Supplier Master" },
         ]}
-        title="View Supplier"
-        subtitle=" "
+        title="View Supplier Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -183,19 +182,13 @@ export function ViewSupplierMasterPage() {
           { label: "Supplier Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Supplier"
+        title="View Supplier Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Supplier record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Supplier record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -206,7 +199,7 @@ export function ViewSupplierMasterPage() {
         { label: "Supplier Master", to: paths.list },
         { label: displayName || "View Supplier" },
       ]}
-      title="View Supplier"
+      title="View Supplier Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">

@@ -66,15 +66,16 @@ export function AddItemSubCategoryMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
-      if (created) {
-        const allRecords = await fetchItemSubCategoriesApi();
-        if (allRecords.length > 0) {
-          syncItemSubCategoryMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to save item sub category.");
+      }
+      const allRecords = await fetchItemSubCategoriesApi();
+      if (allRecords.length > 0) {
+        syncItemSubCategoryMasterToStorage(allRecords);
       }
       void invalidateMaster("itemSubCategory");
     } catch (error) {
-      console.warn("Failed to create item sub-category via API:", error);
+      throw error;
     }
   };
 

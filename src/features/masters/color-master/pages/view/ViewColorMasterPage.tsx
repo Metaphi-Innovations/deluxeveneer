@@ -14,12 +14,11 @@ import {
   MessageSquare,
   Palette,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -90,10 +89,9 @@ export function ViewColorMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Color Master", to: paths.list },
-          { label: "View Color" },
+          { label: "View Color Master" },
         ]}
-        title="View Color"
-        subtitle=" "
+        title="View Color Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -110,19 +108,13 @@ export function ViewColorMasterPage() {
           { label: "Color Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Color"
+        title="View Color Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Color record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Color record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -133,7 +125,7 @@ export function ViewColorMasterPage() {
         { label: "Color Master", to: paths.list },
         { label: displayName || "View Color" },
       ]}
-      title="View Color"
+      title="View Color Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -208,26 +200,8 @@ export function ViewColorMasterPage() {
                       lineHeight: 1.25,
                     }}
                   >
-                    Color: {displayName}
+                    {displayName}
                   </Typography>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}
-                  >
-                    <Chip
-                      label={`Color: ${displayName}`}
-                      size="small"
-                      sx={{
-                        height: 22,
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        backgroundColor: theme.customTokens.surfaces.paper,
-                        border: `1px solid ${theme.customTokens.borders.default}`,
-                      }}
-                    />
-                  </Stack>
                 </Box>
               </Stack>
 
@@ -289,37 +263,6 @@ export function ViewColorMasterPage() {
                 >
                   <ProfileField label="Color Name" value={displayName} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="Color Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

@@ -129,7 +129,6 @@ export function UserManagementViewPage() {
           { label: "View User" },
         ]}
         title="View User"
-        subtitle=" "
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -548,6 +547,7 @@ export function UserManagementViewPage() {
               component="iframe"
               src={previewDoc.url}
               title={previewDoc.name}
+              sandbox=""
               sx={{
                 width: "100%",
                 height: "70vh",

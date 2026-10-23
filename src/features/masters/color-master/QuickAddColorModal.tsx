@@ -15,6 +15,7 @@ import {
 import { X, Save } from "lucide-react";
 import { createColorApi, fetchColorsApi, syncColorMasterToStorage } from "./api/colorMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 
 interface QuickAddColorModalProps {
   open: boolean;
@@ -81,11 +82,13 @@ export function QuickAddColorModal({
         status: true,
       });
 
-      if (created) {
-        const allRecords = await fetchColorsApi();
-        if (allRecords.length > 0) {
-          syncColorMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to create color.");
+      }
+
+      const allRecords = await fetchColorsApi();
+      if (allRecords.length > 0) {
+        syncColorMasterToStorage(allRecords);
       }
 
       void invalidateMaster("color");
@@ -94,8 +97,8 @@ export function QuickAddColorModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to create color.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create color.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {

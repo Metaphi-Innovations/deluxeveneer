@@ -16,7 +16,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "srNo", label: "Sr No" },
     { key: "categoryName", label: "Category Name" },
     { key: "hsn", label: "HSN Code" },
-    { key: "gst", label: "GST%" },
+    { key: "gst", label: "GST %" },
     { key: "remark", label: "Remark" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
@@ -27,7 +27,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
   filters: [
     { key: "categoryName", label: "Category Name", options: itemCategoryMasterOptions },
     { key: "hsn", label: "HSN Code", options: getLiveMasterOptions([], "hsn-master", "hsnCode") },
-    { key: "gst", label: "GST%", options: getLiveMasterOptions([], "hsn-master", "gstPercentage") },
+    { key: "gst", label: "GST %", options: getLiveMasterOptions([], "hsn-master", "gstPercentage") },
     { key: "status", label: "Status", options: statusOptions },
   ],
   fields: [
@@ -35,7 +35,7 @@ export const itemCategoryMasterDefinition: MasterDefinition = {
     { key: "hsn", label: "HSN Code", type: "select", options: getLiveMasterOptions([], "hsn-master", "hsnCode") },
     {
       key: "gst",
-      label: "GST%",
+      label: "GST %",
       type: "select",
       options: getLiveMasterOptions([], "hsn-master", "gstPercentage"),
       readOnly: true,

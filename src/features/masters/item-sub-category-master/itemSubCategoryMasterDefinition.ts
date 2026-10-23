@@ -14,7 +14,7 @@ export const itemSubCategoryMasterDefinition: MasterDefinition = {
   gridColumns: 3,
   columns: [
     { key: "srNo", label: "Sr No" },
-    { key: "itemSubCategory", label: "Item Sub Category" },
+    { key: "itemSubCategory", label: "Item Sub-Category" },
     { key: "category", label: "Category" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
@@ -27,7 +27,7 @@ export const itemSubCategoryMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", options: statusOptions },
   ],
   fields: [
-    { key: "itemSubCategory", label: "Item Sub Category", type: "text" },
+    { key: "itemSubCategory", label: "Item Sub-Category", type: "text" },
     { key: "category", label: "Category", type: "select", options: getLiveMasterOptions([], "item-category-master", "categoryName") },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],

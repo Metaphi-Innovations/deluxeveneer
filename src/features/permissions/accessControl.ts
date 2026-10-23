@@ -101,6 +101,42 @@ export function getWarehousePermissionKey(warehouseId: string) {
 }
 
 export function isSuperAdminUser(user: AuthenticatedUserProfile) {
-  const roleText = `${user.accountRole} ${user.role} ${user.userType}`.toLowerCase();
-  return roleText.includes("super admin");
+  if (typeof user.isSuperAdmin === "boolean") {
+    return user.isSuperAdmin;
+  }
+  return false;
+}
+
+export function canAccessFactorySawing(
+  user: AuthenticatedUserProfile = getCurrentUser(),
+) {
+  if (isSuperAdminUser(user)) {
+    return true;
+  }
+  if (canAccessPermission("sawing", "view", user)) {
+    return true;
+  }
+  return Object.entries(user.permissions ?? {}).some(
+    ([key, flags]) =>
+      key.startsWith("warehouse:") &&
+      Boolean(flags?.view || flags?.create || flags?.edit),
+  );
+}
+
+export function canMutateFactorySawing(
+  user: AuthenticatedUserProfile = getCurrentUser(),
+) {
+  if (isSuperAdminUser(user)) {
+    return true;
+  }
+  if (
+    canAccessPermission("sawing", "create", user) ||
+    canAccessPermission("sawing", "edit", user)
+  ) {
+    return true;
+  }
+  return Object.entries(user.permissions ?? {}).some(
+    ([key, flags]) =>
+      key.startsWith("warehouse:") && Boolean(flags?.create || flags?.edit),
+  );
 }

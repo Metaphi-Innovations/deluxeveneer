@@ -109,7 +109,7 @@ const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow
     { key: "currency", label: "Currency" },
     { key: "amount", label: "Amount" },
     { key: "totalAmount", label: "Total Amount" },
-    { key: "qcStatus", label: "QC" },
+    { key: "qcStatus", label: "QC Status" },
     { key: "remark", label: "Remark" },
     { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
@@ -352,7 +352,7 @@ export function InwardWarehousePage({
           // line has been moved from storage to production.
           actions.push({
             id: "qc-action",
-            label: "QC",
+            label: "QC Status",
             icon: ClipboardCheck,
             onSelect: (rowToUpdate) => {
               setActionError("");

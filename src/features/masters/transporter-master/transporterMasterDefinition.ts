@@ -14,7 +14,7 @@ export const transporterMasterDefinition: MasterDefinition = {
   columns: [
     { key: "transporterName", label: "Transporter Name" },
     { key: "branchName", label: "Branch Name" },
-    { key: "transporterId", label: "Transporter Id" },
+    { key: "transporterId", label: "Transporter ID" },
     { key: "type", label: "Type" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
@@ -29,7 +29,7 @@ export const transporterMasterDefinition: MasterDefinition = {
   fields: [
     { key: "transporterName", label: "Transporter Name", type: "text" },
     { key: "branchName", label: "Branch Name", type: "text" },
-    { key: "transporterId", label: "Transporter Id", type: "text" },
+    { key: "transporterId", label: "Transporter ID", type: "text" },
     {
       key: "type",
       label: "Type",

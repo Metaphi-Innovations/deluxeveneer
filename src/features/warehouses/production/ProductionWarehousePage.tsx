@@ -135,7 +135,8 @@ export function ProductionWarehousePage({
     [selectedIssueOrder],
   );
 
-  const showIssueOrderButton = !isSampleSheetsTab && canEditWarehouseC;
+  const showIssueOrderButton =
+    !isSampleSheetsTab && !isSawingTab && canEditWarehouseC;
 
   const handleOpenIssueOrderDialog = () => {
     setIssueOrderValues({ orderItemNo: "", orderNo: "" });

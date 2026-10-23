@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Dialog, DialogContent, Snackbar, Stack, Typography } from "@mui/material";
-import { CircleAlert, Eye, Pencil, Plus, XCircle } from "lucide-react";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { Eye, Pencil, Plus, XCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import {
@@ -8,13 +8,11 @@ import {
   type EnterpriseTableAction,
   type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import {
-  getListingToolbarButtonSx,
-  recordFormActionButtonSx,
-} from "../../shared/buttonStyles";
+import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import {
   type OrderListingRow,
   type OrderListingTab,
@@ -229,11 +227,19 @@ export function OrdersListingPage({
         record={viewRecord}
       />
 
-      <CancelOrderConfirmationDialog
+      <ConfirmationDialog
+        cancelLabel="Keep Order"
+        confirmLabel="Cancel Order"
+        description={
+          cancelDialogOrder?.orderNo
+            ? `This will cancel order ${cancelDialogOrder.orderNo}.`
+            : "This will cancel the selected order."
+        }
         onClose={handleCloseCancelDialog}
         onConfirm={handleConfirmCancelOrder}
         open={Boolean(cancelDialogOrder)}
-        orderNo={cancelDialogOrder?.orderNo}
+        title="Cancel Order"
+        tone="danger"
       />
 
       <Snackbar
@@ -254,102 +260,6 @@ export function OrdersListingPage({
         ) : undefined}
       </Snackbar>
     </MasterPageShell>
-  );
-}
-
-function CancelOrderConfirmationDialog({
-  onClose,
-  onConfirm,
-  open,
-  orderNo,
-}: {
-  onClose: () => void;
-  onConfirm: () => void;
-  open: boolean;
-  orderNo: string | undefined;
-}) {
-  return (
-    <Dialog
-      fullWidth
-      maxWidth="xs"
-      onClose={onClose}
-      open={open}
-      slotProps={{
-        paper: {
-          sx: (theme) => ({
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            borderRadius: `${theme.customTokens.radius.md}px`,
-            boxShadow: theme.shadows[0],
-            outline: "none",
-            "&:focus, &:focus-visible": {
-              outline: "none",
-            },
-          }),
-        },
-      }}
-    >
-      <DialogContent
-        sx={(theme) => ({
-          px: theme.spacing(4),
-          py: theme.spacing(4),
-        })}
-      >
-        <Stack alignItems="center" spacing={2.5}>
-          <Box
-            sx={(theme) => ({
-              alignItems: "center",
-              border: `3px solid ${theme.customTokens.semanticScale.warning[400]}`,
-              borderRadius: "50%",
-              color: theme.customTokens.semanticScale.warning[400],
-              display: "flex",
-              height: 76,
-              justifyContent: "center",
-              width: 76,
-            })}
-          >
-            <CircleAlert size={42} strokeWidth={2.25} />
-          </Box>
-
-          <Typography
-            align="center"
-            sx={(theme) => ({
-              color: theme.palette.text.primary,
-              fontSize: theme.typography.body1.fontSize,
-              fontWeight: 500,
-            })}
-          >
-            Are you sure you want to cancel order {orderNo ?? ""}?
-          </Typography>
-
-          <Stack direction="row" spacing={1.5}>
-            <Button
-              disableElevation
-              onClick={onConfirm}
-              sx={recordFormActionButtonSx}
-              variant="contained"
-            >
-              Yes
-            </Button>
-
-            <Button
-              disableElevation
-              onClick={onClose}
-              sx={(theme) => ({
-                ...recordFormActionButtonSx,
-                backgroundColor: theme.customTokens.neutrals[600],
-                color: theme.customTokens.text.inverse,
-                "&:hover": {
-                  backgroundColor: theme.customTokens.neutrals[700],
-                },
-              })}
-              variant="contained"
-            >
-              No
-            </Button>
-          </Stack>
-        </Stack>
-      </DialogContent>
-    </Dialog>
   );
 }
 

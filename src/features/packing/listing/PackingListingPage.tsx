@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Snackbar, Stack } from "@mui/material";
-import { CheckCircle2, Eye, PackageOpen, Plus, RotateCcw } from "lucide-react";
+import { Eye, PackageOpen, RotateCcw, Truck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -13,10 +13,10 @@ import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { listingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { PackingMarkDoneDialog } from "../form/PackingMarkDoneDialog";
 import { usePackingList } from "../hooks/usePackingList";
 import {
   getPackingPaths,
+  issuePackingForDispatch,
   revertPackingRecord,
   type PackingRecord,
   type PackingTabValue,
@@ -39,9 +39,8 @@ export function PackingListingPage() {
     setActiveTab,
     setSearchValue,
   } = usePackingList();
-  const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
-    null,
-  );
+  const [issueDispatchRecord, setIssueDispatchRecord] =
+    useState<PackingRecord | null>(null);
   const [revertRecord, setRevertRecord] = useState<PackingRecord | null>(null);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -67,7 +66,6 @@ export function PackingListingPage() {
   const canEditPacking = canAccessPermission("packing", "edit");
   const canViewPacking = canAccessPermission("packing", "view");
   const canCreateDispatch = canAccessPermission("dispatch", "create");
-  const canViewDispatch = canAccessPermission("dispatch", "view");
 
   const issuedActions = useMemo<readonly EnterpriseTableAction<PackingRecord>[]>(
     () => [
@@ -81,19 +79,8 @@ export function PackingListingPage() {
           },
         ]
         : []),
-      ...(canEditPacking
-        ? [
-          {
-            id: "mark-packing-done",
-            label: "Mark Packing Done",
-            icon: CheckCircle2,
-            tone: "primary" as const,
-            onSelect: (row: PackingRecord) => setMarkDoneRecord(row),
-          },
-        ]
-        : []),
     ],
-    [canEditPacking, canViewPacking, navigate, paths],
+    [canViewPacking, navigate, paths],
   );
 
   const doneActions = useMemo<readonly EnterpriseTableAction<PackingRecord>[]>(
@@ -108,19 +95,14 @@ export function PackingListingPage() {
           },
         ]
         : []),
-      ...(canCreateDispatch || canViewDispatch
+      ...(canCreateDispatch
         ? [
           {
-            id: "view-dispatch",
-            label: "Issue Dispatch",
-            icon: Plus,
+            id: "issue-for-dispatch",
+            label: "Issue for Dispatch",
+            icon: Truck,
             tone: "primary" as const,
-            onSelect: (row: PackingRecord) =>
-              navigate(
-                canCreateDispatch
-                  ? `/dispatch/add/${row.id}`
-                  : `/dispatch/view/${row.id}`,
-              ),
+            onSelect: (row: PackingRecord) => setIssueDispatchRecord(row),
           },
         ]
         : []),
@@ -136,7 +118,7 @@ export function PackingListingPage() {
         ]
         : []),
     ],
-    [canCreateDispatch, canEditPacking, canViewDispatch, canViewPacking, navigate, paths],
+    [canCreateDispatch, canEditPacking, canViewPacking, navigate, paths],
   );
 
   return (
@@ -180,7 +162,7 @@ export function PackingListingPage() {
               startIcon={<PackageOpen size={14} />}
               variant="contained"
             >
-              Issue for Packing
+              Create Packing
             </Button>
           ) : null}
         </Stack>
@@ -199,16 +181,29 @@ export function PackingListingPage() {
         />
       </Stack>
 
-      <PackingMarkDoneDialog
-        open={Boolean(markDoneRecord)}
-        record={markDoneRecord}
-        onClose={() => setMarkDoneRecord(null)}
-        onDone={(rec) => {
-          setToastNotification({
-            message: `Order ${rec.orderNo} (Item ${rec.orderItemNo}) marked as Packing Done.`,
-            severity: "success",
-          });
+      <ConfirmationDialog
+        cancelLabel="Keep in Packing Done"
+        confirmLabel="Issue for Dispatch"
+        description={
+          issueDispatchRecord
+            ? `Issue packing for order ${issueDispatchRecord.orderNo} (Item ${issueDispatchRecord.orderItemNo}) to Issued for Dispatch?`
+            : undefined
+        }
+        onClose={() => setIssueDispatchRecord(null)}
+        onConfirm={() => {
+          if (issueDispatchRecord) {
+            const orderInfo = `${issueDispatchRecord.orderNo} (Item ${issueDispatchRecord.orderItemNo})`;
+            issuePackingForDispatch(issueDispatchRecord.id);
+            setIssueDispatchRecord(null);
+            navigate("/dispatch", {
+              state: {
+                dispatchFlashMessage: `Order ${orderInfo} issued for dispatch.`,
+              },
+            });
+          }
         }}
+        open={Boolean(issueDispatchRecord)}
+        title="Issue for Dispatch"
       />
 
       <ConfirmationDialog

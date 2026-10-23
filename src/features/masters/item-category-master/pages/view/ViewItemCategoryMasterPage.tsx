@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -90,10 +90,9 @@ export function ViewItemCategoryMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Item Category Master", to: paths.list },
-          { label: "View Item Category" },
+          { label: "View Item Category Master" },
         ]}
-        title="View Item Category"
-        subtitle=" "
+        title="View Item Category Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -110,19 +109,13 @@ export function ViewItemCategoryMasterPage() {
           { label: "Item Category Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Item Category"
+        title="View Item Category Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Item category record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Item category record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -133,7 +126,7 @@ export function ViewItemCategoryMasterPage() {
         { label: "Item Category Master", to: paths.list },
         { label: displayName || "View Item Category" },
       ]}
-      title="View Item Category"
+      title="View Item Category Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -336,7 +329,7 @@ export function ViewItemCategoryMasterPage() {
                 >
                   <ProfileField label="HSN Code" value={row.hsn || row.hsnCode ? String(row.hsn || row.hsnCode) : undefined} />
                   <ProfileField
-                    label="GST%"
+                    label="GST %"
                     value={
                       row.gst || row.gstNo
                         ? `${String(row.gst || row.gstNo).replace(/%/g, "")}%`

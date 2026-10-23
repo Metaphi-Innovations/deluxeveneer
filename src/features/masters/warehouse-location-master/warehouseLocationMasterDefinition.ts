@@ -31,13 +31,14 @@ export const warehouseLocationMasterDefinition: MasterDefinition = {
     { key: "status", label: "Status", options: ["Active", "Inactive"] },
   ],
   fields: [
-    { key: "warehouseName", label: "Warehouse Name", type: "text" },
-    { key: "warehouseCode", label: "Warehouse Code", type: "text" },
+    { key: "warehouseName", label: "Warehouse Name", type: "text", required: true },
+    { key: "warehouseCode", label: "Warehouse Code", type: "text", required: true },
     {
       key: "warehouseType",
       label: "Warehouse Type",
       type: "select",
       options: ["Inward", "Storage", "Production"],
+      required: true,
     },
     { key: "address", label: "Address", type: "text" },
     { key: "pincode", label: "Pincode", type: "text" },

@@ -622,9 +622,9 @@ export function StorageWarehousePage({
         subtitle="Storage warehouse"
         title={warehouseName}
       >
-        <Stack sx={{ py: 2 }}>
+        <Alert severity="warning">
           You do not have permission to view this warehouse.
-        </Stack>
+        </Alert>
       </MasterPageShell>
     );
   }
@@ -686,9 +686,7 @@ export function StorageWarehousePage({
         { label: "Warehouses" },
         { label: warehouseName },
       ]}
-      contentGap={1}
-      subtitle=" "
-      title={warehouseName}
+      contentGap={1}      title={warehouseName}
     >
       <Stack
         sx={(t) => ({

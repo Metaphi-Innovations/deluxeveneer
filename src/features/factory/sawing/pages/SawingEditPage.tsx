@@ -35,6 +35,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { canMutateFactorySawing } from "../../../permissions";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
   buildSawingAvailableValues,
@@ -345,6 +346,23 @@ export function SawingEditPage() {
       sourceRow,
     });
   };
+
+  if (!canMutateFactorySawing()) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: "Sawing", to: "/factory/sawing?tab=done" },
+          { label: "Edit Sawing" },
+        ]}
+        title="Edit Sawing"
+      >
+        <Alert severity="error">
+          You do not have permission to edit Sawing.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
 
   return (
     <FactoryPageShell

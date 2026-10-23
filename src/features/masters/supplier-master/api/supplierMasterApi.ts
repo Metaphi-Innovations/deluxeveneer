@@ -224,15 +224,7 @@ export async function fetchSupplierMasterPaginated(
   >(`${BASE_PATH}${qs}`);
 
   if (!res?.success || !res.data?.items) {
-    return {
-      items: [],
-      pagination: {
-        page: params.page || 1,
-        limit: params.limit || 20,
-        total: 0,
-        totalPages: 1,
-      },
-    };
+    throw new Error(res?.message || "Unable to load suppliers.");
   }
 
   return {

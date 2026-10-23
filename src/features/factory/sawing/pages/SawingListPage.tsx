@@ -24,7 +24,9 @@ import {
 import { ModuleProcessTabs } from "../../../../components/navigation/ModuleProcessTabs";
 import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { FactoryToolbar } from "../../shared/FactoryToolbar";
 import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
+import { exportRowsToCsv, type CsvColumn } from "../../../shared/exportToCsv";
 import {
   listSawingFlowRows,
   getSawingDoneEditBlockReason,
@@ -35,15 +37,17 @@ import {
   type SawingFlowTab,
 } from "../sawingFrontendStore";
 import {
-  SAWING_AVAILABLE_COLUMNS,
   SAWING_DONE_COLUMNS,
   SAWING_HISTORY_COLUMNS,
   SAWING_ISSUED_COLUMNS,
   SAWING_PROCESS_TABS,
   SAWING_REJECTED_COLUMNS,
+  formatSawingCbmDisplay,
+  formatSawingStorageSerial,
   type SawingProcessTab,
 } from "../sawingColumns";
 import { sawingDefinition } from "../../shared";
+import { canAccessFactorySawing } from "../../../permissions";
 
 export function SawingListPage() {
   const theme = useTheme();
@@ -390,11 +394,50 @@ export function SawingListPage() {
     }
   }, [activeTab]);
 
+  const handleExport = () => {
+    const flowTab: SawingFlowTab =
+      activeTab === "done" || activeTab === "history" || activeTab === "rejected"
+        ? activeTab
+        : "issued";
+    const matched = searchSawingFlowRows(
+      listSawingFlowRows(flowTab, sawingDefinition.rows as any[]),
+      searchValue,
+    );
+
+    if (matched.length === 0) {
+      setToastNotification({
+        message: "No records available to export.",
+        severity: "info",
+      });
+      return;
+    }
+
+    exportRowsToCsv(
+      matched.map((row) => mapSawingExportRow(row, currentColumns)),
+      currentColumns.map((column) => ({
+        key: String(column.key),
+        label: column.label,
+      })) as CsvColumn<Record<string, unknown>>[],
+      `sawing-${activeTab}`,
+    );
+  };
+
+  if (!canAccessFactorySawing()) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
+        title="Sawing"
+      >
+        <Alert severity="error">
+          You do not have permission to access Sawing.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
+
   return (
     <FactoryPageShell
-      breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
-      subtitle=""
-      title="Sawing"
+      breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}      title="Sawing"
       processTabs={
         <ModuleProcessTabs
           onChange={handleTabChange}
@@ -417,25 +460,31 @@ export function SawingListPage() {
             sx={{ width: { xs: "100%", sm: 320 } }}
           />
 
-          {activeTab === "done" && selectedDoneRows.length > 0 ? (
-            <Stack direction="row" spacing={1.5} alignItems="center">
-              <Typography variant="body2" color="text.secondary">
-                {selectedDoneRows.length} item(s) selected
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<CheckCircle2 size={16} />}
-                onClick={handleOpenBatchIssueInspection}
-                sx={{
-                  backgroundColor: "primary.main",
-                  textTransform: "none",
-                  fontWeight: 600,
-                }}
-              >
-                Issue for Inspection ({selectedDoneRows.length})
-              </Button>
-            </Stack>
-          ) : null}
+          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" useFlexGap>
+            {activeTab === "done" && selectedDoneRows.length > 0 ? (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedDoneRows.length} item(s) selected
+                </Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<CheckCircle2 size={16} />}
+                  onClick={handleOpenBatchIssueInspection}
+                  sx={{
+                    backgroundColor: "primary.main",
+                    textTransform: "none",
+                    fontWeight: 600,
+                  }}
+                >
+                  Issue for Inspection ({selectedDoneRows.length})
+                </Button>
+              </>
+            ) : null}
+            <FactoryToolbar
+              disabled={isLoading || totalCount === 0}
+              onExport={handleExport}
+            />
+          </Stack>
         </Stack>
 
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -577,4 +626,26 @@ export function SawingListPage() {
       </Snackbar>
     </FactoryPageShell>
   );
+}
+
+function mapSawingExportRow(
+  row: Record<string, unknown>,
+  columns: readonly { key: string; label: string }[],
+): Record<string, unknown> {
+  return columns.reduce<Record<string, unknown>>((accumulator, column) => {
+    const value = row[column.key];
+
+    if (column.key === "storageSrNo") {
+      accumulator[column.key] = formatSawingStorageSerial(value);
+      return accumulator;
+    }
+
+    if (column.key === "cbm" || column.key === "cbf") {
+      accumulator[column.key] = formatSawingCbmDisplay(value) || value || "";
+      return accumulator;
+    }
+
+    accumulator[column.key] = value ?? "";
+    return accumulator;
+  }, {});
 }

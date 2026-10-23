@@ -159,7 +159,10 @@ export function ViewPackingPage() {
     );
   }
 
-  const isPackingDone = record.packingState === "done" || record.packingState === "dispatched";
+  const isPackingDone =
+    record.packingState === "done" ||
+    record.packingState === "dispatchIssued" ||
+    record.packingState === "dispatched";
   const isDispatched = record.packingState === "dispatched";
 
   return (
@@ -684,6 +687,11 @@ function PackingStateChip({ state }: { state: string }) {
     bg = "rgba(46, 125, 50, 0.12)";
     color = "#2E7D32";
     border = "rgba(46, 125, 50, 0.3)";
+  } else if (normalized === "dispatchissued") {
+    label = "Issued for Dispatch";
+    bg = "rgba(25, 118, 210, 0.12)";
+    color = "#1976D2";
+    border = "rgba(25, 118, 210, 0.3)";
   } else if (normalized === "dispatched") {
     label = "Dispatched";
     bg = "rgba(25, 118, 210, 0.12)";

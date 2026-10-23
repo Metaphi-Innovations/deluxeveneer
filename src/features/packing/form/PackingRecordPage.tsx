@@ -568,11 +568,11 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
         }}
         breadcrumbs={[
           { label: "Packing", to: paths.list },
-          { label: "Issue for Packing" },
+          { label: "Create Packing" },
         ]}
         contentGap={1.5}
         subtitle="Select order items and prepare them for packing."
-        title="Issue for Packing"
+        title="Create Packing"
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(1.5), width: "100%" })}>
           {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}

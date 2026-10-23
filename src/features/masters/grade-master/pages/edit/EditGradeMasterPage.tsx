@@ -33,7 +33,7 @@ export function EditGradeMasterPage() {
       }
       void invalidateMaster("grade");
     } catch (error) {
-      console.warn("Failed to update grade via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

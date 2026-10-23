@@ -17,11 +17,12 @@ export function AddUnitMasterPage() {
       remark: context.values.remark || context.values.remarks || null,
       status: context.values.status ?? true,
     });
-    if (created) {
-      const allRecords = await fetchUnitsApi();
-      if (allRecords.length > 0) {
-        syncUnitMasterToStorage(allRecords);
-      }
+    if (!created) {
+      throw new Error("Unable to save unit.");
+    }
+    const allRecords = await fetchUnitsApi();
+    if (allRecords.length > 0) {
+      syncUnitMasterToStorage(allRecords);
     }
     void invalidateMaster("unit");
   };

@@ -215,15 +215,7 @@ export async function fetchCustomerMasterPaginated(
   >(`${BASE_PATH}${qs}`);
 
   if (!res?.success || !res.data?.items) {
-    return {
-      items: [],
-      pagination: {
-        page: params.page || 1,
-        limit: params.limit || 20,
-        total: 0,
-        totalPages: 1,
-      },
-    };
+    throw new Error(res?.message || "Unable to load customers.");
   }
 
   return {
@@ -331,7 +323,7 @@ async function buildCustomerPayload(
   ]);
 
   return {
-    customerName: getStringValue(values.customerName) || null,
+    customerName: getStringValue(values.customerName),
     companyName: getStringValue(values.companyName) || null,
     customerType: getStringValue(values.customerType) || null,
     dateOfBirth: getDateString(values.dob ?? values.dateOfBirth),

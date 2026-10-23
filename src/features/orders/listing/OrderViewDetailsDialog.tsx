@@ -300,7 +300,7 @@ export function OrderViewDetailsDialog({
           </Stack>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            The requested order could not be found in the mock dataset.
+            The requested order could not be found.
           </Typography>
         )}
       </DialogContent>

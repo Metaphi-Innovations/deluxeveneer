@@ -126,18 +126,10 @@ export async function fetchGstsPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch GST records from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchGstsApi(params?: {
@@ -148,20 +140,20 @@ export async function fetchGstsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchGstsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchGstsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getGstByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendGstItem>>(`/masters/gsts/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendGstToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch GST record with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendGstItem>>(`/masters/gsts/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendGstToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "GST record not found.");
 }
 
 export async function createGstApi(values: {
@@ -196,7 +188,7 @@ export async function createGstApi(values: {
   if (res?.success && res?.data) {
     return mapBackendGstToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save GST.");
 }
 
 export async function updateGstApi(
@@ -238,7 +230,7 @@ export async function updateGstApi(
   if (res?.success && res?.data) {
     return mapBackendGstToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save GST.");
 }
 
 export async function updateGstStatusApi(
@@ -253,7 +245,7 @@ export async function updateGstStatusApi(
   if (res?.success && res?.data) {
     return mapBackendGstToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save GST.");
 }
 
 export async function deleteGstApi(id: string): Promise<boolean> {

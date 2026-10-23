@@ -15,6 +15,7 @@ import {
 import { X, Save } from "lucide-react";
 import { createUnitApi, fetchUnitsApi, syncUnitMasterToStorage } from "./api/unitMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 
 interface QuickAddUnitModalProps {
   open: boolean;
@@ -98,11 +99,13 @@ export function QuickAddUnitModal({
         status: true,
       });
 
-      if (created) {
-        const allRecords = await fetchUnitsApi();
-        if (allRecords.length > 0) {
-          syncUnitMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to create unit.");
+      }
+
+      const allRecords = await fetchUnitsApi();
+      if (allRecords.length > 0) {
+        syncUnitMasterToStorage(allRecords);
       }
 
       void invalidateMaster("unit");
@@ -111,8 +114,8 @@ export function QuickAddUnitModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to create unit.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create unit.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {

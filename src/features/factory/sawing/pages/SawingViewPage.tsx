@@ -20,6 +20,7 @@ import {
 import { CheckCircle2, Plus } from "lucide-react";
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { canAccessFactorySawing } from "../../../permissions";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import { FactoryContextualStatusMessage } from "../../shared/StandardFactoryRecordView";
@@ -114,6 +115,7 @@ export const SawingViewPage: React.FC = () => {
     record?.eventType === "REJECTED" ||
     Boolean(record?.rejectedId);
   const isHistory = tab === "history" || record?.eventType === "UPDATED";
+  const canViewSawing = canAccessFactorySawing();
 
   // Source item info extraction
   const sourceItem = useMemo(() => {
@@ -402,6 +404,19 @@ export const SawingViewPage: React.FC = () => {
         return { color: "default" as const, label: "Fully Consumed" };
     }
   }, [availabilityStatus]);
+
+  if (!canViewSawing) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
+        title="Sawing"
+      >
+        <Alert severity="error">
+          You do not have permission to access Sawing.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER FOR: ISSUE FOR SAWING VIEW PAGE

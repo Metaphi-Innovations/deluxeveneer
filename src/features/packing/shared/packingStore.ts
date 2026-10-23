@@ -14,7 +14,12 @@ import { formatAmount, formatSQM, formatSQF } from "../../shared/numberFormat";
 
 export type PackingTabValue = "done" | "issued";
 export type DispatchTabValue = "done" | "issued";
-export type PackingRecordState = "dispatched" | "done" | "issued" | "reverted";
+export type PackingRecordState =
+  | "dispatched"
+  | "dispatchIssued"
+  | "done"
+  | "issued"
+  | "reverted";
 
 export const packingOrderTypeOptions = ["Raw", "Finished"] as const;
 
@@ -123,7 +128,7 @@ export const dispatchDoneListingColumns: readonly EnterpriseTableColumn<PackingR
     { key: "updatedBy", label: "Updated By" },
   ];
 
-const PACKING_STORAGE_KEY = "deluxe_packing_records_v1";
+const PACKING_STORAGE_KEY = "deluxe_packing_records_v2";
 
 function getBrowserStorage(): Storage | null {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -193,7 +198,7 @@ export function getPackingRecordsByTab(tab: PackingTabValue) {
 export function getDispatchRecordsByTab(tab: DispatchTabValue) {
   return packingRecords.filter((record) =>
     tab === "issued"
-      ? record.packingState === "done"
+      ? record.packingState === "dispatchIssued"
       : record.packingState === "dispatched",
   );
 }
@@ -256,6 +261,30 @@ export function markPackingDone(
   syncOrderFulfillmentStatus(record.orderNo);
 }
 
+export function issuePackingForDispatch(recordId: string) {
+  const record = getPackingRecord(recordId);
+  if (!record || record.packingState !== "done") {
+    return;
+  }
+
+  const timestamp = new Date();
+
+  updatePackingRecords((records) =>
+    records.map((entry) =>
+      entry.id === recordId
+        ? {
+            ...entry,
+            packingState: "dispatchIssued",
+            updatedBy: "Packing Supervisor",
+            updatedDate: timestamp,
+          }
+        : entry,
+    ),
+  );
+
+  syncOrderFulfillmentStatus(record.orderNo);
+}
+
 export function markDispatchDone(
   recordId: string,
   payload: {
@@ -266,7 +295,7 @@ export function markDispatchDone(
   } = {},
 ) {
   const record = getPackingRecord(recordId);
-  if (!record || record.packingState !== "done") {
+  if (!record || record.packingState !== "dispatchIssued") {
     return;
   }
 
@@ -315,7 +344,7 @@ export function revertDispatchEntry(recordId: string) {
         ? {
             ...entry,
             dispatchDate: null,
-            packingState: "done",
+            packingState: "dispatchIssued",
             updatedBy: "Dispatch Coordinator",
             updatedDate: timestamp,
           }
@@ -578,7 +607,7 @@ export function createDispatchEntry(
   },
 ) {
   const record = getPackingRecord(recordId);
-  if (!record || record.packingState !== "done") {
+  if (!record || record.packingState !== "dispatchIssued") {
     return;
   }
 
@@ -731,9 +760,15 @@ export function syncOrderFulfillmentStatus(orderNo: string) {
     (record) => record.packingState === "dispatched",
   );
   const allPackedDone = related.length > 0 && related.every(
-    (record) => record.packingState === "done" || record.packingState === "dispatched",
+    (record) =>
+      record.packingState === "done" ||
+      record.packingState === "dispatchIssued" ||
+      record.packingState === "dispatched",
   );
-  const anyDone = related.some((record) => record.packingState === "done");
+  const anyDone = related.some(
+    (record) =>
+      record.packingState === "done" || record.packingState === "dispatchIssued",
+  );
   const anyIssued = related.some((record) => record.packingState === "issued");
 
   let nextStatus: string | null = null;
@@ -952,7 +987,13 @@ function createPackingRecords(): PackingRecord[] {
     const sqm = (lengthMm / 1000) * (widthMm / 1000) * noOfSheets;
     const sqf = sqm * 10.7639;
     const packingState: PackingRecordState =
-      index < 2 ? "issued" : index < 4 ? "done" : "dispatched";
+      index < 2
+        ? "issued"
+        : index === 2
+          ? "done"
+          : index === 3
+            ? "dispatchIssued"
+            : "dispatched";
     const orderType = pickValue(orderTypes, index);
     const isRawOrder = orderType === "Raw";
     const orderPrefix = isRawOrder ? "ORD-RAW" : "ORD-FIN";
@@ -967,7 +1008,9 @@ function createPackingRecords(): PackingRecord[] {
         ? "Packing Supervisor"
         : packingState === "done"
           ? "Quality Coordinator"
-          : "Dispatch Coordinator";
+          : packingState === "dispatchIssued"
+            ? "Packing Supervisor"
+            : "Dispatch Coordinator";
 
     return {
       id: `packing-${rowNumber}`,

@@ -13,6 +13,7 @@ const AUTH_PASSWORD_STORAGE_KEY = "deluxe-veneers-erp-password";
 export const AUTH_USER_UPDATED_EVENT = "deluxe-veneers-auth-user-updated";
 
 export interface AuthenticatedUserProfile {
+  isSuperAdmin?: boolean;
   accountRole: "Admin" | "Super Admin" | "Staff";
   address: string;
   age: string;
@@ -50,11 +51,37 @@ type SerializedAuthenticatedUserProfile = Omit<
 
 export const demoCredentials = {
   email: "superadmin@deluxe-veneers.com",
-  password: "SuperAdmin@12345",
 } as const;
 
+const guestUserProfile: AuthenticatedUserProfile = {
+  isSuperAdmin: false,
+  accountRole: "Staff",
+  address: "",
+  age: "",
+  approver: "",
+  bloodGroup: "",
+  city: "",
+  country: "",
+  dateOfBirth: null,
+  department: "",
+  email: "",
+  firstName: "",
+  gender: "",
+  id: "",
+  lastName: "",
+  phoneNo: "",
+  pincode: "",
+  permissions: buildDefaultUserPermissions(),
+  remarks: "",
+  role: "Staff",
+  state: "",
+  userName: "",
+  userType: "Staff",
+};
+
 export const demoUserProfile: AuthenticatedUserProfile = {
-  accountRole: "Super Admin",
+  isSuperAdmin: false,
+  accountRole: "Staff",
   address: "Corporate Office, SG Highway",
   age: "31",
   approver: "Tanya Khanna",
@@ -72,10 +99,10 @@ export const demoUserProfile: AuthenticatedUserProfile = {
   pincode: "380015",
   permissions: buildDefaultUserPermissions(),
   remarks: "System administrator profile for the Deluxe Veneers ERP.",
-  role: "System Administrator",
+  role: "Staff",
   state: "Gujarat",
-  userName: "Super Admin",
-  userType: "Super Admin",
+  userName: "Demo User",
+  userType: "Staff",
 };
 
 export function isAuthenticated() {
@@ -191,13 +218,13 @@ export function resetDemoPassword(password: string) {
 
 export function getCurrentUser() {
   if (typeof window === "undefined") {
-    return demoUserProfile;
+    return guestUserProfile;
   }
 
   const storedValue = window.sessionStorage.getItem(AUTH_USER_STORAGE_KEY);
 
   if (!storedValue) {
-    return demoUserProfile;
+    return guestUserProfile;
   }
 
   try {
@@ -206,9 +233,10 @@ export function getCurrentUser() {
     return {
       ...parsed,
       dateOfBirth: parsed.dateOfBirth ? new Date(parsed.dateOfBirth) : null,
+      isSuperAdmin: Boolean(parsed.isSuperAdmin),
     };
   } catch {
-    return demoUserProfile;
+    return guestUserProfile;
   }
 }
 
@@ -439,6 +467,7 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
   }
 
   return {
+    isSuperAdmin,
     accountRole: isSuperAdmin ? "Super Admin" : "Staff",
     address: user.address || "",
     age: user.age || "",
@@ -472,6 +501,7 @@ function mapUserManagementDetailToProfile(
   detail: UserManagementDetail,
 ): AuthenticatedUserProfile {
   return {
+    isSuperAdmin: getAccountRole(detail.role, detail.userType) === "Super Admin",
     accountRole: getAccountRole(detail.role, detail.userType),
     address: detail.address,
     age: detail.age,

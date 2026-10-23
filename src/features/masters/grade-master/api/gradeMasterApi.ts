@@ -125,18 +125,10 @@ export async function fetchGradesPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch grades from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchGradesApi(params?: {
@@ -147,20 +139,20 @@ export async function fetchGradesApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchGradesPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchGradesPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getGradeByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendGradeItem>>(`/masters/grades/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendGradeToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch grade with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendGradeItem>>(`/masters/grades/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendGradeToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Grade record not found.");
 }
 
 export async function createGradeApi(values: {
@@ -193,7 +185,7 @@ export async function createGradeApi(values: {
   if (res?.success && res?.data) {
     return mapBackendGradeToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save grade.");
 }
 
 export async function updateGradeApi(
@@ -234,7 +226,7 @@ export async function updateGradeApi(
   if (res?.success && res?.data) {
     return mapBackendGradeToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save grade.");
 }
 
 export async function updateGradeStatusApi(
@@ -249,7 +241,7 @@ export async function updateGradeStatusApi(
   if (res?.success && res?.data) {
     return mapBackendGradeToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save grade.");
 }
 
 export async function deleteGradeApi(id: string): Promise<boolean> {

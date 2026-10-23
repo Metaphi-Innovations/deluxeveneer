@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { Alert, Button, Snackbar, Stack, Typography } from "@mui/material";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
@@ -19,7 +19,8 @@ import {
   updateLocalMasterStatus,
 } from "./localMasterStore";
 import type { MasterDefinition, MasterRecord } from "./types";
-import { formatMasterValue, getMasterPaths } from "./utils";
+import { formatMasterValue, getGmailComposeUrl, getMasterPaths } from "./utils";
+import { getMasterApiErrorMessage } from "./getMasterApiErrorMessage";
 import type { ColumnFilterValue } from "../../shared/columnFilters";
 
 interface MasterListingPageProps {
@@ -231,10 +232,10 @@ export function MasterListingPage({
       });
     } catch (error) {
       setToastNotification({
-        message:
-          error instanceof Error
-            ? error.message
-            : `Unable to ${checked ? "activate" : "deactivate"} ${entityLabel.toLowerCase()}.`,
+        message: getMasterApiErrorMessage(
+          error,
+          `Unable to ${checked ? "activate" : "deactivate"} ${entityLabel.toLowerCase()}.`,
+        ),
         severity: "error",
       });
       throw error;
@@ -262,7 +263,6 @@ export function MasterListingPage({
         { label: localDefinition.title },
       ]}
       title={localDefinition.title}
-      subtitle=" "
       contentGap={2}
     >
       {!canOpenPage ? (
@@ -271,7 +271,14 @@ export function MasterListingPage({
         </Alert>
       ) : null}
 
-      {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
+      {errorMessage ? (
+        <Alert severity="error">
+          {getMasterApiErrorMessage(
+            errorMessage,
+            "Unable to load records. Please try again.",
+          )}
+        </Alert>
+      ) : null}
 
       <Stack
         direction={{ xs: "column", sm: "row" }}
@@ -308,7 +315,49 @@ export function MasterListingPage({
         })}
       >
         <EnterpriseDataTable
-          columns={localDefinition.columns}
+          columns={localDefinition.columns.map((column) => ({
+            ...column,
+            filterable:
+              column.filterable ??
+              (!/^remarks?$/i.test(column.key.trim()) &&
+                !/^remarks?$/i.test(column.label.trim())),
+            ...(column.cellLink
+              ? {
+                  renderCell: (row: MasterRecord) => {
+                    const value = formatMasterValue(row[column.key]);
+                    if (!value || value === "—") {
+                      return "—";
+                    }
+
+                    if (column.cellLink === "gmail") {
+                      return (
+                        <Typography
+                          component="a"
+                          href={getGmailComposeUrl(value)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                          sx={(theme) => ({
+                            color: theme.customTokens.brand.primary,
+                            textDecoration: "none",
+                            fontSize: "inherit",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            "&:hover": {
+                              textDecoration: "underline",
+                            },
+                          })}
+                        >
+                          {value}
+                        </Typography>
+                      );
+                    }
+
+                    return value;
+                  },
+                }
+              : {}),
+          }))}
           loading={loading}
           onStatusChange={handleStatusChange}
           rows={canView ? filteredRows : []}

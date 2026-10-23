@@ -21,6 +21,7 @@ import {
 } from "./api/hsnMasterApi";
 import { fetchGstsApi } from "../gst-master/api/gstMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 import type { MasterRecord } from "../shared/types";
 
 const HSN_CODE_LENGTHS = [2, 4, 6, 8] as const;
@@ -58,6 +59,7 @@ export function QuickAddHsnModal({
   const [gstOptions, setGstOptions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [gstError, setGstError] = useState("");
   const [existingHsns, setExistingHsns] = useState<string[]>([]);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -99,6 +101,7 @@ export function QuickAddHsnModal({
       setHsnDescription("");
       setGstPercentage("");
       setError("");
+      setGstError("");
 
       loadGstOptions();
       loadExistingHsns();
@@ -124,6 +127,16 @@ export function QuickAddHsnModal({
       return;
     }
 
+    if (!gstPercentage.trim()) {
+      const msg = "GST % is required.";
+      setError(msg);
+      setGstError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    setGstError("");
+
     // Check if HSN code is already there
     if (existingHsns.includes(cleanCode.toLowerCase())) {
       const msg = `HSN Code "${cleanCode}" already exists.`;
@@ -140,21 +153,19 @@ export function QuickAddHsnModal({
         hsnCode: cleanCode,
         description: hsnDescription.trim(),
         hsnCodeDescription: hsnDescription.trim(),
-        ...(gstPercentage.trim()
-          ? {
-              gstPercentage: gstPercentage.trim().endsWith("%")
-                ? gstPercentage.trim()
-                : `${gstPercentage.trim()}%`,
-            }
-          : {}),
+        gstPercentage: gstPercentage.trim().endsWith("%")
+          ? gstPercentage.trim()
+          : `${gstPercentage.trim()}%`,
         status: true,
       });
 
-      if (created) {
-        const allRecords = await fetchHsnsApi();
-        if (allRecords.length > 0) {
-          syncHsnMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to create HSN code.");
+      }
+
+      const allRecords = await fetchHsnsApi();
+      if (allRecords.length > 0) {
+        syncHsnMasterToStorage(allRecords);
       }
 
       void invalidateMaster("hsn");
@@ -163,9 +174,8 @@ export function QuickAddHsnModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      console.warn("Failed to create HSN:", err);
-      const msg = err?.message || "Failed to create HSN code.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create HSN code.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {
@@ -302,13 +312,19 @@ export function QuickAddHsnModal({
                   color: theme.customTokens.text.primary,
                 })}
               >
-                GST %
+                GST % *
               </Typography>
               <TextField
                 select
+                error={Boolean(gstError)}
                 fullWidth
+                helperText={gstError || " "}
                 value={gstPercentage}
-                onChange={(e) => setGstPercentage(e.target.value)}
+                onChange={(e) => {
+                  setGstPercentage(e.target.value);
+                  if (gstError) setGstError("");
+                  if (error) setError("");
+                }}
                 slotProps={{
                   select: {
                     displayEmpty: true,

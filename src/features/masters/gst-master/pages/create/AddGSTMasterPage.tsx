@@ -18,15 +18,16 @@ export function AddGSTMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
-      if (created) {
-        const allRecords = await fetchGstsApi();
-        if (allRecords.length > 0) {
-          syncGstMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to save GST.");
+      }
+      const allRecords = await fetchGstsApi();
+      if (allRecords.length > 0) {
+        syncGstMasterToStorage(allRecords);
       }
       void invalidateMaster("gst");
     } catch (error) {
-      console.warn("Failed to create GST record via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

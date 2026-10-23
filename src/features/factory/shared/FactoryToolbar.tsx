@@ -6,7 +6,13 @@ import {
   portalButtonGroupGap,
 } from "../../shared/buttonStyles";
 
-export function FactoryToolbar() {
+export function FactoryToolbar({
+  disabled = false,
+  onExport,
+}: {
+  disabled?: boolean;
+  onExport: () => void;
+}) {
   return (
     <Stack
       direction="row"
@@ -19,6 +25,8 @@ export function FactoryToolbar() {
       }}
     >
       <Button
+        disabled={disabled}
+        onClick={onExport}
         type="button"
         variant="outlined"
         startIcon={<FileOutput size={15} />}

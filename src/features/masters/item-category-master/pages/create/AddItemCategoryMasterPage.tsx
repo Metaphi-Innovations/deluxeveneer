@@ -3,7 +3,6 @@ import { Button } from "@mui/material";
 
 import { invalidateMaster } from "../../../../../query/queryClient";
 import { MasterFormPage } from "../../../shared";
-import { createLocalMasterRecord } from "../../../shared/localMasterStore";
 import type { MasterDefinition, MasterRecord } from "../../../shared/types";
 import {
   createItemCategoryApi,
@@ -41,20 +40,16 @@ export function AddItemCategoryMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
-      if (created) {
-        const allRecords = await fetchItemCategoriesApi();
-        if (allRecords.length > 0) {
-          syncItemCategoryMasterToStorage(allRecords);
-        } else {
-          createLocalMasterRecord(context.definition, context.values);
-        }
-      } else {
-        createLocalMasterRecord(context.definition, context.values);
+      if (!created) {
+        throw new Error("Unable to save item category.");
+      }
+      const allRecords = await fetchItemCategoriesApi();
+      if (allRecords.length > 0) {
+        syncItemCategoryMasterToStorage(allRecords);
       }
       void invalidateMaster("itemCategory");
     } catch (error) {
-      console.warn("Failed to create item category via API, persisting locally:", error);
-      createLocalMasterRecord(context.definition, context.values);
+      throw error;
     }
   };
 

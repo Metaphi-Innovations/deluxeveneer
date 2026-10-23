@@ -24,7 +24,7 @@ export function useDispatchList() {
   const rows = useMemo(() => {
     const tabRows = records.filter((record) =>
       activeTab === "issued"
-        ? record.packingState === "done"
+        ? record.packingState === "dispatchIssued"
         : record.packingState === "dispatched",
     );
     const normalizedSearch = searchValue.trim().toLowerCase();

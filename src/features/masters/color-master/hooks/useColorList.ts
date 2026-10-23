@@ -7,6 +7,7 @@ import { useMasterListQuery } from "../../../../query/useMasterListQuery";
 import type { ColumnFilterValue } from "../../../shared/columnFilters";
 import { toApiColumnFilters } from "../../../shared/columnFilters";
 import type { MasterRecord } from "../../shared/types";
+import { getMasterApiErrorMessage } from "../../shared/getMasterApiErrorMessage";
 import {
   fetchColorColumnDropdown,
   fetchColorsPaginated,
@@ -71,7 +72,12 @@ export function useColorList() {
   });
   const errorMessage =
     actionError ||
-    (listQuery.error instanceof Error ? listQuery.error.message : "");
+    (listQuery.error
+      ? getMasterApiErrorMessage(
+          listQuery.error,
+          "Unable to load records. Please try again.",
+        )
+      : "");
 
   const handleStatusToggle = useCallback(
     async (row: MasterRecord, checked: boolean) => {
@@ -83,9 +89,7 @@ export function useColorList() {
         });
       } catch (error) {
         setActionError(
-          error instanceof Error
-            ? error.message
-            : "Unable to update color status.",
+          getMasterApiErrorMessage(error, "Unable to update color status."),
         );
       }
     },

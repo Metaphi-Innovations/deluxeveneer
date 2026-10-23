@@ -648,9 +648,7 @@ export function WarehouseBInventoryModulePage({
           activeSection={activeSection}
           setSearchParams={setSearchParams}
         />
-      }
-      subtitle=" "
-      title={warehouseName}
+      }      title={warehouseName}
     >
       <Stack
         sx={(currentTheme) => ({

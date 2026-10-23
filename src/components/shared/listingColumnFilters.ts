@@ -22,12 +22,12 @@ export function isFilterableListingColumn(
 ): boolean {
   const haystack = `${key} ${label}`.trim();
 
-  if (NEVER_FILTERABLE_PATTERN.test(haystack)) {
-    return false;
-  }
-
   if (typeof filterableOverride === "boolean") {
     return filterableOverride;
+  }
+
+  if (NEVER_FILTERABLE_PATTERN.test(haystack)) {
+    return false;
   }
 
   return uniqueValueCount >= 1;
