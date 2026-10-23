@@ -23,7 +23,7 @@ import {
   useTheme,
 } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { ChevronLeft, Info, Pencil, Save } from "lucide-react";
+import { Info, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -1463,14 +1463,6 @@ export function DispatchCreatePage({
           >
             {mode === "view" ? (
               <>
-                <Button
-                  onClick={handleRequestBack}
-                  startIcon={<ChevronLeft size={16} />}
-                  sx={recordViewActionButtonSx}
-                  variant="outlined"
-                >
-                  Back
-                </Button>
 
                 {canEdit && sourceRecord ? (
                   <Button

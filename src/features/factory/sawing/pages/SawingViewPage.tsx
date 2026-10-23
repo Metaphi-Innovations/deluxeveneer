@@ -17,7 +17,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ArrowLeft, CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
@@ -418,21 +418,6 @@ export const SawingViewPage: React.FC = () => {
         }}
         actions={
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ArrowLeft size={15} />}
-              onClick={() => navigate("/factory/sawing?tab=issued")}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                borderRadius: "8px",
-                height: 34,
-                px: 1.75,
-              }}
-            >
-              Back
-            </Button>
 
             {availableCbm > 0 && (
               <Button
@@ -1108,26 +1093,6 @@ export const SawingViewPage: React.FC = () => {
           to: `/factory/sawing?tab=${tab}`,
           onBack: () => navigate(`/factory/sawing?tab=${tab}`),
         }}
-        actions={
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            {/* Back Button */}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ArrowLeft size={15} />}
-              onClick={() => navigate(`/factory/sawing?tab=${tab}`)}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                borderRadius: "8px",
-                height: 34,
-                px: 1.75,
-              }}
-            >
-              Back
-            </Button>
-          </Stack>
-        }
       >
         <Stack spacing={2.5}>
           {/* 1. SUMMARY STRIP */}

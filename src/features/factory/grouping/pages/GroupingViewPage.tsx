@@ -2,7 +2,6 @@ import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Box,
-  Button,
   Chip,
   Dialog,
   DialogContent,
@@ -18,7 +17,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft, Eye, Info, X } from "lucide-react";
+import { Eye, Info, X } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import {
   buildFactoryOrderItemDetailFields,
@@ -1142,23 +1141,6 @@ export const GroupingViewPage: React.FC = () => {
           </Box>
         )}
 
-        {/* ==================== BOTTOM BACK BUTTON ==================== */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 1 }}>
-          <Button
-            onClick={() => navigate(listPath)}
-            startIcon={<ChevronLeft size={16} />}
-            variant="outlined"
-            sx={{
-              borderRadius: "8px",
-              fontWeight: 600,
-              textTransform: "none",
-              px: 2.5,
-              height: 38,
-            }}
-          >
-            Back
-          </Button>
-        </Box>
       </Stack>
 
       {/* Group Photo Modal Preview */}

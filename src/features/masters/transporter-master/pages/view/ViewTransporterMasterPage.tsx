@@ -12,7 +12,6 @@ import {
 } from "@mui/material";
 import {
   Building2,
-  ChevronLeft,
   Compass,
   GitBranch,
   MessageSquare,
@@ -56,10 +55,6 @@ export function ViewTransporterMasterPage() {
       : detailQuery.error instanceof Error
         ? detailQuery.error.message
         : "";
-
-  const handleBack = () => {
-    navigate(paths.list);
-  };
 
   const displayName = useMemo(() => {
     if (!row) return "Transporter";
@@ -129,22 +124,6 @@ export function ViewTransporterMasterPage() {
           >
             Transporter record not found.
           </Typography>
-          <Button
-            onClick={handleBack}
-            sx={{
-              ...recordViewActionButtonSx,
-              mt: 2,
-              minHeight: 32,
-              height: 32,
-              borderRadius: "8px",
-              fontSize: "0.8125rem",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-            }}
-            variant="contained"
-          >
-            Back to Listing
-          </Button>
         </MasterSectionCard>
       </MasterPageShell>
     );
@@ -160,23 +139,6 @@ export function ViewTransporterMasterPage() {
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={16} />}
-            sx={{
-              ...actionButtonSx,
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              color: theme.customTokens.text.primary,
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderColor: theme.customTokens.borders.default,
-              },
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
 
           {canEdit && (
             <Button
