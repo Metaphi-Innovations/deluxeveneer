@@ -28,6 +28,7 @@ jobs:
           rsync -av --exclude='.git' \
                     --exclude='node_modules' \
                     --exclude='.env' \
+                    --exclude='vite.config.ts' \
                     ./ /var/www/deluxeveneer/
 
       - name: Install dependencies
