@@ -43,7 +43,7 @@ jobs:
       - name: Start development server with pm2
         working-directory: /var/www/deluxeveneer
         run: |
-          pm2 start npm --name "deluxeveneer.metaphi.in" -- start
+          pm2 start npm --name "deluxeveneer.metaphi.in" -- run dev
           sleep 5
           pm2 save
           pm2 list
