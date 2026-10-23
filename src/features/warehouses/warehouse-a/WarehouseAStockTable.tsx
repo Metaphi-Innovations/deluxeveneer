@@ -17,10 +17,6 @@ import {
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import {
-  isActiveColumnFilter,
-  type ColumnFilterValue,
-} from "../../shared/columnFilters";
-import {
   warehouseAInventoryConfigs,
   warehouseInvoiceListingColumns,
   type WarehouseAInventorySlug,
@@ -60,9 +56,6 @@ export function WarehouseAStockTable({
   const [searchValue, setSearchValue] = useState("");
   const [qcStatusRevision, setQcStatusRevision] = useState(0);
   const [inwardRevision, setInwardRevision] = useState(0);
-  const [columnFilters, setColumnFilters] = useState<
-    Partial<Record<string, ColumnFilterValue>>
-  >({});
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
@@ -95,30 +88,17 @@ export function WarehouseAStockTable({
   );
 
   const filteredRows = useMemo(() => {
-    let result = resolvedRows;
-
-    for (const [columnKey, filter] of Object.entries(columnFilters)) {
-      if (!isActiveColumnFilter(filter) || filter.values.length === 0) continue;
-      const lowerValues = new Set(filter.values.map((value) => value.toLowerCase().trim()));
-      result = result.filter((row) => {
-        const cellValue = formatInventorySearchValue(
-          (row as unknown as Record<string, EnterpriseTableCellValue>)[columnKey],
-        );
-        return lowerValues.has(cellValue.trim());
-      });
-    }
-
     const normalizedSearch = searchValue.trim().toLowerCase();
     if (!normalizedSearch) {
-      return result;
+      return resolvedRows;
     }
 
-    return result.filter((row) =>
+    return resolvedRows.filter((row) =>
       Object.values(row).some((value) =>
         formatInventorySearchValue(value).includes(normalizedSearch),
       ),
     );
-  }, [columnFilters, resolvedRows, searchValue]);
+  }, [resolvedRows, searchValue]);
 
   const handleColumnFilterOpen = (columnKey: string) => {
     const distinctSet = new Set<string>();
@@ -273,13 +253,11 @@ export function WarehouseAStockTable({
       <EnterpriseDataTable
         key={activeInventory}
         columns={warehouseInvoiceListingColumns}
-        columnFilters={columnFilters}
         defaultRowsPerPage={10}
         filterOptionsByColumn={filterOptionsByColumn}
         getRowActions={getRowActions}
         initialSort={{ key: "inwardDate", direction: "desc" }}
         onColumnFilterOpen={handleColumnFilterOpen}
-        onColumnFiltersChange={setColumnFilters}
         rows={canView ? filteredRows : []}
       />
     </>

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
+  Chip,
   Stack,
   Table,
   TableBody,
@@ -14,7 +16,19 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { ChevronLeft, Save } from "lucide-react";
+import {
+  Building2,
+  Calendar,
+  ChevronLeft,
+  FileSpreadsheet,
+  Layers,
+  MessageSquare,
+  Package2,
+  Receipt,
+  Save,
+  Tag,
+  UserCheck,
+} from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { ContentLoader } from "../../../../components/feedback/ContentLoader";
@@ -316,92 +330,233 @@ export function ProductionInventoryRecordPage({
       <Stack spacing={1.5}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
+        {/* Header Identity Card */}
         <Box
           sx={{
-            ...formSectionCardSx(theme),
             display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1.5,
             flexWrap: "wrap",
-            alignItems: "stretch",
-            gap: 2,
-            px: 2,
-            py: 1.75,
+            px: 1.75,
+            py: 1,
+            borderRadius: "8px",
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            backgroundColor: theme.customTokens.surfaces.surface,
           }}
         >
-          <Stack spacing={0.5} sx={{ flex: "1 1 220px", minWidth: 0 }}>
-            <Typography
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: "1 1 auto" }}>
+            <Avatar
               sx={{
-                fontSize: "0.6875rem",
-                fontWeight: 600,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                color: theme.customTokens.text.secondary,
+                width: 40,
+                height: 40,
+                bgcolor: theme.customTokens.brand.primaryScale[100],
+                color: theme.customTokens.brand.primary,
+                borderRadius: "8px",
+                flexShrink: 0,
               }}
             >
-              Storage Sr No
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "1.25rem",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.2,
-                color: theme.customTokens.text.primary,
-              }}
-            >
-              {display(detail.storageSrNo)}
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: "0.8125rem",
-                color: theme.customTokens.text.secondary,
-              }}
-            >
-              {display(detail.itemName)}
-            </Typography>
+              <Package2 size={20} />
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography
+                  sx={{
+                    fontSize: "1.0625rem",
+                    fontWeight: 700,
+                    color: theme.customTokens.text.primary,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {detail.storageSrNo ? `Storage Sr No: ${detail.storageSrNo}` : (detail.itemName || "Production Stock")}
+                </Typography>
+                {detail.productionSrNo ? (
+                  <Chip
+                    label={`Prod #${detail.productionSrNo}`}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      backgroundColor: theme.customTokens.surfaces.paper,
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  />
+                ) : null}
+              </Stack>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ mt: 0.25, flexWrap: "wrap", gap: 0.75 }}
+              >
+                {detail.itemName ? (
+                  <Typography
+                    sx={{
+                      fontSize: "0.8125rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                    }}
+                  >
+                    Item: {detail.itemName}
+                  </Typography>
+                ) : null}
+
+                {inventoryLabel ? (
+                  <Chip
+                    label={inventoryLabel}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      backgroundColor: theme.customTokens.surfaces.paper,
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  />
+                ) : null}
+
+                {detail.grade ? (
+                  <Chip
+                    label={`Grade: ${detail.grade}`}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      backgroundColor: theme.customTokens.brand.primaryScale[100],
+                      color: theme.customTokens.brand.primary,
+                    }}
+                  />
+                ) : null}
+
+                {detail.inwardDate ? (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Calendar size={13} style={{ color: theme.customTokens.text.secondary }} />
+                    <Typography
+                      sx={{
+                        fontSize: "0.8125rem",
+                        color: theme.customTokens.text.secondary,
+                      }}
+                    >
+                      {formatDateDisplay(detail.inwardDate)}
+                    </Typography>
+                  </Stack>
+                ) : null}
+              </Stack>
+            </Box>
           </Stack>
 
-          <SummaryMetric
-            label="Inward Date"
-            value={formatDateDisplay(detail.inwardDate)}
-          />
-          <SummaryMetric label="Currency" value={display(detail.currency)} />
-          <SummaryMetric label="Grade" value={display(detail.grade)} />
-          <SummaryMetric
-            emphasize
-            label="Total Amount"
-            value={display(detail.totalAmount ?? detail.amount)}
+          <Chip
+            label={display(resolvedWarehouseName)}
+            size="small"
+            sx={{
+              alignSelf: { xs: "flex-start", sm: "center" },
+              height: 24,
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              backgroundColor: theme.customTokens.surfaces.paper,
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              color: theme.customTokens.text.primary,
+            }}
           />
         </Box>
 
-        <Box sx={formSectionCardSx(theme)}>
-          <Stack spacing={1.25}>
-            <FormSectionHeader title="Production Details" />
+        {/* 2-Column Master Information Cards Grid */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "repeat(2, minmax(0, 1fr))",
+            },
+            gap: 1.25,
+          }}
+        >
+          {/* Production & Item Identification Card */}
+          <Box
+            sx={(theme) => ({
+              ...formSectionCardSx(theme),
+              borderRadius: "8px",
+              display: "flex",
+              flexDirection: "column",
+            })}
+          >
+            <FormSectionHeader
+              icon={Receipt}
+              title="Stock Identification"
+              variant="cardTop"
+            />
             <Box
               sx={{
                 display: "grid",
-                gap: 1.5,
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(3, minmax(0, 1fr))",
-                  lg: "repeat(5, minmax(0, 1fr))",
                 },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
               }}
             >
-              {headerFields.map((field) => (
-                <DetailField
-                  key={field.label}
-                  label={field.label}
-                  value={field.value}
-                />
-              ))}
+              <ProfileField label="Storage Sr No" value={detail.storageSrNo} />
+              <ProfileField label="Item Name" value={detail.itemName} />
+              <ProfileField label="Factory Code" value={detail.factoryCode} />
+              <ProfileField label="Inward Item Code" value={detail.inwardItemCode} />
+              <ProfileField label="Sub Category" value={detail.subCategory || detail.mdfType} />
+              <ProfileField label="Warehouse" value={resolvedWarehouseName} />
             </Box>
-          </Stack>
+          </Box>
+
+          {/* Classification & Financial Details Card */}
+          <Box
+            sx={(theme) => ({
+              ...formSectionCardSx(theme),
+              borderRadius: "8px",
+              display: "flex",
+              flexDirection: "column",
+            })}
+          >
+            <FormSectionHeader
+              icon={Tag}
+              title="Classification & Financials"
+              variant="cardTop"
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
+              }}
+            >
+              <ProfileField label="Inward Date" value={formatDateDisplay(detail.inwardDate)} />
+              <ProfileField label="Grade" value={detail.grade} />
+              <ProfileField label="Inventory Type" value={inventoryLabel} />
+              <ProfileField label="Currency" value={detail.currency} />
+              <ProfileField label="Amount" value={detail.amount ? String(detail.amount) : undefined} />
+              <ProfileField label="Total Amount" value={detail.totalAmount ?? detail.amount ? String(detail.totalAmount ?? detail.amount) : undefined} />
+            </Box>
+          </Box>
         </Box>
 
-        <Box sx={formSectionCardSx(theme)}>
+        {/* Item Details Table Card */}
+        <Box
+          sx={(theme) => ({
+            ...formSectionCardSx(theme),
+            borderRadius: "8px",
+          })}
+        >
           <Stack spacing={1.25}>
-            <FormSectionHeader title="Item Details" />
+            <FormSectionHeader
+              icon={FileSpreadsheet}
+              title="Item Dimensions & Quantity"
+              variant="cardTop"
+            />
             <Box
               sx={{
                 border: `1px solid ${theme.customTokens.borders.default}`,
@@ -494,10 +649,11 @@ export function ProductionInventoryRecordPage({
           </Stack>
         </Box>
 
+        {/* Remarks and Cost Summary Grid */}
         <Box
           sx={{
             display: "grid",
-            gap: 1.5,
+            gap: 2,
             gridTemplateColumns: {
               xs: "1fr",
               lg: "minmax(0, 1.4fr) minmax(280px, 0.8fr)",
@@ -505,40 +661,19 @@ export function ProductionInventoryRecordPage({
             alignItems: "stretch",
           }}
         >
+          {/* Remarks Card */}
           <Box
             sx={(theme) => ({
-              border: `1px solid ${theme.customTokens.borders.default}`,
+              ...formSectionCardSx(theme),
               borderRadius: "8px",
-              backgroundColor: theme.customTokens.surfaces.surface,
-              overflow: "hidden",
             })}
           >
-            <Box
-              sx={(theme) => ({
-                display: "flex",
-                alignItems: "center",
-                height: 34,
-                minHeight: 34,
-                px: 1.75,
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-              })}
-            >
-              <Typography
-                component="h3"
-                sx={(theme) => ({
-                  m: 0,
-                  color: theme.customTokens.neutrals[900],
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                })}
-              >
-                Remark
-              </Typography>
-            </Box>
-            <Box sx={{ px: 1.75, py: 1.5 }}>
+            <FormSectionHeader
+              icon={MessageSquare}
+              title="Remarks"
+              variant="cardTop"
+            />
+            <Box sx={{ mt: 1.5 }}>
               {mode === "edit" ? (
                 <TextField
                   fullWidth
@@ -551,9 +686,15 @@ export function ProductionInventoryRecordPage({
               ) : (
                 <Typography
                   sx={{
-                    fontSize: "0.8125rem",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
                     color: theme.customTokens.text.primary,
                     whiteSpace: "pre-wrap",
+                    lineHeight: 1.6,
+                    p: 1.5,
+                    borderRadius: "6px",
+                    backgroundColor: theme.customTokens.surfaces.paper,
+                    border: `1px solid ${theme.customTokens.borders.default}`,
                     minHeight: 88,
                   }}
                 >
@@ -563,31 +704,26 @@ export function ProductionInventoryRecordPage({
             </Box>
           </Box>
 
+          {/* Amount Summary Card */}
           <Box
             sx={{
               ...formSectionCardSx(theme),
+              borderRadius: "8px",
               backgroundColor: theme.customTokens.surfaces.alt,
             }}
           >
-            <Stack spacing={0.85}>
-              <Typography
-                sx={{
-                  mb: 0.5,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                Amount Summary
-              </Typography>
+            <Stack spacing={1}>
+              <FormSectionHeader
+                icon={Receipt}
+                title="Amount Summary"
+                variant="cardTop"
+              />
               <TotalsLine label="Amount" value={display(detail.amount)} />
               <Box
                 sx={{
                   borderTop: `1px solid ${theme.customTokens.borders.default}`,
-                  pt: 0.85,
-                  mt: 0.25,
+                  pt: 1,
+                  mt: 0.5,
                 }}
               >
                 <TotalsLine
@@ -599,6 +735,52 @@ export function ProductionInventoryRecordPage({
             </Stack>
           </Box>
         </Box>
+
+        {/* Audit Information Card */}
+        {(detail.createdBy || detail.updatedBy || detail.createdAt || detail.updatedAt) ? (
+          <Box
+            sx={(theme) => ({
+              ...formSectionCardSx(theme),
+              borderRadius: "8px",
+            })}
+          >
+            <FormSectionHeader
+              icon={UserCheck}
+              title="Audit Information"
+              variant="cardTop"
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  md: "repeat(4, minmax(0, 1fr))",
+                },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
+              }}
+            >
+              <ProfileField
+                label="Created By"
+                value={display(detail.createdBy)}
+              />
+              <ProfileField
+                label="Created Date"
+                value={formatDisplayDateTime(detail.createdAt)}
+              />
+              <ProfileField
+                label="Updated By"
+                value={display(detail.updatedBy)}
+              />
+              <ProfileField
+                label="Updated Date"
+                value={formatDisplayDateTime(detail.updatedAt)}
+              />
+            </Box>
+          </Box>
+        ) : null}
       </Stack>
     </InventoryPageShell>
   );
@@ -649,6 +831,94 @@ function SummaryMetric({
       </Typography>
     </Box>
   );
+}
+
+function ProfileField({
+  label,
+  value,
+  isPhone = false,
+  allowWrap = false,
+}: {
+  label: string;
+  value?: string | number | null | undefined;
+  isPhone?: boolean | undefined;
+  allowWrap?: boolean | undefined;
+}) {
+  const theme = useTheme();
+  const rawValue =
+    value !== undefined && value !== null ? String(value).trim() : "";
+  const hasValue = Boolean(rawValue && rawValue !== "—");
+
+  return (
+    <Box sx={{ minWidth: 0, py: 0.1 }}>
+      <Typography
+        sx={{
+          fontSize: "0.71875rem",
+          fontWeight: 700,
+          color: theme.customTokens.text.secondary,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          lineHeight: 1.25,
+          mb: 0.2,
+        }}
+      >
+        {label}
+      </Typography>
+
+      {isPhone && hasValue ? (
+        <Typography
+          component="a"
+          href={`tel:${rawValue.replace(/[^\d+]/g, "")}`}
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: theme.customTokens.brand.primary,
+            lineHeight: 1.4,
+            textDecoration: "none",
+            display: "inline-block",
+            "&:hover": {
+              textDecoration: "underline",
+            },
+          }}
+        >
+          {rawValue}
+        </Typography>
+      ) : (
+        <Typography
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: hasValue
+              ? theme.customTokens.text.primary
+              : theme.customTokens.text.secondary,
+            lineHeight: 1.4,
+            whiteSpace: allowWrap ? "normal" : "nowrap",
+            overflow: allowWrap ? "visible" : "hidden",
+            textOverflow: allowWrap ? "clip" : "ellipsis",
+          }}
+        >
+          {hasValue ? rawValue : "—"}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+function formatDisplayDateTime(dateVal?: unknown): string {
+  if (!dateVal) return "—";
+  try {
+    const d = new Date(dateVal as string | number | Date);
+    if (Number.isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(dateVal);
+  }
 }
 
 function DetailField({ label, value }: { label: string; value: string }) {

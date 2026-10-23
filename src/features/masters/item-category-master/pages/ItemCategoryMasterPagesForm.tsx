@@ -49,7 +49,7 @@ export function useHsnOptions() {
   const [hsnOptions, setHsnOptions] = useState<string[]>([]);
   const [hsnRows, setHsnRows] = useState<MasterRecord[]>([]);
 
-  useEffect(() => {
+  const loadHsn = useCallback(() => {
     fetchHsnsApi({ status: true, limit: 1000 }).then((records) => {
       const activeRecords = records.filter(
         (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
@@ -62,7 +62,11 @@ export function useHsnOptions() {
     }).catch(() => { });
   }, []);
 
-  return { hsnOptions, hsnRows };
+  useEffect(() => {
+    loadHsn();
+  }, [loadHsn]);
+
+  return { hsnOptions, hsnRows, refetch: loadHsn };
 }
 
 export function buildCategoryDefinitionWithHsn(

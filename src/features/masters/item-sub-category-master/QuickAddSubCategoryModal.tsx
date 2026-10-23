@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -12,10 +12,10 @@ import {
   IconButton,
   Typography,
   Box,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { fetchItemCategoriesApi } from "../item-category-master/api/itemCategoryMasterApi";
-import { QuickAddCategoryModal } from "../item-category-master/QuickAddCategoryModal";
 import {
   createItemSubCategoryApi,
   fetchItemSubCategoriesApi,
@@ -28,7 +28,10 @@ interface QuickAddSubCategoryModalProps {
   open: boolean;
   defaultCategory?: string;
   onClose: () => void;
-  onSuccess: (newSubCategoryName: string, subCategoryRecord?: MasterRecord) => void;
+  onSuccess: (
+    newSubCategoryName: string,
+    subCategoryRecord?: MasterRecord,
+  ) => void;
 }
 
 export function QuickAddSubCategoryModal({
@@ -40,10 +43,39 @@ export function QuickAddSubCategoryModal({
   const [subCategoryName, setSubCategoryName] = useState("");
   const [category, setCategory] = useState(defaultCategory);
   const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
-  const [quickAddCategoryOpen, setQuickAddCategoryOpen] = useState(false);
+  const [existingSubCategories, setExistingSubCategories] = useState<string[]>([]);
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
+
+  const loadCategories = useCallback(() => {
+    fetchItemCategoriesApi({ status: true, limit: 1000 })
+      .then((records) => {
+        const names = records
+          .filter(
+            (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+          )
+          .map((r) => String(r.categoryName || r.name || "").trim())
+          .filter((n) => Boolean(n) && isNaN(Number(n)));
+        setCategoryOptions([...new Set(names)]);
+      })
+      .catch(() => {});
+  }, []);
+
+  const loadExistingSubCategories = useCallback(() => {
+    fetchItemSubCategoriesApi({ limit: 1000 })
+      .then((records) => {
+        const names = records
+          .map((r) => String(r.itemSubCategory || r.name || "").trim().toLowerCase())
+          .filter(Boolean);
+        setExistingSubCategories(names);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -52,26 +84,30 @@ export function QuickAddSubCategoryModal({
       setRemark("");
       setError("");
 
-      fetchItemCategoriesApi({ status: true, limit: 1000 })
-        .then((records) => {
-          const names = records
-            .filter((r) => String(r.status ?? "Active").toLowerCase() !== "inactive")
-            .map((r) => String(r.categoryName || r.name || "").trim())
-            .filter((n) => Boolean(n) && isNaN(Number(n)));
-          setCategoryOptions([...new Set(names)]);
-        })
-        .catch(() => {});
+      loadCategories();
+      loadExistingSubCategories();
     }
-  }, [open, defaultCategory]);
+  }, [open, defaultCategory, loadCategories, loadExistingSubCategories]);
 
   const handleSave = async () => {
     const trimmedSub = subCategoryName.trim();
     if (!trimmedSub) {
-      setError("Item Sub Category is required.");
+      const msg = "Item Sub Category is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
     if (!category.trim()) {
-      setError("Category is required.");
+      const msg = "Category is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingSubCategories.includes(trimmedSub.toLowerCase())) {
+      const msg = `Item Sub Category "${trimmedSub}" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
@@ -95,17 +131,23 @@ export function QuickAddSubCategoryModal({
 
       void invalidateMaster("itemSubCategory");
 
+      setToastNotification({ message: `Sub Category "${trimmedSub}" added successfully!`, severity: "success" });
       onSuccess(trimmedSub, created ?? undefined);
-      onClose();
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      setError(err?.message || "Failed to create sub category");
+      const msg = err?.message || "Failed to create sub category.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="md"
@@ -145,7 +187,10 @@ export function QuickAddSubCategoryModal({
           <Box
             sx={(theme) => ({
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, minmax(0, 1fr))",
+              },
               gap: 2,
               alignItems: "start",
             })}
@@ -159,7 +204,10 @@ export function QuickAddSubCategoryModal({
                   color: theme.customTokens.text.primary,
                 })}
               >
-                Item Sub Category <Box component="span" sx={{ color: "error.main" }}>*</Box>
+                Item Sub Category{" "}
+                <Box component="span" sx={{ color: "error.main" }}>
+                  *
+                </Box>
               </Typography>
               <TextField
                 autoFocus
@@ -179,42 +227,29 @@ export function QuickAddSubCategoryModal({
             </Stack>
 
             <Stack spacing={0.75}>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ height: "20px", minHeight: "20px" }}>
-                <Typography
-                  component="label"
-                  sx={(theme) => ({
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                    color: theme.customTokens.text.primary,
-                  })}
-                >
-                  Category <Box component="span" sx={{ color: "error.main" }}>*</Box>
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setQuickAddCategoryOpen(true)}
-                  sx={(theme) => ({
-                    p: 0,
-                    minWidth: "auto",
-                    fontSize: "11px",
-                    lineHeight: 1.3,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    color: theme.customTokens.brand.primary,
-                    "&:hover": {
-                      backgroundColor: "transparent",
-                      textDecoration: "underline",
-                    },
-                  })}
-                >
-                  + Add Category
-                </Button>
-              </Stack>
+              <Typography
+                component="label"
+                sx={(theme) => ({
+                  fontSize: "12.5px",
+                  fontWeight: 600,
+                  color: theme.customTokens.text.primary,
+                })}
+              >
+                Category{" "}
+                <Box component="span" sx={{ color: "error.main" }}>
+                  *
+                </Box>
+              </Typography>
               <TextField
                 select
                 fullWidth
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                slotProps={{
+                  select: {
+                    displayEmpty: true,
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,
@@ -222,8 +257,16 @@ export function QuickAddSubCategoryModal({
                     borderRadius: "6px",
                     fontSize: "13px",
                   },
+                  "& .MuiSelect-select": {
+                    color: category
+                      ? theme.customTokens.text.primary
+                      : theme.palette.text.disabled,
+                  },
                 })}
               >
+                <MenuItem value="" disabled sx={{ color: "text.disabled", fontSize: "13px" }}>
+                  Select Category
+                </MenuItem>
                 {categoryOptions.map((opt) => (
                   <MenuItem key={opt} value={opt} sx={{ fontSize: "13px" }}>
                     {opt}
@@ -309,14 +352,25 @@ export function QuickAddSubCategoryModal({
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </DialogActions>
-      <QuickAddCategoryModal
-        open={quickAddCategoryOpen}
-        onClose={() => setQuickAddCategoryOpen(false)}
-        onSuccess={(newCategory) => {
-          setCategoryOptions((current) => [...new Set([newCategory, ...current])]);
-          setCategory(newCategory);
-        }}
-      />
-    </Dialog>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+    </>
   );
 }

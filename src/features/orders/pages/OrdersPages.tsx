@@ -14,6 +14,4 @@ export function EditOrderPage() {
   return <OrderRecordPage mode="edit" moduleConfig={orderModuleConfig} />;
 }
 
-export function ViewOrderPage() {
-  return <OrdersListingPage moduleConfig={orderModuleConfig} />;
-}
+export { ViewOrderPage } from "./ViewOrderPage";

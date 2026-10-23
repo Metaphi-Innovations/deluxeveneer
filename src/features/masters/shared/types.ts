@@ -63,7 +63,7 @@ export interface MasterRecord {
 export interface MasterDefinition {
   slug: string;
   title: string;
-  gridColumns: 2 | 3 | 4 | 5;
+  gridColumns: 1 | 2 | 3 | 4 | 5;
   columns: MasterColumn[];
   filters: MasterFilterDefinition[];
   fields: MasterFieldDefinition[];

@@ -32,6 +32,60 @@ import { QuickAddSubCategoryModal } from "../../item-sub-category-master/QuickAd
 import { Plus } from "lucide-react";
 import { Button } from "@mui/material";
 
+function isActiveMasterRecord(record: MasterRecord) {
+  return String(record.status ?? "Active").toLowerCase() !== "inactive";
+}
+
+function getRecordName(...values: unknown[]) {
+  for (const value of values) {
+    const name = String(value ?? "").trim();
+    if (name) {
+      return name;
+    }
+  }
+  return "";
+}
+
+function recordsMatchCategory(record: MasterRecord, selectedCategory: string, selectedCategoryId = "") {
+  const selectedName = selectedCategory.trim().toLowerCase();
+  if (!selectedName && !selectedCategoryId) {
+    return false;
+  }
+
+  const recordId = String(record.id ?? "").trim();
+  const recordCategoryId = String(record.categoryId ?? "").trim();
+  if (selectedCategoryId && (recordId === selectedCategoryId || recordCategoryId === selectedCategoryId)) {
+    return true;
+  }
+
+  return [record.categoryName, record.category].some(
+    (value) => String(value ?? "").trim().toLowerCase() === selectedName,
+  );
+}
+
+function normalizeCategoryRows(records: MasterRecord[]) {
+  return records.filter(isActiveMasterRecord).map((record) => {
+    const name = getRecordName(record.categoryName, record.name, record.category);
+    const hsn = getRecordName(record.hsnCode, record.hsn);
+    const gst = getRecordName(record.gst, record.gstNo, record.gstPercentage);
+    return {
+      ...record,
+      categoryName: name,
+      name,
+      category: name,
+      hsnCode: hsn,
+      hsn,
+      gst,
+      gstNo: gst,
+      gstPercentage: gst,
+    };
+  });
+}
+
+function uniqueNames(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
 const ITEM_SORT_FIELD_MAP: Record<string, string> = {
   itemName: "name",
   name: "name",
@@ -66,74 +120,59 @@ export function useItemFormOptions(selectedCategory?: string) {
   useEffect(() => {
     fetchItemCategoriesApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        const normalizedCategoryRows = normalizeCategoryRows(records);
+        setCategoryOptions(
+          uniqueNames(normalizedCategoryRows.map((row) => String(row.categoryName ?? ""))),
         );
-        const names = active
-          .map((r) => String(r.categoryName || r.name || "").trim())
-          .filter((n) => Boolean(n) && isNaN(Number(n)));
-        setCategoryOptions([...new Set(names)]);
-        const normalizedCategoryRows = active.map((r) => ({
-          ...r,
-          categoryName: r.categoryName || r.name || "",
-          name: r.name || r.categoryName || "",
-          hsnCode: r.hsnCode || r.hsn || "",
-          hsn: r.hsn || r.hsnCode || "",
-        }));
         setCategoryRows(normalizedCategoryRows);
       })
       .catch(() => {});
 
     fetchItemSubCategoriesApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
-        );
-        setAllSubCategoryRows(active);
+        setAllSubCategoryRows(records.filter(isActiveMasterRecord));
       })
       .catch(() => {});
 
     fetchHsnsApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        const active = records.filter(isActiveMasterRecord);
+        const codes = uniqueNames(
+          active.map((r) => getRecordName(r.hsnCode, r.code)),
         );
-        const codes = active
-          .map((r) => String(r.hsnCode || r.code || "").trim())
-          .filter((n) => Boolean(n) && (isNaN(Number(n)) === false || Boolean(n)));
-        setHsnOptions([...new Set(codes)]);
-        const normalizedHsnRows = active.map((r) => ({
-          ...r,
-          hsnCode: r.hsnCode || r.code || "",
-          code: r.code || r.hsnCode || "",
-          gstPercentage: r.gstPercentage || r.gst || "",
-          gst: r.gst || r.gstPercentage || "",
-        }));
+        setHsnOptions(codes);
+        const normalizedHsnRows = active.map((r) => {
+          const code = getRecordName(r.hsnCode, r.code);
+          const gst = getRecordName(r.gstPercentage, r.gst);
+          return {
+            ...r,
+            hsnCode: code,
+            code,
+            gstPercentage: gst,
+            gst,
+          };
+        });
         setHsnRows(normalizedHsnRows);
       })
       .catch(() => {});
 
     fetchColorsApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        setColorOptions(
+          uniqueNames(
+            records.filter(isActiveMasterRecord).map((r) => getRecordName(r.colorName, r.name)),
+          ),
         );
-        const names = active
-          .map((r) => String(r.colorName || r.name || "").trim())
-          .filter((n) => Boolean(n) && isNaN(Number(n)));
-        setColorOptions([...new Set(names)]);
       })
       .catch(() => {});
 
     fetchUnitsApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        setUnitOptions(
+          uniqueNames(
+            records.filter(isActiveMasterRecord).map((r) => getRecordName(r.unitName, r.name)),
+          ),
         );
-        const names = active
-          .map((r) => String(r.unitName || r.name || "").trim())
-          .filter((n) => Boolean(n) && isNaN(Number(n)));
-        setUnitOptions([...new Set(names)]);
       })
       .catch(() => {});
   }, []);
@@ -141,20 +180,10 @@ export function useItemFormOptions(selectedCategory?: string) {
   const loadCategories = useCallback(() => {
     fetchItemCategoriesApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
+        const normalizedCategoryRows = normalizeCategoryRows(records);
+        setCategoryOptions(
+          uniqueNames(normalizedCategoryRows.map((row) => String(row.categoryName ?? ""))),
         );
-        const names = active
-          .map((r) => String(r.categoryName || r.name || "").trim())
-          .filter((n) => Boolean(n) && isNaN(Number(n)));
-        setCategoryOptions([...new Set(names)]);
-        const normalizedCategoryRows = active.map((r) => ({
-          ...r,
-          categoryName: r.categoryName || r.name || "",
-          name: r.name || r.categoryName || "",
-          hsnCode: r.hsnCode || r.hsn || "",
-          hsn: r.hsn || r.hsnCode || "",
-        }));
         setCategoryRows(normalizedCategoryRows);
       })
       .catch(() => {});
@@ -163,28 +192,61 @@ export function useItemFormOptions(selectedCategory?: string) {
   const loadSubCategories = useCallback(() => {
     fetchItemSubCategoriesApi({ status: true, limit: 1000 })
       .then((records) => {
-        const active = records.filter(
-          (r) => String(r.status ?? "Active").toLowerCase() !== "inactive",
-        );
-        setAllSubCategoryRows(active);
+        setAllSubCategoryRows(records.filter(isActiveMasterRecord));
       })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    const filtered = selectedCategory
-      ? allSubCategoryRows.filter((r) => {
-          const catName = String(r.category || r.categoryName || "").trim().toLowerCase();
-          return catName === selectedCategory.trim().toLowerCase();
-        })
-      : allSubCategoryRows;
+    const selectedName = selectedCategory?.trim() ?? "";
+    if (!selectedName) {
+      setSubCategoryOptions([]);
+      return;
+    }
 
-    const names = filtered
-      .map((r) => String(r.itemSubCategory || r.name || "").trim())
-      .filter((n) => Boolean(n) && isNaN(Number(n)));
+    const selectedCategoryRow = categoryRows.find((row) =>
+      recordsMatchCategory(row, selectedName),
+    );
+    const selectedCategoryId = selectedCategoryRow ? String(selectedCategoryRow.id ?? "") : "";
 
-    setSubCategoryOptions([...new Set(names)]);
-  }, [selectedCategory, allSubCategoryRows]);
+    const namesFromRows = (rows: MasterRecord[]) =>
+      uniqueNames(rows.map((row) => getRecordName(row.itemSubCategory, row.name)));
+
+    const applyFallback = () => {
+      const filtered = allSubCategoryRows.filter((row) =>
+        recordsMatchCategory(row, selectedName, selectedCategoryId),
+      );
+      setSubCategoryOptions(namesFromRows(filtered));
+    };
+
+    let cancelled = false;
+    fetchItemSubCategoriesApi({
+      status: true,
+      limit: 1000,
+      category: selectedName,
+      ...(selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
+    })
+      .then((records) => {
+        if (cancelled) {
+          return;
+        }
+        const names = namesFromRows(records.filter(isActiveMasterRecord));
+        if (names.length > 0) {
+          setSubCategoryOptions(names);
+          return;
+        }
+        applyFallback();
+      })
+      .catch(() => {
+        if (!cancelled) {
+          applyFallback();
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory, allSubCategoryRows, categoryRows]);
 
   const loadColors = useCallback(() => {
     fetchColorsApi({ status: true, limit: 1000 })
@@ -287,11 +349,25 @@ export function buildItemDefinition(
         return nextHsn;
       }
       if (field.key === "gst") {
+        const gstOptions = uniqueNames([
+          ...categoryRows.map((row) => getRecordName(row.gst, row.gstPercentage, row.gstNo)),
+          ...hsnRows.map((row) => getRecordName(row.gstPercentage, row.gst)),
+        ]);
         const nextGst: MasterFieldDefinition = {
           ...field,
           readOnly: true,
         };
-        if (hsnRows.length) {
+        if (gstOptions.length) {
+          nextGst.options = gstOptions;
+        }
+        if (categoryRows.length) {
+          nextGst.autoFillFrom = {
+            rows: categoryRows,
+            sourceKey: "category",
+            sourceMatchKey: "categoryName",
+            sourceValueKey: "gst",
+          };
+        } else if (hsnRows.length) {
           nextGst.autoFillFrom = {
             rows: hsnRows,
             sourceSlug: "hsn-master",

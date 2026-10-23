@@ -127,6 +127,7 @@ import {
 import {
   buildSlicingAvailableValues,
   calculateTotalSlicingConsumption,
+  getSlicingAvailableCbmIssue,
   getSlicingCreateSubmitError,
   orderSlicingCreateFields,
   saveSlicingCreateProcess,
@@ -1501,6 +1502,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       sawingSource,
       sawingProcessedCbm,
     ),
+    ...getSlicingAvailableCbmIssue(
+      definition.slug,
+      rejectAvailableValues.cbm,
+      slicingSource,
+      slicingConsumedCbm,
+    ),
   };
   const usesReferenceLeafLimit = definition.slug === "grouping";
   const groupingReferenceLeaves = usesReferenceLeafLimit
@@ -2308,6 +2315,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         lineItems,
         navigate,
         originalRows: slicingEditContext.rows,
+        rejectAvailableValues,
         sourceRow: slicingEditContext.sourceRow,
       });
       return;
@@ -3449,9 +3457,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               useHeight={
                 definition.slug === "sawing" || definition.slug === "slicing"
               }
-              editableDerived={definition.slug === "sawing"}
+              editableDerived={
+                definition.slug === "sawing" || definition.slug === "slicing"
+              }
               lockMeasuredFields={
-                definition.slug === "slicing" ||
                 definition.slug === "grouping" ||
                 definition.slug === "splicing" ||
                 definition.slug === "cnc-fluting" ||

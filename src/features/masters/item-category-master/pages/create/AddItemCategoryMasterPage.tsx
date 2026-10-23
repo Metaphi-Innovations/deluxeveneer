@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "@mui/material";
 
 import { invalidateMaster } from "../../../../../query/queryClient";
 import { MasterFormPage } from "../../../shared";
@@ -14,9 +15,13 @@ import {
   buildCategoryDefinitionWithHsn,
   useHsnOptions,
 } from "../ItemCategoryMasterPagesForm";
+import { QuickAddHsnModal } from "../../../hsn-master/QuickAddHsnModal";
 
 export function AddItemCategoryMasterPage() {
-  const { hsnOptions, hsnRows } = useHsnOptions();
+  const { hsnOptions, hsnRows, refetch: refetchHsn } = useHsnOptions();
+  const [quickAddHsnOpen, setQuickAddHsnOpen] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+
   const definitionWithDynamicOptions = useMemo<MasterDefinition>(
     () => buildCategoryDefinitionWithHsn(itemCategoryMasterDefinition, hsnOptions, hsnRows),
     [hsnOptions, hsnRows],
@@ -54,10 +59,53 @@ export function AddItemCategoryMasterPage() {
   };
 
   return (
-    <MasterFormPage
-      definition={definitionWithDynamicOptions}
-      mode="add"
-      onSave={handleSave}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={formValues}
+        definition={definitionWithDynamicOptions}
+        mode="add"
+        onFieldChange={(key, val) => {
+          setFormValues((prev) => ({ ...prev, [key]: val }));
+        }}
+        onSave={handleSave}
+        fieldActions={{
+          hsn: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddHsnOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add HSN
+            </Button>
+          ),
+        }}
+      />
+      <QuickAddHsnModal
+        open={quickAddHsnOpen}
+        onClose={() => setQuickAddHsnOpen(false)}
+        onSuccess={(newHsnCode, record) => {
+          const gstVal = record?.gstPercentage || record?.gst || "";
+          setFormValues((prev) => ({
+            ...prev,
+            hsn: newHsnCode,
+            hsnCode: newHsnCode,
+            ...(gstVal ? { gst: gstVal, gstPercentage: gstVal } : {}),
+          }));
+          refetchHsn();
+        }}
+      />
+    </>
   );
 }

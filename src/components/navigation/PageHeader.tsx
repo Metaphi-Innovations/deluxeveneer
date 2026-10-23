@@ -92,21 +92,21 @@ export function PageHeader({
           component={resolvedBackNav.onBack ? "button" : RouterLink}
           {...(resolvedBackNav.onBack
             ? {
-                type: "button" as const,
-                onClick: (e: React.MouseEvent) => {
-                  e.preventDefault();
-                  resolvedBackNav.onBack?.();
-                },
-              }
+              type: "button" as const,
+              onClick: (e: React.MouseEvent) => {
+                e.preventDefault();
+                resolvedBackNav.onBack?.();
+              },
+            }
             : {
-                to: resolvedBackNav.to,
-                onClick: (e: React.MouseEvent) => {
-                  if (window.history.length > 1) {
-                    e.preventDefault();
-                    navigate(-1);
-                  }
-                },
-              })}
+              to: resolvedBackNav.to,
+              onClick: (e: React.MouseEvent) => {
+                if (window.history.length > 1) {
+                  e.preventDefault();
+                  navigate(-1);
+                }
+              },
+            })}
           underline="none"
           sx={{
             display: "inline-flex",

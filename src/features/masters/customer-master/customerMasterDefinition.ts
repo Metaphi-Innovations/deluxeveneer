@@ -38,7 +38,12 @@ export const customerMasterDefinition: MasterDefinition = {
     { key: "companyName", label: "Company Name", type: "text" },
     { key: "email", label: "Email", type: "text" },
     { key: "phoneNumber", label: "Phone Number", type: "text" },
-    { key: "dob", label: "Date of Birth", type: "date" },
+    {
+      key: "dob",
+      label: "Date of Birth",
+      type: "date",
+      placeholder: "Select Date of Birth",
+    },
 
     // Line 2: address, pincode, country, state, city
     { key: "address", label: "Address", type: "text" },
@@ -49,9 +54,19 @@ export const customerMasterDefinition: MasterDefinition = {
 
     // Line 3: gstin, gstin upload, pan, pan upload, remark
     { key: "gstNo", label: "GSTIN", type: "text" },
-    { key: "gstUpload", label: "GSTIN Upload", type: "file" },
+    {
+      key: "gstUpload",
+      label: "GSTIN Upload",
+      type: "file",
+      placeholder: "Upload GSTIN Document",
+    },
     { key: "panNo", label: "PAN No", type: "text" },
-    { key: "panUpload", label: "PAN Upload", type: "file" },
+    {
+      key: "panUpload",
+      label: "PAN Upload",
+      type: "file",
+      placeholder: "Upload PAN Document",
+    },
     { key: "remark", label: "Remark", type: "text" },
   ],
   rows: [],

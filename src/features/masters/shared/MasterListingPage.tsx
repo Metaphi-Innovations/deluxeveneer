@@ -1,10 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Alert,
-  Button,
-  Snackbar,
-  Stack,
-} from "@mui/material";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
 import { Eye, Pencil, Plus } from "lucide-react";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
@@ -53,7 +48,10 @@ interface MasterListingPageProps {
   sorting?: {
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-    onSortChange: (sortBy: string | null, sortOrder: "asc" | "desc" | null) => void;
+    onSortChange: (
+      sortBy: string | null,
+      sortOrder: "asc" | "desc" | null,
+    ) => void;
   };
   columnFilters?: Partial<Record<string, ColumnFilterValue>>;
   onColumnFiltersChange?: (
@@ -114,8 +112,9 @@ export function MasterListingPage({
   });
 
   useEffect(() => {
-    const flashMessage = (location.state as { masterFlashMessage?: string } | null)
-      ?.masterFlashMessage;
+    const flashMessage = (
+      location.state as { masterFlashMessage?: string } | null
+    )?.masterFlashMessage;
 
     if (flashMessage) {
       setToastNotification({
@@ -250,12 +249,11 @@ export function MasterListingPage({
         row,
         checked,
       });
-      return;
+      return false;
     }
 
     await executeStatusChange(row, checked);
   };
-
 
   return (
     <MasterPageShell
@@ -314,7 +312,9 @@ export function MasterListingPage({
           loading={loading}
           onStatusChange={handleStatusChange}
           rows={canView ? filteredRows : []}
-          {...(canEdit ? { isStatusChangeDisabled: () => false } : { isStatusChangeDisabled: () => true })}
+          {...(canEdit
+            ? { isStatusChangeDisabled: () => false }
+            : { isStatusChangeDisabled: () => true })}
           {...(canView || canEdit
             ? {
                 getRowActions: (row: MasterRecord) => {

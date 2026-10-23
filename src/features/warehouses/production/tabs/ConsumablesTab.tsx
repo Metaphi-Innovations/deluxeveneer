@@ -9,7 +9,7 @@ import {
   EnterpriseDataTable,
 } from "../../../../components/data-display/EnterpriseDataTable";
 import {
-  isActiveColumnFilter,
+  toApiColumnFilters,
   type ColumnFilterValue,
 } from "../../../shared/columnFilters";
 import {
@@ -32,17 +32,6 @@ export interface ConsumablesTabProps {
   canView: boolean;
   canEdit: boolean;
   onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
-}
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>,
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) continue;
-    filters[key] = filter.values;
-  }
-  return filters;
 }
 
 function mapApiItem(item: ProductionInventoryItem): ConsumablesRow {

@@ -5,7 +5,7 @@ import { queryKeys } from "../../../query/queryKeys";
 import { useColumnDropdownQuery } from "../../../query/useColumnDropdownQuery";
 import { useMasterListQuery } from "../../../query/useMasterListQuery";
 import type { ColumnFilterValue } from "../../shared/columnFilters";
-import { isActiveColumnFilter } from "../../shared/columnFilters";
+import { toApiColumnFilters } from "../../shared/columnFilters";
 import type { MasterRecord } from "./types";
 
 type MasterListParams = {
@@ -84,6 +84,7 @@ export function useMasterListingController({
         setActionError(
           error instanceof Error ? error.message : statusErrorMessage,
         );
+        throw error;
       }
     },
     [master, queryClient, statusErrorMessage, updateStatus],
@@ -136,20 +137,4 @@ export function useMasterListingController({
     sortOrder,
     totalCount: listQuery.totalCount,
   };
-}
-
-function toApiColumnFilters(
-  columnFilters: Partial<Record<string, ColumnFilterValue>>,
-): Record<string, string[]> {
-  const filters: Record<string, string[]> = {};
-
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter)) {
-      continue;
-    }
-
-    filters[key] = filter.values;
-  }
-
-  return filters;
 }

@@ -123,7 +123,6 @@ export function useWarehouseDynamicKpis({
       }
       return null;
     },
-    staleTime: 1000 * 60,
   });
 
   const cards = useMemo<WarehouseKpiCardData[]>(() => {
