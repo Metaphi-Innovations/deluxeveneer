@@ -25,6 +25,7 @@ import {
 import {
   formSectionCardSx,
   FormSectionHeader,
+  plainFormSectionHeadingSx,
 } from "../../shared/formSectionStyles";
 import {
   transactionTableBodyCellSx,
@@ -253,7 +254,12 @@ const decimalFieldConfigs = {
   },
 } as const;
 
-const derivedAreaFieldKeys = new Set<RejectAvailableKey>(["sqm", "sqf", "cbm", "cbf"]);
+const derivedAreaFieldKeys = new Set<RejectAvailableKey>([
+  "sqm",
+  "sqf",
+  "cbm",
+  "cbf",
+]);
 
 const slicingAreaColumns: readonly RejectAvailableColumn[] = [
   {
@@ -282,6 +288,7 @@ export function RejectAvailableDetailsTable({
   lockAllFields = false,
   lockMeasuredFields = false,
   onChange,
+  plain = false,
   showLeafCount = false,
   showSheetCount = false,
   title,
@@ -298,6 +305,7 @@ export function RejectAvailableDetailsTable({
   lockAllFields?: boolean;
   lockMeasuredFields?: boolean;
   onChange: (key: RejectAvailableKey, value: string) => void;
+  plain?: boolean;
   showLeafCount?: boolean;
   showSheetCount?: boolean;
   title?: string | undefined;
@@ -307,7 +315,9 @@ export function RejectAvailableDetailsTable({
 }) {
   const theme = useTheme();
   const shouldHideAmount = hideAmount ?? title === "Available Details";
-  const baseColumns = volumeMode ? rejectAvailableVolumeColumns : rejectAvailableColumns;
+  const baseColumns = volumeMode
+    ? rejectAvailableVolumeColumns
+    : rejectAvailableColumns;
   const columns = baseColumns
     .filter(
       (col) =>
@@ -370,11 +380,17 @@ export function RejectAvailableDetailsTable({
   return (
     <Stack
       sx={(currentTheme) => ({
-        ...formSectionCardSx(currentTheme),
+        ...(plain ? {} : formSectionCardSx(currentTheme)),
         gap: currentTheme.spacing(1.5),
       })}
     >
-      <FormSectionHeader title={title || "Reject / Available Details"} />
+      {plain ? (
+        <Typography component="h2" sx={plainFormSectionHeadingSx}>
+          {title || "Reject / Available Details"}
+        </Typography>
+      ) : (
+        <FormSectionHeader title={title || "Reject / Available Details"} />
+      )}
       <Box
         sx={{
           border: `1px solid ${theme.customTokens.borders.default}`,
@@ -384,7 +400,10 @@ export function RejectAvailableDetailsTable({
         }}
       >
         <Box sx={getScrollableTableSx(theme)}>
-          <Table size="small" sx={{ minWidth: tableWidth, tableLayout: "auto" }}>
+          <Table
+            size="small"
+            sx={{ minWidth: tableWidth, tableLayout: "auto" }}
+          >
             <TableHead>
               <TableRow>
                 {columnsWithArea.map((column) => (
@@ -491,16 +510,25 @@ export function getNextRejectAvailableValues(
       return { ...current, cbf: nextValue };
     }
     const nextValues = { ...current, cbm: nextValue };
-    return useHeight ? withHeightFromAvailableCbm(nextValues) : {
-      ...nextValues,
-      cbf:
-        Number.parseFloat(nextValue) > 0
-          ? (Number.parseFloat(nextValue) * 35.3147).toFixed(4).replace(/\.?0+$/u, "")
-          : "",
-    };
+    return useHeight
+      ? withHeightFromAvailableCbm(nextValues)
+      : {
+          ...nextValues,
+          cbf:
+            Number.parseFloat(nextValue) > 0
+              ? (Number.parseFloat(nextValue) * 35.3147)
+                  .toFixed(4)
+                  .replace(/\.?0+$/u, "")
+              : "",
+        };
   }
 
-  if (key === "length" || key === "width" || key === "thickness" || key === "height") {
+  if (
+    key === "length" ||
+    key === "width" ||
+    key === "thickness" ||
+    key === "height"
+  ) {
     if (volumeMode && useHeight) {
       return withDerivedAvailableHeightVolume({
         ...current,
@@ -564,7 +592,8 @@ function withDerivedAvailableHeightVolume(
   if (length <= 0 || width <= 0 || height <= 0) {
     return { ...values, cbf: "", cbm: "" };
   }
-  const cbm = (length * width * height) / sawingVolumeDivisor(length, width, height);
+  const cbm =
+    (length * width * height) / sawingVolumeDivisor(length, width, height);
   return {
     ...values,
     cbm: cbm.toFixed(6).replace(/\.?0+$/u, ""),
@@ -582,7 +611,8 @@ function withHeightFromAvailableCbm(
   if (length <= 0 || width <= 0 || cbm <= 0) {
     return { ...values, cbf, height: "" };
   }
-  const height = (cbm * sawingVolumeDivisor(length, width, 0)) / (length * width);
+  const height =
+    (cbm * sawingVolumeDivisor(length, width, 0)) / (length * width);
   return {
     ...values,
     cbf,
@@ -679,9 +709,7 @@ export function getVisibleRejectAvailableValidationIssues(
   }
 
   return Object.fromEntries(
-    Object.entries(issues).filter(
-      ([, issue]) => issue?.severity === "warning",
-    ),
+    Object.entries(issues).filter(([, issue]) => issue?.severity === "warning"),
   ) as RejectAvailableValidationIssues;
 }
 
@@ -781,7 +809,8 @@ function renderRejectAvailableField({
       inputProps={{
         readOnly:
           (lockAllFields && column.key !== "remark") ||
-          (lockMeasuredFields && (isMeasuredField || column.key === "noOfLeaves")) ||
+          (lockMeasuredFields &&
+            (isMeasuredField || column.key === "noOfLeaves")) ||
           (isDerivedAreaField && !editableDerived),
       }}
       size="small"
@@ -792,7 +821,11 @@ function renderRejectAvailableField({
           ? getWarningFieldSx(theme)
           : getCompactFieldSx(theme, isError ? "error" : "default")),
         ...(lockAllFields && column.key !== "remark"
-          ? { "& .MuiInputBase-root": { backgroundColor: theme.customTokens.surfaces.alt } }
+          ? {
+              "& .MuiInputBase-root": {
+                backgroundColor: theme.customTokens.surfaces.alt,
+              },
+            }
           : {}),
       }}
     />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@mui/material";
 import { useParams } from "react-router";
 
 import { invalidateMaster } from "../../../../../query/queryClient";
@@ -16,13 +17,16 @@ import {
   buildCategoryDefinitionWithHsn,
   useHsnOptions,
 } from "../ItemCategoryMasterPagesForm";
+import { QuickAddHsnModal } from "../../../hsn-master/QuickAddHsnModal";
 
 export function EditItemCategoryMasterPage() {
   const params = useParams<{ id: string }>();
   const [record, setRecord] = useState<MasterRecord | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  const { hsnOptions, hsnRows } = useHsnOptions();
+  const { hsnOptions, hsnRows, refetch: refetchHsn } = useHsnOptions();
+  const [quickAddHsnOpen, setQuickAddHsnOpen] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
 
   useEffect(() => {
     let ignore = false;
@@ -99,13 +103,56 @@ export function EditItemCategoryMasterPage() {
   };
 
   return (
-    <MasterFormPage
-      definition={definitionWithDynamicOptions}
-      errorMessage={errorMessage}
-      loading={isLoading}
-      mode="edit"
-      {...(record ? { record } : {})}
-      onSave={handleSave}
-    />
+    <>
+      <MasterFormPage
+        additionalValues={formValues}
+        definition={definitionWithDynamicOptions}
+        errorMessage={errorMessage}
+        loading={isLoading}
+        mode="edit"
+        {...(record ? { record } : {})}
+        onFieldChange={(key, val) => {
+          setFormValues((prev) => ({ ...prev, [key]: val }));
+        }}
+        onSave={handleSave}
+        fieldActions={{
+          hsn: (
+            <Button
+              size="small"
+              onClick={() => setQuickAddHsnOpen(true)}
+              sx={(theme) => ({
+                p: 0,
+                minWidth: "auto",
+                fontSize: "11px",
+                lineHeight: 1.3,
+                fontWeight: 600,
+                textTransform: "none",
+                color: theme.customTokens.brand.primary,
+                "&:hover": {
+                  backgroundColor: "transparent",
+                  textDecoration: "underline",
+                },
+              })}
+            >
+              + Add HSN
+            </Button>
+          ),
+        }}
+      />
+      <QuickAddHsnModal
+        open={quickAddHsnOpen}
+        onClose={() => setQuickAddHsnOpen(false)}
+        onSuccess={(newHsnCode, rec) => {
+          const gstVal = rec?.gstPercentage || rec?.gst || "";
+          setFormValues((prev) => ({
+            ...prev,
+            hsn: newHsnCode,
+            hsnCode: newHsnCode,
+            ...(gstVal ? { gst: gstVal, gstPercentage: gstVal } : {}),
+          }));
+          refetchHsn();
+        }}
+      />
+    </>
   );
 }

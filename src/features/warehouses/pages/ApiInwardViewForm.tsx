@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -14,7 +15,20 @@ import {
   useTheme,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { ChevronLeft, Pencil } from "lucide-react";
+import {
+  Building2,
+  Calendar,
+  ChevronLeft,
+  DollarSign,
+  FileCheck,
+  FileSpreadsheet,
+  MessageSquare,
+  Package2,
+  Pencil,
+  Receipt,
+  Truck,
+  UserCheck,
+} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { MasterSectionCard } from "../../masters/shared";
@@ -85,6 +99,23 @@ function formatAuditUserName(
   if (!user) return "—";
   const name = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
   return name || "—";
+}
+
+function formatDisplayDateTime(dateVal?: unknown): string {
+  if (!dateVal) return "—";
+  try {
+    const d = new Date(dateVal as string | number | Date);
+    if (Number.isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(dateVal);
+  }
 }
 
 function normalizeQcLabel(value: string | null | undefined): string {
@@ -416,7 +447,7 @@ export function ApiInwardViewForm({
           >
             Back
           </Button>
-          {canEdit && !editLocked ? (
+          {canEdit && !editLocked && !isStorageWarehouseView ? (
             <Button
               variant="contained"
               startIcon={<Pencil size={16} />}
@@ -432,37 +463,236 @@ export function ApiInwardViewForm({
       <Stack spacing={1.5}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 
+        {/* Header Identity Card */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1.5,
+            flexWrap: "wrap",
+            px: 1.75,
+            py: 1,
+            borderRadius: "8px",
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            backgroundColor: theme.customTokens.surfaces.surface,
+          }}
+        >
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0, flex: "1 1 auto" }}>
+            <Avatar
+              sx={{
+                width: 40,
+                height: 40,
+                bgcolor: theme.customTokens.brand.primaryScale[100],
+                color: theme.customTokens.brand.primary,
+                borderRadius: "8px",
+                flexShrink: 0,
+              }}
+            >
+              <Package2 size={20} />
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Typography
+                  sx={{
+                    fontSize: "1.0625rem",
+                    fontWeight: 700,
+                    color: theme.customTokens.text.primary,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {detail.invoiceNo ? `Invoice #${detail.invoiceNo}` : detail.inwardSrNo ? `Inward #${detail.inwardSrNo}` : "Inward Record"}
+                </Typography>
+                {detail.inwardSrNo && detail.invoiceNo ? (
+                  <Chip
+                    label={`Inward #${detail.inwardSrNo}`}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      backgroundColor: theme.customTokens.surfaces.paper,
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  />
+                ) : null}
+              </Stack>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}
+              >
+                {detail.supplierName ? (
+                  <Typography
+                    sx={{
+                      fontSize: "0.8125rem",
+                      fontWeight: 600,
+                      color: theme.customTokens.text.secondary,
+                    }}
+                  >
+                    Supplier: {detail.supplierName}
+                  </Typography>
+                ) : null}
 
-        <Box sx={formSectionCardSx(theme)}>
-          <Stack spacing={1.25}>
-            <FormSectionHeader title="Inward Details" />
+                {detail.inventoryType ? (
+                  <Chip
+                    label={detail.inventoryType}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                      backgroundColor: theme.customTokens.surfaces.paper,
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  />
+                ) : null}
+
+                {detail.inwardDate ? (
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Calendar size={13} style={{ color: theme.customTokens.text.secondary }} />
+                    <Typography
+                      sx={{
+                        fontSize: "0.8125rem",
+                        color: theme.customTokens.text.secondary,
+                      }}
+                    >
+                      {formatDateDisplay(detail.inwardDate)}
+                    </Typography>
+                  </Stack>
+                ) : null}
+              </Stack>
+            </Box>
+          </Stack>
+
+          {!isStorageWarehouseView ? (
+            <Chip
+              label={`QC: ${overallQc}`}
+              size="small"
+              sx={{
+                alignSelf: { xs: "flex-start", sm: "center" },
+                height: 24,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                backgroundColor:
+                  overallQc === "Pass"
+                    ? "rgba(46, 125, 50, 0.12)"
+                    : overallQc === "Fail"
+                      ? "rgba(211, 47, 47, 0.12)"
+                      : "rgba(237, 108, 2, 0.12)",
+                color:
+                  overallQc === "Pass"
+                    ? "#2E7D32"
+                    : overallQc === "Fail"
+                      ? "#D32F2F"
+                      : "#ED6C02",
+                border: `1px solid ${
+                  overallQc === "Pass"
+                    ? "rgba(46, 125, 50, 0.3)"
+                    : overallQc === "Fail"
+                      ? "rgba(211, 47, 47, 0.3)"
+                      : "rgba(237, 108, 2, 0.3)"
+                }`,
+              }}
+            />
+          ) : null}
+        </Box>
+
+        {/* 2-Column Master Information Cards Grid */}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "repeat(2, minmax(0, 1fr))",
+            },
+            gap: 1.25,
+          }}
+        >
+          {/* Inward & Supplier Details Card */}
+          <Box
+            sx={(theme) => ({
+              ...formSectionCardSx(theme),
+              borderRadius: "8px",
+              display: "flex",
+              flexDirection: "column",
+            })}
+          >
+            <FormSectionHeader
+              icon={Receipt}
+              title="Inward & Supplier Details"
+              variant="cardTop"
+            />
             <Box
               sx={{
                 display: "grid",
-                gap: 1.5,
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(3, minmax(0, 1fr))",
-                  lg: "repeat(5, minmax(0, 1fr))",
                 },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
               }}
             >
-              {headerFields.map((field) => (
-                <DetailField
-                  key={field.label}
-                  label={field.label}
-                  value={field.value}
-                />
-              ))}
-              <Stack spacing={0.35} sx={{ minWidth: 0, gridColumn: { xs: "1", sm: "span 2", md: "span 1", lg: "span 2" } }}>
+              <ProfileField label="Inward Date" value={formatDateDisplay(detail.inwardDate)} />
+              <ProfileField label="Inward Sr No" value={detail.inwardSrNo || "—"} />
+              <ProfileField label="Invoice No" value={detail.invoiceNo || "—"} />
+              <ProfileField label="Supplier" value={detail.supplierName || "—"} />
+              <ProfileField label="Inward Type" value={detail.inventoryType || "—"} />
+              <ProfileField label="Warehouse" value={warehouseName || detail.warehouseName || "—"} />
+            </Box>
+          </Box>
+
+          {/* Logistics, Currency & Attachment Card */}
+          <Box
+            sx={(theme) => ({
+              ...formSectionCardSx(theme),
+              borderRadius: "8px",
+              display: "flex",
+              flexDirection: "column",
+            })}
+          >
+            <FormSectionHeader
+              icon={Truck}
+              title="Logistics & Finance"
+              variant="cardTop"
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
+              }}
+            >
+              <ProfileField label="Mode of Transport" value={detail.mode || "—"} />
+              <ProfileField label="Currency" value={detail.currency || "—"} />
+              <ProfileField label="ETA" value={formatDateDisplay(detail.eta)} />
+              <ProfileField label="ETD" value={formatDateDisplay(detail.etd)} />
+              <ProfileField
+                label="Exchange Rate"
+                value={
+                  detail.exchangeRate === null || detail.exchangeRate === undefined
+                    ? "—"
+                    : String(detail.exchangeRate)
+                }
+              />
+              <Box sx={{ minWidth: 0, py: 0.1 }}>
                 <Typography
                   sx={{
-                    fontSize: "0.6875rem",
-                    fontWeight: 600,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
+                    fontSize: "0.71875rem",
+                    fontWeight: 700,
                     color: theme.customTokens.text.secondary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                    lineHeight: 1.25,
+                    mb: 0.2,
                   }}
                 >
                   Attachment
@@ -471,14 +701,23 @@ export function ApiInwardViewForm({
                   url={detail.attachmentUrl}
                   title="Inward Attachment"
                 />
-              </Stack>
+              </Box>
             </Box>
-          </Stack>
+          </Box>
         </Box>
 
-        <Box sx={formSectionCardSx(theme)}>
+        <Box
+          sx={(theme) => ({
+            ...formSectionCardSx(theme),
+            borderRadius: "8px",
+          })}
+        >
           <Stack spacing={1.25}>
-            <FormSectionHeader title="Item Details" />
+            <FormSectionHeader
+              icon={FileSpreadsheet}
+              title="Item Details"
+              variant="cardTop"
+            />
             <Box
               sx={{
                 border: `1px solid ${theme.customTokens.borders.default}`,
@@ -526,186 +765,228 @@ export function ApiInwardViewForm({
         <Box
           sx={{
             display: "grid",
-            gap: 1.5,
+            gap: 2,
             gridTemplateColumns: {
               xs: "1fr",
-              md: "minmax(0, 1fr) minmax(260px, 320px)",
+              md: "minmax(0, 1fr) minmax(280px, 340px)",
             },
             alignItems: "start",
           }}
         >
-          <Box sx={formSectionCardSx(theme)}>
-            <Stack spacing={1.25}>
-              <FormSectionHeader title="Additional Charges" />
-              {detail.additionalCharges.length > 0 ? (
-                <Box
-                  sx={{
-                    border: `1px solid ${theme.customTokens.borders.default}`,
-                    borderRadius: `${theme.customTokens.radius.md}px`,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow
-                        sx={{
-                          backgroundColor: theme.customTokens.surfaces.alt,
-                        }}
-                      >
-                        <TableCell sx={getViewHeaderCellSx(theme)}>
-                          Charge Name
-                        </TableCell>
-                        <TableCell
-                          align="right"
-                          sx={getViewHeaderCellSx(theme)}
-                        >
-                          Amount
-                        </TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {detail.additionalCharges.map((charge, index) => (
+          {/* Additional Charges & Remarks Column */}
+          <Stack spacing={2}>
+            <Box
+              sx={(theme) => ({
+                ...formSectionCardSx(theme),
+                borderRadius: "8px",
+              })}
+            >
+              <Stack spacing={1.25}>
+                <FormSectionHeader
+                  icon={DollarSign}
+                  title="Additional Charges"
+                  variant="cardTop"
+                />
+                {detail.additionalCharges.length > 0 ? (
+                  <Box
+                    sx={{
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                      borderRadius: `${theme.customTokens.radius.md}px`,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Table size="small">
+                      <TableHead>
                         <TableRow
-                          key={charge.id}
                           sx={{
-                            backgroundColor:
-                              index % 2 === 1
-                                ? theme.customTokens.surfaces.alt
-                                : undefined,
+                            backgroundColor: theme.customTokens.surfaces.alt,
                           }}
                         >
-                          <TableCell sx={getViewBodyCellSx(theme)}>
-                            {charge.chargeName}
+                          <TableCell sx={getViewHeaderCellSx(theme)}>
+                            Charge Name
                           </TableCell>
                           <TableCell
                             align="right"
-                            sx={{
-                              ...getViewBodyCellSx(theme),
-                              fontVariantNumeric: "tabular-nums",
-                              fontWeight: 600,
-                            }}
+                            sx={getViewHeaderCellSx(theme)}
                           >
-                            {formatMoney(charge.amount)}
+                            Amount
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHead>
+                      <TableBody>
+                        {detail.additionalCharges.map((charge, index) => (
+                          <TableRow
+                            key={charge.id}
+                            sx={{
+                              backgroundColor:
+                                index % 2 === 1
+                                  ? theme.customTokens.surfaces.alt
+                                  : undefined,
+                            }}
+                          >
+                            <TableCell sx={getViewBodyCellSx(theme)}>
+                              {charge.chargeName}
+                            </TableCell>
+                            <TableCell
+                              align="right"
+                              sx={{
+                                ...getViewBodyCellSx(theme),
+                                fontVariantNumeric: "tabular-nums",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {formatMoney(charge.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Typography
+                    sx={{
+                      fontSize: "0.8125rem",
+                      color: theme.customTokens.text.secondary,
+                    }}
+                  >
+                    No additional charges.
+                  </Typography>
+                )}
+              </Stack>
+            </Box>
+
+            {/* Remarks Section */}
+              <Box
+                sx={(theme) => ({
+                  ...formSectionCardSx(theme),
+                  borderRadius: "8px",
+                })}
+              >
+                <FormSectionHeader
+                  icon={MessageSquare}
+                  title="Remarks"
+                  variant="cardTop"
+                />
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography
+                    sx={{
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      color: theme.customTokens.text.primary,
+                      whiteSpace: "pre-wrap",
+                      lineHeight: 1.6,
+                      p: 1.5,
+                      borderRadius: "6px",
+                      backgroundColor: theme.customTokens.surfaces.paper,
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  >
+                    {detail.remarks?.trim() || detail.remark?.trim() || "No remarks provided."}
+                  </Typography>
                 </Box>
-              ) : (
-                <Typography
+              </Box>
+            </Stack>
+
+            {/* Cost Summary Column */}
+            <Box
+              sx={{
+                ...formSectionCardSx(theme),
+                borderRadius: "8px",
+                backgroundColor: theme.customTokens.surfaces.alt,
+              }}
+            >
+              <Stack spacing={1}>
+                <FormSectionHeader
+                  icon={Receipt}
+                  title="Cost Summary"
+                  variant="cardTop"
+                />
+                <TotalsLine
+                  currency={detail.currency || undefined}
+                  label="Sub Total"
+                  value={invoiceSummary.subTotal}
+                />
+                <TotalsLine
+                  currency={detail.currency || undefined}
+                  label="Additional Charges"
+                  value={invoiceSummary.additionalCharges}
+                />
+                <TotalsLine
+                  currency={detail.currency || undefined}
+                  label="Taxable Amount"
+                  value={invoiceSummary.taxableAmount}
+                />
+                {invoiceSummary.gstLines.map((line) => (
+                  <TotalsLine
+                    key={line.label}
+                    currency={detail.currency || undefined}
+                    label={line.label}
+                    value={line.value}
+                  />
+                ))}
+                <Box
                   sx={{
-                    fontSize: "0.8125rem",
-                    color: theme.customTokens.text.secondary,
+                    borderTop: `1px solid ${theme.customTokens.borders.default}`,
+                    pt: 1,
+                    mt: 0.5,
                   }}
                 >
-                  No additional charges.
-                </Typography>
-              )}
-
-              <Box
-                sx={{
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  borderRadius: `${theme.customTokens.radius.md}px`,
-                  overflow: "hidden",
-                }}
-              >
-                <Table size="small">
-                  <TableHead>
-                    <TableRow
-                      sx={{
-                        backgroundColor: theme.customTokens.surfaces.alt,
-                      }}
-                    >
-                      <TableCell sx={getViewHeaderCellSx(theme)}>
-                        Remark
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell
-                        sx={{
-                          ...getViewBodyCellSx(theme),
-                          verticalAlign: "top",
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            minHeight: 88,
-                            whiteSpace: "pre-wrap",
-                            fontSize: "0.8125rem",
-                          }}
-                        >
-                          {detail.remarks?.trim() || detail.remark?.trim() || "—"}
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </Box>
-            </Stack>
+                  <TotalsLine
+                    currency={detail.currency || undefined}
+                    emphasize
+                    label="Grand Total"
+                    value={invoiceSummary.total}
+                  />
+                </Box>
+              </Stack>
+            </Box>
           </Box>
 
+        {/* Audit Information Card */}
+        {(detail.createdBy || detail.updatedBy || detail.createdAt || detail.updatedAt) ? (
           <Box
-            sx={{
+            sx={(theme) => ({
               ...formSectionCardSx(theme),
-              backgroundColor: theme.customTokens.surfaces.alt,
-            }}
+              borderRadius: "8px",
+            })}
           >
-            <Stack spacing={0.85}>
-              <Typography
-                sx={{
-                  mb: 0.5,
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                  color: theme.customTokens.text.secondary,
-                }}
-              >
-                Cost Summary
-              </Typography>
-              <TotalsLine
-                currency={detail.currency || undefined}
-                label="Sub Total"
-                value={invoiceSummary.subTotal}
+            <FormSectionHeader
+              icon={UserCheck}
+              title="Audit Information"
+              variant="cardTop"
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, minmax(0, 1fr))",
+                  md: "repeat(4, minmax(0, 1fr))",
+                },
+                columnGap: 2.5,
+                rowGap: 1,
+                mt: 1,
+              }}
+            >
+              <ProfileField
+                label="Created By"
+                value={formatAuditUserName(detail.createdBy)}
               />
-              <TotalsLine
-                currency={detail.currency || undefined}
-                label="Additional Charges"
-                value={invoiceSummary.additionalCharges}
+              <ProfileField
+                label="Created Date"
+                value={formatDisplayDateTime(detail.createdAt)}
               />
-              <TotalsLine
-                currency={detail.currency || undefined}
-                label="Taxable Amount"
-                value={invoiceSummary.taxableAmount}
+              <ProfileField
+                label="Updated By"
+                value={formatAuditUserName(detail.updatedBy)}
               />
-              {invoiceSummary.gstLines.map((line) => (
-                <TotalsLine
-                  key={line.label}
-                  currency={detail.currency || undefined}
-                  label={line.label}
-                  value={line.value}
-                />
-              ))}
-              <Box
-                sx={{
-                  borderTop: `1px solid ${theme.customTokens.borders.default}`,
-                  pt: 0.85,
-                  mt: 0.25,
-                }}
-              >
-                <TotalsLine
-                  currency={detail.currency || undefined}
-                  emphasize
-                  label="Total"
-                  value={invoiceSummary.total}
-                />
-              </Box>
-            </Stack>
+              <ProfileField
+                label="Updated Date"
+                value={formatDisplayDateTime(detail.updatedAt)}
+              />
+            </Box>
           </Box>
-        </Box>
+        ) : null}
       </Stack>
 
       <ConfirmationDialog
@@ -726,6 +1007,77 @@ export function ApiInwardViewForm({
   );
 }
 
+
+function ProfileField({
+  label,
+  value,
+  isPhone = false,
+  allowWrap = false,
+}: {
+  label: string;
+  value?: string | number | null | undefined;
+  isPhone?: boolean | undefined;
+  allowWrap?: boolean | undefined;
+}) {
+  const theme = useTheme();
+  const rawValue =
+    value !== undefined && value !== null ? String(value).trim() : "";
+  const hasValue = Boolean(rawValue);
+
+  return (
+    <Box sx={{ minWidth: 0, py: 0.1 }}>
+      <Typography
+        sx={{
+          fontSize: "0.71875rem",
+          fontWeight: 700,
+          color: theme.customTokens.text.secondary,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          lineHeight: 1.25,
+          mb: 0.2,
+        }}
+      >
+        {label}
+      </Typography>
+
+      {isPhone && hasValue ? (
+        <Typography
+          component="a"
+          href={`tel:${rawValue.replace(/[^\d+]/g, "")}`}
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: theme.customTokens.brand.primary,
+            lineHeight: 1.4,
+            textDecoration: "none",
+            display: "inline-block",
+            "&:hover": {
+              textDecoration: "underline",
+            },
+          }}
+        >
+          {rawValue}
+        </Typography>
+      ) : (
+        <Typography
+          sx={{
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            color: hasValue
+              ? theme.customTokens.text.primary
+              : theme.customTokens.text.secondary,
+            lineHeight: 1.4,
+            whiteSpace: allowWrap ? "normal" : "nowrap",
+            overflow: allowWrap ? "visible" : "hidden",
+            textOverflow: allowWrap ? "clip" : "ellipsis",
+          }}
+        >
+          {hasValue ? rawValue : "—"}
+        </Typography>
+      )}
+    </Box>
+  );
+}
 
 function DetailField({ label, value }: { label: string; value: string }) {
   const theme = useTheme();

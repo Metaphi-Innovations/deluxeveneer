@@ -9,13 +9,14 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Typography,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 import { Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { FormSectionHeader, formSectionCardSx } from "../../shared/formSectionStyles";
+import { plainFormSectionHeadingSx } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
   pressingCompactBodyCellSx,
@@ -73,7 +74,11 @@ export function PressingSelectedVeneer<Row extends FactoryRecord>({
     <UsageCard title="Selected Veneer Items">
       {rows.map((row) => {
         const draft = drafts[String(row.id)] ?? { qtyToUse: "", remark: "" };
-        const area = calculatePressingUsedArea(row.length, row.width, draft.qtyToUse);
+        const area = calculatePressingUsedArea(
+          row.length,
+          row.width,
+          draft.qtyToUse,
+        );
         const qtyError = getPressingQtyError(
           draft.qtyToUse,
           row.availableQty,
@@ -84,7 +89,9 @@ export function PressingSelectedVeneer<Row extends FactoryRecord>({
         return (
           <UsageRow
             area={area}
-            cells={veneerColumns.map((column) => pressingText(row[column.key]) || "-")}
+            cells={veneerColumns.map(
+              (column) => pressingText(row[column.key]) || "-",
+            )}
             minWidths={veneerColumns.map((column) => column.minWidth)}
             key={row.id}
             onRemove={() => onRemove(String(row.id))}
@@ -94,9 +101,13 @@ export function PressingSelectedVeneer<Row extends FactoryRecord>({
             remark={draft.remark}
             removeLabel="Remove selected veneer item"
             onQtyChange={(value) =>
-              onDraftChange(String(row.id), { qtyToUse: sanitizePressingDecimal(value) })
+              onDraftChange(String(row.id), {
+                qtyToUse: sanitizePressingDecimal(value),
+              })
             }
-            onRemarkChange={(value) => onDraftChange(String(row.id), { remark: value })}
+            onRemarkChange={(value) =>
+              onDraftChange(String(row.id), { remark: value })
+            }
           />
         );
       })}
@@ -123,7 +134,11 @@ export function PressingSelectedBase<Row extends FactoryRecord>({
     <UsageCard title="Selected Base Material">
       {rows.map((row) => {
         const draft = drafts[String(row.id)] ?? { qtyToUse: "", remark: "" };
-        const area = calculatePressingUsedArea(row.length, row.width, draft.qtyToUse);
+        const area = calculatePressingUsedArea(
+          row.length,
+          row.width,
+          draft.qtyToUse,
+        );
         const qtyError = getPressingQtyError(
           draft.qtyToUse,
           row.availableSheets,
@@ -131,7 +146,9 @@ export function PressingSelectedBase<Row extends FactoryRecord>({
           "Sheets to use",
         );
         const values = baseColumns.map((column) =>
-          column.key === "materialType" ? materialType : pressingText(row[column.key]) || "-",
+          column.key === "materialType"
+            ? materialType
+            : pressingText(row[column.key]) || "-",
         );
 
         return (
@@ -141,9 +158,13 @@ export function PressingSelectedBase<Row extends FactoryRecord>({
             minWidths={baseColumns.map((column) => column.minWidth)}
             key={row.id}
             onQtyChange={(value) =>
-              onDraftChange(String(row.id), { qtyToUse: sanitizePressingInteger(value) })
+              onDraftChange(String(row.id), {
+                qtyToUse: sanitizePressingInteger(value),
+              })
             }
-            onRemarkChange={(value) => onDraftChange(String(row.id), { remark: value })}
+            onRemarkChange={(value) =>
+              onDraftChange(String(row.id), { remark: value })
+            }
             onRemove={() => onRemove(String(row.id))}
             qtyError={qtyError}
             qtyLabel="Sheets To Use"
@@ -164,17 +185,20 @@ function UsageCard({
   children: ReactNode;
   title: string;
 }) {
-  const columns = title === "Selected Base Material" ? baseColumns : veneerColumns;
-  const quantityLabel = title === "Selected Base Material" ? "Sheets To Use" : "Qty To Use";
+  const columns =
+    title === "Selected Base Material" ? baseColumns : veneerColumns;
+  const quantityLabel =
+    title === "Selected Base Material" ? "Sheets To Use" : "Qty To Use";
 
   return (
     <Stack
       sx={(theme) => ({
-        ...formSectionCardSx(theme),
         gap: theme.spacing(1),
       })}
     >
-      <FormSectionHeader title={title} />
+      <Typography component="h2" sx={plainFormSectionHeadingSx}>
+        {title}
+      </Typography>
       <Box sx={(theme) => listingTableContainerSx(theme)}>
         <TableContainer sx={(theme) => listingScrollSx(theme)}>
           <Table stickyHeader sx={usageTableSx}>
@@ -183,24 +207,36 @@ function UsageCard({
                 {columns.map((column) => (
                   <TableCell
                     key={column.key}
-                    sx={(theme) => pressingCompactHeaderCellSx(theme, column.minWidth)}
+                    sx={(theme) =>
+                      pressingCompactHeaderCellSx(theme, column.minWidth)
+                    }
                   >
                     {column.label}
                   </TableCell>
                 ))}
-                <TableCell sx={(theme) => pressingCompactHeaderCellSx(theme, 132)}>
+                <TableCell
+                  sx={(theme) => pressingCompactHeaderCellSx(theme, 132)}
+                >
                   {quantityLabel}
                 </TableCell>
-                <TableCell sx={(theme) => pressingCompactHeaderCellSx(theme, 72)}>
+                <TableCell
+                  sx={(theme) => pressingCompactHeaderCellSx(theme, 72)}
+                >
                   SQM Used
                 </TableCell>
-                <TableCell sx={(theme) => pressingCompactHeaderCellSx(theme, 72)}>
+                <TableCell
+                  sx={(theme) => pressingCompactHeaderCellSx(theme, 72)}
+                >
                   SQF Used
                 </TableCell>
-                <TableCell sx={(theme) => pressingCompactHeaderCellSx(theme, 120)}>
+                <TableCell
+                  sx={(theme) => pressingCompactHeaderCellSx(theme, 120)}
+                >
                   Remark
                 </TableCell>
-                <TableCell sx={(theme) => actionHeaderCellSx(theme)}>Action</TableCell>
+                <TableCell sx={(theme) => actionHeaderCellSx(theme)}>
+                  Action
+                </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>{children}</TableBody>
@@ -247,7 +283,9 @@ function UsageRow({
       {cells.map((value, index) => (
         <TableCell
           key={`${value}-${index}`}
-          sx={(theme) => pressingCompactBodyCellSx(theme, minWidths[index] ?? 72)}
+          sx={(theme) =>
+            pressingCompactBodyCellSx(theme, minWidths[index] ?? 72)
+          }
         >
           {value}
         </TableCell>
@@ -267,7 +305,12 @@ function UsageRow({
           size="small"
           slotProps={{
             formHelperText: {
-              sx: { lineHeight: 1.25, maxWidth: 120, mx: 0, whiteSpace: "normal" },
+              sx: {
+                lineHeight: 1.25,
+                maxWidth: 120,
+                mx: 0,
+                whiteSpace: "normal",
+              },
             },
           }}
           sx={(theme) => ({
@@ -277,8 +320,12 @@ function UsageRow({
           value={qtyValue}
         />
       </TableCell>
-      <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, 72)}>{area.sqm || "-"}</TableCell>
-      <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, 72)}>{area.sqf || "-"}</TableCell>
+      <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, 72)}>
+        {area.sqm || "-"}
+      </TableCell>
+      <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, 72)}>
+        {area.sqf || "-"}
+      </TableCell>
       <TableCell sx={(theme) => pressingCompactBodyCellSx(theme, 120)}>
         <TextField
           onChange={(event) => onRemarkChange(event.target.value)}
@@ -298,7 +345,9 @@ function UsageRow({
           size="small"
           sx={(theme) => ({
             color: theme.customTokens.navigation.activeText,
-            "&:hover": { backgroundColor: theme.customTokens.navigation.hoverBackground },
+            "&:hover": {
+              backgroundColor: theme.customTokens.navigation.hoverBackground,
+            },
           })}
         >
           <Trash2 size={16} />

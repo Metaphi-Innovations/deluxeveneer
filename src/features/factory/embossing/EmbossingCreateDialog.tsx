@@ -37,13 +37,21 @@ function displayDetail(value: unknown) {
   }
 
   if (typeof value === "number" && Number.isFinite(value)) {
-    return Number.isInteger(value) ? String(value) : Number(value.toFixed(3)).toString();
+    return Number.isInteger(value)
+      ? String(value)
+      : Number(value.toFixed(3)).toString();
   }
 
   if (typeof value === "string" && value.trim()) {
     const numeric = Number(value.trim());
-    if (!Number.isNaN(numeric) && !value.includes("-") && !value.includes("/")) {
-      return Number.isInteger(numeric) ? value.trim() : Number(numeric.toFixed(3)).toString();
+    if (
+      !Number.isNaN(numeric) &&
+      !value.includes("-") &&
+      !value.includes("/")
+    ) {
+      return Number.isInteger(numeric)
+        ? value.trim()
+        : Number(numeric.toFixed(3)).toString();
     }
     return value.trim();
   }
@@ -98,6 +106,7 @@ function todayInputValue() {
 export function buildEmbossingDoneSnapshot(
   row: FactoryRecord,
   entry: {
+    damagedSheets: number;
     embossingDate: string;
     noOfSheets: number;
     remark: string;
@@ -109,18 +118,28 @@ export function buildEmbossingDoneSnapshot(
   const remark = entry.remark.trim();
   const structureCode = entry.structureCode.trim();
   const embossingDate = entry.embossingDate.trim();
+  const outputSqf = scaleMeasure(row.sqf, availableSheets, entry.noOfSheets);
+  const outputSqm = scaleMeasure(row.sqm, availableSheets, entry.noOfSheets);
 
   return {
     ...row,
     cncDate: embossingDate,
     embossingDate,
     ...(structureCode ? { structureCode } : {}),
+    damagedSheets: String(entry.damagedSheets),
+    embossingDamagedSheets: String(entry.damagedSheets),
     embossedSheets: sheets,
     listingState: "done",
     noOfSheets: sheets,
     outputNoOfSheets: sheets,
-    sqf: scaleMeasure(row.sqf, availableSheets, entry.noOfSheets),
-    sqm: scaleMeasure(row.sqm, availableSheets, entry.noOfSheets),
+    receivedSheets: sheets,
+    availableSheets: sheets,
+    sqf: outputSqf,
+    sqm: outputSqm,
+    receivedSqf: outputSqf,
+    availableSqf: outputSqf,
+    receivedSqm: outputSqm,
+    availableSqm: outputSqm,
     ...(remark ? { remark } : {}),
   };
 }
@@ -135,6 +154,7 @@ export function EmbossingCreateDialog({
   mode?: "create" | "edit";
   onClose: () => void;
   onSave: (entry: {
+    damagedSheets: number;
     embossingDate: string;
     noOfSheets: number;
     remark: string;
@@ -146,31 +166,52 @@ export function EmbossingCreateDialog({
   const [embossingDate, setEmbossingDate] = useState("");
   const [structureCode, setStructureCode] = useState("");
   const [sheets, setSheets] = useState("");
+  const [damagedSheets, setDamagedSheets] = useState("0");
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const availableSheets = availableSheetCount(row);
+  const availableSheets =
+    mode === "edit"
+      ? Math.max(
+          availableSheetCount(row),
+          sheetCount(row?.noOfSheets ?? row?.embossedSheets) +
+            sheetCount(row?.embossingDamagedSheets ?? row?.damagedSheets),
+        )
+      : availableSheetCount(row);
 
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && row) {
-      setEmbossingDate(String(row.embossingDate ?? row.cncDate ?? todayInputValue()));
+      setEmbossingDate(
+        String(row.embossingDate ?? row.cncDate ?? todayInputValue()),
+      );
       setStructureCode(String(row.structureCode ?? ""));
-      setSheets(String(row.noOfSheets ?? row.embossedSheets ?? row.outputNoOfSheets ?? ""));
+      setSheets(
+        String(
+          row.noOfSheets ?? row.embossedSheets ?? row.outputNoOfSheets ?? "",
+        ),
+      );
+      setDamagedSheets(
+        String(row.embossingDamagedSheets ?? row.damagedSheets ?? "0"),
+      );
       setRemark(String(row.remark ?? ""));
     } else {
       setEmbossingDate(todayInputValue());
       setStructureCode(String(row?.structureCode ?? ""));
       setSheets(availableSheets > 0 ? String(availableSheets) : "");
+      setDamagedSheets("0");
       setRemark("");
     }
     setSubmitted(false);
   }, [availableSheets, mode, open, row]);
 
   const parsedSheets = sheets === "" ? Number.NaN : Number(sheets);
+  const parsedDamagedSheets =
+    damagedSheets === "" ? Number.NaN : Number(damagedSheets);
   const exceedsAvailable =
     availableSheets > 0 &&
     Number.isInteger(parsedSheets) &&
-    parsedSheets > availableSheets;
+    Number.isInteger(parsedDamagedSheets) &&
+    parsedSheets + parsedDamagedSheets > availableSheets;
   const sheetsMissing = submitted && sheets.trim() === "";
   const sheetsNotPositive =
     submitted &&
@@ -183,6 +224,20 @@ export function EmbossingCreateDialog({
       ? "Enter a whole number greater than 0."
       : sheetsMissing
         ? "Number of sheets is required."
+        : "";
+  const damagedSheetsMissing = submitted && damagedSheets.trim() === "";
+  const damagedSheetsNotValid =
+    submitted &&
+    damagedSheets.trim() !== "" &&
+    (!Number.isInteger(parsedDamagedSheets) || parsedDamagedSheets < 0);
+  const damagedSheetsInvalid =
+    damagedSheetsMissing || damagedSheetsNotValid || exceedsAvailable;
+  const damagedSheetsError = exceedsAvailable
+    ? `Processed and damaged sheets cannot exceed ${availableSheets}.`
+    : damagedSheetsNotValid
+      ? "Enter a whole number of 0 or more."
+      : damagedSheetsMissing
+        ? "Damaged sheets is required."
         : "";
 
   const details: Array<{ label: string; minWidth?: number; value: unknown }> = [
@@ -200,7 +255,11 @@ export function EmbossingCreateDialog({
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },
     { label: "Thickness", minWidth: 110, value: row?.thickness || row?.height },
-    { label: "No of Sheets", minWidth: 140, value: availableSheets || row?.noOfSheets },
+    {
+      label: "No of Sheets",
+      minWidth: 140,
+      value: availableSheets || row?.noOfSheets,
+    },
     { label: "SQM", minWidth: 120, value: row?.sqm },
     { label: "SQF", minWidth: 120, value: row?.sqf },
     { label: "Remark", minWidth: 180, value: row?.remark },
@@ -253,7 +312,10 @@ export function EmbossingCreateDialog({
                 })}
               >
                 <Box sx={(theme) => getDialogScrollableTableSx(theme)}>
-                  <Table size="small" sx={{ minWidth: 2200, tableLayout: "auto" }}>
+                  <Table
+                    size="small"
+                    sx={{ minWidth: 2200, tableLayout: "auto" }}
+                  >
                     <TableHead>
                       <TableRow>
                         {details.map((item) => (
@@ -261,7 +323,9 @@ export function EmbossingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogHeaderCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {item.label}
@@ -276,7 +340,9 @@ export function EmbossingCreateDialog({
                             key={item.label}
                             sx={(theme) => ({
                               ...getDialogBodyCellSx(theme),
-                              ...(item.minWidth ? { minWidth: item.minWidth } : {}),
+                              ...(item.minWidth
+                                ? { minWidth: item.minWidth }
+                                : {}),
                             })}
                           >
                             {displayDetail(item.value)}
@@ -304,7 +370,32 @@ export function EmbossingCreateDialog({
                   },
                 })}
               >
-                {/* 2x2 Grid: Date, Structure Code, No of Sheets, Remark */}
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Damage No. of Sheets *</DialogFieldLabel>
+                  <TextField
+                    error={damagedSheetsInvalid}
+                    fullWidth
+                    helperText={damagedSheetsError || " "}
+                    onChange={(event) =>
+                      setDamagedSheets(event.target.value.replace(/\D/g, ""))
+                    }
+                    placeholder="Enter damaged sheets"
+                    size="small"
+                    value={damagedSheets}
+                    slotProps={{
+                      htmlInput: {
+                        inputMode: "numeric",
+                        pattern: "[0-9]*",
+                      },
+                    }}
+                    sx={(theme) =>
+                      getCompactFieldSx(
+                        theme,
+                        damagedSheetsInvalid ? "error" : "default",
+                      )
+                    }
+                  />
+                </Stack>
                 <Stack spacing={0.75}>
                   <DialogFieldLabel>Embossing Date *</DialogFieldLabel>
                   <TextField
@@ -314,6 +405,16 @@ export function EmbossingCreateDialog({
                     type="date"
                     value={embossingDate}
                     sx={(theme) => getCompactFieldSx(theme, "default")}
+                  />
+                </Stack>
+                <Stack spacing={0.75}>
+                  <DialogFieldLabel>Available Sheets</DialogFieldLabel>
+                  <TextField
+                    disabled
+                    fullWidth
+                    size="small"
+                    value={availableSheets}
+                    sx={(theme) => getCompactFieldSx(theme, "disabled")}
                   />
                 </Stack>
                 <Stack spacing={0.75}>
@@ -347,7 +448,10 @@ export function EmbossingCreateDialog({
                       },
                     }}
                     sx={(theme) =>
-                      getCompactFieldSx(theme, sheetsInvalid ? "error" : "default")
+                      getCompactFieldSx(
+                        theme,
+                        sheetsInvalid ? "error" : "default",
+                      )
                     }
                   />
                 </Stack>
@@ -374,15 +478,20 @@ export function EmbossingCreateDialog({
           py: theme.spacing(1.5),
         })}
       >
-        <Button onClick={onClose} sx={recordFormActionButtonSx} variant="outlined">
+        <Button
+          onClick={onClose}
+          sx={recordFormActionButtonSx}
+          variant="outlined"
+        >
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
         <Button
           onClick={() => {
             setSubmitted(true);
-            if (sheetsInvalid) return;
+            if (sheetsInvalid || damagedSheetsInvalid) return;
             onSave({
+              damagedSheets: parsedDamagedSheets,
               embossingDate: embossingDate.trim(),
               noOfSheets: parsedSheets,
               remark: remark.trim(),

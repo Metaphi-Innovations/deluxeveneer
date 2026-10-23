@@ -1,4 +1,5 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
+import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
@@ -13,10 +14,11 @@ const finishingHiddenKeys = new Set([
   "ratePerSqf",
 ]);
 
-const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
-  { key: "designCode", label: "Design Code" },
-  { key: "structureCode", label: "Structure Code" },
-];
+const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
+  [
+    { key: "designCode", label: "Design Code" },
+    { key: "structureCode", label: "Structure Code" },
+  ];
 
 export function applyFinishingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
@@ -39,7 +41,40 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
   });
 
   if (activeTab === "issued") {
-    return insertColumnsAfter(visible, "itemSubCategory", finishingIssuedCodeColumns);
+    const withCodes = insertColumnsAfter(
+      visible,
+      "itemSubCategory",
+      finishingIssuedCodeColumns,
+    );
+    const withReceivedSheets = withCodes.map((column) =>
+      column.key === "noOfSheets"
+        ? { ...column, key: "receivedSheets", label: "Received Sheets" }
+        : column,
+    );
+    const withAvailableSheets = insertColumnsAfter(
+      withReceivedSheets,
+      "receivedSheets",
+      [{ key: "availableSheets", label: "Available Sheets" }],
+    );
+    return withAvailableFactoryMeasureColumns(withAvailableSheets);
+  }
+
+  if (activeTab === "done") {
+    const withFinishingType = insertColumnsAfter(visible, "itemSubCategory", [
+      { key: "finishingType", label: "Finishing Type" },
+    ]);
+    const withReceivedSheets = withFinishingType.map((column) => {
+      if (column.key === "noOfSheets") {
+        return { ...column, key: "receivedSheets", label: "Received Sheets" };
+      }
+      return column;
+    });
+    const withAvailableSheets = insertColumnsAfter(
+      withReceivedSheets,
+      "receivedSheets",
+      [{ key: "availableSheets", label: "Available Sheets" }],
+    );
+    return withAvailableFactoryMeasureColumns(withAvailableSheets);
   }
 
   return insertColumnsAfter(visible, "itemSubCategory", [

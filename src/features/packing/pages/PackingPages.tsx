@@ -13,6 +13,4 @@ export function EditPackingPage() {
   return <PackingRecordPage mode="edit" />;
 }
 
-export function ViewPackingPage() {
-  return <PackingRecordPage mode="view" />;
-}
+export { ViewPackingPage } from "./ViewPackingPage";

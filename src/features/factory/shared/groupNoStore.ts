@@ -52,8 +52,7 @@ function writeStore(next: GroupNoStore) {
 }
 
 function formatGroupNo(sequence: number) {
-  const year = new Date().getFullYear();
-  return `GRP-${year}-${String(sequence).padStart(4, "0")}`;
+  return `GRP-${String(sequence).padStart(4, "0")}`;
 }
 
 /**
@@ -74,7 +73,7 @@ export function peekNextGroupNo(offset = 0) {
 
 /** Update sequence if an assigned group number has a higher sequence. */
 export function syncGroupNoSequence(groupNo: string) {
-  const match = /^GRP-\d{4}-(\d+)$/i.exec(groupNo.trim());
+  const match = /^GRP-(?:\d{4}-)?(\d+)$/i.exec(groupNo.trim());
   if (match && match[1]) {
     const seq = parseInt(match[1], 10);
     const store = readStore();
@@ -84,10 +83,10 @@ export function syncGroupNoSequence(groupNo: string) {
   }
 }
 
-
-
 export function isGroupNoValue(value: unknown): value is string {
-  return typeof value === "string" && /^GRP-\d{4}-\d{4}$/i.test(value.trim());
+  return (
+    typeof value === "string" && /^GRP-(?:\d{4}-)?\d{4}$/i.test(value.trim())
+  );
 }
 
 export function getExistingGroupNo(
@@ -99,7 +98,10 @@ export function getExistingGroupNo(
 
   const value = source.groupNo;
   if (typeof value === "string" && value.trim()) {
-    return value.trim();
+    const normalized = /^GRP-(?:\d{4}-)?(\d+)$/i.exec(value.trim());
+    return normalized?.[1]
+      ? `GRP-${normalized[1].slice(-4).padStart(4, "0")}`
+      : value.trim();
   }
 
   return "";

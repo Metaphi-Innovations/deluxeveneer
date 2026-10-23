@@ -10,6 +10,7 @@ import {
   Alert,
   IconButton,
   Typography,
+  Snackbar,
 } from "@mui/material";
 import { X, Save } from "lucide-react";
 import { createGstApi, fetchGstsApi, syncGstMasterToStorage } from "./api/gstMasterApi";
@@ -31,26 +32,57 @@ export function QuickAddGstModal({
   const [remark, setRemark] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [existingGsts, setExistingGsts] = useState<string[]>([]);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error" | "warning";
+  } | null>(null);
 
   useEffect(() => {
     if (open) {
       setGstPercentage("");
       setRemark("");
       setError("");
+
+      fetchGstsApi({ limit: 1000 })
+        .then((records) => {
+          const gsts = records
+            .map((r) => String(r.gstPercentage || r.percentage || "").trim().replace(/%+$/, ""))
+            .filter(Boolean);
+          setExistingGsts(gsts);
+        })
+        .catch(() => {});
     }
   }, [open]);
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!gstPercentage.trim()) {
-      setError("GST % is required");
+    const rawVal = gstPercentage.trim().replace(/%+$/, "");
+    if (!rawVal) {
+      const msg = "GST % is required.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (isNaN(Number(rawVal)) || Number(rawVal) < 0 || Number(rawVal) > 100) {
+      const msg = "GST % must be a valid number between 0 and 100.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    if (existingGsts.includes(rawVal)) {
+      const msg = `GST "${rawVal}%" already exists.`;
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
       return;
     }
 
     try {
       setIsSubmitting(true);
       setError("");
-      const cleanedValue = gstPercentage.trim().replace(/%+$/, "");
+      const cleanedValue = rawVal;
       const created = await createGstApi({
         percentage: cleanedValue,
         gstPercentage: cleanedValue,
@@ -66,21 +98,23 @@ export function QuickAddGstModal({
       }
 
       void invalidateMaster("gst");
+      setToastNotification({ message: `GST "${cleanedValue}%" added successfully!`, severity: "success" });
       onSuccess(cleanedValue, created || undefined);
-      onClose();
+      setTimeout(() => {
+        onClose();
+      }, 300);
     } catch (err: any) {
-      console.warn("Failed to create GST:", err);
-      // Fallback
-      const cleanedValue = gstPercentage.trim().replace(/%+$/, "");
-      onSuccess(cleanedValue);
-      onClose();
+      const msg = err?.message || "Failed to create GST.";
+      setError(msg);
+      setToastNotification({ message: msg, severity: "error" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       onClose={onClose}
       maxWidth="xs"
@@ -220,6 +254,25 @@ export function QuickAddGstModal({
           </Button>
         </DialogActions>
       </form>
-    </Dialog>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%", boxShadow: 3 }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
+    </>
   );
 }

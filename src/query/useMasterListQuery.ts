@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { queryKeys } from "./queryKeys";
 import { useDebouncedValue } from "./useDebouncedValue";
@@ -48,7 +48,6 @@ export function useMasterListQuery<T>({
 
   const listQuery = useQuery({
     queryKey: queryKeys.masters.list(master, listParams),
-    placeholderData: keepPreviousData,
     queryFn: async () => {
       const result = await fetchPage({
         page,

@@ -392,6 +392,8 @@ export function mapInwardListItemToRow(
     mdfType: "",
     createdBy: item.createdBy ?? "",
     updatedBy: item.updatedBy ?? "",
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
   };
 }
 

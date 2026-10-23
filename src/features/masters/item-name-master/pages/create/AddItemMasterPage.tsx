@@ -262,6 +262,10 @@ export function AddItemMasterPage() {
         onFieldChange={(key, value) => {
           if (key === "category" && typeof value === "string") {
             setSelectedCategory(value);
+            setSelectedSubCategory("");
+          }
+          if (key === "subCategory" && typeof value === "string") {
+            setSelectedSubCategory(value);
           }
           if (key === "color" && typeof value === "string") {
             setSelectedColor(value);

@@ -11,7 +11,6 @@ import {
   DialogTitle,
   IconButton,
   InputAdornment,
-  LinearProgress,
   MenuItem,
   Select,
   Snackbar,
@@ -108,6 +107,8 @@ export function UserManagementListing() {
   const {
     createdByFilter,
     createdByOptions,
+    createdDateFrom,
+    createdDateTo,
     departmentFilter,
     departmentOptions,
     emailFilter,
@@ -124,6 +125,8 @@ export function UserManagementListing() {
     rowsPerPage,
     searchValue,
     setCreatedByFilter,
+    setCreatedDateFrom,
+    setCreatedDateTo,
     setDepartmentFilter,
     setEmailFilter,
     setPage,
@@ -132,6 +135,8 @@ export function UserManagementListing() {
     setSearchValue,
     setStatusFilter,
     setUpdatedByFilter,
+    setUpdatedDateFrom,
+    setUpdatedDateTo,
     setUserFilter,
     sortConfig,
     statusFilter,
@@ -139,6 +144,8 @@ export function UserManagementListing() {
     totalPages,
     updatedByFilter,
     updatedByOptions,
+    updatedDateFrom,
+    updatedDateTo,
     userFilter,
     userOptions,
   } = useUserList(canEdit);
@@ -243,8 +250,8 @@ export function UserManagementListing() {
     (emailFilter.length > 0 ? 1 : 0) +
     (phoneFilter.length > 0 ? 1 : 0) +
     (statusFilter.length > 0 ? 1 : 0) +
-    (createdByFilter.length > 0 ? 1 : 0) +
-    (updatedByFilter.length > 0 ? 1 : 0);
+    (createdByFilter.length > 0 || createdDateFrom || createdDateTo ? 1 : 0) +
+    (updatedByFilter.length > 0 || updatedDateFrom || updatedDateTo ? 1 : 0);
 
   const effectiveTotalCount =
     activeColumnFilterCount > 0 ? filteredRows.length : totalCount;
@@ -462,7 +469,11 @@ export function UserManagementListing() {
     setPhoneFilter([]);
     setStatusFilter([]);
     setCreatedByFilter([]);
+    setCreatedDateFrom("");
+    setCreatedDateTo("");
     setUpdatedByFilter([]);
+    setUpdatedDateFrom("");
+    setUpdatedDateTo("");
     handleCloseColumnFilter();
   };
 
@@ -498,6 +509,7 @@ export function UserManagementListing() {
       updatedByOptions.map((option) => ({ value: option, label: option })),
     [updatedByOptions],
   );
+
 
   const statusFilterOptions = useMemo(
     () => [
@@ -558,27 +570,50 @@ export function UserManagementListing() {
                   onApply: setStatusFilter,
                   onClear: () => setStatusFilter([]),
                 }
-              : activeColumnFilter === "createdBy"
-                ? {
-                    label: "Created By",
-                    options: createdByFilterOptions,
-                    selectedValues: createdByFilter,
-                    searchable: true,
-                    searchPlaceholder: "Search values...",
-                    onApply: setCreatedByFilter,
-                    onClear: () => setCreatedByFilter([]),
-                  }
-                : activeColumnFilter === "updatedBy"
-                  ? {
-                      label: "Updated By",
-                      options: updatedByFilterOptions,
-                      selectedValues: updatedByFilter,
-                      searchable: true,
-                      searchPlaceholder: "Search values...",
-                      onApply: setUpdatedByFilter,
-                      onClear: () => setUpdatedByFilter([]),
-                    }
-                  : null;
+              : null;
+
+  const activeAuditFilterConfig =
+    activeColumnFilter === "createdBy"
+      ? {
+        label: "Created By",
+        options: createdByFilterOptions,
+        selectedValues: createdByFilter,
+        dateRange: {
+          from: createdDateFrom,
+          to: createdDateTo,
+        },
+        onApplyCombined: (names: string[], dateFrom: string, dateTo: string) => {
+          setCreatedByFilter(names);
+          setCreatedDateFrom(dateFrom);
+          setCreatedDateTo(dateTo);
+        },
+        onClear: () => {
+          setCreatedByFilter([]);
+          setCreatedDateFrom("");
+          setCreatedDateTo("");
+        },
+      }
+      : activeColumnFilter === "updatedBy"
+        ? {
+          label: "Updated By",
+          options: updatedByFilterOptions,
+          selectedValues: updatedByFilter,
+          dateRange: {
+            from: updatedDateFrom,
+            to: updatedDateTo,
+          },
+          onApplyCombined: (names: string[], dateFrom: string, dateTo: string) => {
+            setUpdatedByFilter(names);
+            setUpdatedDateFrom(dateFrom);
+            setUpdatedDateTo(dateTo);
+          },
+          onClear: () => {
+            setUpdatedByFilter([]);
+            setUpdatedDateFrom("");
+            setUpdatedDateTo("");
+          },
+        }
+        : null;
 
   return (
     <MasterPageShell
@@ -644,22 +679,6 @@ export function UserManagementListing() {
           boxShadow: theme.customTokens.elevation.xs,
         }}
       >
-        {isLoading ? (
-          <LinearProgress
-            sx={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 10,
-              height: 3,
-              backgroundColor: theme.customTokens.surfaces.alt,
-              "& .MuiLinearProgress-bar": {
-                backgroundColor: theme.customTokens.brand.primary,
-              },
-            }}
-          />
-        ) : null}
         <TableContainer
           sx={{
             overflowX: "auto",
@@ -786,7 +805,10 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="Created By"
-                    selectedCount={createdByFilter.length}
+                    selectedCount={
+                      createdByFilter.length +
+                      (createdDateFrom || createdDateTo ? 1 : 0)
+                    }
                     onOpen={(event) =>
                       handleOpenColumnFilter("createdBy", event)
                     }
@@ -804,7 +826,10 @@ export function UserManagementListing() {
                 >
                   <FilterableColumnHeader
                     label="Updated By"
-                    selectedCount={updatedByFilter.length}
+                    selectedCount={
+                      updatedByFilter.length +
+                      (updatedDateFrom || updatedDateTo ? 1 : 0)
+                    }
                     onOpen={(event) =>
                       handleOpenColumnFilter("updatedBy", event)
                     }
@@ -829,13 +854,45 @@ export function UserManagementListing() {
             <TableBody>
               {currentPageRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} sx={{ py: isLoading ? 3 : 6, textAlign: "center" }}>
+                  <TableCell
+                    colSpan={9}
+                    sx={{
+                      position: "sticky",
+                      left: 0,
+                      py: isLoading ? 3 : 6,
+                      textAlign: "center",
+                    }}
+                  >
                     {isLoading ? (
-                      <ContentLoader label="Loading..." minHeight={160} />
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <ContentLoader label="Loading..." minHeight={160} />
+                      </Box>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        No users found.
-                      </Typography>
+                      <Box
+                        sx={{
+                          position: "sticky",
+                          left: 0,
+                          width: "100%",
+                          maxWidth: "100%",
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography variant="body2" color="text.secondary">
+                          No users found.
+                        </Typography>
+                      </Box>
                     )}
                   </TableCell>
                 </TableRow>
@@ -1057,11 +1114,16 @@ export function UserManagementListing() {
             flexWrap: "wrap",
             borderTop: `1px solid ${theme.customTokens.borders.divider}`,
             px: { xs: theme.spacing(1.5), md: theme.spacing(2) },
-            py: theme.spacing(1.25),
+            py: theme.spacing(0.875),
             backgroundColor: theme.customTokens.surfaces.surface,
+            minHeight: 48,
           }}
         >
-          <Typography variant="caption" color="text.secondary">
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ fontSize: "13px", lineHeight: 1.35 }}
+          >
             Showing {rangeStart}–{rangeEnd} of {totalCount}
             {activeColumnFilterCount > 0 ? " matching users" : " users"}
           </Typography>
@@ -1069,12 +1131,16 @@ export function UserManagementListing() {
           <Stack
             direction="row"
             alignItems="center"
-            spacing={1.5}
+            spacing={1}
             flexWrap="wrap"
             useFlexGap
           >
-            <Stack direction="row" alignItems="center" spacing={0.75}>
-              <Typography variant="caption" color="text.secondary">
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ fontSize: "13px", lineHeight: 1.35 }}
+              >
                 Rows per page
               </Typography>
               <Select
@@ -1085,11 +1151,22 @@ export function UserManagementListing() {
                 }}
                 sx={{
                   minWidth: 72,
-                  height: 32,
+                  height: 34,
+                  minHeight: "34px !important",
+                  maxHeight: 34,
                   borderRadius: `${theme.customTokens.radius.sm}px`,
-                  fontSize: theme.typography.caption.fontSize,
+                  fontSize: "13px",
                   "& .MuiOutlinedInput-notchedOutline": {
                     borderColor: theme.customTokens.borders.default,
+                  },
+                  "& .MuiSelect-select": {
+                    minHeight: "0 !important",
+                    px: 0.75,
+                    py: 0,
+                    fontSize: "13px",
+                    lineHeight: 1,
+                    display: "flex",
+                    alignItems: "center",
                   },
                 }}
               >
@@ -1101,7 +1178,7 @@ export function UserManagementListing() {
               </Select>
             </Stack>
 
-            <Stack direction="row" alignItems="center" spacing={0.5} flexWrap="wrap" useFlexGap>
+            <Stack direction="row" alignItems="center" spacing={0.25} flexWrap="wrap" useFlexGap>
               <IconButton
                 size="small"
                 disabled={safePage <= 1}
@@ -1150,13 +1227,13 @@ export function UserManagementListing() {
             <Stack
               direction="row"
               alignItems="center"
-              spacing={0.75}
+              spacing={0.5}
               sx={{ position: "relative" }}
             >
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{ fontSize: "12px", whiteSpace: "nowrap" }}
+                sx={{ fontSize: "13px", lineHeight: 1.35, whiteSpace: "nowrap" }}
               >
                 Go to
               </Typography>
@@ -1181,15 +1258,17 @@ export function UserManagementListing() {
                   "aria-label": "Go to page",
                 }}
                 sx={{
-                  width: 52,
+                  width: 56,
                   "& .MuiOutlinedInput-root": {
-                    height: 30,
+                    height: 34,
+                    minHeight: "34px !important",
+                    maxHeight: 34,
                     borderRadius: `${theme.customTokens.radius.sm}px`,
-                    fontSize: "12px",
+                    fontSize: "13px",
                     backgroundColor: theme.customTokens.surfaces.surface,
                   },
                   "& .MuiOutlinedInput-input": {
-                    p: "4px 6px",
+                    p: "1px 4px",
                     textAlign: "center",
                   },
                   "& .MuiOutlinedInput-notchedOutline": {
@@ -1240,12 +1319,14 @@ export function UserManagementListing() {
                   variant="outlined"
                   onClick={handleGoToPageSubmit}
                   sx={{
-                    minWidth: 36,
-                    height: 30,
+                    minWidth: 40,
+                    height: 34,
+                    minHeight: "34px !important",
+                    maxHeight: 34,
                     px: 1,
                     py: 0,
                     borderRadius: `${theme.customTokens.radius.sm}px`,
-                    fontSize: "12px",
+                    fontSize: "13px",
                     fontWeight: 500,
                     textTransform: "none",
                     borderColor: goToPageError
@@ -1301,6 +1382,24 @@ export function UserManagementListing() {
           onClear={activeFilterConfig.onClear}
           searchable={activeFilterConfig.searchable}
           searchPlaceholder={activeFilterConfig.searchPlaceholder}
+        />
+      ) : null}
+
+      {activeAuditFilterConfig ? (
+        <SearchableMultiSelectColumnFilter
+          open={Boolean(columnFilterAnchor)}
+          anchorEl={columnFilterAnchor}
+          onClose={handleCloseColumnFilter}
+          label={activeAuditFilterConfig.label}
+          options={activeAuditFilterConfig.options}
+          selectedValues={activeAuditFilterConfig.selectedValues}
+          onApply={() => undefined}
+          primaryLabel="Name"
+          dateRange={activeAuditFilterConfig.dateRange}
+          onApplyCombined={activeAuditFilterConfig.onApplyCombined}
+          onClear={activeAuditFilterConfig.onClear}
+          searchable
+          searchPlaceholder="Search names..."
         />
       ) : null}
 
@@ -1738,47 +1837,6 @@ function FilterableColumnHeader({
           sx={(currentTheme) => listingTableHeaderIconButtonSx(currentTheme)}
         >
           <SortIndicator active={sortActive} direction={sortDirection} />
-        </IconButton>
-      ) : null}
-
-      {onOpen ? (
-        <IconButton
-          size="small"
-          aria-label={`Filter by ${label}`}
-          onClick={onOpen}
-          sx={(currentTheme) => ({
-            ...listingTableHeaderIconButtonSx(currentTheme),
-            position: "relative",
-            color: active
-              ? currentTheme.customTokens.brand.primary
-              : currentTheme.customTokens.text.secondary,
-          })}
-        >
-          <ListFilter
-            size={portalIconSize.tableHeader}
-            strokeWidth={portalIconStroke.default}
-          />
-          {active && selectedCount ? (
-            <Box
-              sx={{
-                position: "absolute",
-                top: -3,
-                right: -4,
-                minWidth: 14,
-                height: 14,
-                px: 0.35,
-                borderRadius: "999px",
-                backgroundColor: theme.customTokens.brand.primary,
-                color: "#FFFFFF",
-                fontSize: "0.625rem",
-                fontWeight: 700,
-                lineHeight: "14px",
-                textAlign: "center",
-              }}
-            >
-              {selectedCount > 9 ? "9+" : selectedCount}
-            </Box>
-          ) : null}
         </IconButton>
       ) : null}
     </Stack>

@@ -53,9 +53,7 @@ import {
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import {
-  getListingToolbarButtonSx,
-} from "../../shared/buttonStyles";
+import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -98,15 +96,19 @@ import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColum
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
 import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
-import { FinishingIssueToPackingDialog } from "../finishing/FinishingIssueToPackingDialog";
 import { issueFinishingToPacking } from "../../packing/shared/packingStore";
 import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
+import { availableFactoryMeasures } from "./factoryAvailableMeasures";
 import {
   applyPressingIssuedForLabels,
   getPressingForLabel,
 } from "../pressing/pressingIssuedForLabel";
 import { applyPressingListingColumns } from "../pressing/pressingListingColumns";
 import { getPressingNextProcessActions } from "../pressing/pressingNextProcessActions";
+import {
+  getPressingIssueBalances,
+  PressingIssueDialog,
+} from "../pressing/PressingIssueDialog";
 import { mapSplicingIssuedListingRow } from "../splicing/mapSplicingIssuedListingRow";
 import { applySplicingListingColumns } from "../splicing/splicingListingColumns";
 import { appendSplicingSampleIssueActions } from "../splicing/splicingSampleActions";
@@ -252,11 +254,19 @@ function getGroupingOrderItemDetails(
 
   // If orderNo doesn't directly exist in orderRecords (e.g. factory mock row ORD-2026-12xx),
   // pick a consistent order from orderRecords based on itemIndex so lineItem fields are populated
-  const fallbackOrder = orderRecords.length > 0 ? (orderRecords[itemIndex % orderRecords.length] ?? orderRecords[0] ?? null) : null;
+  const fallbackOrder =
+    orderRecords.length > 0
+      ? (orderRecords[itemIndex % orderRecords.length] ??
+        orderRecords[0] ??
+        null)
+      : null;
   const order: OrderRecord | null = matchedOrder ?? fallbackOrder ?? null;
 
   const orderLineItems = order ? getOrderLineItems(order.id) : [];
-  const lineItem = orderLineItems[itemIndex % Math.max(1, orderLineItems.length)] ?? orderLineItems[0] ?? null;
+  const lineItem =
+    orderLineItems[itemIndex % Math.max(1, orderLineItems.length)] ??
+    orderLineItems[0] ??
+    null;
 
   return { lineItem, order, orderItemNo, row, stageLabel };
 }
@@ -286,10 +296,14 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [searchParams, setSearchParams] = useSearchParams();
   const isDryingInspectionModule = isDryingInspectionSlug(definition.slug);
   const urlTab = searchParams.get("tab") as ListingTab | null;
-  const [activeTabState, setActiveTabState] = useState<ListingTab>(() => urlTab || "issued");
+  const [activeTabState, setActiveTabState] = useState<ListingTab>(
+    () => urlTab || "issued",
+  );
   const requestedTab = urlTab || activeTabState;
   const activeTab =
-    isDryingInspectionModule && requestedTab === "failed" ? "history" : requestedTab;
+    isDryingInspectionModule && requestedTab === "failed"
+      ? "history"
+      : requestedTab;
 
   const setActiveTab = (newTab: ListingTab) => {
     setActiveTabState(newTab);
@@ -334,11 +348,18 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [revertedRowIds, setRevertedRowIds] = useState<string[]>([]);
   const [confirmRevertRow, setConfirmRevertRow] = useState<{
     row: Row;
-    type: "issued" | "rejected" | "drying-done" | "inspection-done" | "inspection-failed" | "finishing-done";
+    type:
+      | "issued"
+      | "rejected"
+      | "drying-done"
+      | "inspection-done"
+      | "inspection-failed"
+      | "finishing-done";
   } | null>(null);
   const [confirmIssueDryingOpen, setConfirmIssueDryingOpen] = useState(false);
   const [issueDryingRows, setIssueDryingRows] = useState<Row[]>([]);
-  const [confirmIssueInspectionOpen, setConfirmIssueInspectionOpen] = useState(false);
+  const [confirmIssueInspectionOpen, setConfirmIssueInspectionOpen] =
+    useState(false);
   const [rejectConfirmRow, setRejectConfirmRow] = useState<Row | null>(null);
   const [issueConfirm, setIssueConfirm] = useState<{
     description: string;
@@ -347,10 +368,15 @@ export function FactoryListing<Row extends FactoryRecord>({
     title: string;
   } | null>(null);
   const [rejectedDoneRows, setRejectedDoneRows] = useState<Row[]>([]);
-  const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>([]);
+  const [inspectionCompletedRows, setInspectionCompletedRows] = useState<Row[]>(
+    [],
+  );
   const [inspectionFailedRows, setInspectionFailedRows] = useState<Row[]>([]);
-  const [inspectionDecisionTargetRow, setInspectionDecisionTargetRow] = useState<Row | null>(null);
-  const [sawingWarehouseMoveRows, setSawingWarehouseMoveRows] = useState<Row[]>([]);
+  const [inspectionDecisionTargetRow, setInspectionDecisionTargetRow] =
+    useState<Row | null>(null);
+  const [sawingWarehouseMoveRows, setSawingWarehouseMoveRows] = useState<Row[]>(
+    [],
+  );
   const [splicingOrderIssue, setSplicingOrderIssue] =
     useState<SplicingOrderIssueState<Row> | null>(null);
   const [groupingSampleIssue, setGroupingSampleIssue] =
@@ -363,38 +389,102 @@ export function FactoryListing<Row extends FactoryRecord>({
     useState<Row | null>(null);
   const [dryingCreateRow, setDryingCreateRow] = useState<Row | null>(null);
   const [dryingEditRow, setDryingEditRow] = useState<Row | null>(null);
-  const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(null);
+  const [finishingCreateRow, setFinishingCreateRow] = useState<Row | null>(
+    null,
+  );
   const [finishingEditRow, setFinishingEditRow] = useState<Row | null>(null);
   const [flutingCreateRow, setFlutingCreateRow] = useState<Row | null>(null);
   const [flutingEditRow, setFlutingEditRow] = useState<Row | null>(null);
-  const [embossingCreateRow, setEmbossingCreateRow] = useState<Row | null>(null);
+  const [embossingCreateRow, setEmbossingCreateRow] = useState<Row | null>(
+    null,
+  );
   const [embossingEditRow, setEmbossingEditRow] = useState<Row | null>(null);
-  const [splicingPressingIssueRows, setSplicingPressingIssueRows] =
-    useState<Row[]>([]);
-  const [marquetryPressingIssueRows, setMarquetryPressingIssueRows] =
-    useState<Row[]>([]);
-  const [flutingFinishingIssueRows, setFlutingFinishingIssueRows] =
-    useState<Row[]>([]);
+  const [pressingIssue, setPressingIssue] = useState<{
+    destination: string;
+    row: Row;
+  } | null>(null);
+  const [pressingAvailabilityPatches, setPressingAvailabilityPatches] =
+    useState<
+      Record<
+        string,
+        {
+          availableSheets: string;
+          availableSqf: string;
+          availableSqm: string;
+        }
+      >
+    >({});
+  const [splicingPressingIssueRows, setSplicingPressingIssueRows] = useState<
+    Row[]
+  >([]);
+  const [marquetryPressingIssueRows, setMarquetryPressingIssueRows] = useState<
+    Row[]
+  >([]);
+  const [flutingFinishingIssueRows, setFlutingFinishingIssueRows] = useState<
+    Row[]
+  >([]);
   const [embossingFinishingIssueRows, setEmbossingFinishingIssueRows] =
     useState<Row[]>([]);
-  const [finishingPackingIssueRows, setFinishingPackingIssueRows] =
-    useState<Row[]>([]);
-  const [finishingPackingIssueRow, setFinishingPackingIssueRow] =
-    useState<Row | null>(null);
+  const [finishingPackingIssueRows, setFinishingPackingIssueRows] = useState<
+    Row[]
+  >([]);
+  const [stageIssue, setStageIssue] = useState<{
+    destination: "Finishing" | "Packing";
+    row: Row;
+    sourceSlug: "cnc-fluting" | "embossing" | "finishing";
+  } | null>(null);
+  const [stageAvailabilityPatches, setStageAvailabilityPatches] = useState<
+    Record<
+      string,
+      {
+        availableSheets: string;
+        availableSqf: string;
+        availableSqm: string;
+      }
+    >
+  >({});
   const [dryingRejectRow, setDryingRejectRow] = useState<Row | null>(null);
-  const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<Record<string, number>>({});
-  const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>([]);
-  const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] = useState<Row[]>([]);
-  const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<Row[]>([]);
-  const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<string[]>([]);
-  const [warehouseBTransferredWarehouseMap, setWarehouseBTransferredWarehouseMap] = useState<Record<string, string>>({});
+  const [dryingDoneLeafPatches, setDryingDoneLeafPatches] = useState<
+    Record<string, number>
+  >({});
+  const [dryingDoneRemovedIds, setDryingDoneRemovedIds] = useState<string[]>(
+    [],
+  );
+  const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] =
+    useState<Row[]>([]);
+  const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<
+    Row[]
+  >([]);
+  const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<
+    string[]
+  >([]);
+  const [
+    warehouseBTransferredWarehouseMap,
+    setWarehouseBTransferredWarehouseMap,
+  ] = useState<Record<string, string>>({});
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
-    Record<string, { issuedLeaves: number; availableLeaves: number; status: "Pending" | "Partially Done" | "Done" }>
+    Record<
+      string,
+      {
+        issuedLeaves: number;
+        availableLeaves: number;
+        status: "Pending" | "Partially Done" | "Done";
+      }
+    >
   >({});
   const [warehouseBMoveRows, setWarehouseBMoveRows] = useState<Row[]>([]);
-  const [dryingInspectionQtyEditRow, setDryingInspectionQtyEditRow] = useState<Row | null>(null);
+  const [dryingInspectionQtyEditRow, setDryingInspectionQtyEditRow] =
+    useState<Row | null>(null);
   const [inspectionTrackingMap, setInspectionTrackingMap] = useState<
-    Record<string, { passQty: number; failQty: number; availableLeaves: number; status: "Pending" | "Partially Pending" | "Done" }>
+    Record<
+      string,
+      {
+        passQty: number;
+        failQty: number;
+        availableLeaves: number;
+        status: "Pending" | "Partially Pending" | "Done";
+      }
+    >
   >({});
   const sampleSheetRecords = useSampleSheetRecords();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
@@ -414,15 +504,22 @@ export function FactoryListing<Row extends FactoryRecord>({
     definition.slug === "embossing" ||
     definition.slug === "finishing";
   const isDryingDoneTab = definition.slug === "drying" && activeTab === "done";
-  const isSlicingDoneTab = definition.slug === "slicing" && activeTab === "done";
-  const isSplicingDoneTab = definition.slug === "splicing" && activeTab === "done";
-  const isMarquetryDoneTab = definition.slug === "marquetry" && activeTab === "done";
-  const isFlutingDoneTab = definition.slug === "cnc-fluting" && activeTab === "done";
-  const isEmbossingDoneTab = definition.slug === "embossing" && activeTab === "done";
-  const isFinishingDoneTab = definition.slug === "finishing" && activeTab === "done";
+  const isSlicingDoneTab =
+    definition.slug === "slicing" && activeTab === "done";
+  const isSplicingDoneTab =
+    definition.slug === "splicing" && activeTab === "done";
+  const isMarquetryDoneTab =
+    definition.slug === "marquetry" && activeTab === "done";
+  const isFlutingDoneTab =
+    definition.slug === "cnc-fluting" && activeTab === "done";
+  const isEmbossingDoneTab =
+    definition.slug === "embossing" && activeTab === "done";
+  const isFinishingDoneTab =
+    definition.slug === "finishing" && activeTab === "done";
   const isDryingInspectionDoneTab =
     isDryingInspectionModule && activeTab === "done";
-  const isSawingInspectionDoneTab = definition.slug === "sawing-inspection" && activeTab === "done";
+  const isSawingInspectionDoneTab =
+    definition.slug === "sawing-inspection" && activeTab === "done";
   const isSelectableTab =
     isDryingDoneTab ||
     isSlicingDoneTab ||
@@ -461,16 +558,17 @@ export function FactoryListing<Row extends FactoryRecord>({
         })
         .map((item) => item.sourceRowId),
     );
-    const baseRowsForTab = getFactoryRowsForTab(definition.rows, activeTab).filter(
-      (row) => !movedSourceRowIds.has(String(row.id)),
-    );
+    const baseRowsForTab = getFactoryRowsForTab(
+      definition.rows,
+      activeTab,
+    ).filter((row) => !movedSourceRowIds.has(String(row.id)));
     const groupingIssueHistoryRows =
       isGroupingModule && activeTab === "history"
         ? groupedStockIssues.map((issue) => {
             const order = issue.orderNo
-              ? orderRecords.find(
+              ? (orderRecords.find(
                   (record) => record.orderNo === issue.orderNo,
-                ) ?? null
+                ) ?? null)
               : null;
 
             return {
@@ -493,28 +591,32 @@ export function FactoryListing<Row extends FactoryRecord>({
     const rowsForTab =
       isGroupingModule && activeTab === "history"
         ? [...groupingIssueHistoryRows, ...baseRowsForTab]
-      : activeTab === "rejected"
-        ? [...baseRowsForTab, ...rejectedDoneRows]
-        : definition.slug === "drying" && activeTab === "history"
-          ? [...dryingInspectionHistoryRows, ...baseRowsForTab]
-        : isDryingInspectionModule && activeTab === "history"
-          ? [...dryingInspectionEventRows, ...baseRowsForTab]
-        : isInspectionModule && activeTab === "issued"
-          ? baseRowsForTab.filter((row) => {
-            const tracking = inspectionTrackingMap[String(row.id)];
-            if (tracking && tracking.status === "Partially Pending") {
-              return true;
-            }
-            return (
-              !inspectionCompletedRows.some((completed) => completed.id === row.id) &&
-              !inspectionFailedRows.some((failed) => failed.id === row.id)
-            );
-          })
-          : isInspectionModule && activeTab === "done"
-            ? [...baseRowsForTab, ...inspectionCompletedRows]
-            : isInspectionModule && activeTab === "failed"
-              ? [...baseRowsForTab, ...inspectionFailedRows]
-              : baseRowsForTab;
+        : activeTab === "rejected"
+          ? [...baseRowsForTab, ...rejectedDoneRows]
+          : definition.slug === "drying" && activeTab === "history"
+            ? [...dryingInspectionHistoryRows, ...baseRowsForTab]
+            : isDryingInspectionModule && activeTab === "history"
+              ? [...dryingInspectionEventRows, ...baseRowsForTab]
+              : isInspectionModule && activeTab === "issued"
+                ? baseRowsForTab.filter((row) => {
+                    const tracking = inspectionTrackingMap[String(row.id)];
+                    if (tracking && tracking.status === "Partially Pending") {
+                      return true;
+                    }
+                    return (
+                      !inspectionCompletedRows.some(
+                        (completed) => completed.id === row.id,
+                      ) &&
+                      !inspectionFailedRows.some(
+                        (failed) => failed.id === row.id,
+                      )
+                    );
+                  })
+                : isInspectionModule && activeTab === "done"
+                  ? [...baseRowsForTab, ...inspectionCompletedRows]
+                  : isInspectionModule && activeTab === "failed"
+                    ? [...baseRowsForTab, ...inspectionFailedRows]
+                    : baseRowsForTab;
 
     const issuedWorkRows = getFactoryIssuedWorkForListing(
       definition.slug,
@@ -531,7 +633,9 @@ export function FactoryListing<Row extends FactoryRecord>({
       .map((row) => {
         const sourceNormalizedRow = (
           definition.slug === "marquetry"
-            ? withMarquetryIssuedFrom(normalizeFactorySourceColumns(row, definition.slug))
+            ? withMarquetryIssuedFrom(
+                normalizeFactorySourceColumns(row, definition.slug),
+              )
             : normalizeFactorySourceColumns(row, definition.slug)
         ) as Row;
 
@@ -558,15 +662,22 @@ export function FactoryListing<Row extends FactoryRecord>({
 
         if (isInspectionModule) {
           const rowId = String(sourceNormalizedRow.id);
-          if (isDryingInspectionModule && (activeTab === "done" || activeTab === "history")) {
+          if (
+            isDryingInspectionModule &&
+            (activeTab === "done" || activeTab === "history")
+          ) {
             const transferred = warehouseBTransferredIds.includes(rowId);
             const destinationWarehouseName =
               warehouseBTransferredWarehouseMap[rowId] ||
               sourceNormalizedRow.productionWarehouseName ||
               sourceNormalizedRow.storageWarehouseName ||
               sourceNormalizedRow.destinationWarehouse ||
-              (transferred ? sourceNormalizedRow.warehouseName || "Warehouse B" : (sourceNormalizedRow.warehouseName || "Warehouse B"));
-            const eventStatus = formatInspectionLeafQty(sourceNormalizedRow.inspectionEventStatus);
+              (transferred
+                ? sourceNormalizedRow.warehouseName || "Warehouse B"
+                : sourceNormalizedRow.warehouseName || "Warehouse B");
+            const eventStatus = formatInspectionLeafQty(
+              sourceNormalizedRow.inspectionEventStatus,
+            );
             return {
               ...sourceNormalizedRow,
               passQty: formatInspectionLeafQty(sourceNormalizedRow.passQty),
@@ -577,13 +688,24 @@ export function FactoryListing<Row extends FactoryRecord>({
               productionWarehouseName: destinationWarehouseName,
               destinationWarehouse: destinationWarehouseName,
               storageWarehouseName: destinationWarehouseName,
-              inspectionEventStatus: activeTab === "history" ? eventStatus : sourceNormalizedRow.inspectionEventStatus,
+              inspectionEventStatus:
+                activeTab === "history"
+                  ? eventStatus
+                  : sourceNormalizedRow.inspectionEventStatus,
             } as Row;
           }
 
-          const origLeaves = Number(sourceNormalizedRow.noOfLeaves ?? sourceNormalizedRow.totalLeaves ?? sourceNormalizedRow.noOfSheets ?? 0) || 0;
+          const origLeaves =
+            Number(
+              sourceNormalizedRow.noOfLeaves ??
+                sourceNormalizedRow.totalLeaves ??
+                sourceNormalizedRow.noOfSheets ??
+                0,
+            ) || 0;
           const tracking = inspectionTrackingMap[rowId];
-          const availableLeaves = tracking ? tracking.availableLeaves : origLeaves;
+          const availableLeaves = tracking
+            ? tracking.availableLeaves
+            : origLeaves;
           const inspStatus = tracking ? tracking.status : "Pending";
 
           const defaultStatus =
@@ -591,16 +713,19 @@ export function FactoryListing<Row extends FactoryRecord>({
               ? "Pass"
               : activeTab === "failed"
                 ? "Fail"
-                : sourceNormalizedRow.isRecheck || sourceNormalizedRow.qcStatus === "Recheck"
+                : sourceNormalizedRow.isRecheck ||
+                    sourceNormalizedRow.qcStatus === "Recheck"
                   ? "Recheck"
                   : inspStatus;
           const sawingSubCategory =
             definition.slug === "sawing-inspection"
-              ? sourceNormalizedRow.subCategory || sourceNormalizedRow.itemSubCategory
+              ? sourceNormalizedRow.subCategory ||
+                sourceNormalizedRow.itemSubCategory
               : undefined;
           const sawingDate =
             definition.slug === "sawing-inspection"
-              ? sourceNormalizedRow.sawingDate || sourceNormalizedRow.processDate
+              ? sourceNormalizedRow.sawingDate ||
+                sourceNormalizedRow.processDate
               : undefined;
           const sawingProductionWarehouseName =
             definition.slug === "sawing-inspection" && activeTab === "done"
@@ -611,7 +736,10 @@ export function FactoryListing<Row extends FactoryRecord>({
           return {
             ...sourceNormalizedRow,
             qcStatus: sourceNormalizedRow.qcStatus ?? defaultStatus,
-            status: activeTab === "issued" ? inspStatus : (sourceNormalizedRow.status ?? defaultStatus),
+            status:
+              activeTab === "issued"
+                ? inspStatus
+                : (sourceNormalizedRow.status ?? defaultStatus),
             availableLeaves: String(availableLeaves),
             ...(definition.slug === "sawing-inspection"
               ? {
@@ -633,16 +761,18 @@ export function FactoryListing<Row extends FactoryRecord>({
           } as Row;
 
           return activeTab === "issued"
-            ? mapSplicingIssuedListingRow(
-                splicingRow,
-                factoryIssuedWorkItems,
-              )
+            ? mapSplicingIssuedListingRow(splicingRow, factoryIssuedWorkItems)
             : splicingRow;
         }
 
         if (definition.slug === "drying" && activeTab === "done") {
           const rowId = String(sourceNormalizedRow.id);
-          const origLeaves = Number(sourceNormalizedRow.noOfLeaves ?? sourceNormalizedRow.noOfSheets ?? 0) || 0;
+          const origLeaves =
+            Number(
+              sourceNormalizedRow.noOfLeaves ??
+                sourceNormalizedRow.noOfSheets ??
+                0,
+            ) || 0;
           const tracking = dryingIssueStateMap[rowId];
           const issuedLeaves = tracking ? tracking.issuedLeaves : 0;
           const patchedLeaves = dryingDoneLeafPatches[rowId];
@@ -659,8 +789,94 @@ export function FactoryListing<Row extends FactoryRecord>({
             status,
             issueForInspection: issuedLeaves > 0 ? String(issuedLeaves) : "-",
             issuedForInspectionDate:
-              sourceNormalizedRow.issuedForInspectionDate ?? sourceNormalizedRow.inspectionDate,
+              sourceNormalizedRow.issuedForInspectionDate ??
+              sourceNormalizedRow.inspectionDate,
             availableLeaves: String(availableLeaves),
+          } as Row;
+        }
+
+        if (
+          definition.slug === "pressing" &&
+          (activeTab === "issued" || activeTab === "done")
+        ) {
+          const receivedSheets =
+            Number(
+              sourceNormalizedRow.receivedSheets ??
+                sourceNormalizedRow.outputNoOfSheets ??
+                sourceNormalizedRow.noOfSheets ??
+                0,
+            ) || 0;
+          const patch =
+            pressingAvailabilityPatches[String(sourceNormalizedRow.id)];
+          const availableSheets = patch
+            ? Number(patch.availableSheets) || 0
+            : sourceNormalizedRow.availableSheets !== undefined &&
+                sourceNormalizedRow.availableSheets !== null &&
+                String(sourceNormalizedRow.availableSheets).trim() !== ""
+              ? Number(sourceNormalizedRow.availableSheets) || 0
+              : receivedSheets;
+
+          return {
+            ...sourceNormalizedRow,
+            receivedSheets: String(receivedSheets),
+            availableSheets: String(availableSheets),
+            receivedSqm: String(
+              sourceNormalizedRow.receivedSqm ?? sourceNormalizedRow.sqm ?? "0",
+            ),
+            receivedSqf: String(
+              sourceNormalizedRow.receivedSqf ?? sourceNormalizedRow.sqf ?? "0",
+            ),
+            ...availableFactoryMeasures(
+              sourceNormalizedRow,
+              receivedSheets,
+              availableSheets,
+            ),
+            ...(patch ?? {}),
+          } as Row;
+        }
+
+        if (
+          (definition.slug === "cnc-fluting" ||
+            definition.slug === "embossing" ||
+            definition.slug === "finishing") &&
+          (activeTab === "issued" || activeTab === "done")
+        ) {
+          const receivedCount =
+            Number(
+              sourceNormalizedRow.receivedSheets ??
+                sourceNormalizedRow.flutedSheets ??
+                sourceNormalizedRow.embossedSheets ??
+                sourceNormalizedRow.finishedSheets ??
+                sourceNormalizedRow.outputNoOfSheets ??
+                sourceNormalizedRow.noOfSheets ??
+                0,
+            ) || 0;
+          const patch =
+            stageAvailabilityPatches[String(sourceNormalizedRow.id)];
+          const availableCount = patch
+            ? Number(patch.availableSheets) || 0
+            : sourceNormalizedRow.availableSheets !== undefined &&
+                sourceNormalizedRow.availableSheets !== null &&
+                String(sourceNormalizedRow.availableSheets).trim() !== ""
+              ? Number(sourceNormalizedRow.availableSheets) || 0
+              : receivedCount;
+
+          return {
+            ...sourceNormalizedRow,
+            receivedSheets: String(receivedCount),
+            availableSheets: String(availableCount),
+            receivedSqm: String(
+              sourceNormalizedRow.receivedSqm ?? sourceNormalizedRow.sqm ?? "0",
+            ),
+            receivedSqf: String(
+              sourceNormalizedRow.receivedSqf ?? sourceNormalizedRow.sqf ?? "0",
+            ),
+            ...availableFactoryMeasures(
+              sourceNormalizedRow,
+              receivedCount,
+              availableCount,
+            ),
+            ...(patch ?? {}),
           } as Row;
         }
 
@@ -696,10 +912,12 @@ export function FactoryListing<Row extends FactoryRecord>({
     isDryingInspectionModule,
     isInspectionModule,
     orderRecords,
+    pressingAvailabilityPatches,
     rejectedDoneRowIds,
     rejectedDoneRows,
     revertedRowIds,
     sampleSheetRecords,
+    stageAvailabilityPatches,
     supportsSamplePurposeColumn,
     warehouseBTransferredIds,
   ]);
@@ -765,54 +983,61 @@ export function FactoryListing<Row extends FactoryRecord>({
           );
 
       const renderedColumns = columnsWithOrderItem.map((column) =>
-      column.key === "orderItemNo"
-        ? {
-            ...column,
-            renderCell: (row: Row) => {
-              const orderItemNo =
-                typeof row.orderItemNo === "string"
-                  ? row.orderItemNo.trim()
-                  : "";
+        column.key === "orderItemNo"
+          ? {
+              ...column,
+              renderCell: (row: Row) => {
+                const orderItemNo =
+                  typeof row.orderItemNo === "string"
+                    ? row.orderItemNo.trim()
+                    : "";
 
-              if (!orderItemNo) {
-                return "-";
-              }
+                if (!orderItemNo) {
+                  return "-";
+                }
 
-              return (
-                <Stack
-                  direction="row"
-                  alignItems="center"
-                  spacing={0.5}
-                  sx={{ minWidth: 96, width: "100%" }}
-                >
-                  <Typography noWrap sx={{ flex: 1, fontSize: "inherit", minWidth: 0 }}>
-                    {orderItemNo}
-                  </Typography>
-                  <Tooltip title="View order item details">
-                    <IconButton
-                      aria-label={`View details for ${orderItemNo}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setGroupingOrderItemDetails(
-                          getGroupingOrderItemDetails(row, orderRecords, stageLabel),
-                        );
-                      }}
-                      size="small"
-                      sx={(theme) => ({
-                        color: theme.customTokens.brand.primary,
-                        flexShrink: 0,
-                        ml: "auto",
-                        p: 0.25,
-                      })}
+                return (
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    spacing={0.5}
+                    sx={{ minWidth: 96, width: "100%" }}
+                  >
+                    <Typography
+                      noWrap
+                      sx={{ flex: 1, fontSize: "inherit", minWidth: 0 }}
                     >
-                      <Info size={15} />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              );
-            },
-          }
-        : column,
+                      {orderItemNo}
+                    </Typography>
+                    <Tooltip title="View order item details">
+                      <IconButton
+                        aria-label={`View details for ${orderItemNo}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setGroupingOrderItemDetails(
+                            getGroupingOrderItemDetails(
+                              row,
+                              orderRecords,
+                              stageLabel,
+                            ),
+                          );
+                        }}
+                        size="small"
+                        sx={(theme) => ({
+                          color: theme.customTokens.brand.primary,
+                          flexShrink: 0,
+                          ml: "auto",
+                          p: 0.25,
+                        })}
+                      >
+                        <Info size={15} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                );
+              },
+            }
+          : column,
       );
 
       const groupNoIndex = renderedColumns.findIndex(
@@ -821,7 +1046,11 @@ export function FactoryListing<Row extends FactoryRecord>({
       const orderItemIndex = renderedColumns.findIndex(
         (column) => column.key === "orderItemNo",
       );
-      if (groupNoIndex === -1 || orderItemIndex === -1 || orderItemIndex === groupNoIndex + 1) {
+      if (
+        groupNoIndex === -1 ||
+        orderItemIndex === -1 ||
+        orderItemIndex === groupNoIndex + 1
+      ) {
         return renderedColumns;
       }
 
@@ -936,44 +1165,43 @@ export function FactoryListing<Row extends FactoryRecord>({
     }
 
     return filteredRows;
-  }, [
-    filteredRows,
-    shouldUsePressingIssuedForLabels,
-  ]);
+  }, [filteredRows, shouldUsePressingIssuedForLabels]);
   const orderedTableColumns = useMemo(
     () => orderFactoryListingMeasureColumns(tableColumns),
     [tableColumns],
   );
 
-  const rowActions = useMemo<ReadonlyArray<EnterpriseTableAction<Row>>>(
-    () => {
-      const baseActions: EnterpriseTableAction<Row>[] = [
-        ...(canView
-          ? [
+  const rowActions = useMemo<ReadonlyArray<EnterpriseTableAction<Row>>>(() => {
+    const baseActions: EnterpriseTableAction<Row>[] = [
+      ...(canView
+        ? [
             {
               id: "view",
               label: "View",
               icon: Eye,
-              onSelect: (row: Row) => navigate(paths.view(row.id), { state: { record: row, tab: activeTab } }),
+              onSelect: (row: Row) =>
+                navigate(paths.view(row.id), {
+                  state: { record: row, tab: activeTab },
+                }),
             },
           ]
-          : []),
-        ...(canEdit &&
-          activeTab !== "issued" &&
-          activeTab !== "rejected" &&
-          !(
-            activeTab === "history" &&
-            (definition.slug === "drying" ||
-              definition.slug === "slicing" ||
-              definition.slug === "grouping" ||
-              definition.slug === "splicing" ||
-              definition.slug === "marquetry" ||
-              definition.slug === "pressing" ||
-              definition.slug === "cnc-fluting" ||
-              definition.slug === "embossing" ||
-              definition.slug === "finishing")
-          )
-          ? [
+        : []),
+      ...(canEdit &&
+      activeTab !== "issued" &&
+      activeTab !== "rejected" &&
+      !(
+        activeTab === "history" &&
+        (definition.slug === "drying" ||
+          definition.slug === "slicing" ||
+          definition.slug === "grouping" ||
+          definition.slug === "splicing" ||
+          definition.slug === "marquetry" ||
+          definition.slug === "pressing" ||
+          definition.slug === "cnc-fluting" ||
+          definition.slug === "embossing" ||
+          definition.slug === "finishing")
+      )
+        ? [
             {
               id: "edit",
               label: "Edit",
@@ -993,85 +1221,95 @@ export function FactoryListing<Row extends FactoryRecord>({
               },
             },
           ]
-          : []),
-      ];
+        : []),
+    ];
 
-      if (
-        activeTab === "issued" &&
-        canCreate &&
-        !isInspectionModule &&
-        definition.slug !== "marquetry" &&
-        definition.slug !== "pressing"
-      ) {
-        baseActions.unshift({
-          id: "create-process",
-          label: `Create ${definition.title}`,
-          icon: Plus,
-          tone: "primary",
-          onSelect: (row) => {
-            if (definition.slug === "drying") {
-              setDryingCreateRow(row);
-              return;
-            }
+    if (
+      activeTab === "issued" &&
+      canCreate &&
+      !isInspectionModule &&
+      definition.slug !== "marquetry" &&
+      definition.slug !== "pressing"
+    ) {
+      baseActions.unshift({
+        id: "create-process",
+        label: `Create ${definition.title}`,
+        icon: Plus,
+        tone: "primary",
+        onSelect: (row) => {
+          if (definition.slug === "drying") {
+            setDryingCreateRow(row);
+            return;
+          }
 
-            if (definition.slug === "finishing") {
-              setFinishingCreateRow(row);
-              return;
-            }
+          if (definition.slug === "finishing") {
+            setFinishingCreateRow(row);
+            return;
+          }
 
-            if (definition.slug === "cnc-fluting") {
-              setFlutingCreateRow(row);
-              return;
-            }
+          if (definition.slug === "cnc-fluting") {
+            setFlutingCreateRow(row);
+            return;
+          }
 
-            if (definition.slug === "embossing") {
-              setEmbossingCreateRow(row);
-              return;
-            }
+          if (definition.slug === "embossing") {
+            setEmbossingCreateRow(row);
+            return;
+          }
 
-            navigate(paths.add, {
-              state: {
-                sourceRow: row,
-                workItemId:
-                  typeof row.workItemId === "string"
-                    ? row.workItemId
-                    : row.id.startsWith("factory-work-")
-                      ? row.id
-                      : undefined,
-                sampleNo: getSampleNoFromRow(row) ?? undefined,
-                issuedFromSample: isSampleFactoryRow(row) || undefined,
-              },
-            });
-          },
-        });
-        baseActions.push({
-          id: "revert-item",
-          label: "Revert",
-          icon: RotateCcw,
-          tone: "danger",
-          onSelect: (row) => setConfirmRevertRow({ row, type: "issued" }),
-        });
-      }
+          navigate(paths.add, {
+            state: {
+              sourceRow: row,
+              workItemId:
+                typeof row.workItemId === "string"
+                  ? row.workItemId
+                  : row.id.startsWith("factory-work-")
+                    ? row.id
+                    : undefined,
+              sampleNo: getSampleNoFromRow(row) ?? undefined,
+              issuedFromSample: isSampleFactoryRow(row) || undefined,
+            },
+          });
+        },
+      });
+      baseActions.push({
+        id: "revert-item",
+        label: "Revert",
+        icon: RotateCcw,
+        tone: "danger",
+        onSelect: (row) => setConfirmRevertRow({ row, type: "issued" }),
+      });
+    }
 
-      if (activeTab === "rejected" && (canEdit || canCreate)) {
-        baseActions.push({
-          id: "revert-rejected",
-          label: "Revert",
-          icon: RotateCcw,
-          tone: "danger",
-          onSelect: (row) => setConfirmRevertRow({ row, type: "rejected" }),
-        });
-      }
+    if (activeTab === "rejected" && (canEdit || canCreate)) {
+      baseActions.push({
+        id: "revert-rejected",
+        label: "Revert",
+        icon: RotateCcw,
+        tone: "danger",
+        onSelect: (row) => setConfirmRevertRow({ row, type: "rejected" }),
+      });
+    }
 
-      return baseActions;
-    },
-    [activeTab, canCreate, canEdit, canView, definition.slug, definition.title, navigate, paths],
-  );
+    return baseActions;
+  }, [
+    activeTab,
+    canCreate,
+    canEdit,
+    canView,
+    definition.slug,
+    definition.title,
+    navigate,
+    paths,
+  ]);
 
   const getRowActions = useMemo<
     ((row: Row) => readonly EnterpriseTableAction<Row>[]) | undefined
   >(() => {
-    const lockDoneEdit = (actions: readonly EnterpriseTableAction<Row>[], row: Row) => {
+    const lockDoneEdit = (
+      actions: readonly EnterpriseTableAction<Row>[],
+      row: Row,
+    ) => {
       if (activeTab !== "done") return actions;
       const reason =
         definition.slug === "slicing"
@@ -1097,14 +1335,35 @@ export function FactoryListing<Row extends FactoryRecord>({
         action.id === "issue-for-drying" ||
         action.id === "issue-to-pressing" ||
         action.id === "issue-to-inspection" ||
-        (definition.slug === "finishing" && action.id === "issue-for-packing") ||
-        (definition.slug === "grouping" && action.id === "issue-for-sample-sheet")
+        (definition.slug === "finishing" &&
+          action.id === "issue-for-packing") ||
+        (definition.slug === "grouping" &&
+          action.id === "issue-for-sample-sheet")
       ) {
         return action;
       }
 
+      if (
+        (definition.slug === "cnc-fluting" ||
+          definition.slug === "embossing") &&
+        (action.id === "issue-for-finishing" ||
+          action.id === "issue-to-finishing")
+      ) {
+        return {
+          ...action,
+          onSelect: (selectedRow) =>
+            setStageIssue({
+              destination: "Finishing",
+              row: selectedRow,
+              sourceSlug:
+                definition.slug === "cnc-fluting" ? "cnc-fluting" : "embossing",
+            }),
+        };
+      }
+
       const showWarehouse =
-        definition.slug === "pressing" && action.id === "issue-for-sample-sheet";
+        definition.slug === "pressing" &&
+        action.id === "issue-for-sample-sheet";
       const actionText = action.label.replace(/^Issue /u, "issue ");
 
       return {
@@ -1129,13 +1388,38 @@ export function FactoryListing<Row extends FactoryRecord>({
         },
       };
     };
-    const confirmIssueActions = (actions: readonly EnterpriseTableAction<Row>[]) =>
-      actions.map(confirmIssueAction);
+    const confirmIssueActions = (
+      actions: readonly EnterpriseTableAction<Row>[],
+    ) => actions.map(confirmIssueAction);
+    const openPressingIssueActions = (
+      actions: readonly EnterpriseTableAction<Row>[],
+    ) => {
+      const destinationByActionId: Record<string, string> = {
+        "issue-for-embossing": "Embossing",
+        "issue-for-finishing": "Finishing",
+        "issue-for-fluting": "Fluting",
+        "issue-to-embossing": "Embossing",
+        "issue-to-finishing": "Finishing",
+        "issue-to-fluting": "Fluting",
+      };
+
+      return actions.map((action) => {
+        const destination = destinationByActionId[action.id];
+        if (!destination) return action;
+
+        return {
+          ...action,
+          onSelect: (selectedRow: Row) =>
+            setPressingIssue({ destination, row: selectedRow }),
+        };
+      });
+    };
     const rejectDoneAction = createRejectFactoryAction<Row>(
       definition.title,
       (selectedRow) => setRejectConfirmRow(selectedRow),
     );
-    const doneActions = canEdit || canCreate ? [...rowActions, rejectDoneAction] : rowActions;
+    const doneActions =
+      canEdit || canCreate ? [...rowActions, rejectDoneAction] : rowActions;
 
     if (isDryingDoneTab) {
       const canRevertDryingDone = (selectedRow: Row) => {
@@ -1143,16 +1427,30 @@ export function FactoryListing<Row extends FactoryRecord>({
         const issuedLeaves = dryingIssueStateMap[rowId]?.issuedLeaves ?? 0;
         if (issuedLeaves > 0) return false;
 
-        const listedIssued = Number(String(selectedRow.issueForInspection ?? "").replace(/[^\d.]/g, ""));
+        const listedIssued = Number(
+          String(selectedRow.issueForInspection ?? "").replace(/[^\d.]/g, ""),
+        );
         if (Number.isFinite(listedIssued) && listedIssued > 0) return false;
 
         const originalLeaves =
-          Number(String(selectedRow.noOfLeaves ?? selectedRow.totalLeaves ?? selectedRow.noOfSheets ?? "").replace(/[^\d.]/g, "")) || 0;
+          Number(
+            String(
+              selectedRow.noOfLeaves ??
+                selectedRow.totalLeaves ??
+                selectedRow.noOfSheets ??
+                "",
+            ).replace(/[^\d.]/g, ""),
+          ) || 0;
         const patchedLeaves = dryingDoneLeafPatches[rowId];
         const availableLeaves =
           patchedLeaves !== undefined
             ? patchedLeaves
-            : Number(String(selectedRow.availableLeaves ?? originalLeaves).replace(/[^\d.]/g, "")) || 0;
+            : Number(
+                String(selectedRow.availableLeaves ?? originalLeaves).replace(
+                  /[^\d.]/g,
+                  "",
+                ),
+              ) || 0;
 
         return !(originalLeaves > 0 && availableLeaves < originalLeaves);
       };
@@ -1182,47 +1480,53 @@ export function FactoryListing<Row extends FactoryRecord>({
           ...dryingRowActions,
           ...(canCreate && dryingAvailableLeaves(row) > 0
             ? [
-              {
-                id: "issue-to-inspection",
-                label: "Issue to Inspection",
-                icon: Plus,
-                tone: "primary" as const,
-                onSelect: (selectedRow: Row) => setDryingInspectionIssueRow(selectedRow),
-              },
-            ]
+                {
+                  id: "issue-to-inspection",
+                  label: "Issue to Inspection",
+                  icon: Plus,
+                  tone: "primary" as const,
+                  onSelect: (selectedRow: Row) =>
+                    setDryingInspectionIssueRow(selectedRow),
+                },
+              ]
             : []),
           ...(canEdit || canCreate
             ? [
-              {
-                id: "reject-drying",
-                label: `Reject ${definition.title}`,
-                icon: XCircle,
-                tone: "danger" as const,
-                onSelect: (selectedRow: Row) => {
-                  setDryingRejectRow(selectedRow);
+                {
+                  id: "reject-drying",
+                  label: `Reject ${definition.title}`,
+                  icon: XCircle,
+                  tone: "danger" as const,
+                  onSelect: (selectedRow: Row) => {
+                    setDryingRejectRow(selectedRow);
+                  },
                 },
-              },
-            ]
+              ]
             : []),
           ...((canEdit || canCreate) && canRevertDryingDone(row)
             ? [
-              {
-                id: "revert-drying-done",
-                label: "Revert",
-                icon: RotateCcw,
-                tone: "danger" as const,
-                onSelect: (selectedRow: Row) => {
-                  setConfirmRevertRow({ row: selectedRow, type: "drying-done" });
+                {
+                  id: "revert-drying-done",
+                  label: "Revert",
+                  icon: RotateCcw,
+                  tone: "danger" as const,
+                  onSelect: (selectedRow: Row) => {
+                    setConfirmRevertRow({
+                      row: selectedRow,
+                      type: "drying-done",
+                    });
+                  },
                 },
-              },
-            ]
+              ]
             : []),
         ];
       };
     }
 
     const openInspectionRecord = (selectedRow: Row) =>
-      navigate(paths.view(selectedRow.id), { state: { record: selectedRow, tab: activeTab } });
+      navigate(paths.view(selectedRow.id), {
+        state: { record: selectedRow, tab: activeTab },
+      });
 
     if (isInspectionModule && activeTab === "issued") {
       return buildInspectionIssuedRowActions<Row>({
@@ -1255,8 +1559,11 @@ export function FactoryListing<Row extends FactoryRecord>({
         canEdit,
         canView,
         isSawingInspection,
-        ...(isSawingInspection ? {} : { onEdit: setDryingInspectionQtyEditRow }),
-        onMoveToWarehouseB: (selectedRow) => setWarehouseBMoveRows([selectedRow]),
+        ...(isSawingInspection
+          ? {}
+          : { onEdit: setDryingInspectionQtyEditRow }),
+        onMoveToWarehouseB: (selectedRow) =>
+          setWarehouseBMoveRows([selectedRow]),
         onMoveToWarehouseC: (selectedRow) => {
           setSawingWarehouseMoveRows([selectedRow]);
         },
@@ -1295,7 +1602,11 @@ export function FactoryListing<Row extends FactoryRecord>({
         canEdit,
         canView,
         onIssueToPacking: (selectedRow) => {
-          setFinishingPackingIssueRow(selectedRow);
+          setStageIssue({
+            destination: "Packing",
+            row: selectedRow,
+            sourceSlug: "finishing",
+          });
         },
         onRevert: (selectedRow) =>
           setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
@@ -1362,7 +1673,8 @@ export function FactoryListing<Row extends FactoryRecord>({
             id: "view",
             label: "View",
             icon: Eye,
-            onSelect: (selectedRow: Row) => navigate(paths.view(selectedRow.id)),
+            onSelect: (selectedRow: Row) =>
+              navigate(paths.view(selectedRow.id)),
           });
         }
 
@@ -1393,13 +1705,30 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (definition.slug === "pressing") {
-          return confirmIssueActions([
+          const pressingActions = [
             ...doneActions,
-            ...(canCreate ? getPressingNextProcessActions(row, definition.slug) : []),
-          ]);
+            ...(canCreate
+              ? getPressingNextProcessActions(row, definition.slug)
+              : []),
+          ];
+          return getPressingIssueBalances(row).availableSheets > 0
+            ? openPressingIssueActions(pressingActions)
+            : doneActions;
         }
 
         return sampleActions.length > 0 ? sampleActions : doneActions;
+      }
+
+      if (definition.slug === "pressing") {
+        const pressingNextActions = canCreate
+          ? getPressingNextProcessActions(row, definition.slug)
+          : [];
+        const actions =
+          getPressingIssueBalances(row).availableSheets > 0
+            ? [...doneActions, ...openPressingIssueActions(pressingNextActions)]
+            : doneActions;
+
+        return lockDoneEdit(actions, row);
       }
 
       const nextProcessActions = getFactoryNextProcessActions(
@@ -1436,7 +1765,12 @@ export function FactoryListing<Row extends FactoryRecord>({
             ),
         );
 
-      const confirmedNextActions = confirmIssueActions(nextProcessActions);
+      const confirmedNextActions =
+        definition.slug === "pressing"
+          ? getPressingIssueBalances(row).availableSheets > 0
+            ? openPressingIssueActions(nextProcessActions)
+            : []
+          : confirmIssueActions(nextProcessActions);
 
       if (confirmedNextActions.length === 0) {
         return withIssueToPressing(lockDoneEdit(doneActions, row));
@@ -1527,10 +1861,8 @@ export function FactoryListing<Row extends FactoryRecord>({
       remark: groupingSampleIssue.remark,
     });
 
-    const {
-      workItemId: _groupingWorkItemId,
-      ...groupingSourceFields
-    } = groupingRow;
+    const { workItemId: _groupingWorkItemId, ...groupingSourceFields } =
+      groupingRow;
 
     issueFactoryWork({
       destinationProcess: "Pressing",
@@ -1611,16 +1943,16 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     const sourceRow = selectedOrderItem
       ? buildGroupingOrderIssueSourceRow(
-        groupingOrderIssue,
-        selectedOrder,
-        selectedOrderItem,
-      )
+          groupingOrderIssue,
+          selectedOrder,
+          selectedOrderItem,
+        )
       : ({
-        ...groupingOrderIssue.row,
-        orderNo: groupingOrderIssue.orderNo,
-        orderItemNo: groupingOrderIssue.orderItemNo,
-        noOfSheets: String(issueSheets),
-      } as Row);
+          ...groupingOrderIssue.row,
+          orderNo: groupingOrderIssue.orderNo,
+          orderItemNo: groupingOrderIssue.orderItemNo,
+          noOfSheets: String(issueSheets),
+        } as Row);
 
     issueFactoryWork({
       destinationProcess: "Splicing",
@@ -1795,7 +2127,9 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setSplicingPressingIssueRows(selectedListingRows)}
+                    onClick={() =>
+                      setSplicingPressingIssueRows(selectedListingRows)
+                    }
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1809,7 +2143,9 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setMarquetryPressingIssueRows(selectedListingRows)}
+                    onClick={() =>
+                      setMarquetryPressingIssueRows(selectedListingRows)
+                    }
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1823,7 +2159,17 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setFlutingFinishingIssueRows(selectedListingRows)}
+                    onClick={() => {
+                      if (selectedListingRows.length === 1) {
+                        setStageIssue({
+                          destination: "Finishing",
+                          row: selectedListingRows[0]!,
+                          sourceSlug: "cnc-fluting",
+                        });
+                        return;
+                      }
+                      setFlutingFinishingIssueRows(selectedListingRows);
+                    }}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1837,7 +2183,17 @@ export function FactoryListing<Row extends FactoryRecord>({
                   <Button
                     variant="contained"
                     startIcon={<CheckCircle2 size={16} />}
-                    onClick={() => setEmbossingFinishingIssueRows(selectedListingRows)}
+                    onClick={() => {
+                      if (selectedListingRows.length === 1) {
+                        setStageIssue({
+                          destination: "Finishing",
+                          row: selectedListingRows[0]!,
+                          sourceSlug: "embossing",
+                        });
+                        return;
+                      }
+                      setEmbossingFinishingIssueRows(selectedListingRows);
+                    }}
                     sx={{
                       backgroundColor: "primary.main",
                       textTransform: "none",
@@ -1855,8 +2211,15 @@ export function FactoryListing<Row extends FactoryRecord>({
                       const eligibleRows = selectedListingRows.filter(
                         (row) => !isSampleFactoryRow(row),
                       );
-                      if (selectedListingRows.length === 1 && eligibleRows.length === 1) {
-                        setFinishingPackingIssueRow(eligibleRows[0] ?? null);
+                      if (
+                        selectedListingRows.length === 1 &&
+                        eligibleRows.length === 1
+                      ) {
+                        setStageIssue({
+                          destination: "Packing",
+                          row: eligibleRows[0]!,
+                          sourceSlug: "finishing",
+                        });
                         return;
                       }
                       setFinishingPackingIssueRows(selectedListingRows);
@@ -1873,7 +2236,8 @@ export function FactoryListing<Row extends FactoryRecord>({
               </Stack>
             ) : (
               <Stack direction="row" spacing={1.25} alignItems="center">
-                {(definition.slug === "marquetry" || definition.slug === "pressing") &&
+                {(definition.slug === "marquetry" ||
+                  definition.slug === "pressing") &&
                 activeTab === "issued" &&
                 canCreate ? (
                   <Button
@@ -1882,7 +2246,9 @@ export function FactoryListing<Row extends FactoryRecord>({
                     onClick={() => navigate(paths.add)}
                     sx={(theme) => getListingToolbarButtonSx(theme)}
                   >
-                    {definition.slug === "pressing" ? "Create Pressing" : "Create Marquetry"}
+                    {definition.slug === "pressing"
+                      ? "Create Pressing"
+                      : "Create Marquetry"}
                   </Button>
                 ) : null}
                 <FactoryToolbar />
@@ -1899,7 +2265,9 @@ export function FactoryListing<Row extends FactoryRecord>({
             rows={canView ? tableRows : []}
             selectable={isSelectableTab}
             selectOnRowClick={false}
-            {...(isSelectableTab ? { onSelectionChange: setSelectedListingRows } : {})}
+            {...(isSelectableTab
+              ? { onSelectionChange: setSelectedListingRows }
+              : {})}
             {...(getRowActions ? { getRowActions } : {})}
             {...(definition.initialSort
               ? { initialSort: definition.initialSort }
@@ -1936,6 +2304,144 @@ export function FactoryListing<Row extends FactoryRecord>({
         onClose={() => setGroupingOrderItemDetails(null)}
       />
 
+      <PressingIssueDialog
+        destination={pressingIssue?.destination ?? ""}
+        onClose={() => setPressingIssue(null)}
+        onSubmit={(row, entry) => {
+          if (!pressingIssue) return;
+
+          const balances = getPressingIssueBalances(row);
+          const remainingSheets = Math.max(
+            0,
+            balances.availableSheets - entry.issueSheets,
+          );
+          const remainingSqm = Math.max(
+            0,
+            balances.availableSqm - entry.issueSqm,
+          );
+          const remainingSqf = Math.max(
+            0,
+            balances.availableSqf - entry.issueSqf,
+          );
+          const sourcePatch = {
+            availableSheets: String(remainingSheets),
+            availableSqm: remainingSqm.toFixed(3),
+            availableSqf: remainingSqf.toFixed(3),
+          };
+
+          setPressingAvailabilityPatches((current) => ({
+            ...current,
+            [String(row.id)]: sourcePatch,
+          }));
+
+          if (typeof row.workItemId === "string" && row.workItemId) {
+            updateFactoryIssuedWorkSnapshot(row.workItemId, sourcePatch);
+          }
+
+          const issuedRow = { ...row } as Row;
+          delete issuedRow.workItemId;
+          Object.assign(issuedRow, {
+            availableSheets: String(entry.issueSheets),
+            availableSqf: entry.issueSqf.toFixed(3),
+            availableSqm: entry.issueSqm.toFixed(3),
+            issueDate: entry.issueDate,
+            issuedNoOfSheets: String(entry.issueSheets),
+            noOfSheets: String(entry.issueSheets),
+            outputNoOfSheets: String(entry.issueSheets),
+            receivedSheets: String(entry.issueSheets),
+            receivedSqf: entry.issueSqf.toFixed(3),
+            receivedSqm: entry.issueSqm.toFixed(3),
+            sourceAvailableSheets: String(entry.issueSheets),
+            sqf: entry.issueSqf.toFixed(3),
+            sqm: entry.issueSqm.toFixed(3),
+            ...(entry.remark ? { remark: entry.remark } : {}),
+          });
+
+          issueToNextFactoryProcess({
+            destinationProcess: pressingIssue.destination,
+            row: issuedRow,
+            sourceSlug: "pressing",
+          });
+          setPressingIssue(null);
+        }}
+        open={Boolean(pressingIssue)}
+        row={pressingIssue?.row ?? null}
+      />
+
+      <PressingIssueDialog
+        destination={stageIssue?.destination ?? ""}
+        onClose={() => setStageIssue(null)}
+        onSubmit={(row, entry) => {
+          if (!stageIssue) return;
+
+          const balances = getPressingIssueBalances(row);
+          const sourcePatch = {
+            availableSheets: String(
+              Math.max(0, balances.availableSheets - entry.issueSheets),
+            ),
+            availableSqm: Math.max(
+              0,
+              balances.availableSqm - entry.issueSqm,
+            ).toFixed(3),
+            availableSqf: Math.max(
+              0,
+              balances.availableSqf - entry.issueSqf,
+            ).toFixed(3),
+          };
+
+          setStageAvailabilityPatches((current) => ({
+            ...current,
+            [String(row.id)]: sourcePatch,
+          }));
+          if (typeof row.workItemId === "string" && row.workItemId) {
+            updateFactoryIssuedWorkSnapshot(row.workItemId, sourcePatch);
+          }
+
+          const issuedRow = { ...row } as Row;
+          delete issuedRow.workItemId;
+          Object.assign(issuedRow, {
+            availableSheets: String(entry.issueSheets),
+            availableSqf: entry.issueSqf.toFixed(3),
+            availableSqm: entry.issueSqm.toFixed(3),
+            issueDate: entry.issueDate,
+            issuedNoOfSheets: String(entry.issueSheets),
+            noOfSheets: String(entry.issueSheets),
+            outputNoOfSheets: String(entry.issueSheets),
+            receivedSheets: String(entry.issueSheets),
+            receivedSqf: entry.issueSqf.toFixed(3),
+            receivedSqm: entry.issueSqm.toFixed(3),
+            sourceAvailableSheets: String(entry.issueSheets),
+            sqf: entry.issueSqf.toFixed(3),
+            sqm: entry.issueSqm.toFixed(3),
+            ...(entry.remark ? { remark: entry.remark } : {}),
+          });
+
+          if (stageIssue.destination === "Packing") {
+            issueFinishingToPacking({
+              ...issuedRow,
+              packingDate: entry.issueDate,
+            });
+          } else {
+            issueToNextFactoryProcess({
+              destinationProcess: stageIssue.destination,
+              row: issuedRow,
+              sourceSlug: stageIssue.sourceSlug,
+            });
+          }
+
+          setToastNotification({
+            message: `Issued ${entry.issueSheets} sheet(s) to ${stageIssue.destination} successfully.`,
+            severity: "success",
+          });
+          setSelectedListingRows((current) =>
+            current.filter((selectedRow) => selectedRow.id !== row.id),
+          );
+          setStageIssue(null);
+        }}
+        open={Boolean(stageIssue)}
+        row={stageIssue?.row ?? null}
+      />
+
       <ConfirmationDialog
         cancelLabel="Cancel"
         confirmLabel="Move"
@@ -1970,7 +2476,10 @@ export function FactoryListing<Row extends FactoryRecord>({
             });
           });
           setWarehouseBTransferredIds((current) => [
-            ...new Set([...current, ...warehouseBMoveRows.map((row) => row.id)]),
+            ...new Set([
+              ...current,
+              ...warehouseBMoveRows.map((row) => row.id),
+            ]),
           ]);
           setWarehouseBTransferredWarehouseMap((current) => {
             const next = { ...current };
@@ -2067,20 +2576,33 @@ export function FactoryListing<Row extends FactoryRecord>({
         processSlug={definition.slug}
         passCount={
           isInspectionModule
-            ? getFactoryIssuedWorkForListing(definition.slug, "done").length + inspectionCompletedRows.length
+            ? getFactoryIssuedWorkForListing(definition.slug, "done").length +
+              inspectionCompletedRows.length
             : 0
         }
         failCount={
           isInspectionModule
-            ? getFactoryIssuedWorkForListing(definition.slug, "failed").length + inspectionFailedRows.length
+            ? getFactoryIssuedWorkForListing(definition.slug, "failed").length +
+              inspectionFailedRows.length
             : 0
         }
         onClose={() => setInspectionDecisionTargetRow(null)}
-        onPass={(targetRow, decisionRemark, inspectionDateVal, counts, attachment) => {
+        onPass={(
+          targetRow,
+          decisionRemark,
+          inspectionDateVal,
+          counts,
+          attachment,
+        ) => {
           if (isDryingInspectionModule) {
             const rowId = String(targetRow.id);
             const currentTotal =
-              Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
+              Number(
+                targetRow.noOfLeaves ??
+                  targetRow.totalLeaves ??
+                  targetRow.noOfSheets ??
+                  0,
+              ) || 0;
             const tracking = inspectionTrackingMap[rowId];
             const prevPass = tracking?.passQty ?? 0;
             const prevFail = tracking?.failQty ?? 0;
@@ -2090,12 +2612,14 @@ export function FactoryListing<Row extends FactoryRecord>({
             const totalFail = prevFail + thisFail;
             const remaining = Math.max(0, currentTotal - (thisPass + thisFail));
             const isFullyDone = remaining <= 0;
-            const newStatus: "Pending" | "Partially Pending" | "Done" = isFullyDone
-              ? "Done"
-              : "Partially Pending";
-            const inspectionDate = inspectionDateVal || new Date().toISOString().slice(0, 10);
+            const newStatus: "Pending" | "Partially Pending" | "Done" =
+              isFullyDone ? "Done" : "Partially Pending";
+            const inspectionDate =
+              inspectionDateVal || new Date().toISOString().slice(0, 10);
             const enteredRemark =
-              decisionRemark || getFactoryString(targetRow.remark) || "Inspection completed";
+              decisionRemark ||
+              getFactoryString(targetRow.remark) ||
+              "Inspection completed";
             const inspectedLeaves = thisPass + thisFail;
             const donePatch = {
               inspectionDate,
@@ -2126,14 +2650,19 @@ export function FactoryListing<Row extends FactoryRecord>({
 
             const workItemId = getFactoryString(targetRow.workItemId);
             if (workItemId && isFullyDone) {
-              completeFactoryIssuedWork(workItemId, { ...donePatch, listingState: "done" });
+              completeFactoryIssuedWork(workItemId, {
+                ...donePatch,
+                listingState: "done",
+              });
             } else {
               setInspectionCompletedRows((current) => [
                 ...current,
                 {
                   ...targetRow,
                   ...donePatch,
-                  id: isFullyDone ? targetRow.id : `insp-done-${Date.now()}-${targetRow.id}`,
+                  id: isFullyDone
+                    ? targetRow.id
+                    : `insp-done-${Date.now()}-${targetRow.id}`,
                   listingState: "done",
                 } as Row,
               ]);
@@ -2159,7 +2688,13 @@ export function FactoryListing<Row extends FactoryRecord>({
           }
 
           const rowId = String(targetRow.id);
-          const currentTotal = Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
+          const currentTotal =
+            Number(
+              targetRow.noOfLeaves ??
+                targetRow.totalLeaves ??
+                targetRow.noOfSheets ??
+                0,
+            ) || 0;
           const tracking = inspectionTrackingMap[rowId];
           const prevPass = tracking?.passQty ?? 0;
           const prevFail = tracking?.failQty ?? 0;
@@ -2171,7 +2706,8 @@ export function FactoryListing<Row extends FactoryRecord>({
           const totalFail = prevFail + thisFail;
           const remaining = Math.max(0, currentTotal - (thisPass + thisFail));
           const isFullyDone = remaining <= 0;
-          const newStatus: "Pending" | "Partially Pending" | "Done" = isFullyDone ? "Done" : "Partially Pending";
+          const newStatus: "Pending" | "Partially Pending" | "Done" =
+            isFullyDone ? "Done" : "Partially Pending";
 
           setInspectionTrackingMap((prev) => ({
             ...prev,
@@ -2184,10 +2720,14 @@ export function FactoryListing<Row extends FactoryRecord>({
           }));
 
           const workItemId = getFactoryString(targetRow.workItemId);
-          const enteredRemark = decisionRemark || getFactoryString(targetRow.remark);
+          const enteredRemark =
+            decisionRemark || getFactoryString(targetRow.remark);
           const basePatch = {
-            inspectionDate: inspectionDateVal || new Date().toISOString().slice(0, 10),
-            remark: enteredRemark || (thisPass > 0 ? "Passed inspection" : "Failed inspection"),
+            inspectionDate:
+              inspectionDateVal || new Date().toISOString().slice(0, 10),
+            remark:
+              enteredRemark ||
+              (thisPass > 0 ? "Passed inspection" : "Failed inspection"),
             passQty: thisPass,
             failQty: thisFail,
             noOfLeaves: String(thisPass),
@@ -2199,18 +2739,26 @@ export function FactoryListing<Row extends FactoryRecord>({
                 }
               : {}),
           };
-          const closesIssuedWithBoth = Boolean(workItemId && isFullyDone && thisPass > 0 && thisFail > 0);
+          const closesIssuedWithBoth = Boolean(
+            workItemId && isFullyDone && thisPass > 0 && thisFail > 0,
+          );
 
           if (thisPass > 0) {
             const passRecord = {
               ...targetRow,
               ...basePatch,
-              id: isFullyDone && !thisFail ? targetRow.id : `insp-pass-${Date.now()}-${targetRow.id}`,
+              id:
+                isFullyDone && !thisFail
+                  ? targetRow.id
+                  : `insp-pass-${Date.now()}-${targetRow.id}`,
               qcStatus: "Pass",
               listingState: "done",
             };
             if (workItemId && isFullyDone && !thisFail) {
-              completeFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Pass" });
+              completeFactoryIssuedWork(workItemId, {
+                ...basePatch,
+                qcStatus: "Pass",
+              });
             } else if (!closesIssuedWithBoth) {
               setInspectionCompletedRows((current) => [...current, passRecord]);
             }
@@ -2228,14 +2776,20 @@ export function FactoryListing<Row extends FactoryRecord>({
               listingState: "failed",
             };
             if (workItemId && isFullyDone && !thisPass) {
-              failFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Fail" });
+              failFactoryIssuedWork(workItemId, {
+                ...basePatch,
+                qcStatus: "Fail",
+              });
             } else {
               setInspectionFailedRows((current) => [...current, failRecord]);
             }
           }
 
           if (isFullyDone && workItemId && thisPass > 0 && thisFail > 0) {
-            completeFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Pass" });
+            completeFactoryIssuedWork(workItemId, {
+              ...basePatch,
+              qcStatus: "Pass",
+            });
           }
 
           setInspectionDecisionTargetRow(null);
@@ -2243,13 +2797,25 @@ export function FactoryListing<Row extends FactoryRecord>({
             setActiveTab(thisPass > 0 ? "done" : "failed");
           }
         }}
-        onFail={(targetRow, decisionRemark, inspectionDateVal, counts, attachment) => {
+        onFail={(
+          targetRow,
+          decisionRemark,
+          inspectionDateVal,
+          counts,
+          attachment,
+        ) => {
           if (isDryingInspectionModule) {
             return;
           }
 
           const rowId = String(targetRow.id);
-          const currentTotal = Number(targetRow.noOfLeaves ?? targetRow.totalLeaves ?? targetRow.noOfSheets ?? 0) || 0;
+          const currentTotal =
+            Number(
+              targetRow.noOfLeaves ??
+                targetRow.totalLeaves ??
+                targetRow.noOfSheets ??
+                0,
+            ) || 0;
           const tracking = inspectionTrackingMap[rowId];
           const prevPass = tracking?.passQty ?? 0;
           const prevFail = tracking?.failQty ?? 0;
@@ -2261,7 +2827,8 @@ export function FactoryListing<Row extends FactoryRecord>({
           const totalFail = prevFail + thisFail;
           const remaining = Math.max(0, currentTotal - (thisPass + thisFail));
           const isFullyDone = remaining <= 0;
-          const newStatus: "Pending" | "Partially Pending" | "Done" = isFullyDone ? "Done" : "Partially Pending";
+          const newStatus: "Pending" | "Partially Pending" | "Done" =
+            isFullyDone ? "Done" : "Partially Pending";
 
           setInspectionTrackingMap((prev) => ({
             ...prev,
@@ -2275,7 +2842,8 @@ export function FactoryListing<Row extends FactoryRecord>({
 
           const workItemId = getFactoryString(targetRow.workItemId);
           const basePatch = {
-            inspectionDate: inspectionDateVal || new Date().toISOString().slice(0, 10),
+            inspectionDate:
+              inspectionDateVal || new Date().toISOString().slice(0, 10),
             remark: decisionRemark || targetRow.remark || "Failed inspection",
             passQty: thisPass,
             failQty: thisFail,
@@ -2293,12 +2861,18 @@ export function FactoryListing<Row extends FactoryRecord>({
             const failRecord = {
               ...targetRow,
               ...basePatch,
-              id: isFullyDone && !thisPass ? targetRow.id : `insp-fail-${Date.now()}-${targetRow.id}`,
+              id:
+                isFullyDone && !thisPass
+                  ? targetRow.id
+                  : `insp-fail-${Date.now()}-${targetRow.id}`,
               qcStatus: "Fail",
               listingState: "failed",
             };
             if (workItemId && isFullyDone && !thisPass) {
-              failFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Fail" });
+              failFactoryIssuedWork(workItemId, {
+                ...basePatch,
+                qcStatus: "Fail",
+              });
             } else {
               setInspectionFailedRows((current) => [...current, failRecord]);
             }
@@ -2315,14 +2889,20 @@ export function FactoryListing<Row extends FactoryRecord>({
               listingState: "done",
             };
             if (workItemId && isFullyDone && !thisFail) {
-              completeFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Pass" });
+              completeFactoryIssuedWork(workItemId, {
+                ...basePatch,
+                qcStatus: "Pass",
+              });
             } else {
               setInspectionCompletedRows((current) => [...current, passRecord]);
             }
           }
 
           if (isFullyDone && workItemId && thisPass > 0 && thisFail > 0) {
-            failFactoryIssuedWork(workItemId, { ...basePatch, qcStatus: "Fail" });
+            failFactoryIssuedWork(workItemId, {
+              ...basePatch,
+              qcStatus: "Fail",
+            });
           }
 
           setInspectionDecisionTargetRow(null);
@@ -2339,7 +2919,10 @@ export function FactoryListing<Row extends FactoryRecord>({
         onSave={(entry) => {
           if (!finishingCreateRow) return;
 
-          const snapshot = buildFinishingDoneSnapshot(finishingCreateRow, entry);
+          const snapshot = buildFinishingDoneSnapshot(
+            finishingCreateRow,
+            entry,
+          );
           const workItemId =
             typeof finishingCreateRow.workItemId === "string"
               ? finishingCreateRow.workItemId
@@ -2471,7 +3054,10 @@ export function FactoryListing<Row extends FactoryRecord>({
         onSave={(entry) => {
           if (!embossingCreateRow) return;
 
-          const snapshot = buildEmbossingDoneSnapshot(embossingCreateRow, entry);
+          const snapshot = buildEmbossingDoneSnapshot(
+            embossingCreateRow,
+            entry,
+          );
           const workItemId =
             typeof embossingCreateRow.workItemId === "string"
               ? embossingCreateRow.workItemId
@@ -2549,7 +3135,12 @@ export function FactoryListing<Row extends FactoryRecord>({
             dryingCreateRow.storageSrNo,
             dryingCreateRow.sourceStorageId,
           ]
-            .filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
+            .filter(
+              (value) =>
+                value !== undefined &&
+                value !== null &&
+                String(value).trim() !== "",
+            )
             .map(String);
 
           updateDryingIssuedLeaves(issueKeys, {
@@ -2571,7 +3162,8 @@ export function FactoryListing<Row extends FactoryRecord>({
               sqf: driedArea.sqf,
               totalSqMeter: driedArea.sqm,
               remark,
-              thickness: dryingCreateRow.thickness || dryingCreateRow.height || "",
+              thickness:
+                dryingCreateRow.thickness || dryingCreateRow.height || "",
             },
           ]);
           setDryingCreateRow(null);
@@ -2616,7 +3208,11 @@ export function FactoryListing<Row extends FactoryRecord>({
             remainingLeaves,
           );
           const rowId = String(dryingRejectRow.id);
-          const updatedInStore = adjustDryingDoneLeaves(rowId, remainingLeaves, remainingArea);
+          const updatedInStore = adjustDryingDoneLeaves(
+            rowId,
+            remainingLeaves,
+            remainingArea,
+          );
 
           if (!updatedInStore) {
             if (remainingLeaves <= 0) {
@@ -2709,7 +3305,9 @@ export function FactoryListing<Row extends FactoryRecord>({
             destinationProcess: "Drying Inspection",
             sourceSlug: definition.slug,
             sourceProcess: "Drying",
-            sourceWarehouseName: getFactoryString(dryingInspectionIssueRow.warehouseName),
+            sourceWarehouseName: getFactoryString(
+              dryingInspectionIssueRow.warehouseName,
+            ),
             sourceRow: {
               ...dryingInspectionIssueRow,
               issuedLeaves: String(newlyIssued),
@@ -2726,11 +3324,16 @@ export function FactoryListing<Row extends FactoryRecord>({
           });
 
           recordDryingInspectionIssue(rowId, newlyIssued);
-          const updatedInStore = adjustDryingDoneLeaves(rowId, remaining, remainingArea, {
-            issueForInspection: String(totalIssued),
-            issuedForInspectionDate: inspectionDateVal,
-            status: "Done",
-          });
+          const updatedInStore = adjustDryingDoneLeaves(
+            rowId,
+            remaining,
+            remainingArea,
+            {
+              issueForInspection: String(totalIssued),
+              issuedForInspectionDate: inspectionDateVal,
+              status: "Done",
+            },
+          );
           if (!updatedInStore) {
             setDryingDoneLeafPatches((current) => ({
               ...current,
@@ -2910,38 +3513,6 @@ export function FactoryListing<Row extends FactoryRecord>({
         title="Issue to Finishing"
         tone="default"
       />
-      <FinishingIssueToPackingDialog
-        onClose={() => setFinishingPackingIssueRow(null)}
-        onSubmit={(row, entry) => {
-          const availableSheets = Number(
-            row.availableSheets ??
-              row.finishedSheets ??
-              row.outputNoOfSheets ??
-              row.noOfSheets ??
-              0,
-          );
-          issueFinishingToPacking({
-            ...row,
-            availableSheets: String(
-              Math.max(0, availableSheets - entry.issueSheets),
-            ),
-            issuedNoOfSheets: String(entry.issueSheets),
-            noOfSheets: String(entry.issueSheets),
-            packingDate: entry.packingDate,
-            remark: entry.remark || row.remark,
-          });
-          setToastNotification({
-            message: `Issued ${entry.issueSheets} sheet(s) to Packing successfully.`,
-            severity: "success",
-          });
-          setSelectedListingRows((current) =>
-            current.filter((selectedRow) => selectedRow.id !== row.id),
-          );
-          setFinishingPackingIssueRow(null);
-        }}
-        open={Boolean(finishingPackingIssueRow)}
-        row={finishingPackingIssueRow}
-      />
       <ConfirmationDialog
         cancelLabel="Cancel"
         confirmLabel="Issue"
@@ -3034,15 +3605,24 @@ export function FactoryListing<Row extends FactoryRecord>({
               }
               if (definition.slug === "sawing-inspection") {
                 restoreSawingDoneFromInspection(
-                  getFactoryString(row.sourceDoneId) || getFactoryString(row.sourceRowId),
+                  getFactoryString(row.sourceDoneId) ||
+                    getFactoryString(row.sourceRowId),
                 );
               }
               if (definition.slug === "drying-inspection") {
                 const sourceDoneId =
-                  getFactoryString(row.sourceDoneId) || getFactoryString(row.sourceRowId);
+                  getFactoryString(row.sourceDoneId) ||
+                  getFactoryString(row.sourceRowId);
                 const leaves = Math.max(
                   0,
-                  Math.floor(Number(String(row.noOfLeaves ?? row.totalLeaves ?? "0").replace(/[^\d.]/g, "")) || 0),
+                  Math.floor(
+                    Number(
+                      String(row.noOfLeaves ?? row.totalLeaves ?? "0").replace(
+                        /[^\d.]/g,
+                        "",
+                      ),
+                    ) || 0,
+                  ),
                 );
                 if (sourceDoneId && leaves > 0) {
                   restoreDryingDoneLeaves(sourceDoneId, leaves, row);
@@ -3052,10 +3632,16 @@ export function FactoryListing<Row extends FactoryRecord>({
               setInspectionCompletedRows((current) =>
                 current.filter((entry) => entry.id !== row.id),
               );
-              (definition.rows as any) = (definition.rows as any).map((r: any) =>
-                r.id === row.id
-                  ? { ...r, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
-                  : r,
+              (definition.rows as any) = (definition.rows as any).map(
+                (r: any) =>
+                  r.id === row.id
+                    ? {
+                        ...r,
+                        listingState: "issued",
+                        qcStatus: "Recheck",
+                        isRecheck: true,
+                      }
+                    : r,
               );
               setActiveTab("issued");
               setToastNotification({
@@ -3065,15 +3651,24 @@ export function FactoryListing<Row extends FactoryRecord>({
             } else if (type === "inspection-failed") {
               if (definition.slug === "sawing-inspection") {
                 restoreSawingDoneFromInspection(
-                  getFactoryString(row.sourceDoneId) || getFactoryString(row.sourceRowId),
+                  getFactoryString(row.sourceDoneId) ||
+                    getFactoryString(row.sourceRowId),
                 );
               }
               if (definition.slug === "drying-inspection") {
                 const sourceDoneId =
-                  getFactoryString(row.sourceDoneId) || getFactoryString(row.sourceRowId);
+                  getFactoryString(row.sourceDoneId) ||
+                  getFactoryString(row.sourceRowId);
                 const leaves = Math.max(
                   0,
-                  Math.floor(Number(String(row.noOfLeaves ?? row.totalLeaves ?? "0").replace(/[^\d.]/g, "")) || 0),
+                  Math.floor(
+                    Number(
+                      String(row.noOfLeaves ?? row.totalLeaves ?? "0").replace(
+                        /[^\d.]/g,
+                        "",
+                      ),
+                    ) || 0,
+                  ),
                 );
                 if (sourceDoneId && leaves > 0) {
                   restoreDryingDoneLeaves(sourceDoneId, leaves, row);
@@ -3086,23 +3681,36 @@ export function FactoryListing<Row extends FactoryRecord>({
               setInspectionCompletedRows((current) =>
                 current.filter((entry) => entry.id !== row.id),
               );
-              (definition.rows as any) = (definition.rows as any).map((r: any) =>
-                r.id === row.id
-                  ? { ...r, listingState: "issued", qcStatus: "Recheck", isRecheck: true }
-                  : r,
+              (definition.rows as any) = (definition.rows as any).map(
+                (r: any) =>
+                  r.id === row.id
+                    ? {
+                        ...r,
+                        listingState: "issued",
+                        qcStatus: "Recheck",
+                        isRecheck: true,
+                      }
+                    : r,
               );
               setActiveTab("issued");
               setToastNotification({
-                message: "Failed item reverted to Inspection Issued successfully.",
+                message:
+                  "Failed item reverted to Inspection Issued successfully.",
                 severity: "success",
               });
             } else if (type === "issued" && definition.slug === "drying") {
               const sourceDoneId =
-                getFactoryString(row.sourceRowId) || getFactoryString(row.sourceDoneId);
+                getFactoryString(row.sourceRowId) ||
+                getFactoryString(row.sourceDoneId);
               const leaves = Math.max(
                 0,
                 Math.floor(
-                  Number(String(row.noOfLeaves ?? row.receivedLeaves ?? "0").replace(/[^\d.]/g, "")) || 0,
+                  Number(
+                    String(row.noOfLeaves ?? row.receivedLeaves ?? "0").replace(
+                      /[^\d.]/g,
+                      "",
+                    ),
+                  ) || 0,
                 ),
               );
               if (sourceDoneId && leaves > 0) {
@@ -3110,7 +3718,9 @@ export function FactoryListing<Row extends FactoryRecord>({
               }
               const workItemId =
                 getFactoryString(row.workItemId) ||
-                (String(row.id).startsWith("factory-work-") ? String(row.id) : "");
+                (String(row.id).startsWith("factory-work-")
+                  ? String(row.id)
+                  : "");
               if (workItemId) {
                 removeFactoryIssuedWork(workItemId);
               } else {
@@ -3124,14 +3734,18 @@ export function FactoryListing<Row extends FactoryRecord>({
               });
             } else if (type === "rejected" && definition.slug === "slicing") {
               clearSlicingDoneRejected(row);
-              setRejectedDoneRows((current) => current.filter((item) => item.id !== row.id));
+              setRejectedDoneRows((current) =>
+                current.filter((item) => item.id !== row.id),
+              );
               setToastNotification({
                 message: "Item reverted to Slicing Done successfully.",
                 severity: "success",
               });
             } else if (type === "rejected" && definition.slug === "drying") {
               clearDryingDoneRejected(String(row.id));
-              setRejectedDoneRows((current) => current.filter((item) => item.id !== row.id));
+              setRejectedDoneRows((current) =>
+                current.filter((item) => item.id !== row.id),
+              );
               setToastNotification({
                 message: "Item reverted to Drying Done successfully.",
                 severity: "success",
@@ -3193,7 +3807,9 @@ export function FactoryListing<Row extends FactoryRecord>({
             updateSlicingDoneAvailableLeaves(selectedRow, remainingLeaves);
           });
           const issuedIds = new Set(entries.map(({ row }) => row.id));
-          setSelectedListingRows((current) => current.filter((row) => !issuedIds.has(row.id)));
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
           setIssueDryingRows([]);
           setConfirmIssueDryingOpen(false);
           setToastNotification({
@@ -3361,13 +3977,22 @@ function GroupingOrderItemDetailsDialog({
   const orderType = String(order?.orderType ?? row?.orderType ?? "");
   const isFinishedOrder =
     /finished/i.test(orderType) ||
-    Boolean(item?.baseType || row?.baseType || item?.baseName || item?.finishedType);
+    Boolean(
+      item?.baseType || row?.baseType || item?.baseName || item?.finishedType,
+    );
 
-  const baseTypeVal = item?.baseType || (row?.baseType as string) || (isFinishedOrder ? "Plywood" : "");
-  const baseNameVal = item?.baseName || (baseTypeVal ? `${baseTypeVal} Base` : "");
-  const baseLengthVal = item?.baseLength || item?.length || (row?.length as string) || "";
-  const baseWidthVal = item?.baseWidth || item?.width || (row?.width as string) || "";
-  const baseThicknessVal = item?.baseThickness || (row?.baseThickness as string) || "12 mm";
+  const baseTypeVal =
+    item?.baseType ||
+    (row?.baseType as string) ||
+    (isFinishedOrder ? "Plywood" : "");
+  const baseNameVal =
+    item?.baseName || (baseTypeVal ? `${baseTypeVal} Base` : "");
+  const baseLengthVal =
+    item?.baseLength || item?.length || (row?.length as string) || "";
+  const baseWidthVal =
+    item?.baseWidth || item?.width || (row?.width as string) || "";
+  const baseThicknessVal =
+    item?.baseThickness || (row?.baseThickness as string) || "12 mm";
 
   const hasBaseDetails = isFinishedOrder || Boolean(baseTypeVal);
 
@@ -3379,21 +4004,62 @@ function GroupingOrderItemDetailsDialog({
           fields: [
             ["Order No.", detailText(order?.orderNo ?? row?.orderNo)],
             ["Order Item No.", detailText(details.orderItemNo)],
-            ["Order Type", detailText(order?.orderType ?? row?.orderType ?? "Raw Order")],
-            ["Customer Name", detailText(order?.customerName ?? row?.customerName)],
+            [
+              "Order Type",
+              detailText(order?.orderType ?? row?.orderType ?? "Raw Order"),
+            ],
+            [
+              "Customer Name",
+              detailText(order?.customerName ?? row?.customerName),
+            ],
             ["Order Date", detailText(order?.orderDate ?? row?.orderDate)],
-            ["Required Delivery Date", detailText(order?.deliveryDate ?? row?.deliveryDate ?? row?.orderDate)],
+            [
+              "Required Delivery Date",
+              detailText(
+                order?.deliveryDate ?? row?.deliveryDate ?? row?.orderDate,
+              ),
+            ],
           ],
         },
         {
           title: `${stage} Requirement`,
           columns: 2 as const,
           fields: [
-            ["Product Category", detailText(item?.productCategory ?? row?.productCategory ?? (row?.productType ? `${row.productType} Veneer` : "Raw Veneer"))],
-            ["Finished Type", detailText(item?.finishedType ?? row?.finishedType ?? row?.productType ?? "-")],
-            ["Sales Item Name", detailText(item?.salesItemName ?? row?.salesItemName ?? item?.itemName ?? row?.itemName)],
+            [
+              "Product Category",
+              detailText(
+                item?.productCategory ??
+                  row?.productCategory ??
+                  (row?.productType
+                    ? `${row.productType} Veneer`
+                    : "Raw Veneer"),
+              ),
+            ],
+            [
+              "Finished Type",
+              detailText(
+                item?.finishedType ??
+                  row?.finishedType ??
+                  row?.productType ??
+                  "-",
+              ),
+            ],
+            [
+              "Sales Item Name",
+              detailText(
+                item?.salesItemName ??
+                  row?.salesItemName ??
+                  item?.itemName ??
+                  row?.itemName,
+              ),
+            ],
             ["Item Name", detailText(item?.itemName ?? row?.itemName)],
-            ["Sub Category", detailText(item?.subCategory ?? row?.subCategory ?? row?.itemSubCategory)],
+            [
+              "Sub Category",
+              detailText(
+                item?.subCategory ?? row?.subCategory ?? row?.itemSubCategory,
+              ),
+            ],
             ["Grade", detailText(item?.grade ?? row?.grade)],
           ],
         },
@@ -3408,7 +4074,15 @@ function GroupingOrderItemDetailsDialog({
           fields: [
             ["Length", detailText(item?.length ?? row?.length)],
             ["Width", detailText(item?.width ?? row?.width)],
-            ["Thickness", detailText(item?.thickness ?? row?.thickness ?? row?.height ?? row?.veneerThickness)],
+            [
+              "Thickness",
+              detailText(
+                item?.thickness ??
+                  row?.thickness ??
+                  row?.height ??
+                  row?.veneerThickness,
+              ),
+            ],
           ],
         },
         ...(hasBaseDetails
@@ -3430,16 +4104,25 @@ function GroupingOrderItemDetailsDialog({
           title: "Required Quantity",
           columns: 3 as const,
           fields: [
-            ["No. of Sheets", detailText(item?.quantitySheets ?? row?.noOfSheets)],
+            [
+              "No. of Sheets",
+              detailText(item?.quantitySheets ?? row?.noOfSheets),
+            ],
             ["SQM", detailText(item?.sqm ?? row?.sqm)],
-            ["Total SQM", detailText(item?.totalSqm ?? row?.totalSqm ?? row?.sqf)],
+            [
+              "Total SQM",
+              detailText(item?.totalSqm ?? row?.totalSqm ?? row?.sqf),
+            ],
           ],
         },
         {
           title: `${stage} Instructions`,
           columns: 1 as const,
           fields: [
-            ["Remark", detailText(item?.remark ?? row?.remark ?? row?.instructions)],
+            [
+              "Remark",
+              detailText(item?.remark ?? row?.remark ?? row?.instructions),
+            ],
           ],
         },
       ]
@@ -3492,11 +4175,14 @@ function GroupingOrderItemDetailsDialog({
             Order Item Details
           </Typography>
           <Typography color="text.secondary" sx={{ fontSize: 12.5 }}>
-            Order-item information required at the {details?.stageLabel ?? "Grouping"} stage
+            Order-item information required at the{" "}
+            {details?.stageLabel ?? "Grouping"} stage
           </Typography>
         </Box>
       </DialogTitle>
-      <DialogContent sx={{ bgcolor: "background.default", p: "14px !important" }}>
+      <DialogContent
+        sx={{ bgcolor: "background.default", p: "14px !important" }}
+      >
         <Box
           sx={{
             display: "grid",
@@ -3525,7 +4211,10 @@ function GroupingOrderItemDetailsDialog({
             ))}
           </Stack>
           {leftSections.length === 0 && rightSections.length === 0 ? (
-            <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }}>
+            <Typography
+              color="text.secondary"
+              sx={{ py: 3, textAlign: "center" }}
+            >
               No additional order-item details are available.
             </Typography>
           ) : null}
@@ -3599,10 +4288,15 @@ function OrderDetailSection({
               py: 0.9,
             })}
           >
-            <Typography color="text.secondary" sx={{ fontSize: 11.5, mb: 0.35 }}>
+            <Typography
+              color="text.secondary"
+              sx={{ fontSize: 11.5, mb: 0.35 }}
+            >
               {label}
             </Typography>
-            <Typography sx={{ fontSize: 13.5, fontWeight: 650, wordBreak: "break-word" }}>
+            <Typography
+              sx={{ fontSize: 13.5, fontWeight: 650, wordBreak: "break-word" }}
+            >
               {value}
             </Typography>
           </Box>
@@ -3611,4 +4305,3 @@ function OrderDetailSection({
     </Box>
   );
 }
-

@@ -260,18 +260,46 @@ export function getSlicingCreateSubmitError(
     return `Slicing quantity exceeds available CBM. Available CBM: ${Math.max(0, sourceAvailableCbm - totalConsumedCbm).toFixed(3)}`;
   }
 
-  const expected = buildSlicingAvailableValues(sourceRow, lineItems);
-  const comparableKeys = ["length", "width", "height", "cbm"] as const;
-  const availableMatches = comparableKeys.every((key) => {
-    const actual = numericField(availableValues[key]);
-    const calculated = numericField(expected[key]);
-    return Math.abs(actual - calculated) <= SLICING_CBM_EPSILON;
-  });
-  if (!availableMatches) {
-    return "Available Details do not match the calculated remaining source material.";
+  const enteredCbmText = (availableValues.cbm ?? "").trim();
+  if (enteredCbmText) {
+    const enteredCbm = numericField(enteredCbmText);
+    const maxRemainingCbm = Math.max(0, sourceAvailableCbm - totalConsumedCbm);
+    if (enteredCbm - maxRemainingCbm > SLICING_CBM_EPSILON) {
+      return `Available CBM cannot exceed ${maxRemainingCbm.toFixed(3)}. Source CBM is ${sourceAvailableCbm.toFixed(3)} and slicing outputs consume ${totalConsumedCbm.toFixed(3)}.`;
+    }
   }
 
   return "";
+}
+
+export function getSlicingAvailableCbmIssue(
+  slug: string,
+  availableCbm: string | undefined,
+  sourceRow: Record<string, unknown> | undefined,
+  totalConsumedCbm: number,
+) {
+  if (slug !== "slicing" || !sourceRow) {
+    return {};
+  }
+
+  const enteredText = (availableCbm ?? "").trim();
+  if (!enteredText) {
+    return {};
+  }
+
+  const entered = numericField(enteredText);
+  const sourceCbm = slicingStockCbm(sourceRow);
+  const remaining = Math.max(0, sourceCbm - totalConsumedCbm);
+  if (entered - remaining <= SLICING_CBM_EPSILON) {
+    return {};
+  }
+
+  return {
+    cbm: {
+      message: `Available CBM cannot exceed ${remaining.toFixed(3)}. Source CBM is ${sourceCbm.toFixed(3)} and slicing outputs consume ${totalConsumedCbm.toFixed(3)}.`,
+      severity: "error" as const,
+    },
+  };
 }
 
 export function saveSlicingCreateProcess({
@@ -291,8 +319,22 @@ export function saveSlicingCreateProcess({
 }) {
 const slicingSource = (sourceRow ?? {}) as Record<string, unknown>;
 const calculatedAvailable = buildSlicingAvailableValues(sourceRow, lineItems);
-const remainingCbm = Math.max(0, numericField(calculatedAvailable.cbm));
-const remainingHeight = numericField(calculatedAvailable.height);
+const remainingCbm =
+  rejectAvailableValues.cbm !== undefined && rejectAvailableValues.cbm !== ""
+    ? Math.max(0, numericField(rejectAvailableValues.cbm))
+    : Math.max(0, numericField(calculatedAvailable.cbm));
+const remainingHeight =
+  rejectAvailableValues.height !== undefined && rejectAvailableValues.height !== ""
+    ? numericField(rejectAvailableValues.height)
+    : numericField(calculatedAvailable.height);
+const availableLength =
+  rejectAvailableValues.length !== undefined && rejectAvailableValues.length !== ""
+    ? rejectAvailableValues.length
+    : String(slicingSource.length ?? "");
+const availableWidth =
+  rejectAvailableValues.width !== undefined && rejectAvailableValues.width !== ""
+    ? rejectAvailableValues.width
+    : String(slicingSource.width ?? "");
 const issueKeys = [
   slicingSource.id,
   slicingSource.workItemId,
@@ -311,8 +353,8 @@ const issueKeys = [
 updateSlicingIssuedAvailability(issueKeys, {
   availableCbm: Number(formatSawingNumber(remainingCbm, 6)) || 0,
   height: formatSawingNumber(remainingHeight, 3),
-  length: String(slicingSource.length ?? ""),
-  width: String(slicingSource.width ?? ""),
+  length: availableLength,
+  width: availableWidth,
 });
 
 if (remainingCbm <= 0.000001 && workItemId) {
@@ -392,12 +434,14 @@ export function saveSlicingEditProcess({
   lineItems,
   navigate,
   originalRows,
+  rejectAvailableValues,
   sourceRow,
 }: {
   formValues: Record<string, MasterFieldValue>;
   lineItems: readonly (SlicingCreateLineItem & { id?: string })[];
   navigate: (path: string) => void;
   originalRows: readonly Record<string, any>[];
+  rejectAvailableValues?: RejectAvailableValues;
   sourceRow: Record<string, any>;
 }) {
   const timestamp = Date.now();
@@ -451,7 +495,22 @@ export function saveSlicingEditProcess({
   });
 
   const calculatedAvailable = buildSlicingAvailableValues(sourceRow, lineItems);
-  const remainingCbm = Math.max(0, numericField(calculatedAvailable.cbm));
+  const remainingCbm =
+    rejectAvailableValues?.cbm !== undefined && rejectAvailableValues.cbm !== ""
+      ? Math.max(0, numericField(rejectAvailableValues.cbm))
+      : Math.max(0, numericField(calculatedAvailable.cbm));
+  const remainingHeight =
+    rejectAvailableValues?.height !== undefined && rejectAvailableValues.height !== ""
+      ? numericField(rejectAvailableValues.height)
+      : numericField(calculatedAvailable.height);
+  const availableLength =
+    rejectAvailableValues?.length !== undefined && rejectAvailableValues.length !== ""
+      ? rejectAvailableValues.length
+      : String(sourceRow.length ?? "");
+  const availableWidth =
+    rejectAvailableValues?.width !== undefined && rejectAvailableValues.width !== ""
+      ? rejectAvailableValues.width
+      : String(sourceRow.width ?? "");
   const aliases = [
     sourceRow.id,
     sourceRow.sourceIssueId,
@@ -464,9 +523,9 @@ export function saveSlicingEditProcess({
 
   updateSlicingIssuedAvailability(aliases, {
     availableCbm: Number(formatSawingNumber(remainingCbm, 6)) || 0,
-    height: calculatedAvailable.height || "0",
-    length: String(sourceRow.length ?? ""),
-    width: String(sourceRow.width ?? ""),
+    height: formatSawingNumber(remainingHeight, 3) || "0",
+    length: availableLength,
+    width: availableWidth,
   });
   replaceSlicingDoneItems(originalRows, replacementRows);
   navigate("/factory/slicing?tab=done");

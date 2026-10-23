@@ -93,12 +93,10 @@ const field = (
   }
 
   return textField(key, label);
-
 };
 
-const columns = (
-  specs: readonly (readonly [key: string, label: string])[],
-) => specs.map(([key, label]) => column(key, label));
+const columns = (specs: readonly (readonly [key: string, label: string])[]) =>
+  specs.map(([key, label]) => column(key, label));
 
 const listingColumns = (
   specs: readonly (readonly [key: string, label: string])[],
@@ -155,8 +153,22 @@ const customers = [
 ] as const;
 
 const grades = ["A", "B", "Premium", "Select", "Commercial", "Export"] as const;
-const cuts = ["Quarter Cut", "Crown Cut", "Rift Cut", "Natural", "Rotary", "Plain"] as const;
-const shifts = ["Day", "Morning", "General", "Evening", "Night", "Second"] as const;
+const cuts = [
+  "Quarter Cut",
+  "Crown Cut",
+  "Rift Cut",
+  "Natural",
+  "Rotary",
+  "Plain",
+] as const;
+const shifts = [
+  "Day",
+  "Morning",
+  "General",
+  "Evening",
+  "Night",
+  "Second",
+] as const;
 
 function day(value: number) {
   return asDate(`2026-07-${String(value).padStart(2, "0")}`);
@@ -170,7 +182,10 @@ function toSqf(sqm: string) {
   return formatSqfFromSqm(sqm);
 }
 
-function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") {
+function commonRow(
+  index: number,
+  warehouseName: "Warehouse B" | "Warehouse C",
+) {
   const sequence = index + 1;
   const sqmValue = 95.25 + index * 8.4;
   const amountValue = 42000 + index * 8250;
@@ -181,7 +196,7 @@ function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") 
   const outputSqm = formatSQM(64.8 + index * 5.8);
   const itemName = itemNames[index % itemNames.length];
   const warehouseCode = warehouseName.endsWith("B") ? "WB" : "WC";
-  const pick = <Value,>(values: readonly Value[]) =>
+  const pick = <Value>(values: readonly Value[]) =>
     values[index % values.length]!;
 
   return {
@@ -217,13 +232,7 @@ function commonRow(index: number, warehouseName: "Warehouse B" | "Warehouse C") 
     createdAt: day(4 + index),
     updatedBy: names[(index + 1) % names.length],
     updatedAt: day(5 + index),
-    issuedFor: pick([
-      "Drying",
-      "Pressing",
-      "Splicing",
-      "Fluting",
-      "Finishing",
-    ]),
+    issuedFor: pick(["Drying", "Pressing", "Splicing", "Fluting", "Finishing"]),
     customerName: customers[index % customers.length],
     orderNo: `ORD-2026-${String(1200 + sequence)}`,
     orderItemNo: `ITEM-${String(sequence).padStart(3, "0")}`,
@@ -421,8 +430,9 @@ const groupingRows = factoryRows("grouping", "Warehouse C", (row, index) => {
     ...row,
     storageSrNo: `STG-RV-${year}-${seq}`,
     issuedFor: "Splicing",
-    groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
-    groupPhoto: "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
+    groupNo: `GRP-${String(index + 1).padStart(4, "0")}`,
+    groupPhoto:
+      "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
     issueTo: index % 2 === 0 ? "Order" : "Sample Sheet",
   };
 });
@@ -436,24 +446,28 @@ const sampleSheetProcessTypes = [
   "Fluting",
 ] as const;
 
-const sampleSheetRows = factoryRows("sample-sheets", "Warehouse C", (row, index) => {
-  const sampleProcessType =
-    sampleSheetProcessTypes[index % sampleSheetProcessTypes.length]!;
+const sampleSheetRows = factoryRows(
+  "sample-sheets",
+  "Warehouse C",
+  (row, index) => {
+    const sampleProcessType =
+      sampleSheetProcessTypes[index % sampleSheetProcessTypes.length]!;
 
-  return {
-    ...row,
-    issuedFrom: "Grouping",
-    issuedFor: "",
-    groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
-    sampleProcessType,
-    finishType: sampleProcessType,
-    purpose: `${sampleProcessType} Sample Sheet`,
-  };
-});
+    return {
+      ...row,
+      issuedFrom: "Grouping",
+      issuedFor: "",
+      groupNo: `GRP-${String(index + 1).padStart(4, "0")}`,
+      sampleProcessType,
+      finishType: sampleProcessType,
+      purpose: `${sampleProcessType} Sample Sheet`,
+    };
+  },
+);
 
 const withCarriedGroupNo = (row: FactoryRowSeed, index: number) => ({
   ...row,
-  groupNo: `GRP-2026-${String(index + 1).padStart(4, "0")}`,
+  groupNo: `GRP-${String(index + 1).padStart(4, "0")}`,
 });
 
 const splicingRows = factoryRows("splicing", "Warehouse C", (row, index) => {
@@ -475,7 +489,10 @@ const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
   ],
 }));
 
-const pressingListingRows = expandFactoryRowsForTabs("pressing", pressingRows).map((row) =>
+const pressingListingRows = expandFactoryRowsForTabs(
+  "pressing",
+  pressingRows,
+).map((row) =>
   row.id === "pressing-done-1"
     ? {
         ...row,
@@ -493,10 +510,14 @@ const pressingListingRows = expandFactoryRowsForTabs("pressing", pressingRows).m
     : row,
 );
 
-const cncFlutingRows = factoryRows("cnc-fluting", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: "Finishing",
-}));
+const cncFlutingRows = factoryRows(
+  "cnc-fluting",
+  "Warehouse C",
+  (row, index) => ({
+    ...withCarriedGroupNo(row, index),
+    issuedFor: "Finishing",
+  }),
+);
 
 const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => ({
   ...withCarriedGroupNo(row, index),
@@ -863,7 +884,6 @@ const sawingProcessDetailFields = [
   ["remark", "Remark"],
 ] as const;
 
-
 const slicingDerivedAreaKeys = new Set(["sqm", "sqf"]);
 
 function buildSlicingFormSections(rows: readonly FactoryRecord[]) {
@@ -895,13 +915,9 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
   ] as const;
 }
 
-const groupingCreateFields = [
-  ["groupingDate", "Grouping Date"],
-] as const;
-
+const groupingCreateFields = [["groupingDate", "Grouping Date"]] as const;
 
 const marquetryCreateFields = groupingCreateFields;
-
 
 const groupingAddItemFields = [
   ["groupNo", "Group No."],
@@ -909,7 +925,6 @@ const groupingAddItemFields = [
   ["groupPhoto", "Group Photo"],
   ["remark", "Remark"],
 ] as const;
-
 
 const splicingCreateFields = [
   ["issuedFor", "Issued For"],
@@ -939,9 +954,7 @@ const splicingAddItemFields = [
   ["remark", "Remark"],
 ] as const;
 
-const pressingCreateFields = [
-  ["pressingDate", "Pressing Date"],
-] as const;
+const pressingCreateFields = [["pressingDate", "Pressing Date"]] as const;
 
 const pressingAddItemFields = [
   ["productType", "Product Type"],
@@ -1049,12 +1062,13 @@ const sectionSet = (
   rows: readonly FactoryRecord[],
   createFields: readonly (readonly [key: string, label: string])[],
   addItemFields?: readonly (readonly [key: string, label: string])[],
-) => [
-  createSection("Create", fields(createFields, rows)),
-  ...(addItemFields
-    ? [createSection("Add Item", fields(addItemFields, rows))]
-    : []),
-] as const;
+) =>
+  [
+    createSection("Create", fields(createFields, rows)),
+    ...(addItemFields
+      ? [createSection("Add Item", fields(addItemFields, rows))]
+      : []),
+  ] as const;
 
 export const slicingDefinition: FactoryDefinition = {
   slug: "slicing",
@@ -1119,12 +1133,15 @@ export const slicingItemTableFieldKeys = [
   "remark",
 ] as const;
 
-
 export const groupingDefinition: FactoryDefinition = {
   slug: "grouping",
   title: "Grouping",
   listColumns: groupingListingColumns,
-  formSections: sectionSet(groupingRows, groupingCreateFields, groupingAddItemFields),
+  formSections: sectionSet(
+    groupingRows,
+    groupingCreateFields,
+    groupingAddItemFields,
+  ),
   rows: expandFactoryRowsForTabs("grouping", groupingRows),
   initialSort: { key: "issuedDate", direction: "desc" },
 };
@@ -1146,7 +1163,11 @@ export const splicingDefinition: FactoryDefinition = {
   slug: "splicing",
   title: "Splicing",
   listColumns: splicingListingColumns,
-  formSections: sectionSet(splicingRows, splicingCreateFields, splicingAddItemFields),
+  formSections: sectionSet(
+    splicingRows,
+    splicingCreateFields,
+    splicingAddItemFields,
+  ),
   rows: expandFactoryRowsForTabs("splicing", splicingRows),
   initialSort: { key: "issuedDate", direction: "desc" },
 };
@@ -1155,7 +1176,11 @@ export const pressingDefinition: FactoryDefinition = {
   slug: "pressing",
   title: "Pressing",
   listColumns: productionListingColumns,
-  formSections: sectionSet(pressingRows, pressingCreateFields, pressingAddItemFields),
+  formSections: sectionSet(
+    pressingRows,
+    pressingCreateFields,
+    pressingAddItemFields,
+  ),
   rows: pressingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
@@ -1200,7 +1225,11 @@ export const marquetryDefinition: FactoryDefinition = {
   slug: "marquetry",
   title: "Marquetry",
   listColumns: marquetryListingColumns,
-  formSections: sectionSet(marquetryRows, marquetryCreateFields, groupingAddItemFields),
+  formSections: sectionSet(
+    marquetryRows,
+    marquetryCreateFields,
+    groupingAddItemFields,
+  ),
   rows: expandFactoryRowsForTabs("marquetry", marquetryRows),
   initialSort: { key: "issuedDate", direction: "desc" },
 };

@@ -12,8 +12,12 @@ import {
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
 
+import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { formSectionCardSx, FormSectionHeader } from "../../shared/formSectionStyles";
+import {
+  formSectionCardSx,
+  plainFormSectionHeadingSx,
+} from "../../shared/formSectionStyles";
 import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
@@ -42,7 +46,12 @@ const outputColumns: readonly {
   required?: boolean;
 }[] = [
   { key: "itemName", label: "Item Name", minWidth: 180, required: true },
-  { key: "itemSubCategory", label: "Sub Category", minWidth: 170, required: true },
+  {
+    key: "itemSubCategory",
+    label: "Sub Category",
+    minWidth: 170,
+    required: true,
+  },
   { key: "length", label: "Length", minWidth: 130, required: true },
   { key: "width", label: "Width", minWidth: 130, required: true },
   { key: "thickness", label: "Thickness", minWidth: 130, required: true },
@@ -51,6 +60,14 @@ const outputColumns: readonly {
   { key: "sqf", label: "SQF", minWidth: 120, readOnly: true },
   { key: "remark", label: "Remark", minWidth: 190 },
 ];
+
+const dummyItemMasterOptions = [
+  "Oak Veneer Panel",
+  "Walnut Marquetry Panel",
+  "Teak Decorative Panel",
+  "Ash Veneer Sheet",
+  "Maple Inlay Panel",
+] as const;
 
 export function createEmptyMarquetryOutputDetails(): MarquetryOutputDetailsValue {
   return {
@@ -69,7 +86,11 @@ export function createEmptyMarquetryOutputDetails(): MarquetryOutputDetailsValue
 export function calculateMarquetryOutputDetails(
   value: MarquetryOutputDetailsValue,
 ): MarquetryOutputDetailsValue {
-  const sqm = calculateSlicingSqmValue(value.length, value.width, value.noOfSheets);
+  const sqm = calculateSlicingSqmValue(
+    value.length,
+    value.width,
+    value.noOfSheets,
+  );
   return {
     ...value,
     sqm: sqm > 0 ? formatSQM(sqm) : "",
@@ -119,20 +140,39 @@ export function MarquetryOutputDetails({
   showErrors: boolean;
   value: MarquetryOutputDetailsValue;
 }) {
-  const update = (key: keyof MarquetryOutputDetailsValue, nextValue: string) => {
+  const update = (
+    key: keyof MarquetryOutputDetailsValue,
+    nextValue: string,
+  ) => {
     onChange(calculateMarquetryOutputDetails({ ...value, [key]: nextValue }));
   };
-  const requiredError = (key: "itemName" | "itemSubCategory" | "length" | "width" | "thickness" | "noOfSheets") =>
+  const itemNameOptions = value.itemName.trim()
+    ? Array.from(new Set([value.itemName, ...dummyItemMasterOptions]))
+    : [...dummyItemMasterOptions];
+  const requiredError = (
+    key:
+      | "itemName"
+      | "itemSubCategory"
+      | "length"
+      | "width"
+      | "thickness"
+      | "noOfSheets",
+  ) =>
     showErrors &&
     (key === "itemName" || key === "itemSubCategory"
       ? !value[key].trim()
       : key === "noOfSheets"
-        ? !/^\d+$/u.test(value.noOfSheets.trim()) || Number(value.noOfSheets) <= 0
+        ? !/^\d+$/u.test(value.noOfSheets.trim()) ||
+          Number(value.noOfSheets) <= 0
         : !isPositiveNumber(value[key]));
 
   return (
-    <Stack sx={(theme) => ({ ...formSectionCardSx(theme), gap: theme.spacing(1.5) })}>
-      <FormSectionHeader title="Output Details" />
+    <Stack
+      sx={(theme) => ({ ...formSectionCardSx(theme), gap: theme.spacing(1.5) })}
+    >
+      <Typography component="h2" sx={plainFormSectionHeadingSx}>
+        Output Details
+      </Typography>
       <Box
         sx={(theme) => ({
           border: `1px solid ${theme.customTokens.borders.default}`,
@@ -153,7 +193,8 @@ export function MarquetryOutputDetails({
                       minWidth: column.minWidth,
                     })}
                   >
-                    {column.label}{column.required ? " *" : ""}
+                    {column.label}
+                    {column.required ? " *" : ""}
                   </TableCell>
                 ))}
               </TableRow>
@@ -163,7 +204,15 @@ export function MarquetryOutputDetails({
                 {outputColumns.map((column) => {
                   const key = column.key;
                   const error = column.required
-                    ? requiredError(key as "itemName" | "itemSubCategory" | "length" | "width" | "thickness" | "noOfSheets")
+                    ? requiredError(
+                        key as
+                          | "itemName"
+                          | "itemSubCategory"
+                          | "length"
+                          | "width"
+                          | "thickness"
+                          | "noOfSheets",
+                      )
                     : false;
                   return (
                     <TableCell
@@ -185,24 +234,46 @@ export function MarquetryOutputDetails({
                         >
                           {value[key] || "-"}
                         </Typography>
+                      ) : key === "itemName" ? (
+                        <ErpSelectField
+                          helperText={
+                            error ? `${column.label} is required.` : undefined
+                          }
+                          onChange={(nextValue) => update(key, nextValue)}
+                          options={itemNameOptions}
+                          placeholder="Select item name"
+                          searchable={itemNameOptions.length > 6}
+                          size="dense"
+                          state={error ? "error" : "default"}
+                          value={value.itemName}
+                        />
                       ) : (
                         <TextField
                           error={error}
                           fullWidth
-                          helperText={error ? `${column.label} is required.` : undefined}
+                          helperText={
+                            error ? `${column.label} is required.` : undefined
+                          }
                           onChange={(event) => {
                             const raw = event.target.value;
                             const next =
                               key === "noOfSheets"
                                 ? raw.replace(/\D/gu, "")
-                                : key === "length" || key === "width" || key === "thickness"
+                                : key === "length" ||
+                                    key === "width" ||
+                                    key === "thickness"
                                   ? sanitizeDecimal(raw)
                                   : raw;
                             update(key, next);
                           }}
                           placeholder={`Enter ${column.label.toLowerCase()}`}
                           size="small"
-                          sx={(theme) => getCompactFieldSx(theme, error ? "error" : "default")}
+                          sx={(theme) =>
+                            getCompactFieldSx(
+                              theme,
+                              error ? "error" : "default",
+                            )
+                          }
                           value={value[key]}
                         />
                       )}

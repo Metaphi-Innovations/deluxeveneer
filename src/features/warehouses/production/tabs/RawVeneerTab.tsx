@@ -13,7 +13,7 @@ import { ConfirmationDialog } from "../../../../components/feedback/Confirmation
 import { Eye, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
-  isActiveColumnFilter,
+  toApiColumnFilters as toSharedApiColumnFilters,
   type ColumnFilterValue,
 } from "../../../shared/columnFilters";
 import {
@@ -73,9 +73,9 @@ function toApiColumnFilters(
   columnFilters: Partial<Record<string, ColumnFilterValue>>,
 ): Record<string, string[]> {
   const filters: Record<string, string[]> = {};
-  for (const [key, filter] of Object.entries(columnFilters)) {
-    if (!isActiveColumnFilter(filter) || clientQuantityColumnKeys.has(key)) continue;
-    filters[toApiColumnKey(key)] = filter.values;
+  for (const [key, values] of Object.entries(toSharedApiColumnFilters(columnFilters))) {
+    if (clientQuantityColumnKeys.has(key)) continue;
+    filters[toApiColumnKey(key)] = values;
   }
   return filters;
 }
