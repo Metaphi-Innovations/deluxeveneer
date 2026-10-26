@@ -34,6 +34,11 @@ import { buildLocalMasterDefinition } from "../../masters/shared/localMasterStor
 import {
   itemMasterDefinition,
 } from "../../masters/shared/masterDefinitions";
+import {
+  getCachedItemMasterRows,
+  refreshItemMasterCache,
+} from "../../masters/item-name-master/api/itemMasterApi";
+import { fetchOrderDropdownsApi } from "../api/ordersApi";
 import { formatMasterValue } from "../../masters/shared";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import {
@@ -867,7 +872,49 @@ export const OrderLineItemsTable = forwardRef<
 }, ref) {
   const isUnifiedOrder = variant === "order";
   const isFinishedOrder = variant === "finished";
-  const itemRows = useMemo(() => getItemMasterRows(), []);
+  const [itemsVersion, setItemsVersion] = useState(0);
+  const [dropdownItems, setDropdownItems] = useState<Array<{ name?: string; label?: string; category?: string; subCategory?: string }>>([]);
+
+  useEffect(() => {
+    let ignore = false;
+    // Check if items are already cached in itemMasterRowsCache
+    const cached = getCachedItemMasterRows();
+    if (cached && cached.length > 0) {
+      return;
+    }
+
+    void fetchOrderDropdownsApi()
+      .then((data) => {
+        if (!ignore && data?.items) {
+          setDropdownItems(data.items);
+          setItemsVersion((v) => v + 1);
+        }
+      })
+      .catch(() => {
+        // Fallback to local store on error
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const itemRows = useMemo(() => {
+    const fromMaster = getItemMasterRows();
+    if (fromMaster.length > 0) {
+      return fromMaster;
+    }
+    if (dropdownItems.length > 0) {
+      return dropdownItems.map((d, idx) => ({
+        id: `dd-item-${idx}`,
+        itemName: d.name || d.label || "",
+        category: d.category || "",
+        subCategory: d.subCategory || "",
+        status: "Active",
+      }));
+    }
+    return fromMaster;
+  }, [dropdownItems, itemsVersion]);
   const itemOptions = useMemo(() => getItemMasterOptions(itemRows), [itemRows]);
   const subCategoryOptions = useMemo(
     () => getItemMasterSubCategoryOptions(itemRows),
@@ -2473,6 +2520,10 @@ function formatOrderItemNo(itemId: string, index: number) {
 }
 
 function getItemMasterRows() {
+  const cached = getCachedItemMasterRows();
+  if (cached && cached.length > 0) {
+    return cached;
+  }
   return buildLocalMasterDefinition(itemMasterDefinition).rows;
 }
 

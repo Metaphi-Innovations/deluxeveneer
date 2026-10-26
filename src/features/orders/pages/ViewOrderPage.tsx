@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Avatar,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   Stack,
   Table,
@@ -38,6 +39,7 @@ import {
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
 import {
+  appendCreatedOrderToStore,
   getOrderLineItems,
   getOrderRecord,
   getOrdersPaths,
@@ -50,6 +52,7 @@ import {
   useOrderRecords,
 } from "../shared/ordersStore";
 import { OrderStatusChip } from "../shared/OrderStatusChip";
+import { fetchOrderByIdApi, mapBackendOrderToOrderRecord } from "../api/ordersApi";
 
 interface ViewOrderPageProps {
   moduleConfig?: OrderModuleConfig;
@@ -75,12 +78,47 @@ export function ViewOrderPage({
   const paths = getOrdersPaths(moduleConfig.basePath);
 
   // Subscribe to updates so that edits/status changes re-render immediately
-  useOrderRecords();
+  const records = useOrderRecords();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Fetch real order from backend on mount or when id changes
+  useEffect(() => {
+    if (!id) return;
+
+    let isMounted = true;
+    setIsLoading(true);
+    setFetchError(null);
+
+    fetchOrderByIdApi(id)
+      .then((backendOrder) => {
+        if (!isMounted) return;
+        const { record: mappedRecord, lineItems: mappedItems } =
+          mapBackendOrderToOrderRecord(backendOrder);
+        appendCreatedOrderToStore(mappedRecord, mappedItems);
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        // If not found in backend and also not in memory
+        const errMsg = err instanceof Error ? err.message : "Failed to load order from server.";
+        setFetchError(errMsg);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   const record: OrderRecord | undefined = useMemo(() => {
     if (!id) return undefined;
     return getOrderRecord(id);
-  }, [id]);
+  }, [id, records]);
 
   const canEdit = canAccessPermission(moduleConfig.permissionKey, "edit");
   const canView = canAccessPermission(moduleConfig.permissionKey, "view");
@@ -88,7 +126,7 @@ export function ViewOrderPage({
   const lineItems = useMemo(() => {
     if (!record) return [];
     return getOrderLineItems(record.id);
-  }, [record]);
+  }, [record, records]);
 
   const variant = getOrderVariantFromType(record?.orderType);
   const isFinished = variant === "finished";
@@ -96,7 +134,7 @@ export function ViewOrderPage({
   const itemRows: OrderLineItemTableRow[] = useMemo(() => {
     return lineItems.map((item, index) => ({
       ...item,
-      orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
+      orderItemNo: item.orderItemNo || `OI-${String(index + 1).padStart(3, "0")}`,
     }));
   }, [lineItems]);
 
@@ -175,9 +213,28 @@ export function ViewOrderPage({
     );
   }
 
+  if (isLoading && !record) {
+    return (
+      <MasterPageShell
+        backNav={{ label: "Back to Orders", to: paths.list, onBack: handleBack }}
+        breadcrumbs={[
+          { label: moduleConfig.title, to: paths.list },
+          { label: "Loading..." },
+        ]}
+        title="View Order"
+        contentGap={1.5}
+      >
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 8 }}>
+          <CircularProgress size={32} />
+        </Box>
+      </MasterPageShell>
+    );
+  }
+
   if (!record) {
     return (
       <MasterPageShell
+        backNav={{ label: "Back to Orders", to: paths.list, onBack: handleBack }}
         breadcrumbs={[
           { label: moduleConfig.title, to: paths.list },
           { label: "Not Found" },
@@ -192,7 +249,7 @@ export function ViewOrderPage({
               color: theme.customTokens.text.secondary,
             }}
           >
-            The requested order could not be found.
+            {fetchError || "The requested order could not be found."}
           </Typography>
         </MasterSectionCard>
       </MasterPageShell>
@@ -451,8 +508,6 @@ export function ViewOrderPage({
               <ProfileField label="Product Category" value={record.productCategory} />
               <ProfileField label="Item Name" value={record.itemName} />
               <ProfileField label="Sub Category" value={record.subCategory} />
-              <ProfileField label="Series" value={record.series} />
-              <ProfileField label="Grade" value={record.grade} />
               <ProfileField label="Total Quantity (Sheets)" value={record.quantitySheets} />
               <ProfileField label="Total SQM" value={record.sqm} />
               <ProfileField

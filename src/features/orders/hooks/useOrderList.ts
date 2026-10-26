@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { formatMasterValue } from "../../masters/shared";
 import {
+  appendCreatedOrderToStore,
   getOrderLineItems,
   type OrderCreateVariant,
   type OrderLineItem,
@@ -9,6 +10,11 @@ import {
   type OrderRecord,
   useOrderRecords,
 } from "../shared/ordersStore";
+import {
+  fetchOrdersPaginatedApi,
+  mapBackendOrderToOrderRecord,
+  type OrderListQueryParams,
+} from "../api/ordersApi";
 
 export type OrderListingTab = OrderCreateVariant;
 
@@ -32,34 +38,125 @@ export function useOrderList({
   requestedTab: OrderListingTab | null;
   viewOrderId: string | undefined;
 }) {
-  const rows = useOrderRecords();
+  const localRows = useOrderRecords();
   const [activeTab, setActiveTab] = useState<OrderListingTab>("order");
   const [searchValue, setSearchValue] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [serverRows, setServerRows] = useState<OrderRecord[]>([]);
+  const [serverLineItems, setServerLineItems] = useState<Map<string, OrderLineItem[]>>(new Map());
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<string, any>>>({});
+  const [sortConfig, setSortConfig] = useState<{
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+  }>({
+    sortBy: null,
+    sortOrder: null,
+  });
+
+  // Debounce search input by 350ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchValue.trim());
+      setPage(1); // Reset page on new search
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
 
   useEffect(() => {
     setActiveTab("order");
   }, [moduleConfig, requestedTab]);
 
+  const [hasLoadedServer, setHasLoadedServer] = useState(false);
+
+  const serializedFilters = useMemo(() => {
+    return JSON.stringify(columnFilters);
+  }, [columnFilters]);
+
+  // Server-side fetch orders
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const parsedFilters = JSON.parse(serializedFilters);
+      const filterParams: Record<string, string[]> = {};
+      Object.entries(parsedFilters).forEach(([colKey, colVal]: [string, any]) => {
+        if (!colVal) return;
+        // EnterpriseDataTable column filters are { type: 'multiSelect', values: string[] }
+        if (colVal && typeof colVal === "object" && Array.isArray(colVal.values)) {
+          if (colVal.values.length > 0) {
+            filterParams[colKey] = colVal.values;
+          }
+        } else if (Array.isArray(colVal) && colVal.length > 0) {
+          filterParams[colKey] = colVal;
+        } else if (typeof colVal === "string" && colVal.trim()) {
+          filterParams[colKey] = [colVal.trim()];
+        }
+      });
+
+      const params: OrderListQueryParams = {
+        page,
+        limit: rowsPerPage,
+        search: debouncedSearch || undefined,
+        sortBy: sortConfig.sortBy || "orderDate",
+        sortOrder: sortConfig.sortOrder || "latest",
+        customerName: filterParams.customerName?.[0] || undefined,
+        filters: Object.keys(filterParams).length > 0 ? filterParams : undefined,
+      };
+
+      const result = await fetchOrdersPaginatedApi(params);
+
+      const mappedRecords: OrderRecord[] = [];
+      const itemMap = new Map<string, OrderLineItem[]>();
+
+      result.items.forEach((backendOrder) => {
+        const { record, lineItems } = mapBackendOrderToOrderRecord(backendOrder);
+        mappedRecords.push(record);
+        itemMap.set(record.id, lineItems);
+      });
+
+      setServerRows(mappedRecords);
+      setServerLineItems(itemMap);
+      setTotalCount(result.pagination.total);
+      setHasLoadedServer(true);
+    } catch {
+      // Keep current data or empty on network error
+      setHasLoadedServer(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [debouncedSearch, page, rowsPerPage, serializedFilters, sortConfig.sortBy, sortConfig.sortOrder]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
+
+  const activeRows = serverRows.length > 0 ? serverRows : (hasLoadedServer ? [] : localRows);
+
   const listingRows = useMemo(() => {
     // Deduplicate by order id / orderNo so there is strictly 1 row per order
     const uniqueOrders = new Map<string, OrderRecord>();
-    rows.forEach((row) => {
+    activeRows.forEach((row) => {
       const key = (row.orderNo || row.id).trim().toLowerCase();
       if (!uniqueOrders.has(key)) {
         uniqueOrders.set(key, row);
       }
     });
 
-    return Array.from(uniqueOrders.values())
-      .flatMap((row) => buildOrderListingRows(row))
-      .sort((a, b) => {
-        const dateA = new Date(a.orderDate || a.updatedDate || a.createdDate || 0).getTime();
-        const dateB = new Date(b.orderDate || b.updatedDate || b.createdDate || 0).getTime();
-        return dateB - dateA;
-      });
-  }, [rows]);
+    return Array.from(uniqueOrders.values()).flatMap((row) =>
+      buildOrderListingRows(row, serverLineItems.get(row.id))
+    );
+  }, [activeRows, serverLineItems]);
 
   const filteredRows = useMemo(() => {
+    // When connected to backend, server already filters, searches, and paginates
+    if (hasLoadedServer) {
+      return listingRows;
+    }
+
+    // Local fallback filter
     return listingRows.filter((row) => {
       if (searchValue.trim().length === 0) {
         return true;
@@ -71,11 +168,11 @@ export function useOrderList({
           .includes(searchValue.trim().toLowerCase()),
       );
     });
-  }, [activeTab, listingRows, searchValue]);
+  }, [hasLoadedServer, listingRows, searchValue]);
 
   const viewRecord = useMemo(
-    () => rows.find((row) => row.id === viewOrderId),
-    [rows, viewOrderId],
+    () => activeRows.find((row) => row.id === viewOrderId) || localRows.find((row) => row.id === viewOrderId),
+    [activeRows, localRows, viewOrderId],
   );
 
   useEffect(() => {
@@ -84,16 +181,27 @@ export function useOrderList({
 
   return {
     activeTab,
+    columnFilters,
     filteredRows,
+    isLoading,
+    page,
+    rowsPerPage,
     searchValue,
     setActiveTab,
+    setColumnFilters,
+    setPage,
+    setRowsPerPage,
     setSearchValue,
+    setSortConfig,
+    sortConfig,
+    totalCount,
     viewRecord,
+    reloadOrders: loadOrders,
   };
 }
 
-function buildOrderListingRows(record: OrderRecord): OrderListingRow[] {
-  const lineItems = getOrderLineItems(record.id);
+function buildOrderListingRows(record: OrderRecord, cachedItems?: OrderLineItem[]): OrderListingRow[] {
+  const lineItems = cachedItems && cachedItems.length > 0 ? cachedItems : getOrderLineItems(record.id);
 
   if (lineItems.length === 0) {
     return [

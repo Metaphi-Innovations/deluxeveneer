@@ -53,6 +53,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
 import {
+  appendCreatedOrderToStore,
   createOrderRecord,
   getCreateOrderFormFields,
   getOrderCustomerRows,
@@ -64,6 +65,7 @@ import {
   getOrderVariantLabel,
   ordersModuleConfig,
   orderViewFields,
+  setCachedOrderCustomerData,
   type OrderDraft,
   type OrderCreateVariant,
   type OrderLineItem,
@@ -72,12 +74,18 @@ import {
   updateOrderRecord,
   useOrderRecords,
 } from "../shared/ordersStore";
-import { refreshCustomerMasterCache } from "../../masters/customer-master/api/customerMasterApi";
 import {
   OrderLineItemsTable,
   type OrderLineItemsTableHandle,
 } from "./OrderLineItemsTable";
 import { allocateSampleToOrder } from "../../factory/shared/sampleSheetIdentityStore";
+import {
+  createOrderApi,
+  fetchOrderByIdApi,
+  fetchOrderDropdownsApi,
+  mapBackendOrderToOrderRecord,
+  updateOrderApi,
+} from "../api/ordersApi";
 
 interface OrderRecordPageProps {
   mode: "add" | "edit" | "view";
@@ -212,6 +220,7 @@ export function OrderRecordPage({
     buildOrderInitialValues(activeFields, record, activeVariant),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const lineItemsTableRef = useRef<OrderLineItemsTableHandle>(null);
   const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
@@ -242,6 +251,30 @@ export function OrderRecordPage({
     mode === "add" ? canCreate : mode === "edit" ? canEdit : canView;
 
   useEffect(() => {
+    if (mode === "add" || !id) return;
+
+    let isMounted = true;
+    fetchOrderByIdApi(id)
+      .then((backendOrder) => {
+        if (!isMounted) return;
+        const { record: mappedRecord, lineItems: mappedItems } =
+          mapBackendOrderToOrderRecord(backendOrder);
+        appendCreatedOrderToStore(mappedRecord, mappedItems);
+        setValues(buildOrderInitialValues(activeFields, mappedRecord, activeVariant));
+        setLineItems(mappedItems);
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        const msg = err instanceof Error ? err.message : "Failed to load order from server.";
+        setErrorMessage(msg);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeFields, activeVariant, id, mode]);
+
+  useEffect(() => {
     setValues(buildOrderInitialValues(activeFields, record, activeVariant));
   }, [activeFields, activeVariant, record]);
 
@@ -252,14 +285,15 @@ export function OrderRecordPage({
   useEffect(() => {
     let ignore = false;
 
-    void refreshCustomerMasterCache()
-      .then(() => {
-        if (!ignore) {
+    void fetchOrderDropdownsApi()
+      .then((data) => {
+        if (!ignore && data?.customers) {
+          setCachedOrderCustomerData(data.customers);
           setCustomerOptionsVersion((value) => value + 1);
         }
       })
       .catch(() => {
-        // Keep order form usable even if customer master API is unavailable.
+        // Keep order form usable with existing cached or fallback options
       });
 
     return () => {
@@ -517,10 +551,11 @@ export function OrderRecordPage({
 
         <OrderFormFooter
           createLayout={mode === "add"}
+          isSaving={isSaving}
           lineItems={lineItems}
           onCancel={() => navigate(paths.list)}
-          onSave={() => {
-            if (!canUseMode) {
+          onSave={async () => {
+            if (!canUseMode || isSaving) {
               return;
             }
 
@@ -558,35 +593,68 @@ export function OrderRecordPage({
                 payload.orderType = getOrderVariantLabel(activeVariant);
               }
 
-              const createdId = createOrderRecord(payload);
-              if (samplePrefill?.fromSampleSheet && samplePrefill.sampleNo) {
-                const createdOrder = getOrderRecord(createdId);
-                const issuedSheets = lineItems.reduce((total, item) => {
-                  const parsed = Number(
-                    String(item.quantitySheets ?? "").replace(/[^\d.]/g, ""),
-                  );
-                  return total + (Number.isFinite(parsed) ? parsed : 0);
-                }, 0);
-                allocateSampleToOrder({
-                  sampleNo: samplePrefill.sampleNo,
-                  orderNo: createdOrder?.orderNo ?? createdId,
-                  sheets: issuedSheets,
+              setIsSaving(true);
+              try {
+                // Call real Create Order Backend API
+                const createdBackendOrder = await createOrderApi(payload);
+                const { record: mappedRecord, lineItems: mappedItems } =
+                  mapBackendOrderToOrderRecord(createdBackendOrder);
+
+                // Update in-memory & local storage sync for listings
+                appendCreatedOrderToStore(mappedRecord, mappedItems);
+
+                if (samplePrefill?.fromSampleSheet && samplePrefill.sampleNo) {
+                  const issuedSheets = lineItems.reduce((total, item) => {
+                    const parsed = Number(
+                      String(item.quantitySheets ?? "").replace(/[^\d.]/g, ""),
+                    );
+                    return total + (Number.isFinite(parsed) ? parsed : 0);
+                  }, 0);
+                  allocateSampleToOrder({
+                    sampleNo: samplePrefill.sampleNo,
+                    orderNo: mappedRecord.orderNo,
+                    sheets: issuedSheets,
+                  });
+                }
+
+                navigate(paths.list, {
+                  state: {
+                    orderFlashMessage: `Order ${mappedRecord.orderNo} created successfully.`,
+                  },
                 });
+              } catch (err: unknown) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to create order on server. Please check your network or inputs.";
+                setErrorMessage(message);
+              } finally {
+                setIsSaving(false);
               }
             } else if (record) {
-              updateOrderRecord(record.id, payload);
+              setIsSaving(true);
+              try {
+                const updatedBackendOrder = await updateOrderApi(record.id, payload);
+                const { record: mappedRecord, lineItems: mappedItems } =
+                  mapBackendOrderToOrderRecord(updatedBackendOrder);
+
+                appendCreatedOrderToStore(mappedRecord, mappedItems);
+
+                navigate(paths.list, {
+                  state: {
+                    orderFlashMessage: `Order ${mappedRecord.orderNo} updated successfully.`,
+                  },
+                });
+              } catch (err: unknown) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to update order on server. Please check your network or inputs.";
+                setErrorMessage(message);
+              } finally {
+                setIsSaving(false);
+              }
             }
-
-            const isEdit = mode !== "add" && Boolean(record);
-            const successMsg = isEdit
-              ? "Order updated successfully."
-              : "Order created successfully.";
-
-            navigate(paths.list, {
-              state: {
-                orderFlashMessage: successMsg,
-              },
-            });
           }}
         />
       </Stack>
@@ -758,11 +826,13 @@ function OrderHeaderFields({
 
 function OrderFormFooter({
   createLayout,
+  isSaving = false,
   lineItems,
   onCancel,
   onSave,
 }: {
   createLayout: boolean;
+  isSaving?: boolean;
   lineItems: readonly OrderLineItem[];
   onCancel: () => void;
   onSave: () => void;
@@ -801,7 +871,7 @@ function OrderFormFooter({
           <OrderTotalMetric label="Total SQF" value={formatTotalNumber(totals.totalSqf, 3)} />
           <OrderTotalMetric emphasize label="Order Amount" value={formatCurrency(totals.orderAmount, { withSymbol: true })} />
         </Box>
-        <OrderFooterActions onCancel={onCancel} onSave={onSave} />
+        <OrderFooterActions isSaving={isSaving} onCancel={onCancel} onSave={onSave} />
       </Box>
     );
   }
@@ -851,17 +921,19 @@ function OrderFormFooter({
           />
         </Box>
 
-        <OrderFooterActions onCancel={onCancel} onSave={onSave} responsive />
+        <OrderFooterActions isSaving={isSaving} onCancel={onCancel} onSave={onSave} responsive />
       </Box>
     </Box>
   );
 }
 
 function OrderFooterActions({
+  isSaving = false,
   onCancel,
   onSave,
   responsive = false,
 }: {
+  isSaving?: boolean;
   onCancel: () => void;
   onSave: () => void;
   responsive?: boolean;
@@ -878,17 +950,18 @@ function OrderFooterActions({
         width: responsive ? { xs: "100%", sm: "auto" } : "auto",
       })}
     >
-      <Button type="button" onClick={onCancel} sx={recordFormActionButtonSx} variant="outlined">
+      <Button disabled={isSaving} type="button" onClick={onCancel} sx={recordFormActionButtonSx} variant="outlined">
         Cancel
       </Button>
       <Button
+        disabled={isSaving}
         type="button"
         onClick={onSave}
         startIcon={<Save size={16} />}
         sx={recordFormActionButtonSx}
         variant="contained"
       >
-        Save Order
+        {isSaving ? "Saving..." : "Save Order"}
       </Button>
     </Box>
   );

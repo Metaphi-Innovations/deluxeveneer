@@ -20,6 +20,7 @@ const sqmToSqf = SQM_TO_SQF;
 
 export interface OrderLineItem {
   id: string;
+  orderItemNo?: string | undefined;
   productCategory: string;
   finishedType: string;
   salesItemName: string;
@@ -223,6 +224,9 @@ export const statusOptions = [
   "Cancelled",
 ] as const;
 
+let cachedOrderCustomerOptions: string[] = [];
+let cachedOrderCustomerMasterRows: MasterRecord[] = [];
+
 export const orderFormFields: readonly MasterFieldDefinition[] =
   getOrderFormFields();
 
@@ -292,11 +296,46 @@ export function getCreateOrderFormFields(
     );
 }
 
+export function setCachedOrderCustomerData(customers: Array<{
+  customerName?: string | null;
+  companyName?: string | null;
+  [key: string]: any;
+}>) {
+  cachedOrderCustomerOptions = Array.from(
+    new Set(
+      customers
+        .map((c) => String(c.customerName || c.name || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  cachedOrderCustomerMasterRows = customers.map((c, idx) => ({
+    id: c.id || `cust-${idx}`,
+    customerName: c.customerName || c.name || "",
+    companyName: c.companyName || "",
+    customerType: c.customerType || "",
+    email: c.email || "",
+    phoneNumber: c.phoneNumber || "",
+    gstNo: c.gstNo || "",
+    panNo: c.panNo || "",
+    pincode: c.pincode || "",
+    country: c.country || "",
+    state: c.state || "",
+    city: c.city || "",
+    remark: c.remark || "",
+  }));
+}
+
 export function getOrderCustomerRows(): MasterRecord[] {
+  if (cachedOrderCustomerMasterRows.length > 0) {
+    return cachedOrderCustomerMasterRows;
+  }
   return getCachedCustomerMasterRows();
 }
 
 export function getOrderCustomerOptions() {
+  if (cachedOrderCustomerOptions.length > 0) {
+    return cachedOrderCustomerOptions;
+  }
   return Array.from(
     new Set(
       getOrderCustomerRows()
@@ -560,6 +599,12 @@ export function createOrderRecord(order: Partial<OrderDraft>) {
   emitOrdersChange();
 
   return record.id;
+}
+
+export function appendCreatedOrderToStore(record: OrderRecord, lineItems: OrderLineItem[]) {
+  orderRecords = [record, ...orderRecords.filter((r) => r.id !== record.id && r.orderNo !== record.orderNo)];
+  orderLineItemsById.set(record.id, lineItems);
+  emitOrdersChange();
 }
 
 export function updateOrderRecord(

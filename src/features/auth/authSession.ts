@@ -463,6 +463,12 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
       edit: userPerms.includes("WAREHOUSE_MASTER_UPDATE"),
     };
 
+    permissions.placeOrder = {
+      view: userPerms.includes("ORDER_VIEW") || userPerms.includes("ORDER_CREATE") || userPerms.includes("ORDER_UPDATE"),
+      create: userPerms.includes("ORDER_CREATE"),
+      edit: userPerms.includes("ORDER_UPDATE"),
+    };
+
     applyWarehouseScopedCodesToPermissions(userPerms, permissions);
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Snackbar, Stack } from "@mui/material";
-import { Eye, Pencil, Plus, XCircle } from "lucide-react";
+import { Download, Eye, Pencil, Plus, XCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import {
@@ -13,6 +13,7 @@ import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
+import { exportRowsToCsv } from "../../shared/exportToCsv";
 import {
   type OrderListingRow,
   type OrderListingTab,
@@ -28,6 +29,7 @@ import {
 } from "../shared/ordersStore";
 import { OrderStatusChip } from "../shared/OrderStatusChip";
 import { OrderViewDetailsDialog } from "./OrderViewDetailsDialog";
+import { cancelOrderApi, exportOrdersApi } from "../api/ordersApi";
 
 type OrderListingLocationState = {
   orderListingTab?: OrderListingTab;
@@ -45,11 +47,22 @@ export function OrdersListingPage({
   const requestedTab = getLocationOrderTab(location.state);
   const {
     activeTab,
+    columnFilters,
     filteredRows,
+    isLoading,
+    page,
+    rowsPerPage,
     searchValue,
     setActiveTab,
+    setColumnFilters,
+    setPage,
+    setRowsPerPage,
     setSearchValue,
+    setSortConfig,
+    sortConfig,
+    totalCount,
     viewRecord,
+    reloadOrders,
   } = useOrderList({
     moduleConfig,
     requestedTab,
@@ -57,6 +70,7 @@ export function OrdersListingPage({
   });
   const [cancelDialogOrder, setCancelDialogOrder] =
     useState<OrderListingRow | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error" | "info" | "warning";
@@ -131,22 +145,81 @@ export function OrdersListingPage({
         },
       ];
 
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const handleCloseCancelDialog = () => {
+    if (isCancelling) return;
     setCancelDialogOrder(null);
   };
 
-  const handleConfirmCancelOrder = () => {
-    if (!cancelDialogOrder) {
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelDialogOrder || isCancelling) {
       return;
     }
 
+    const orderId = cancelDialogOrder.orderId;
     const orderNo = cancelDialogOrder.orderNo;
-    cancelOrderRecord(cancelDialogOrder.orderId);
-    setCancelDialogOrder(null);
-    setToastNotification({
-      message: `Order ${orderNo} cancelled successfully.`,
-      severity: "success",
-    });
+    setIsCancelling(true);
+
+    try {
+      // 1. Call real backend cancel order API
+      await cancelOrderApi(orderId, "Cancelled from orders listing");
+
+      // 2. Update local state store for synchronous reactivity
+      cancelOrderRecord(orderId);
+
+      setCancelDialogOrder(null);
+      setToastNotification({
+        message: `Order ${orderNo} cancelled successfully.`,
+        severity: "success",
+      });
+    } catch (err: any) {
+      setToastNotification({
+        message: err?.message || `Failed to cancel order ${orderNo}.`,
+        severity: "error",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const filterParams: Record<string, string[]> = {};
+      Object.entries(columnFilters).forEach(([colKey, colVal]) => {
+        if (Array.isArray(colVal) && colVal.length > 0) {
+          filterParams[colKey] = colVal;
+        } else if (typeof colVal === "string" && colVal.trim()) {
+          filterParams[colKey] = [colVal.trim()];
+        }
+      });
+
+      const exportRows = await exportOrdersApi({
+        search: searchValue.trim() || undefined,
+        filters: Object.keys(filterParams).length > 0 ? filterParams : undefined,
+      });
+
+      if (exportRows && exportRows.length > 0) {
+        const columns = Object.keys(exportRows[0]).map((k) => ({
+          key: k,
+          label: k,
+        }));
+        exportRowsToCsv(exportRows, columns, `orders-export-${new Date().toISOString().split("T")[0]}`);
+      } else {
+        setToastNotification({
+          message: "No orders to export.",
+          severity: "info",
+        });
+      }
+    } catch (err: any) {
+      setToastNotification({
+        message: err?.message || "Failed to export orders.",
+        severity: "error",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const listingColumns = (orderListingColumns as readonly EnterpriseTableColumn<OrderListingRow>[]).map(
@@ -178,28 +251,60 @@ export function OrdersListingPage({
           }}
         />
 
-        {canCreate ? (
+        <Stack direction="row" spacing={1} alignItems="center">
           <Button
-            startIcon={<Plus size={14} />}
-            onClick={() => navigate(paths.add)}
+            startIcon={<Download size={14} />}
+            onClick={handleExport}
+            disabled={isExporting}
             sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
-            variant="contained"
+            variant="outlined"
           >
-            Create Order
+            {isExporting ? "Exporting..." : "Export"}
           </Button>
-        ) : null}
 
+          {canCreate ? (
+            <Button
+              startIcon={<Plus size={14} />}
+              onClick={() => navigate(paths.add)}
+              sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+              variant="contained"
+            >
+              Create Order
+            </Button>
+          ) : null}
+        </Stack>
       </Stack>
 
       <EnterpriseDataTable
         key={activeTab}
         columns={listingColumns}
+        loading={isLoading}
         defaultRowsPerPage={10}
-        emptyStateLabel={
-          "No orders are available."
-        }
+        emptyStateLabel="No orders are available."
         getRowActions={getRowActions}
-        initialSort={{ key: "orderDate", direction: "desc" }}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={setColumnFilters}
+        pagination={{
+          page,
+          rowsPerPage,
+          totalCount,
+          onPageChange: (newPage) => setPage(newPage),
+          onRowsPerPageChange: (newLimit) => {
+            setRowsPerPage(newLimit);
+            setPage(1);
+          },
+        }}
+        sorting={{
+          sortBy: sortConfig.sortBy,
+          sortOrder: sortConfig.sortOrder,
+          onSortChange: (newSortBy, newSortOrder) => {
+            setSortConfig({ sortBy: newSortBy, sortOrder: newSortOrder });
+          },
+          onSortClear: () => {
+            // Third click resets to latest (orderDate desc)
+            setSortConfig({ sortBy: null, sortOrder: null });
+          },
+        }}
         rows={canView ? filteredRows : []}
       />
 
