@@ -4,6 +4,8 @@ import { formatMasterValue } from "../../masters/shared";
 import {
   appendCreatedOrderToStore,
   getOrderLineItems,
+  priorityOptions,
+  statusOptions,
   type OrderCreateVariant,
   type OrderLineItem,
   type OrderModuleConfig,
@@ -174,10 +176,27 @@ export function useOrderList({
       }
     });
 
-    return Array.from(uniqueOrders.values()).flatMap((row) =>
+    const rows = Array.from(uniqueOrders.values()).flatMap((row) =>
       buildOrderListingRows(row, serverLineItems.get(row.id))
     );
-  }, [activeRows, serverLineItems]);
+
+    if (sortConfig.sortBy && sortConfig.sortOrder) {
+      const field = sortConfig.sortBy;
+      const asc = sortConfig.sortOrder === "asc";
+      return [...rows].sort((a: any, b: any) => {
+        const valA = a[field] ?? '';
+        const valB = b[field] ?? '';
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return asc ? valA - valB : valB - valA;
+        }
+        return asc
+          ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' })
+          : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: 'base' });
+      });
+    }
+
+    return rows;
+  }, [activeRows, serverLineItems, sortConfig.sortBy, sortConfig.sortOrder]);
 
   const filteredRows = useMemo(() => {
     // When connected to backend, server already filters, searches, and paginates
@@ -213,10 +232,26 @@ export function useOrderList({
   >({});
 
   const handleColumnFilterOpen = useCallback((columnKey: string) => {
+    if (columnKey === "priority") {
+      setFilterOptionsByColumn((prev) => ({
+        ...prev,
+        priority: priorityOptions.map((p) => ({ value: p, label: p })),
+      }));
+      return;
+    }
+
+    if (columnKey === "status") {
+      setFilterOptionsByColumn((prev) => ({
+        ...prev,
+        status: statusOptions.map((s) => ({ value: s, label: s })),
+      }));
+      return;
+    }
+
     const dropdownType =
       columnKey === "customerName"
         ? "customers"
-        : columnKey === "itemName" || columnKey === "productCategory"
+        : columnKey === "itemName" || columnKey === "productCategory" || columnKey === "rawMaterial"
           ? "items"
           : "all";
 
@@ -235,9 +270,11 @@ export function useOrderList({
             value: i.name || i.label || "",
             label: i.name || i.label || "",
           }));
-          optionsMap.productCategory = Array.from(
+          const categories = Array.from(
             new Set(data.items.map((i) => i.category).filter(Boolean)),
           ).map((cat) => ({ value: cat!, label: cat! }));
+          optionsMap.productCategory = categories;
+          optionsMap.rawMaterial = categories;
         }
         const targetOptions = optionsMap[columnKey];
         if (targetOptions) {
