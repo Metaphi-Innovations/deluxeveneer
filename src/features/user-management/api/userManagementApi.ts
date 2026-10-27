@@ -515,6 +515,12 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
   };
 
+  permissions.placeOrder = {
+    view: codes.includes("ORDER_VIEW"),
+    create: codes.includes("ORDER_CREATE"),
+    edit: codes.includes("ORDER_UPDATE"),
+  };
+
   applyWarehouseScopedCodesToPermissions(codes, permissions);
 
   return {
@@ -629,6 +635,14 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
   if (warehouse?.edit) codes.push("WAREHOUSE_MASTER_UPDATE");
   if (warehouse?.create || warehouse?.edit) {
     codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
+  }
+
+  const orderPerm = permissions.placeOrder;
+  if (orderPerm?.view) codes.push("ORDER_VIEW");
+  if (orderPerm?.create) codes.push("ORDER_CREATE");
+  if (orderPerm?.edit) {
+    codes.push("ORDER_UPDATE");
+    codes.push("ORDER_CANCEL");
   }
 
   codes.push(...collectWarehouseScopedCodesFromPermissions(permissions));

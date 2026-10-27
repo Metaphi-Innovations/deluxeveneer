@@ -5,7 +5,10 @@ import type {
   EnterpriseTableRow,
 } from "../../../components/data-display/EnterpriseDataTable";
 import { buildLocalMasterDefinition } from "../../masters/shared/localMasterStore";
-import { itemMasterDefinition } from "../../masters/shared/masterDefinitions";
+import {
+  customerMasterDefinition,
+  itemMasterDefinition,
+} from "../../masters/shared/masterDefinitions";
 import { getCachedCustomerMasterRows } from "../../masters/customer-master/api/customerMasterApi";
 import type { MasterFieldDefinition, MasterRecord } from "../../masters/shared";
 import {
@@ -52,6 +55,7 @@ export interface OrderLineItem {
   designCode?: string | undefined;
   structuredCode?: string | undefined;
   remark: string;
+  status?: string | undefined;
 }
 
 export interface OrderRecord extends EnterpriseTableRow {
@@ -214,7 +218,7 @@ const salesCoordinatorOptions = [
 ] as const;
 
 export const statusOptions = [
-  "Draft",
+  "Pending",
   "Confirmed",
   "In Production",
   "Packed",
@@ -329,7 +333,11 @@ export function getOrderCustomerRows(): MasterRecord[] {
   if (cachedOrderCustomerMasterRows.length > 0) {
     return cachedOrderCustomerMasterRows;
   }
-  return getCachedCustomerMasterRows();
+  const cached = getCachedCustomerMasterRows();
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+  return buildLocalMasterDefinition(customerMasterDefinition).rows;
 }
 
 export function getOrderCustomerOptions() {
@@ -342,7 +350,7 @@ export function getOrderCustomerOptions() {
         .filter(
           (row) => String(row.status ?? "Active").toLowerCase() !== "inactive",
         )
-        .map((row) => String(row.customerName ?? "").trim())
+        .map((row) => String(row.customerName ?? row.name ?? "").trim())
         .filter(Boolean),
     ),
   );
@@ -589,7 +597,7 @@ export function createOrderRecord(order: Partial<OrderDraft>) {
       updatedBy: salesCoordinator,
       createdDate: timestamp,
       updatedDate: timestamp,
-      status: normalizeString(order.status, "Draft"),
+      status: normalizeString(order.status, "Pending"),
     },
     lineItems,
   );
@@ -638,19 +646,48 @@ export function updateOrderRecord(
   emitOrdersChange();
 }
 
-export function cancelOrderRecord(recordId: string) {
+export function cancelOrderRecord(recordId: string, orderItemId?: string) {
   const timestamp = new Date();
 
-  orderRecords = orderRecords.map((record) =>
-    record.id === recordId
-      ? {
-        ...record,
-        status: "Cancelled",
-        updatedBy: "Order Desk",
-        updatedDate: timestamp,
+  if (orderItemId) {
+    const existingItems = orderLineItemsById.get(recordId);
+    if (existingItems) {
+      const updatedItems = existingItems.map((item) =>
+        item.id === orderItemId || item.orderItemNo === orderItemId
+          ? { ...item, status: "Cancelled" }
+          : item
+      );
+      orderLineItemsById.set(recordId, updatedItems);
+
+      const allCancelled = updatedItems.every(
+        (item) => String(item.status ?? "").toLowerCase() === "cancelled"
+      );
+
+      if (allCancelled) {
+        orderRecords = orderRecords.map((record) =>
+          record.id === recordId
+            ? {
+              ...record,
+              status: "Cancelled",
+              updatedBy: "Order Desk",
+              updatedDate: timestamp,
+            }
+            : record,
+        );
       }
-      : record,
-  );
+    }
+  } else {
+    orderRecords = orderRecords.map((record) =>
+      record.id === recordId
+        ? {
+          ...record,
+          status: "Cancelled",
+          updatedBy: "Order Desk",
+          updatedDate: timestamp,
+        }
+        : record,
+    );
+  }
 
   emitOrdersChange();
 }

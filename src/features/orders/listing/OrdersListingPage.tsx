@@ -48,7 +48,9 @@ export function OrdersListingPage({
   const {
     activeTab,
     columnFilters,
+    filterOptionsByColumn,
     filteredRows,
+    handleColumnFilterOpen,
     isLoading,
     page,
     rowsPerPage,
@@ -63,6 +65,7 @@ export function OrdersListingPage({
     totalCount,
     viewRecord,
     reloadOrders,
+    cancelOrderRow,
   } = useOrderList({
     moduleConfig,
     requestedTab,
@@ -131,19 +134,61 @@ export function OrdersListingPage({
 
   const getRowActions = (
     row: OrderListingRow,
-  ): readonly EnterpriseTableAction<OrderListingRow>[] =>
-    row.status === "Cancelled" || !canEdit
-      ? rowActions
-      : [
-        ...rowActions,
-        {
-          id: "cancel-order",
-          label: "Cancel Order",
-          icon: XCircle,
-          tone: "danger",
-          onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
-        },
-      ];
+  ): readonly EnterpriseTableAction<OrderListingRow>[] => {
+    const isCancelled = String(row.status ?? "").toLowerCase() === "cancelled";
+    if (isCancelled) {
+      // Cancelled orders cannot be edited or cancelled; only view is available
+      return canView
+        ? [
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (selectedRow: OrderListingRow) =>
+              navigate(paths.view(selectedRow.orderId), {
+                state: {
+                  orderListingTab:
+                    getOrderVariantFromType(selectedRow.orderType) ?? activeTab,
+                },
+              }),
+          },
+        ]
+        : [];
+    }
+
+    const actions: EnterpriseTableAction<OrderListingRow>[] = [];
+    if (canView) {
+      actions.push({
+        id: "view",
+        label: "View",
+        icon: Eye,
+        onSelect: (selectedRow: OrderListingRow) =>
+          navigate(paths.view(selectedRow.orderId), {
+            state: {
+              orderListingTab:
+                getOrderVariantFromType(selectedRow.orderType) ?? activeTab,
+            },
+          }),
+      });
+    }
+    if (canEdit) {
+      actions.push({
+        id: "edit",
+        label: "Edit",
+        icon: Pencil,
+        onSelect: (selectedRow: OrderListingRow) =>
+          navigate(paths.edit(selectedRow.orderId)),
+      });
+      actions.push({
+        id: "cancel-order-item",
+        label: "Cancel Order Item",
+        icon: XCircle,
+        tone: "danger",
+        onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
+      });
+    }
+    return actions;
+  };
 
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -158,24 +203,29 @@ export function OrdersListingPage({
     }
 
     const orderId = cancelDialogOrder.orderId;
-    const orderNo = cancelDialogOrder.orderNo;
+    const orderItemId = cancelDialogOrder.orderLineItemId;
+    const identifier = cancelDialogOrder.orderItemNumber || cancelDialogOrder.orderNo;
     setIsCancelling(true);
 
     try {
-      // 1. Call real backend cancel order API
-      await cancelOrderApi(orderId, "Cancelled from orders listing");
+      // 1. Immediately update UI state in memory for zero lag
+      cancelOrderRecord(orderId, orderItemId);
+      cancelOrderRow(orderId, orderItemId);
 
-      // 2. Update local state store for synchronous reactivity
-      cancelOrderRecord(orderId);
+      // 2. Call backend cancel order item API
+      await cancelOrderApi(orderId, `Cancelled order item ${identifier}`, orderItemId);
+
+      // 3. Silently reload list to ensure perfect backend sync
+      void reloadOrders();
 
       setCancelDialogOrder(null);
       setToastNotification({
-        message: `Order ${orderNo} cancelled successfully.`,
+        message: `Order item ${identifier} cancelled successfully.`,
         severity: "success",
       });
     } catch (err: any) {
       setToastNotification({
-        message: err?.message || `Failed to cancel order ${orderNo}.`,
+        message: err?.message || `Failed to cancel order item ${identifier}.`,
         severity: "error",
       });
     } finally {
@@ -252,15 +302,17 @@ export function OrdersListingPage({
         />
 
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            startIcon={<Download size={14} />}
-            onClick={handleExport}
-            disabled={isExporting}
-            sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
-            variant="outlined"
-          >
-            {isExporting ? "Exporting..." : "Export"}
-          </Button>
+          {canView ? (
+            <Button
+              startIcon={<Download size={14} />}
+              onClick={handleExport}
+              disabled={isExporting}
+              sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+              variant="outlined"
+            >
+              {isExporting ? "Exporting..." : "Export"}
+            </Button>
+          ) : null}
 
           {canCreate ? (
             <Button
@@ -280,10 +332,12 @@ export function OrdersListingPage({
         columns={listingColumns}
         loading={isLoading}
         defaultRowsPerPage={10}
-        emptyStateLabel="No orders are available."
+        emptyStateLabel={canView ? "No orders are available." : "You do not have permission to view orders."}
         getRowActions={getRowActions}
         columnFilters={columnFilters}
         onColumnFiltersChange={setColumnFilters}
+        filterOptionsByColumn={filterOptionsByColumn}
+        onColumnFilterOpen={handleColumnFilterOpen}
         pagination={{
           page,
           rowsPerPage,
@@ -333,17 +387,19 @@ export function OrdersListingPage({
       />
 
       <ConfirmationDialog
-        cancelLabel="Keep Order"
-        confirmLabel="Cancel Order"
+        cancelLabel="Keep Order Item"
+        confirmLabel="Cancel Order Item"
         description={
-          cancelDialogOrder?.orderNo
-            ? `This will cancel order ${cancelDialogOrder.orderNo}.`
-            : "This will cancel the selected order."
+          cancelDialogOrder?.orderItemNumber
+            ? `This will cancel order item ${cancelDialogOrder.orderItemNumber}.`
+            : cancelDialogOrder?.orderNo
+              ? `This will cancel order item from ${cancelDialogOrder.orderNo}.`
+              : "This will cancel the selected order item."
         }
         onClose={handleCloseCancelDialog}
         onConfirm={handleConfirmCancelOrder}
         open={Boolean(cancelDialogOrder)}
-        title="Cancel Order"
+        title="Cancel Order Item"
         tone="danger"
       />
 

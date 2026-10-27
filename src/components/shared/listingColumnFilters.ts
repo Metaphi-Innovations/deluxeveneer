@@ -41,11 +41,19 @@ export function buildColumnFilterSearchPlaceholder(_label?: string) {
   return "Search values...";
 }
 
-export function resolveListingColumnFilterType(_args?: {
+export function resolveListingColumnFilterType(args?: {
   key?: string;
   label?: string;
   override?: ColumnFilterType;
   sampleValues?: readonly (string | boolean | Date | null | undefined)[];
 }): ColumnFilterType {
+  if (args?.override) {
+    return args.override;
+  }
+  const key = (args?.key || "").toLowerCase();
+  const label = (args?.label || "").toLowerCase();
+  if (key.includes("date") || label.includes("date")) {
+    return "audit";
+  }
   return inferColumnFilterType();
 }

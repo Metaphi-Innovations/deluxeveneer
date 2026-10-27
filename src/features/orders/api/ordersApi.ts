@@ -140,6 +140,8 @@ export function mapBackendOrderToOrderRecord(backendOrder: BackendOrder): {
 } {
   const lineItems: OrderLineItem[] = (backendOrder.items || []).map((item) => ({
     id: item.id,
+    orderItemNo: item.orderItemNo,
+    status: item.status,
     productCategory: item.productCategory,
     finishedType: item.productCategory,
     salesItemName: item.salesItemName || '',
@@ -189,7 +191,7 @@ export function mapBackendOrderToOrderRecord(backendOrder: BackendOrder): {
     customerName: backendOrder.customerName,
     orderType: backendOrder.orderType,
     priority: backendOrder.priority === 'URGENT' ? 'Urgent' : 'Standard',
-    status: backendOrder.status === 'DRAFT' ? 'Draft' : backendOrder.status,
+    status: backendOrder.status === 'DRAFT' ? 'Pending' : backendOrder.status,
     salesCoordinator: backendOrder.salesCoordinator || 'Aarav Bansal',
     productCategory: firstItem?.productCategory || 'Raw Veneer',
     itemName: firstItem?.itemName || '',
@@ -381,6 +383,7 @@ export interface OrderDropdownOption {
 }
 
 export interface OrderDropdownsResponse {
+  nextOrderNo?: string;
   customers: OrderDropdownOption[];
   items: OrderDropdownOption[];
   grades: OrderDropdownOption[];
@@ -392,10 +395,13 @@ export interface OrderDropdownsResponse {
 /**
  * Cancel an order via backend API
  */
-export async function cancelOrderApi(id: string, reason?: string): Promise<BackendOrder> {
+export async function cancelOrderApi(id: string, reason?: string, orderItemId?: string): Promise<BackendOrder> {
   const response = await apiRequest<ApiResponse<BackendOrder>>(`/orders/${id}/cancel`, {
     method: 'POST',
-    body: { reason: reason || 'Cancelled by user' },
+    body: {
+      reason: reason || 'Cancelled by user',
+      orderItemId: orderItemId || undefined,
+    },
   });
 
   if (!response?.success || !response.data) {
@@ -405,32 +411,19 @@ export async function cancelOrderApi(id: string, reason?: string): Promise<Backe
   return response.data;
 }
 
-let cachedOrderDropdowns: OrderDropdownsResponse | null = null;
-let inFlightDropdownsPromise: Promise<OrderDropdownsResponse> | null = null;
-
 /**
- * Fetch dynamic dropdown options for Orders module with caching & request deduplication
+ * Fetch dynamic dropdown options for Orders module without stale caching
  */
 export async function fetchOrderDropdownsApi(params?: {
-  search?: string;
-  category?: string;
-  subCategory?: string;
-  productType?: string;
-  limit?: number;
-}): Promise<OrderDropdownsResponse> {
-  const isDefaultParams = !params?.search && !params?.category && !params?.subCategory && !params?.productType;
-
-  // If asking for default general dropdowns and already cached, return immediately
-  if (isDefaultParams && cachedOrderDropdowns) {
-    return cachedOrderDropdowns;
-  }
-
-  // If a request for default dropdowns is already in flight, reuse it
-  if (isDefaultParams && inFlightDropdownsPromise) {
-    return inFlightDropdownsPromise;
-  }
-
+  type?: 'all' | 'customers' | 'items' | 'categories' | 'grades' | undefined;
+  search?: string | undefined;
+  category?: string | undefined;
+  subCategory?: string | undefined;
+  productType?: string | undefined;
+  limit?: number | undefined;
+} | undefined): Promise<OrderDropdownsResponse> {
   const query = new URLSearchParams();
+  if (params?.type) query.set('type', params.type);
   if (params?.search) query.set('search', params.search);
   if (params?.category) query.set('category', params.category);
   if (params?.subCategory) query.set('subCategory', params.subCategory);
@@ -440,28 +433,29 @@ export async function fetchOrderDropdownsApi(params?: {
   const qs = query.toString();
   const endpoint = qs ? `/orders/dropdowns?${qs}` : '/orders/dropdowns';
 
-  const fetchPromise = apiRequest<ApiResponse<OrderDropdownsResponse>>(endpoint)
-    .then((response) => {
-      if (!response?.success || !response.data) {
-        throw new Error(response?.message || 'Failed to load order dropdowns.');
-      }
-      if (isDefaultParams) {
-        cachedOrderDropdowns = response.data;
-      }
-      return response.data;
-    })
-    .finally(() => {
-      if (isDefaultParams) {
-        inFlightDropdownsPromise = null;
-      }
-    });
-
-  if (isDefaultParams) {
-    inFlightDropdownsPromise = fetchPromise;
+  const response = await apiRequest<ApiResponse<OrderDropdownsResponse>>(endpoint);
+  if (!response?.success || !response.data) {
+    throw new Error(response?.message || 'Failed to load order dropdowns.');
   }
-
-  return fetchPromise;
+  return response.data;
 }
+
+/**
+ * Fetch the next auto-generated Order Number from the backend
+ */
+export async function fetchNextOrderNoApi(): Promise<string> {
+  try {
+    const data = await fetchOrderDropdownsApi({ limit: 1 });
+    if (data?.nextOrderNo) {
+      return data.nextOrderNo;
+    }
+  } catch {}
+
+  const now = new Date();
+  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `ORD-${yearMonth}-0001`;
+}
+
 
 export interface OrderListQueryParams {
   page?: number | undefined;

@@ -5,25 +5,34 @@ const ORDER_STATUS_COLORS: Record<
   string,
   { bg: string; color: string; border: string }
 > = {
-  Draft: { bg: "#e8eaf6", color: "#283593", border: "#9fa8da" },
-  Confirmed: { bg: "#e3f2fd", color: "#0d47a1", border: "#90caf9" },
-  "In Production": { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
-  Packed: { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4" },
-  "Partially Dispatched": {
-    bg: "#fce4ec",
-    color: "#880e4f",
-    border: "#f48fb1",
-  },
-  Dispatched: { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
-  Completed: { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7" },
-  Cancelled: { bg: "#fafafa", color: "#616161", border: "#bdbdbd" },
+  // Pending
+  pending: { bg: "#fff8e1", color: "#b78103", border: "#ffe082" },
+  // Draft
+  draft: { bg: "#ede7f6", color: "#512da8", border: "#d1c4e9" },
+  // Confirmed
+  confirmed: { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+  // In Production / Processing
+  "in production": { bg: "#fff3e0", color: "#e65100", border: "#ffb74d" },
+  processing: { bg: "#fff3e0", color: "#e65100", border: "#ffb74d" },
+  // Packed
+  packed: { bg: "#e0f7fa", color: "#00838f", border: "#80deea" },
+  // Dispatched / Partially Dispatched
+  "partially dispatched": { bg: "#fce4ec", color: "#c2185b", border: "#f48fb1" },
+  dispatched: { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+  // Completed / Delivered
+  completed: { bg: "#e8f5e9", color: "#1b5e20", border: "#81c784" },
+  delivered: { bg: "#e8f5e9", color: "#1b5e20", border: "#81c784" },
+  // Cancelled / Rejected
+  cancelled: { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
+  rejected: { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
 };
 
 export function OrderStatusChip({ status }: { status: string }) {
-  const palette = ORDER_STATUS_COLORS[status] ?? {
-    bg: "#f5f5f5",
-    color: "#333",
-    border: "#ccc",
+  const normalized = String(status || "").trim().toLowerCase();
+  const palette = ORDER_STATUS_COLORS[normalized] ?? {
+    bg: "#f3f4f6",
+    color: "#374151",
+    border: "#d1d5db",
   };
 
   return (

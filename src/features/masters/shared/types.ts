@@ -54,6 +54,7 @@ export interface MasterFieldDefinition {
   options?: string[];
   placeholder?: string;
   readOnly?: boolean;
+  onOpenDropdown?: () => void;
   renderDropdownAction?: (helpers: { close: () => void }) => React.ReactNode;
   required?: boolean;
   rows?: number;

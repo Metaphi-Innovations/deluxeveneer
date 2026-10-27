@@ -784,6 +784,7 @@ export function MasterFormFields({
                       : undefined
                   }
                   onChange={(value) => handleFieldChange(field, value)}
+                  onOpen={field.onOpenDropdown}
                   options={getSelectOptions(field, locationOptions)}
                   placeholder={getFieldPlaceholder(field)}
                   renderBottomAction={field.renderDropdownAction}
@@ -2118,7 +2119,7 @@ function getTextFieldSlotProps(
   return {
     input: {
       readOnly,
-      placeholder: !readOnly ? getFieldPlaceholder(field) : undefined,
+      placeholder: field.placeholder ?? (!readOnly ? getFieldPlaceholder(field) : undefined),
     },
     htmlInput: {
       autoComplete: "off",

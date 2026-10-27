@@ -10,7 +10,9 @@ import {
   type OrderRecord,
   useOrderRecords,
 } from "../shared/ordersStore";
+import { canAccessPermission } from "../../permissions";
 import {
+  fetchOrderDropdownsApi,
   fetchOrdersPaginatedApi,
   mapBackendOrderToOrderRecord,
   type OrderListQueryParams,
@@ -78,6 +80,15 @@ export function useOrderList({
 
   // Server-side fetch orders
   const loadOrders = useCallback(async () => {
+    const canView = canAccessPermission("placeOrder", "view");
+    if (!canView) {
+      setServerRows([]);
+      setTotalCount(0);
+      setIsLoading(false);
+      setHasLoadedServer(true);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const parsedFilters = JSON.parse(serializedFilters);
@@ -96,6 +107,21 @@ export function useOrderList({
         }
       });
 
+      let dateFromParam: string | undefined = undefined;
+      let dateToParam: string | undefined = undefined;
+
+      // Check if orderDate or deliveryDate has dateFrom / dateTo audit tokens
+      const dateKeys = ["orderDate", "deliveryDate"];
+      for (const dKey of dateKeys) {
+        const dVals = filterParams[dKey];
+        if (Array.isArray(dVals)) {
+          const fromToken = dVals.find((v) => v.startsWith("__audit_date_from__:"));
+          const toToken = dVals.find((v) => v.startsWith("__audit_date_to__:"));
+          if (fromToken) dateFromParam = fromToken.replace("__audit_date_from__:", "");
+          if (toToken) dateToParam = toToken.replace("__audit_date_to__:", "");
+        }
+      }
+
       const params: OrderListQueryParams = {
         page,
         limit: rowsPerPage,
@@ -103,6 +129,8 @@ export function useOrderList({
         sortBy: sortConfig.sortBy || "orderDate",
         sortOrder: sortConfig.sortOrder || "latest",
         customerName: filterParams.customerName?.[0] || undefined,
+        dateFrom: dateFromParam,
+        dateTo: dateToParam,
         filters: Object.keys(filterParams).length > 0 ? filterParams : undefined,
       };
 
@@ -133,7 +161,8 @@ export function useOrderList({
     void loadOrders();
   }, [loadOrders]);
 
-  const activeRows = serverRows.length > 0 ? serverRows : (hasLoadedServer ? [] : localRows);
+  const canView = canAccessPermission("placeOrder", "view");
+  const activeRows = !canView ? [] : serverRows.length > 0 ? serverRows : (hasLoadedServer ? [] : localRows);
 
   const listingRows = useMemo(() => {
     // Deduplicate by order id / orderNo so there is strictly 1 row per order
@@ -179,10 +208,54 @@ export function useOrderList({
     setActiveTab("order");
   }, [viewRecord?.id]);
 
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+
+  const handleColumnFilterOpen = useCallback((columnKey: string) => {
+    const dropdownType =
+      columnKey === "customerName"
+        ? "customers"
+        : columnKey === "itemName" || columnKey === "productCategory"
+          ? "items"
+          : "all";
+
+    void fetchOrderDropdownsApi({ type: dropdownType })
+      .then((data) => {
+        if (!data) return;
+        const optionsMap: Record<string, Array<{ value: string; label: string }>> = {};
+        if (data.customers) {
+          optionsMap.customerName = data.customers.map((c) => ({
+            value: c.customerName || c.name || "",
+            label: c.customerName || c.name || "",
+          }));
+        }
+        if (data.items) {
+          optionsMap.itemName = data.items.map((i) => ({
+            value: i.name || i.label || "",
+            label: i.name || i.label || "",
+          }));
+          optionsMap.productCategory = Array.from(
+            new Set(data.items.map((i) => i.category).filter(Boolean)),
+          ).map((cat) => ({ value: cat!, label: cat! }));
+        }
+        const targetOptions = optionsMap[columnKey];
+        if (targetOptions) {
+          setFilterOptionsByColumn((prev) => ({
+            ...prev,
+            [columnKey]: targetOptions,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return {
     activeTab,
     columnFilters,
+    filterOptionsByColumn,
     filteredRows,
+    handleColumnFilterOpen,
     isLoading,
     page,
     rowsPerPage,
@@ -197,6 +270,40 @@ export function useOrderList({
     totalCount,
     viewRecord,
     reloadOrders: loadOrders,
+    cancelOrderRow: (orderId: string, orderItemId?: string) => {
+      if (orderItemId) {
+        setServerLineItems((prev) => {
+          const next = new Map(prev);
+          const currentItems = next.get(orderId);
+          if (currentItems) {
+            const updated = currentItems.map((item) =>
+              item.id === orderItemId || item.orderItemNo === orderItemId
+                ? { ...item, status: "Cancelled" }
+                : item
+            );
+            next.set(orderId, updated);
+
+            const allCancelled = updated.every(
+              (item) => String(item.status ?? "").toLowerCase() === "cancelled"
+            );
+            if (allCancelled) {
+              setServerRows((prevRows) =>
+                prevRows.map((r) =>
+                  r.id === orderId || r.orderNo === orderId ? { ...r, status: "Cancelled" } : r
+                )
+              );
+            }
+          }
+          return next;
+        });
+      } else {
+        setServerRows((prev) =>
+          prev.map((r) =>
+            r.id === orderId || r.orderNo === orderId ? { ...r, status: "Cancelled" } : r
+          )
+        );
+      }
+    },
   };
 }
 
@@ -225,10 +332,17 @@ function buildOrderListingRows(record: OrderRecord, cachedItems?: OrderLineItem[
         ? item.finishedType
         : item.productCategory || item.finishedType || record.productCategory;
 
-    // Use OI-001 or formatOrderItemNo
-    const numericTail = String(item.id).match(/(\d+)$/)?.[1];
-    const sequence = numericTail ? Number.parseInt(numericTail, 10) : index + 1;
-    const orderItemNumber = `OI-${String(Number.isFinite(sequence) ? sequence : index + 1).padStart(3, "0")}`;
+    // Use orderItemNo if available, otherwise OI-001 formatting
+    const orderItemNumber =
+      item.orderItemNo ||
+      (() => {
+        const numericTail = String(item.id).match(/(\d+)$/)?.[1];
+        const sequence = numericTail ? Number.parseInt(numericTail, 10) : index + 1;
+        return `OI-${String(Number.isFinite(sequence) ? sequence : index + 1).padStart(3, "0")}`;
+      })();
+
+    // Status: inherit item's specific status if present, otherwise fallback to record status
+    const itemStatus = item.status || record.status;
 
     return {
       ...record,
@@ -239,6 +353,7 @@ function buildOrderListingRows(record: OrderRecord, cachedItems?: OrderLineItem[
       orderItemNumber,
       orderLineItemId: item.id,
       rawMaterial,
+      status: itemStatus,
     };
   });
 }

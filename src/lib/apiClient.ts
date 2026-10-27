@@ -28,7 +28,7 @@ export async function apiRequest<TResponse>(
     const parsedPath = new URL(normalizedPath, 'http://local');
     const serializedFilters = parsedPath.searchParams.get('filters');
 
-    if (parsedPath.pathname.startsWith('/masters/') && serializedFilters) {
+    if ((parsedPath.pathname.startsWith('/masters/') || parsedPath.pathname.startsWith('/orders')) && serializedFilters) {
       let filters: Record<string, string[]> | undefined;
       try {
         filters = JSON.parse(serializedFilters) as Record<string, string[]>;

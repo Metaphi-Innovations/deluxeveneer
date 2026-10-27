@@ -59,6 +59,10 @@ export function canAccessPermission(
   }
 
   if (action === "view") {
+    // For Orders, strictly require the explicit view permission so create-only or edit-only users cannot view
+    if (permissionKey === "placeOrder") {
+      return Boolean(permission.view);
+    }
     return Boolean(permission.view || permission.edit || permission.create);
   }
 

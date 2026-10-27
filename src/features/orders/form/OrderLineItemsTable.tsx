@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -873,7 +874,7 @@ export const OrderLineItemsTable = forwardRef<
   const isUnifiedOrder = variant === "order";
   const isFinishedOrder = variant === "finished";
   const [itemsVersion, setItemsVersion] = useState(0);
-  const [dropdownItems, setDropdownItems] = useState<Array<{ name?: string; label?: string; category?: string; subCategory?: string }>>([]);
+  const [dropdownItems, setDropdownItems] = useState<Array<{ id?: string; name?: string; label?: string; category?: string; subCategory?: string }>>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -882,21 +883,24 @@ export const OrderLineItemsTable = forwardRef<
     if (cached && cached.length > 0) {
       return;
     }
+  }, []);
 
-    void fetchOrderDropdownsApi()
+  const handleFetchDropdownsOnDemand = useCallback((categoryOrType?: string) => {
+    void fetchOrderDropdownsApi({
+      type: "items",
+      category: categoryOrType || undefined,
+    })
       .then((data) => {
-        if (!ignore && data?.items) {
-          setDropdownItems(data.items);
+        if (data?.items && data.items.length > 0) {
+          setDropdownItems((prev) => {
+            const existingIds = new Set(prev.map((i) => i.id));
+            const newItems = data.items.filter((i) => !existingIds.has(i.id));
+            return newItems.length > 0 ? [...prev, ...newItems] : prev;
+          });
           setItemsVersion((v) => v + 1);
         }
       })
-      .catch(() => {
-        // Fallback to local store on error
-      });
-
-    return () => {
-      ignore = true;
-    };
+      .catch(() => {});
   }, []);
 
   const itemRows = useMemo(() => {
@@ -950,10 +954,8 @@ export const OrderLineItemsTable = forwardRef<
   }, [items]);
 
   useEffect(() => {
-    setDraftValues(createEmptyValues(columns));
-    setEditingRowId(null);
-    setDraftSubmitAttempted(false);
-  }, [columns]);
+    // Only reset when switching row edit mode, NOT when options/columns update
+  }, []);
 
   const commitLineItems = (nextItems: OrderLineItem[]) => {
     setLineItems(nextItems);
@@ -1027,6 +1029,57 @@ export const OrderLineItemsTable = forwardRef<
     setDraftValues((current) =>
       getNextLineItemValues(current, key, value, isFinishedOrder, itemRows),
     );
+
+    // When an item or baseType/baseName is selected from dropdown, call the specific items dropdown API
+    if (key === "itemName" && value.trim()) {
+      void fetchOrderDropdownsApi({
+        type: "items",
+        search: value.trim(),
+      })
+        .then((data) => {
+          if (data?.items && data.items.length > 0) {
+            setDropdownItems((prev) => {
+              const existingIds = new Set(prev.map((i) => i.id));
+              const newItems = data.items.filter((i) => !existingIds.has(i.id));
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+            setItemsVersion((v) => v + 1);
+          }
+        })
+        .catch(() => {});
+    } else if (key === "baseType" && value.trim()) {
+      void fetchOrderDropdownsApi({
+        type: "items",
+        category: value.trim(),
+      })
+        .then((data) => {
+          if (data?.items && data.items.length > 0) {
+            setDropdownItems((prev) => {
+              const existingIds = new Set(prev.map((i) => i.id));
+              const newItems = data.items.filter((i) => !existingIds.has(i.id));
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+            setItemsVersion((v) => v + 1);
+          }
+        })
+        .catch(() => {});
+    } else if (key === "baseName" && value.trim()) {
+      void fetchOrderDropdownsApi({
+        type: "items",
+        search: value.trim(),
+      })
+        .then((data) => {
+          if (data?.items && data.items.length > 0) {
+            setDropdownItems((prev) => {
+              const existingIds = new Set(prev.map((i) => i.id));
+              const newItems = data.items.filter((i) => !existingIds.has(i.id));
+              return newItems.length > 0 ? [...prev, ...newItems] : prev;
+            });
+            setItemsVersion((v) => v + 1);
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const openItemDetails = (itemName: string) => {
@@ -1161,6 +1214,36 @@ export const OrderLineItemsTable = forwardRef<
                         {renderField({
                           column,
                           currentValues: draftValues,
+                          disabled: (() => {
+                            const allVisibleKeys: string[] = [];
+                            entryRows.forEach((r) => {
+                              r.keys.forEach((k) => {
+                                const col = columnsByKey.get(k);
+                                if (
+                                  col &&
+                                  !(isUnifiedOrder && isBaseField(col.key) && !isFinishedProductType(draftValues.productCategory)) &&
+                                  !(col.key === "designCode" && normalizeProductType(selectedProductOrFinishedType) !== "fluted") &&
+                                  !(col.key === "structuredCode" && normalizeProductType(selectedProductOrFinishedType) !== "embossed")
+                                ) {
+                                  allVisibleKeys.push(k);
+                                }
+                              });
+                            });
+                            const keyIndex = allVisibleKeys.indexOf(column.key);
+                            for (let i = 0; i < keyIndex; i++) {
+                              const prevKey = allVisibleKeys[i];
+                              if (!prevKey) continue;
+                              const prevCol = columnsByKey.get(prevKey);
+                              if (prevCol && !prevCol.readOnly) {
+                                const prevReq = isLineItemColumnRequired(prevCol, draftValues, isFinishedOrder);
+                                const prevVal = String(draftValues[prevKey] ?? "").trim();
+                                if (prevReq && !prevVal) {
+                                  return true;
+                                }
+                              }
+                            }
+                            return false;
+                          })(),
                           errorText: draftSubmitAttempted
                             ? getFieldValidationError(
                               column,
@@ -1171,6 +1254,14 @@ export const OrderLineItemsTable = forwardRef<
                           itemRows,
                           onChange: (value) =>
                             updateDraftValue(column.key, value),
+                          onOpenDropdown: () =>
+                            handleFetchDropdownsOnDemand(
+                              column.key === "baseName"
+                                ? draftValues.baseType
+                                : column.key === "baseType"
+                                  ? undefined
+                                  : undefined,
+                            ),
                           onOpenItemDetails: openItemDetails,
                           value: draftValues[column.key] ?? "",
                         })}
@@ -2207,35 +2298,46 @@ function formatMoneyValue(value: number) {
 function renderField({
   column,
   currentValues,
+  disabled = false,
   errorText,
   itemRows,
   onChange,
+  onOpenDropdown,
   onOpenItemDetails,
   value,
 }: {
   column: OrderLineItemColumn;
   currentValues: Record<string, string>;
+  disabled?: boolean;
   errorText?: string;
   itemRows: readonly MasterRecord[];
   onChange: (value: string) => void;
+  onOpenDropdown?: () => void;
   onOpenItemDetails: (itemName: string) => void;
   value: string;
 }) {
   const selectOptions = getColumnOptions(column, itemRows, currentValues);
+  const isFieldDisabled = disabled || column.readOnly;
   const control =
     column.type === "select" ? (
       <ErpSelectField
         dropdownWidth={column.dropdownWidth ?? Math.max(column.controlWidth, 240)}
         helperText={errorText}
         onChange={onChange}
+        onOpen={
+          column.key === "itemName" || column.key === "baseName" || column.key === "baseType"
+            ? onOpenDropdown
+            : undefined
+        }
         options={selectOptions}
         searchable={selectOptions.length > 6}
         size="regular"
-        state={errorText ? "error" : column.readOnly ? "readOnly" : "default"}
+        state={errorText ? "error" : isFieldDisabled ? "disabled" : "default"}
         value={value}
       />
     ) : (
       <TextField
+        disabled={disabled}
         error={Boolean(errorText)}
         fullWidth
         helperText={errorText}

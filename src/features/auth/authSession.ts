@@ -464,7 +464,7 @@ function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {
     };
 
     permissions.placeOrder = {
-      view: userPerms.includes("ORDER_VIEW") || userPerms.includes("ORDER_CREATE") || userPerms.includes("ORDER_UPDATE"),
+      view: userPerms.includes("ORDER_VIEW"),
       create: userPerms.includes("ORDER_CREATE"),
       edit: userPerms.includes("ORDER_UPDATE"),
     };
