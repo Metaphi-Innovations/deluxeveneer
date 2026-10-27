@@ -51,6 +51,7 @@ import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
   exportStorageInventoryApi,
   fetchStorageProductionWarehouses,
+  issueVeneerBlocksToSawingApi,
   issueVeneerBlocksToSlicingApi,
   moveStorageItemToProductionApi,
   revertStorageItemApi,
@@ -475,7 +476,7 @@ export function StorageWarehousePage({
     async (targetRows: WarehouseInventoryRow[]) => {
       if (!targetRows.length) return;
       try {
-        issueSawingFromStorageRows(targetRows as unknown as Record<string, unknown>[]);
+        await issueVeneerBlocksToSawingApi(targetRows.map((r) => r.id));
         setToastNotification({
           message: `${targetRows.length} item(s) issued for Sawing successfully!`,
           severity: "success",

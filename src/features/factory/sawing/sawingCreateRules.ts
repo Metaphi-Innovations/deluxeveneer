@@ -10,6 +10,7 @@ import {
   replaceSawingDoneItems,
   updateSawingIssuedAvailability,
 } from "./sawingFrontendStore";
+import { createSawingProcessApi } from "./api/sawingApi";
 
 export const sawingProcessDate = {
   key: "processDate",
@@ -448,6 +449,43 @@ addSawingDoneItems(
   newDoneItems,
   itemKey ? { [itemKey]: storedRemainingCbm } : undefined,
 );
+
+// Asynchronously sync with the backend create sawing process API
+try {
+  const targetIssueId = issueId || issueItemId;
+  if (targetIssueId) {
+    void createSawingProcessApi({
+      issueId: targetIssueId,
+      storageWarehouseId,
+      processDate: sawingDate,
+      previousAvailableCbm: sourceMeasures.sourceAvailableCbm,
+      processedItems: processedItemsPayload.map((p) => ({
+        batchNo: p.batchNo,
+        length: p.length,
+        width: p.width,
+        thickness: p.thickness,
+        cbm: Number(p.cbm.toFixed(4)),
+        cbf: Number(p.cbf.toFixed(4)),
+        ratePerCbm: p.ratePerCbf,
+        amount: p.amount,
+        remark: p.remark,
+      })),
+      rejectAvailableItems: [
+        {
+          type: "Available",
+          length: availableLength,
+          width: availableWidth,
+          height: availableHeight,
+          cbm: storedRemainingCbm,
+          cbf: Number((storedRemainingCbm * 35.3147).toFixed(4)),
+          remark: "Remaining block after sawing",
+        },
+      ],
+    });
+  }
+} catch (err) {
+  console.error("Failed to sync sawing process to backend:", err);
+}
 
 navigate("/factory/sawing?tab=done");
 return;

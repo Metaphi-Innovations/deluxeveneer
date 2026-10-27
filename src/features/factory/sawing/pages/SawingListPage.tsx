@@ -14,28 +14,36 @@ import {
   useTheme,
 } from "@mui/material";
 import { CheckCircle2, Eye, Pencil, Plus, RotateCcw, XCircle } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
+import type { ColumnFilterValue } from "../../../../components/shared/columnFilters";
 import { ModuleProcessTabs } from "../../../../components/navigation/ModuleProcessTabs";
 import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactoryToolbar } from "../../shared/FactoryToolbar";
-import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 import { exportRowsToCsv, type CsvColumn } from "../../../shared/exportToCsv";
 import {
-  listSawingFlowRows,
+  fetchSawingIssued,
+  fetchSawingDone,
+  fetchSawingHistory,
+  fetchSawingRejected,
+  revertSawingDoneApi,
+  revertSawingIssueApi,
+  revertSawingRejectedApi,
+  rejectSawingDoneApi,
+  issueSawingForInspectionApi,
+  fetchSawingDropdownsApi,
+} from "../api/sawingApi";
+import {
   getSawingDoneEditBlockReason,
-  recordSawingHistory,
-  recordSawingRejection,
-  revertSawingFlowRow,
-  searchSawingFlowRows,
-  type SawingFlowTab,
+  readSawingFlowState,
 } from "../sawingFrontendStore";
+import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 import {
   SAWING_DONE_COLUMNS,
   SAWING_HISTORY_COLUMNS,
@@ -46,12 +54,12 @@ import {
   formatSawingStorageSerial,
   type SawingProcessTab,
 } from "../sawingColumns";
-import { sawingDefinition } from "../../shared";
 import { canAccessFactorySawing } from "../../../permissions";
 
 export function SawingListPage() {
   const theme = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const tabParam = (searchParams.get("tab") || "issued") as SawingProcessTab;
@@ -98,17 +106,65 @@ export function SawingListPage() {
     severity: "success" | "error" | "info" | "warning";
   } | null>(null);
 
-  // Reset page and selection when tab or search changes
+  // Filter & sorting states
+  const [columnFilters, setColumnFilters] = useState<Partial<Record<string, ColumnFilterValue>>>({});
+  const [sortConfig, setSortConfig] = useState<{
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+  }>({ sortBy: null, sortOrder: null });
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+
+  // Reset page, filters and selection when tab changes
   useEffect(() => {
     setPage(1);
     setSelectedDoneRows([]);
     setSelectionResetKey((k) => k + 1);
-  }, [activeTab, searchValue]);
+    setColumnFilters({});
+    setSortConfig({ sortBy: null, sortOrder: null });
+  }, [activeTab]);
+
+  // Handle flash message passed from navigation (e.g. after creating sawing)
+  useEffect(() => {
+    const flash = (location.state as { sawingFlashMessage?: string } | null)?.sawingFlashMessage;
+    if (flash) {
+      setToastNotification({
+        message: flash,
+        severity: "success",
+      });
+      setRefreshTrigger((c) => c + 1);
+      // Clear location state history so it doesn't re-show on next tab clicks
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleTabChange = (val: string) => {
     setSearchParams({ tab: val });
     setSearchValue("");
   };
+
+  // ── Load Dropdown Options for Filter Menus ────────────────────────
+  const handleColumnFilterOpen = useCallback((columnKey: string) => {
+    const tabName = activeTab === "done" || activeTab === "history" || activeTab === "rejected" ? activeTab : "issued";
+    void fetchSawingDropdownsApi(tabName).then((data) => {
+      if (!data) return;
+      const opts: Array<{ value: string; label: string }> = [];
+      if (columnKey === "itemName" && data.itemNames) {
+        opts.push(...data.itemNames.map((n) => ({ value: n, label: n })));
+      } else if ((columnKey === "batchNo" || columnKey === "batchNoCode") && data.batchNos) {
+        opts.push(...data.batchNos.map((b) => ({ value: b, label: b })));
+      } else if (columnKey === "subCategory" && data.subCategories) {
+        opts.push(...data.subCategories.map((s) => ({ value: s, label: s })));
+      }
+      if (opts.length > 0) {
+        setFilterOptionsByColumn((prev) => ({
+          ...prev,
+          [columnKey]: opts,
+        }));
+      }
+    }).catch(() => {});
+  }, [activeTab]);
 
   // ── Load Data ─────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -116,25 +172,59 @@ export function SawingListPage() {
     setErrorMessage("");
 
     try {
-      const flowTab: SawingFlowTab =
-        activeTab === "done" || activeTab === "history" || activeTab === "rejected"
-          ? activeTab
-          : "issued";
-      const matched = searchSawingFlowRows(
-        listSawingFlowRows(flowTab, sawingDefinition.rows as any[]),
-        searchValue,
-      );
-      const start = (page - 1) * rowsPerPage;
-      setRows(matched.slice(start, start + rowsPerPage));
-      setTotalCount(matched.length);
-    } catch (_err: any) {
+      const queryParams = {
+        page,
+        limit: rowsPerPage,
+        search: searchValue.trim() || undefined,
+        sortBy: sortConfig.sortBy || undefined,
+        sortOrder: sortConfig.sortOrder || undefined,
+        filters: Object.keys(columnFilters).length > 0 ? columnFilters : undefined,
+      };
+
+      let result: { items: any[]; pagination: { total: number } };
+      const flowState = readSawingFlowState();
+      if (activeTab === "done") {
+        result = await fetchSawingDone(queryParams);
+        const backendItems = result.items || [];
+        const extraDone = (flowState.extraDone || []).filter(
+          (ed: any) => !backendItems.some((bi: any) => bi.id === ed.id)
+        );
+        result.items = [...extraDone, ...backendItems];
+        result.pagination.total = (result.pagination.total || 0) + extraDone.length;
+      } else if (activeTab === "history") {
+        result = await fetchSawingHistory(queryParams);
+      } else if (activeTab === "rejected") {
+        result = await fetchSawingRejected(queryParams);
+      } else {
+        result = await fetchSawingIssued(queryParams);
+        // Apply dynamic available CBM overrides if any were tracked locally
+        if (result.items && flowState.issuedAvailability) {
+          result.items = result.items.map((item: any) => {
+            const availOverride =
+              flowState.issuedAvailability[item.id] ||
+              flowState.issuedAvailability[item.storageSrNo];
+            if (availOverride && availOverride.availableCbm !== undefined) {
+              return {
+                ...item,
+                availableCbm: availOverride.availableCbm,
+                availableCbf: availOverride.availableCbf ?? item.availableCbf,
+              };
+            }
+            return item;
+          });
+        }
+      }
+
+      setRows(result.items || []);
+      setTotalCount(result.pagination?.total || 0);
+    } catch (err: any) {
       setRows([]);
       setTotalCount(0);
-      setErrorMessage("Unable to load sawing records.");
+      setErrorMessage(err?.message || "Unable to load sawing records.");
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab, page, rowsPerPage, searchValue, refreshTrigger]);
+  }, [activeTab, page, rowsPerPage, searchValue, sortConfig.sortBy, sortConfig.sortOrder, columnFilters, refreshTrigger]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -155,9 +245,13 @@ export function SawingListPage() {
     if (!revertTargetRow) return;
     setIsReverting(true);
     try {
-      const flowTab: SawingFlowTab =
-        activeTab === "done" || activeTab === "rejected" ? activeTab : "issued";
-      revertSawingFlowRow(flowTab, revertTargetRow);
+      if (activeTab === "issued") {
+        await revertSawingIssueApi(revertTargetRow.id, revertRemark);
+      } else if (activeTab === "rejected") {
+        await revertSawingRejectedApi(revertTargetRow.id, revertRemark);
+      } else {
+        await revertSawingDoneApi(revertTargetRow.id || revertTargetRow.doneId, revertRemark);
+      }
       setRevertDialogOpen(false);
       setRevertTargetRow(null);
       setRefreshTrigger((c) => c + 1);
@@ -185,7 +279,7 @@ export function SawingListPage() {
     if (!rejectTargetRow) return;
     setIsRejecting(true);
     try {
-      recordSawingRejection(rejectTargetRow, rejectRemark);
+      await rejectSawingDoneApi(rejectTargetRow.id, rejectRemark);
       setRows((current) => current.filter((r) => r.id !== rejectTargetRow.id));
       setTotalCount((c) => Math.max(0, c - 1));
       setRejectDialogOpen(false);
@@ -219,30 +313,25 @@ export function SawingListPage() {
     if (inspectionTargetRows.length === 0) return;
     setIsIssuingInspection(true);
     try {
-      const count = inspectionTargetRows.length;
-      inspectionTargetRows.forEach((row) => {
-        const issuedDate = row.issueDate || row.issuedDate;
-        const sawingDate = row.sawingDate || row.processDate;
-        const subCategory = row.subCategory || row.itemSubCategory || "-";
+      const ids = inspectionTargetRows.map((r) => r.id);
+      await issueSawingForInspectionApi(ids, "Issued to inspection from Sawing Done");
+
+      // Register into Sawing Inspection pending tab
+      for (const row of inspectionTargetRows) {
         issueFactoryWork({
-          destinationProcess: "Sawing Inspection",
+          destinationProcess: "sawing-inspection",
+          sourceSlug: "sawing",
+          sourceProcess: "Sawing Done",
+          sourceWarehouseName: row.storageWarehouseName || "Sawing",
           sourceRow: {
             ...row,
-            issueDate: issuedDate,
-            issuedDate,
-            sawingDate,
-            processDate: sawingDate,
-            subCategory,
-            itemSubCategory: subCategory,
-          } as any,
-          sourceSlug: "sawing",
-          sourceProcess: "Sawing",
-          sourceWarehouseName: (row as any).storageWarehouseName || "Warehouse B",
+            issuedDate: new Date(),
+            qcStatus: "Pending",
+          },
         });
-      });
-      recordSawingHistory(inspectionTargetRows);
+      }
 
-      const processedIds = new Set(inspectionTargetRows.map((r) => r.id));
+      const processedIds = new Set(ids);
       setRows((current) => current.filter((r) => !processedIds.has(r.id)));
       setTotalCount((c) => Math.max(0, c - inspectionTargetRows.length));
       setSelectedDoneRows((current) => current.filter((r) => !processedIds.has(r.id)));
@@ -250,7 +339,7 @@ export function SawingListPage() {
       setInspectionDialogOpen(false);
       setInspectionTargetRows([]);
       setToastNotification({
-        message: `Issued ${count} item(s) to Sawing Inspection successfully.`,
+        message: `Issued ${ids.length} item(s) to Sawing Inspection successfully.`,
         severity: "success",
       });
     } catch (err: any) {
@@ -262,6 +351,7 @@ export function SawingListPage() {
       setIsIssuingInspection(false);
     }
   };
+
 
 
 
@@ -395,16 +485,7 @@ export function SawingListPage() {
   }, [activeTab]);
 
   const handleExport = () => {
-    const flowTab: SawingFlowTab =
-      activeTab === "done" || activeTab === "history" || activeTab === "rejected"
-        ? activeTab
-        : "issued";
-    const matched = searchSawingFlowRows(
-      listSawingFlowRows(flowTab, sawingDefinition.rows as any[]),
-      searchValue,
-    );
-
-    if (matched.length === 0) {
+    if (rows.length === 0) {
       setToastNotification({
         message: "No records available to export.",
         severity: "info",
@@ -412,13 +493,22 @@ export function SawingListPage() {
       return;
     }
 
+    const columns: CsvColumn<Record<string, unknown>>[] = currentColumns.map((col) => ({
+      key: String(col.key),
+      label: col.label,
+    }));
+
     exportRowsToCsv(
-      matched.map((row) => mapSawingExportRow(row, currentColumns)),
-      currentColumns.map((column) => ({
-        key: String(column.key),
-        label: column.label,
-      })) as CsvColumn<Record<string, unknown>>[],
-      `sawing-${activeTab}`,
+      rows.map((row) => {
+        const item: Record<string, unknown> = {};
+        currentColumns.forEach((col) => {
+          const key = String(col.key);
+          item[key] = row[key] ?? "";
+        });
+        return item;
+      }),
+      columns,
+      `sawing-${activeTab}`
     );
   };
 
@@ -494,6 +584,20 @@ export function SawingListPage() {
           rows={rows}
           loading={isLoading}
           loadingLabel={`Loading ${activeTab} sawing items...`}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={setColumnFilters}
+          filterOptionsByColumn={filterOptionsByColumn}
+          onColumnFilterOpen={handleColumnFilterOpen}
+          sorting={{
+            sortBy: sortConfig.sortBy,
+            sortOrder: sortConfig.sortOrder,
+            onSortChange: (newSortBy, newSortOrder) => {
+              setSortConfig({ sortBy: newSortBy, sortOrder: newSortOrder });
+            },
+            onSortClear: () => {
+              setSortConfig({ sortBy: null, sortOrder: null });
+            },
+          }}
           pagination={{
             page,
             rowsPerPage,
