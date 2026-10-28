@@ -195,6 +195,7 @@ export async function createSawingProcessApi(data: {
   issueItemId?: string | undefined;
   storageWarehouseId?: string | undefined;
   processDate?: string | undefined;
+  previousAvailableCbm?: number | undefined;
   remark?: string | undefined;
   processedItems: Array<{
     batchNo?: string | undefined;
