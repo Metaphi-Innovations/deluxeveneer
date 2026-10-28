@@ -66,6 +66,7 @@ import {
 import { FactoryActionConfirmDialog } from "./FactoryActionConfirmDialog";
 import type { ProductionWarehouseOption } from "./FactoryActionConfirmDialog";
 import { FactoryPageShell } from "./FactoryPageShell";
+import { exportRowsToCsv, type CsvColumn } from "../../shared/exportToCsv";
 import { FactoryToolbar } from "./FactoryToolbar";
 import {
   getFactoryPaths,
@@ -154,8 +155,11 @@ import {
   applySlicingListingRows,
   clearSlicingDoneRejected,
   getSlicingDoneEditBlockReason,
+  getSlicingDoneRevertBlockReason,
   markSlicingDoneRejected,
+  recordSlicingHistory,
   restoreSlicingDoneLeaves,
+  revertSlicingDoneToIssued,
   updateSlicingDoneAvailableLeaves,
   useSlicingFlowState,
 } from "../slicing/slicingFrontendStore";
@@ -164,6 +168,7 @@ import {
   factoryIssuedWorkToRow,
   completeFactoryIssuedWork,
   failFactoryIssuedWork,
+  reopenCompletedFactoryWork,
   revertFactoryIssuedWork,
   updateFactoryIssuedWorkSnapshot,
   getFactoryIssuedWorkForListing,
@@ -354,7 +359,10 @@ export function FactoryListing<Row extends FactoryRecord>({
       | "drying-done"
       | "inspection-done"
       | "inspection-failed"
-      | "finishing-done";
+      | "finishing-done"
+      | "slicing-done"
+      | "grouping-done"
+      | "splicing-done";
   } | null>(null);
   const [confirmIssueDryingOpen, setConfirmIssueDryingOpen] = useState(false);
   const [issueDryingRows, setIssueDryingRows] = useState<Row[]>([]);
@@ -1620,9 +1628,12 @@ export function FactoryListing<Row extends FactoryRecord>({
     if (isGroupingDoneTab) {
       return buildGroupingDoneRowActions<Row>({
         canCreate,
+        canEdit,
         canReject: canEdit || canCreate,
         canView,
         onReject: (selectedRow) => setRejectConfirmRow(selectedRow),
+        onRevert: (selectedRow) =>
+          setConfirmRevertRow({ row: selectedRow, type: "grouping-done" }),
         onOrderIssue: (selectedRow) =>
           setGroupingOrderIssue({
             issueDate: new Date(),
@@ -1665,6 +1676,63 @@ export function FactoryListing<Row extends FactoryRecord>({
           ? [...actions, issueToPressingAction]
           : actions;
 
+      const withProcessDoneRevert = (
+        actions: readonly EnterpriseTableAction<Row>[],
+      ) => {
+        if (!(canEdit || canCreate)) {
+          return actions;
+        }
+
+        const splicingForwarded =
+          definition.slug === "splicing" &&
+          factoryIssuedWorkItems.some(
+            (item) =>
+              item.sourceSlug === "splicing" &&
+              (item.sourceRowId === String(row.id) ||
+                item.sourceRowId === String(row.workItemId ?? "")),
+          );
+
+        const reason =
+          definition.slug === "slicing"
+            ? getSlicingDoneRevertBlockReason(row, definition.rows)
+            : definition.slug === "splicing" && splicingForwarded
+              ? "Revert is unavailable because this item has already been issued onward."
+              : "";
+
+        if (definition.slug !== "slicing" && definition.slug !== "splicing") {
+          return actions;
+        }
+
+        const revertAction: EnterpriseTableAction<Row> = {
+          id:
+            definition.slug === "splicing"
+              ? "revert-splicing-done"
+              : "revert-slicing-done",
+          label: "Revert",
+          icon: RotateCcw,
+          tone: "danger",
+          disabled: Boolean(reason),
+          ...(reason ? { disabledReason: reason } : {}),
+          onSelect: (selectedRow) =>
+            setConfirmRevertRow({
+              row: selectedRow,
+              type:
+                definition.slug === "splicing" ? "splicing-done" : "slicing-done",
+            }),
+        };
+        const rejectIndex = actions.findIndex((action) =>
+          action.id.startsWith("reject-"),
+        );
+        if (rejectIndex >= 0) {
+          return [
+            ...actions.slice(0, rejectIndex + 1),
+            revertAction,
+            ...actions.slice(rejectIndex + 1),
+          ];
+        }
+        return [...actions, revertAction];
+      };
+
       if (isSampleFactoryRow(row)) {
         const sampleActions: EnterpriseTableAction<Row>[] = [];
 
@@ -1685,9 +1753,11 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (canCreate && definition.slug === "splicing") {
-          return withIssueToPressing(
-            confirmIssueActions(
-              appendSplicingSampleIssueActions(sampleActions, definition.slug),
+          return withProcessDoneRevert(
+            withIssueToPressing(
+              confirmIssueActions(
+                appendSplicingSampleIssueActions(sampleActions, definition.slug),
+              ),
             ),
           );
         }
@@ -1773,11 +1843,15 @@ export function FactoryListing<Row extends FactoryRecord>({
           : confirmIssueActions(nextProcessActions);
 
       if (confirmedNextActions.length === 0) {
-        return withIssueToPressing(lockDoneEdit(doneActions, row));
+        return withProcessDoneRevert(
+          withIssueToPressing(lockDoneEdit(doneActions, row)),
+        );
       }
 
-      return withIssueToPressing(
-        lockDoneEdit([...doneActions, ...confirmedNextActions], row),
+      return withProcessDoneRevert(
+        withIssueToPressing(
+          lockDoneEdit([...doneActions, ...confirmedNextActions], row),
+        ),
       );
     };
   }, [
@@ -1796,6 +1870,7 @@ export function FactoryListing<Row extends FactoryRecord>({
     isInspectionModule,
     isDryingDoneTab,
     isGroupingDoneTab,
+    factoryIssuedWorkItems,
     navigate,
     paths,
     rowActions,
@@ -2034,7 +2109,6 @@ export function FactoryListing<Row extends FactoryRecord>({
           />
         }
         title={definition.title}
-        subtitle={``}
       >
         <Stack
           sx={(currentTheme) => ({
@@ -2251,7 +2325,19 @@ export function FactoryListing<Row extends FactoryRecord>({
                       : "Create Marquetry"}
                   </Button>
                 ) : null}
-                <FactoryToolbar />
+                <FactoryToolbar
+                  disabled={!canView || tableRows.length === 0}
+                  onExport={() => {
+                    exportRowsToCsv(
+                      tableRows as readonly Record<string, unknown>[],
+                      orderedTableColumns.map((column) => ({
+                        key: column.key as string,
+                        label: column.label,
+                      })) as CsvColumn<Record<string, unknown>>[],
+                      `${definition.slug}-${activeTab}`,
+                    );
+                  }}
+                />
               </Stack>
             )}
           </Stack>
@@ -3581,7 +3667,15 @@ export function FactoryListing<Row extends FactoryRecord>({
       <ConfirmationDialog
         cancelLabel="Cancel"
         confirmLabel="Revert"
-        description="Are you sure you want to revert this item? This action will move it back to the previous state."
+        description={
+          confirmRevertRow?.type === "slicing-done"
+            ? "Are you sure you want to revert this item back to Issued for Slicing?"
+            : confirmRevertRow?.type === "grouping-done"
+              ? "Are you sure you want to revert this item back to Issued for Grouping?"
+              : confirmRevertRow?.type === "splicing-done"
+                ? "Are you sure you want to revert this item back to Issued for Splicing?"
+                : "Are you sure you want to revert this item? This action will move it back to the previous state."
+        }
         onClose={() => setConfirmRevertRow(null)}
         onConfirm={() => {
           if (confirmRevertRow) {
@@ -3698,6 +3792,46 @@ export function FactoryListing<Row extends FactoryRecord>({
                   "Failed item reverted to Inspection Issued successfully.",
                 severity: "success",
               });
+            } else if (type === "slicing-done") {
+              revertSlicingDoneToIssued(row);
+              setToastNotification({
+                message: "Item reverted to Issued for Slicing successfully.",
+                severity: "success",
+              });
+            } else if (type === "grouping-done") {
+              const workItemId =
+                getFactoryString(row.workItemId) ||
+                (String(row.id).startsWith("factory-work-")
+                  ? String(row.id)
+                  : "");
+              if (workItemId) {
+                reopenCompletedFactoryWork(workItemId);
+              } else {
+                setRevertedRowIds((current) =>
+                  current.includes(row.id) ? current : [...current, row.id],
+                );
+              }
+              setToastNotification({
+                message: "Item reverted to Issued for Grouping successfully.",
+                severity: "success",
+              });
+            } else if (type === "splicing-done") {
+              const workItemId =
+                getFactoryString(row.workItemId) ||
+                (String(row.id).startsWith("factory-work-")
+                  ? String(row.id)
+                  : "");
+              if (workItemId) {
+                reopenCompletedFactoryWork(workItemId);
+              } else {
+                setRevertedRowIds((current) =>
+                  current.includes(row.id) ? current : [...current, row.id],
+                );
+              }
+              setToastNotification({
+                message: "Item reverted to Issued for Splicing successfully.",
+                severity: "success",
+              });
             } else if (type === "issued" && definition.slug === "drying") {
               const sourceDoneId =
                 getFactoryString(row.sourceRowId) ||
@@ -3797,7 +3931,7 @@ export function FactoryListing<Row extends FactoryRecord>({
               remark: remark || selectedRow.remark || "",
               totalLeaves: String(leaves),
             } as Row;
-            issueFactoryWork({
+            const issued = issueFactoryWork({
               destinationProcess: "Drying",
               sourceSlug: definition.slug,
               sourceProcess: "Slicing",
@@ -3805,6 +3939,20 @@ export function FactoryListing<Row extends FactoryRecord>({
               sourceRow: issuedRow,
             });
             updateSlicingDoneAvailableLeaves(selectedRow, remainingLeaves);
+            recordSlicingHistory([
+              {
+                ...issuedRow,
+                id: `slicing-history-${Date.now()}-${selectedRow.id}`,
+                listingState: "history",
+                sourceDoneId: String(selectedRow.id),
+                sourceRowId: String(selectedRow.id),
+                workItemId: issued.id,
+                issueDate: new Date().toISOString().slice(0, 10),
+                noOfLeaves: String(leaves),
+                availableLeaves: String(leaves),
+                receivedLeaves: String(leaves),
+              },
+            ]);
           });
           const issuedIds = new Set(entries.map(({ row }) => row.id));
           setSelectedListingRows((current) =>

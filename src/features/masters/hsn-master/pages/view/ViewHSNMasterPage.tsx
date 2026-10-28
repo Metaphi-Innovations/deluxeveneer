@@ -15,12 +15,11 @@ import {
   FileSpreadsheet,
   MessageSquare,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -88,10 +87,9 @@ export function ViewHSNMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "HSN Master", to: paths.list },
-          { label: "View HSN" },
+          { label: "View HSN Master" },
         ]}
-        title="View HSN"
-        subtitle=" "
+        title="View HSN Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -108,19 +106,13 @@ export function ViewHSNMasterPage() {
           { label: "HSN Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View HSN"
+        title="View HSN Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            HSN record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="HSN record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -131,7 +123,7 @@ export function ViewHSNMasterPage() {
         { label: "HSN Master", to: paths.list },
         { label: displayName || "View HSN" },
       ]}
-      title="View HSN"
+      title="View HSN Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -305,7 +297,7 @@ export function ViewHSNMasterPage() {
                 >
                   <ProfileField label="HSN Code" value={row.hsnCode || row.code ? String(row.hsnCode || row.code) : undefined} />
                   <ProfileField
-                    label="GST Rate"
+                    label="GST %"
                     value={
                       row.gstPercentage || row.gst
                         ? `${String(row.gstPercentage || row.gst).replace(/%/g, "")}%`
@@ -320,37 +312,6 @@ export function ViewHSNMasterPage() {
                     />
                   </Box>
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="HSN Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

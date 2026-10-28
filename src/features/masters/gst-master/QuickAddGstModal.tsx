@@ -15,6 +15,7 @@ import {
 import { X, Save } from "lucide-react";
 import { createGstApi, fetchGstsApi, syncGstMasterToStorage } from "./api/gstMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 import type { MasterRecord } from "../shared/types";
 
 interface QuickAddGstModalProps {
@@ -65,8 +66,8 @@ export function QuickAddGstModal({
       return;
     }
 
-    if (isNaN(Number(rawVal)) || Number(rawVal) < 0 || Number(rawVal) > 100) {
-      const msg = "GST % must be a valid number between 0 and 100.";
+    if (!/^\d{1,2}$/.test(rawVal)) {
+      const msg = "GST % must contain only 1 or 2 digits.";
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
       return;
@@ -90,11 +91,13 @@ export function QuickAddGstModal({
         status: true,
       });
 
-      if (created) {
-        const allRecords = await fetchGstsApi();
-        if (allRecords.length > 0) {
-          syncGstMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to create GST.");
+      }
+
+      const allRecords = await fetchGstsApi();
+      if (allRecords.length > 0) {
+        syncGstMasterToStorage(allRecords);
       }
 
       void invalidateMaster("gst");
@@ -103,8 +106,8 @@ export function QuickAddGstModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to create GST.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create GST.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {
@@ -170,7 +173,24 @@ export function QuickAddGstModal({
                 fullWidth
                 placeholder="18"
                 value={gstPercentage}
-                onChange={(e) => setGstPercentage(e.target.value)}
+                onChange={(e) => {
+                  const sanitized = e.target.value.replace(/\D/g, "").slice(0, 2);
+                  setGstPercentage(sanitized);
+                  if (error) setError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.ctrlKey || e.metaKey || e.altKey) return;
+                  if (e.key.length === 1 && !/\d/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
+                slotProps={{
+                  htmlInput: {
+                    inputMode: "numeric",
+                    maxLength: 2,
+                    pattern: "[0-9]*",
+                  },
+                }}
                 sx={(theme) => ({
                   "& .MuiOutlinedInput-root": {
                     height: 36,

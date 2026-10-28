@@ -219,18 +219,10 @@ export async function fetchItemsPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch items from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchItemsApi(params?: {
@@ -243,8 +235,12 @@ export async function fetchItemsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchItemsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchItemsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 let itemMasterRowsCache: MasterRecord[] = [];
@@ -273,16 +269,11 @@ export async function refreshItemMasterCache(
 }
 
 export async function getItemByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendItemItem>>(`/masters/items/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendItemToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch item with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendItemItem>>(`/masters/items/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendItemToMasterRecord(res.data);
   }
-  const localRows = getStoredItemMasterRows();
-  return localRows.find((r) => r.id === id) || null;
+  throw new Error(res?.message || "Record not found.");
 }
 
 export async function createItemApi(values: {
@@ -385,7 +376,7 @@ export async function createItemApi(values: {
   if (res?.success && res?.data) {
     return mapBackendItemToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item.");
 }
 
 export async function updateItemApi(
@@ -484,7 +475,7 @@ export async function updateItemApi(
   if (res?.success && res?.data) {
     return mapBackendItemToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item.");
 }
 
 export async function updateItemStatusApi(
@@ -499,7 +490,7 @@ export async function updateItemStatusApi(
   if (res?.success && res?.data) {
     return mapBackendItemToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item.");
 }
 
 export async function deleteItemApi(id: string): Promise<boolean> {

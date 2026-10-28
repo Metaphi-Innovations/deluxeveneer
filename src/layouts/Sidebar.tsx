@@ -44,13 +44,6 @@ import {
   portalSidebarMetrics,
 } from "../features/shared/portalIconStandards";
 import {
-  MASTERS_SIDEBAR_ENTRY_ID,
-  mastersSidebarChildListSx,
-  mastersSidebarChildSx,
-  mastersSidebarChildTextProps,
-  mastersSidebarParentSx,
-} from "../features/masters/shared/mastersSidebarStyles";
-import {
   getSidebarNavigation,
   type SidebarNavigationEntry,
   type SidebarNavigationGroup,
@@ -364,19 +357,12 @@ export function Sidebar({
           >
             {navigationEntries.map((entry) => {
               const hasChildren = isExpandableGroup(entry);
-              const isMastersNav = entry.id === MASTERS_SIDEBAR_ENTRY_ID;
               const isActive = hasChildren
                 ? entry.items.some((item) => item.match(sidebarLocation))
                 : entry.match(sidebarLocation);
               const isOpen = !collapsed && openGroupId === entry.id;
 
-              const parentButtonSx = isMastersNav
-                ? mastersSidebarParentSx(theme, {
-                    collapsed,
-                    isActive,
-                    collapsedButtonSize: collapsedNavButtonSize,
-                  })
-                : {
+              const parentButtonSx = {
                     position: "relative",
                     overflow: "hidden",
                     minHeight: portalSidebarMetrics.parentHeight,
@@ -537,60 +523,16 @@ export function Sidebar({
                     <Collapse in={isOpen} orientation="vertical" timeout="auto">
                       <List
                         disablePadding
-                        sx={
-                          isMastersNav
-                            ? mastersSidebarChildListSx()
-                            : {
+                        sx={{
                                 display: "flex",
                                 flexDirection: "column",
                                 gap: 0.2,
                                 pt: 0.35,
                                 pb: 0.35,
-                              }
-                        }
+                              }}
                       >
                         {entry.items.map((item) => {
                           const isItemActive = item.match(sidebarLocation);
-
-                          if (isMastersNav) {
-                            return (
-                              <ListItemButton
-                                key={item.id}
-                                disableRipple
-                                component={RouterLink}
-                                onClick={!isDesktop ? onClose : undefined}
-                                selected={isItemActive}
-                                to={item.to}
-                                sx={mastersSidebarChildSx(theme, isItemActive)}
-                              >
-                                {item.icon ? (
-                                  <ListItemIcon
-                                    sx={{
-                                      minWidth: 16,
-                                      width: 16,
-                                      mr: 1,
-                                      justifyContent: "center",
-                                      color: isItemActive
-                                        ? theme.customTokens.brand.primary
-                                        : theme.customTokens.neutrals[500],
-                                    }}
-                                  >
-                                    <item.icon size={15} strokeWidth={2} />
-                                  </ListItemIcon>
-                                ) : null}
-                                <ListItemText
-                                  primary={item.label}
-                                  primaryTypographyProps={{
-                                    ...mastersSidebarChildTextProps(isItemActive),
-                                    color: isItemActive
-                                      ? theme.customTokens.brand.primary
-                                      : theme.customTokens.navigation
-                                          .inactiveText,
-                                  }}
-                                />
-                              </ListItemButton>
-                            );
-                          }
 
                           return (
                             <ListItemButton
@@ -726,16 +668,34 @@ export function Sidebar({
                 justifyContent: collapsed ? "center" : "flex-start",
                 gap: collapsed ? 0 : 1,
                 borderRadius: "8px",
+                position: "relative",
+                overflow: "hidden",
                 backgroundColor: isProfileRoute
                   ? theme.customTokens.navigation.activeBackground
                   : "transparent",
-                color: theme.customTokens.navigation.inactiveText,
+                color: isProfileRoute
+                  ? theme.customTokens.navigation.activeText
+                  : theme.customTokens.navigation.inactiveText,
                 cursor: "pointer",
                 transition: theme.transitions.create("background-color", {
                   duration: theme.transitions.duration.shorter,
                 }),
+                "&::before": isProfileRoute
+                  ? {
+                      content: '""',
+                      position: "absolute",
+                      left: 0,
+                      top: 8,
+                      bottom: 8,
+                      width: 2.5,
+                      borderRadius: `${theme.customTokens.radius.pill}px`,
+                      bgcolor: theme.customTokens.navigation.activeIndicator,
+                    }
+                  : {},
                 "&:hover": {
-                  backgroundColor: theme.customTokens.navigation.hoverBackground,
+                  backgroundColor: isProfileRoute
+                    ? theme.customTokens.navigation.activeBackground
+                    : theme.customTokens.navigation.hoverBackground,
                 },
               }}
               type="button"
@@ -903,7 +863,6 @@ const navigationPermissionKeyById: Record<string, string> = {
   order: "placeOrder",
   orders: "placeOrder",
   packing: "packing",
-  "roles-permissions": "rolesPermissions",
   "user-management": "userManagement",
   "warehouse-a": "warehouseA",
   "warehouse-b": "warehouseB",

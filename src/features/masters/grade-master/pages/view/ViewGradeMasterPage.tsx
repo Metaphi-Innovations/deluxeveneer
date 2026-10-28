@@ -14,12 +14,11 @@ import {
   Award,
   MessageSquare,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -90,10 +89,9 @@ export function ViewGradeMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Grade Master", to: paths.list },
-          { label: "View Grade" },
+          { label: "View Grade Master" },
         ]}
-        title="View Grade"
-        subtitle=" "
+        title="View Grade Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -110,19 +108,13 @@ export function ViewGradeMasterPage() {
           { label: "Grade Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Grade"
+        title="View Grade Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Grade record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Grade record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -133,7 +125,7 @@ export function ViewGradeMasterPage() {
         { label: "Grade Master", to: paths.list },
         { label: displayName || "View Grade" },
       ]}
-      title="View Grade"
+      title="View Grade Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -289,37 +281,6 @@ export function ViewGradeMasterPage() {
                 >
                   <ProfileField label="Grade Name" value={displayName} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="Grade Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

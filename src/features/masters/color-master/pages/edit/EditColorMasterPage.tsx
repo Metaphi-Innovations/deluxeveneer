@@ -35,7 +35,8 @@ export function EditColorMasterPage() {
       }
       void invalidateMaster("color");
     } catch (error) {
-      console.warn("Failed to update color via API, fallback will persist locally:", error);
+      console.warn("Failed to update color via API:", error);
+      throw error;
     }
   };
 

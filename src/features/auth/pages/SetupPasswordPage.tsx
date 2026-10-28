@@ -81,9 +81,9 @@ export function SetupPasswordPage() {
     getCompactFieldSx(theme, fieldVisualState, { large: true }),
     {
       "& .MuiOutlinedInput-root": {
-        height: 42,
-        minHeight: 42,
-        borderRadius: "9px",
+        height: 36,
+        minHeight: 36,
+        borderRadius: "8px",
       },
     },
   ];
@@ -481,8 +481,11 @@ export function SetupPasswordPage() {
                 endIcon={<ArrowRight size={16} strokeWidth={2} />}
                 sx={{
                   mt: 0.5,
-                  py: 1.25,
-                  borderRadius: "9px",
+                  minHeight: 36,
+                  height: 36,
+                  py: 0,
+                  width: "100%",
+                  borderRadius: "8px",
                   fontSize: "0.875rem",
                   fontWeight: 600,
                   textTransform: "none",

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Dialog, DialogContent, Snackbar, Stack, Typography } from "@mui/material";
-import { CircleAlert, Eye, Pencil, Plus, XCircle } from "lucide-react";
+import { Alert, Button, Snackbar, Stack } from "@mui/material";
+import { Download, Eye, Pencil, Plus, XCircle } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import {
@@ -8,13 +8,12 @@ import {
   type EnterpriseTableAction,
   type EnterpriseTableColumn,
 } from "../../../components/data-display/EnterpriseDataTable";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import {
-  getListingToolbarButtonSx,
-  recordFormActionButtonSx,
-} from "../../shared/buttonStyles";
+import { getListingToolbarButtonSx } from "../../shared/buttonStyles";
+import { exportRowsToCsv } from "../../shared/exportToCsv";
 import {
   type OrderListingRow,
   type OrderListingTab,
@@ -30,6 +29,7 @@ import {
 } from "../shared/ordersStore";
 import { OrderStatusChip } from "../shared/OrderStatusChip";
 import { OrderViewDetailsDialog } from "./OrderViewDetailsDialog";
+import { cancelOrderApi, exportOrdersApi } from "../api/ordersApi";
 
 type OrderListingLocationState = {
   orderListingTab?: OrderListingTab;
@@ -47,11 +47,25 @@ export function OrdersListingPage({
   const requestedTab = getLocationOrderTab(location.state);
   const {
     activeTab,
+    columnFilters,
+    filterOptionsByColumn,
     filteredRows,
+    handleColumnFilterOpen,
+    isLoading,
+    page,
+    rowsPerPage,
     searchValue,
     setActiveTab,
+    setColumnFilters,
+    setPage,
+    setRowsPerPage,
     setSearchValue,
+    setSortConfig,
+    sortConfig,
+    totalCount,
     viewRecord,
+    reloadOrders,
+    cancelOrderRow,
   } = useOrderList({
     moduleConfig,
     requestedTab,
@@ -59,6 +73,7 @@ export function OrdersListingPage({
   });
   const [cancelDialogOrder, setCancelDialogOrder] =
     useState<OrderListingRow | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error" | "info" | "warning";
@@ -119,36 +134,142 @@ export function OrdersListingPage({
 
   const getRowActions = (
     row: OrderListingRow,
-  ): readonly EnterpriseTableAction<OrderListingRow>[] =>
-    row.status === "Cancelled" || !canEdit
-      ? rowActions
-      : [
-        ...rowActions,
-        {
-          id: "cancel-order",
-          label: "Cancel Order",
-          icon: XCircle,
-          tone: "danger",
-          onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
-        },
-      ];
+  ): readonly EnterpriseTableAction<OrderListingRow>[] => {
+    const isCancelled = String(row.status ?? "").toLowerCase() === "cancelled";
+    if (isCancelled) {
+      // Cancelled orders cannot be edited or cancelled; only view is available
+      return canView
+        ? [
+          {
+            id: "view",
+            label: "View",
+            icon: Eye,
+            onSelect: (selectedRow: OrderListingRow) =>
+              navigate(paths.view(selectedRow.orderId), {
+                state: {
+                  orderListingTab:
+                    getOrderVariantFromType(selectedRow.orderType) ?? activeTab,
+                },
+              }),
+          },
+        ]
+        : [];
+    }
+
+    const actions: EnterpriseTableAction<OrderListingRow>[] = [];
+    if (canView) {
+      actions.push({
+        id: "view",
+        label: "View",
+        icon: Eye,
+        onSelect: (selectedRow: OrderListingRow) =>
+          navigate(paths.view(selectedRow.orderId), {
+            state: {
+              orderListingTab:
+                getOrderVariantFromType(selectedRow.orderType) ?? activeTab,
+            },
+          }),
+      });
+    }
+    if (canEdit) {
+      actions.push({
+        id: "edit",
+        label: "Edit",
+        icon: Pencil,
+        onSelect: (selectedRow: OrderListingRow) =>
+          navigate(paths.edit(selectedRow.orderId)),
+      });
+      actions.push({
+        id: "cancel-order-item",
+        label: "Cancel Order Item",
+        icon: XCircle,
+        tone: "danger",
+        onSelect: (selectedRow) => setCancelDialogOrder(selectedRow),
+      });
+    }
+    return actions;
+  };
+
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const handleCloseCancelDialog = () => {
+    if (isCancelling) return;
     setCancelDialogOrder(null);
   };
 
-  const handleConfirmCancelOrder = () => {
-    if (!cancelDialogOrder) {
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelDialogOrder || isCancelling) {
       return;
     }
 
-    const orderNo = cancelDialogOrder.orderNo;
-    cancelOrderRecord(cancelDialogOrder.orderId);
-    setCancelDialogOrder(null);
-    setToastNotification({
-      message: `Order ${orderNo} cancelled successfully.`,
-      severity: "success",
-    });
+    const orderId = cancelDialogOrder.orderId;
+    const orderItemId = cancelDialogOrder.orderLineItemId;
+    const identifier = cancelDialogOrder.orderItemNumber || cancelDialogOrder.orderNo;
+    setIsCancelling(true);
+
+    try {
+      // 1. Immediately update UI state in memory for zero lag
+      cancelOrderRecord(orderId, orderItemId);
+      cancelOrderRow(orderId, orderItemId);
+
+      // 2. Call backend cancel order item API
+      await cancelOrderApi(orderId, `Cancelled order item ${identifier}`, orderItemId);
+
+      // 3. Silently reload list to ensure perfect backend sync
+      void reloadOrders();
+
+      setCancelDialogOrder(null);
+      setToastNotification({
+        message: `Order item ${identifier} cancelled successfully.`,
+        severity: "success",
+      });
+    } catch (err: any) {
+      setToastNotification({
+        message: err?.message || `Failed to cancel order item ${identifier}.`,
+        severity: "error",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const filterParams: Record<string, string[]> = {};
+      Object.entries(columnFilters).forEach(([colKey, colVal]) => {
+        if (Array.isArray(colVal) && colVal.length > 0) {
+          filterParams[colKey] = colVal;
+        } else if (typeof colVal === "string" && colVal.trim()) {
+          filterParams[colKey] = [colVal.trim()];
+        }
+      });
+
+      const exportRows = await exportOrdersApi({
+        search: searchValue.trim() || undefined,
+        filters: Object.keys(filterParams).length > 0 ? filterParams : undefined,
+      });
+
+      if (exportRows && exportRows.length > 0) {
+        const columns = Object.keys(exportRows[0]).map((k) => ({
+          key: k,
+          label: k,
+        }));
+        exportRowsToCsv(exportRows, columns, `orders-export-${new Date().toISOString().split("T")[0]}`);
+      } else {
+        setToastNotification({
+          message: "No orders to export.",
+          severity: "info",
+        });
+      }
+    } catch (err: any) {
+      setToastNotification({
+        message: err?.message || "Failed to export orders.",
+        severity: "error",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const listingColumns = (orderListingColumns as readonly EnterpriseTableColumn<OrderListingRow>[]).map(
@@ -180,28 +301,64 @@ export function OrdersListingPage({
           }}
         />
 
-        {canCreate ? (
-          <Button
-            startIcon={<Plus size={14} />}
-            onClick={() => navigate(paths.add)}
-            sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
-            variant="contained"
-          >
-            Create Order
-          </Button>
-        ) : null}
+        <Stack direction="row" spacing={1} alignItems="center">
+          {canView ? (
+            <Button
+              startIcon={<Download size={14} />}
+              onClick={handleExport}
+              disabled={isExporting}
+              sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+              variant="outlined"
+            >
+              {isExporting ? "Exporting..." : "Export"}
+            </Button>
+          ) : null}
 
+          {canCreate ? (
+            <Button
+              startIcon={<Plus size={14} />}
+              onClick={() => navigate(paths.add)}
+              sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+              variant="contained"
+            >
+              Create Order
+            </Button>
+          ) : null}
+        </Stack>
       </Stack>
 
       <EnterpriseDataTable
         key={activeTab}
         columns={listingColumns}
+        loading={isLoading}
         defaultRowsPerPage={10}
-        emptyStateLabel={
-          "No orders are available."
-        }
+        emptyStateLabel={canView ? "No orders are available." : "You do not have permission to view orders."}
         getRowActions={getRowActions}
-        initialSort={{ key: "orderDate", direction: "desc" }}
+        columnFilters={columnFilters}
+        onColumnFiltersChange={setColumnFilters}
+        filterOptionsByColumn={filterOptionsByColumn}
+        onColumnFilterOpen={handleColumnFilterOpen}
+        pagination={{
+          page,
+          rowsPerPage,
+          totalCount,
+          onPageChange: (newPage) => setPage(newPage),
+          onRowsPerPageChange: (newLimit) => {
+            setRowsPerPage(newLimit);
+            setPage(1);
+          },
+        }}
+        sorting={{
+          sortBy: sortConfig.sortBy,
+          sortOrder: sortConfig.sortOrder,
+          onSortChange: (newSortBy, newSortOrder) => {
+            setSortConfig({ sortBy: newSortBy, sortOrder: newSortOrder });
+          },
+          onSortClear: () => {
+            // Third click resets to latest (orderDate desc)
+            setSortConfig({ sortBy: null, sortOrder: null });
+          },
+        }}
         rows={canView ? filteredRows : []}
       />
 
@@ -229,11 +386,21 @@ export function OrdersListingPage({
         record={viewRecord}
       />
 
-      <CancelOrderConfirmationDialog
+      <ConfirmationDialog
+        cancelLabel="Keep Order Item"
+        confirmLabel="Cancel Order Item"
+        description={
+          cancelDialogOrder?.orderItemNumber
+            ? `This will cancel order item ${cancelDialogOrder.orderItemNumber}.`
+            : cancelDialogOrder?.orderNo
+              ? `This will cancel order item from ${cancelDialogOrder.orderNo}.`
+              : "This will cancel the selected order item."
+        }
         onClose={handleCloseCancelDialog}
         onConfirm={handleConfirmCancelOrder}
         open={Boolean(cancelDialogOrder)}
-        orderNo={cancelDialogOrder?.orderNo}
+        title="Cancel Order Item"
+        tone="danger"
       />
 
       <Snackbar
@@ -254,102 +421,6 @@ export function OrdersListingPage({
         ) : undefined}
       </Snackbar>
     </MasterPageShell>
-  );
-}
-
-function CancelOrderConfirmationDialog({
-  onClose,
-  onConfirm,
-  open,
-  orderNo,
-}: {
-  onClose: () => void;
-  onConfirm: () => void;
-  open: boolean;
-  orderNo: string | undefined;
-}) {
-  return (
-    <Dialog
-      fullWidth
-      maxWidth="xs"
-      onClose={onClose}
-      open={open}
-      slotProps={{
-        paper: {
-          sx: (theme) => ({
-            border: `1px solid ${theme.customTokens.borders.default}`,
-            borderRadius: `${theme.customTokens.radius.md}px`,
-            boxShadow: theme.shadows[0],
-            outline: "none",
-            "&:focus, &:focus-visible": {
-              outline: "none",
-            },
-          }),
-        },
-      }}
-    >
-      <DialogContent
-        sx={(theme) => ({
-          px: theme.spacing(4),
-          py: theme.spacing(4),
-        })}
-      >
-        <Stack alignItems="center" spacing={2.5}>
-          <Box
-            sx={(theme) => ({
-              alignItems: "center",
-              border: `3px solid ${theme.customTokens.semanticScale.warning[400]}`,
-              borderRadius: "50%",
-              color: theme.customTokens.semanticScale.warning[400],
-              display: "flex",
-              height: 76,
-              justifyContent: "center",
-              width: 76,
-            })}
-          >
-            <CircleAlert size={42} strokeWidth={2.25} />
-          </Box>
-
-          <Typography
-            align="center"
-            sx={(theme) => ({
-              color: theme.palette.text.primary,
-              fontSize: theme.typography.body1.fontSize,
-              fontWeight: 500,
-            })}
-          >
-            Are you sure you want to cancel order {orderNo ?? ""}?
-          </Typography>
-
-          <Stack direction="row" spacing={1.5}>
-            <Button
-              disableElevation
-              onClick={onConfirm}
-              sx={recordFormActionButtonSx}
-              variant="contained"
-            >
-              Yes
-            </Button>
-
-            <Button
-              disableElevation
-              onClick={onClose}
-              sx={(theme) => ({
-                ...recordFormActionButtonSx,
-                backgroundColor: theme.customTokens.neutrals[600],
-                color: theme.customTokens.text.inverse,
-                "&:hover": {
-                  backgroundColor: theme.customTokens.neutrals[700],
-                },
-              })}
-              variant="contained"
-            >
-              No
-            </Button>
-          </Stack>
-        </Stack>
-      </DialogContent>
-    </Dialog>
   );
 }
 

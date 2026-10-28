@@ -125,18 +125,10 @@ export async function fetchDepartmentsPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch departments from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchDepartmentsApi(params?: {
@@ -147,20 +139,20 @@ export async function fetchDepartmentsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchDepartmentsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchDepartmentsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getDepartmentByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendDepartmentItem>>(`/masters/departments/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendDepartmentToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch department with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendDepartmentItem>>(`/masters/departments/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendDepartmentToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Department record not found.");
 }
 
 export async function createDepartmentApi(values: {
@@ -193,7 +185,7 @@ export async function createDepartmentApi(values: {
   if (res?.success && res?.data) {
     return mapBackendDepartmentToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save department.");
 }
 
 export async function updateDepartmentApi(
@@ -234,7 +226,7 @@ export async function updateDepartmentApi(
   if (res?.success && res?.data) {
     return mapBackendDepartmentToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save department.");
 }
 
 export async function updateDepartmentStatusApi(
@@ -249,7 +241,7 @@ export async function updateDepartmentStatusApi(
   if (res?.success && res?.data) {
     return mapBackendDepartmentToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save department.");
 }
 
 export async function deleteDepartmentApi(id: string): Promise<boolean> {

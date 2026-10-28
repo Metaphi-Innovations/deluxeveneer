@@ -46,10 +46,11 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
 import { ErpToggleSwitch } from "../../../components/inputs/ErpToggleSwitch";
 import { ContentLoader } from "../../../components/feedback/ContentLoader";
+import { ActiveColumnFiltersBar } from "../../../components/shared/columnFilters";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { getCurrentUser } from "../../auth";
 import { formatMasterValue, MasterPageShell } from "../../masters/shared";
-import { canAccessPermission } from "../../permissions";
+import { canAccessPermission, isSuperAdminUser } from "../../permissions";
 import { actionMenuTriggerSx } from "../../shared/actionMenuStyles";
 import {
   getListingToolbarButtonSx,
@@ -105,6 +106,7 @@ export function UserManagementListing() {
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
   const {
+    activeFilterChips,
     createdByFilter,
     createdByOptions,
     createdDateFrom,
@@ -118,6 +120,7 @@ export function UserManagementListing() {
     handleSort,
     handleStatusChange,
     isLoading,
+    loadColumnDropdown,
     page,
     phoneFilter,
     phoneOptions,
@@ -231,6 +234,9 @@ export function UserManagementListing() {
             label: "Change Password",
             icon: KeyRound,
             onSelect: (row: UserManagementRecord) => {
+              if (isSuperAdminRole(row.role) && !isSuperAdminUser(getCurrentUser())) {
+                return;
+              }
               setPasswordDialogUser(row);
               setNewPassword("");
               setConfirmPassword("");
@@ -253,19 +259,11 @@ export function UserManagementListing() {
     (createdByFilter.length > 0 || createdDateFrom || createdDateTo ? 1 : 0) +
     (updatedByFilter.length > 0 || updatedDateFrom || updatedDateTo ? 1 : 0);
 
-  const effectiveTotalCount =
-    activeColumnFilterCount > 0 ? filteredRows.length : totalCount;
-  const effectiveTotalPages = Math.max(
-    1,
-    Math.ceil(effectiveTotalCount / rowsPerPage),
-  );
+  const effectiveTotalCount = totalCount;
+  const effectiveTotalPages = totalPages;
   const safePage = Math.min(page, effectiveTotalPages);
   const pageStartIndex = (safePage - 1) * rowsPerPage;
-  const currentPageRows = canView
-    ? activeColumnFilterCount > 0
-      ? filteredRows.slice(pageStartIndex, pageStartIndex + rowsPerPage)
-      : filteredRows
-    : [];
+  const currentPageRows = canView ? filteredRows : [];
   const visiblePaginationPages = getVisiblePaginationPages(
     safePage,
     effectiveTotalPages,
@@ -345,6 +343,16 @@ export function UserManagementListing() {
       return;
     }
 
+    if (newPassword.trim().length < 8) {
+      setPasswordError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (newPassword.trim().length > 72) {
+      setPasswordError("Password cannot exceed 72 characters.");
+      return;
+    }
+
     if (!isAllowedPasswordValue(newPassword) || !isAllowedPasswordValue(confirmPassword)) {
       setPasswordError("Only letters, numbers, underscores, and @ are allowed.");
       return;
@@ -359,7 +367,7 @@ export function UserManagementListing() {
     setPasswordError("");
 
     try {
-      await changeUserPassword(passwordDialogUser.id, newPassword);
+      await changeUserPassword(passwordDialogUser.id, newPassword.trim());
       void invalidateUsers();
       const targetUserDisplayName = getUserDisplayName(passwordDialogUser);
       setPasswordSuccessMessage("Password changed successfully.");
@@ -453,6 +461,7 @@ export function UserManagementListing() {
     event: MouseEvent<HTMLButtonElement>,
   ) => {
     event.stopPropagation();
+    loadColumnDropdown(columnKey);
     setActiveColumnFilter(columnKey);
     setColumnFilterAnchor(event.currentTarget);
   };
@@ -475,6 +484,36 @@ export function UserManagementListing() {
     setUpdatedDateFrom("");
     setUpdatedDateTo("");
     handleCloseColumnFilter();
+  };
+
+  const handleRemoveColumnFilter = (columnKey: string) => {
+    switch (columnKey) {
+      case "user":
+        setUserFilter([]);
+        break;
+      case "department":
+        setDepartmentFilter([]);
+        break;
+      case "email":
+        setEmailFilter([]);
+        break;
+      case "phone":
+        setPhoneFilter([]);
+        break;
+      case "status":
+        setStatusFilter([]);
+        break;
+      case "createdBy":
+        setCreatedByFilter([]);
+        setCreatedDateFrom("");
+        setCreatedDateTo("");
+        break;
+      case "updatedBy":
+        setUpdatedByFilter([]);
+        setUpdatedDateFrom("");
+        setUpdatedDateTo("");
+        break;
+    }
   };
 
   const userFilterOptions = useMemo(
@@ -619,9 +658,14 @@ export function UserManagementListing() {
     <MasterPageShell
       breadcrumbs={[{ label: "User Management" }]}
       title="User Management"
-      subtitle=" "
       contentGap={2}
     >
+      {!canView ? (
+        <Alert severity="warning">
+          You do not have permission to view users.
+        </Alert>
+      ) : null}
+
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
@@ -668,6 +712,11 @@ export function UserManagementListing() {
         <Alert severity="success">{passwordSuccessMessage}</Alert>
       ) : null}
 
+      <ActiveColumnFiltersBar
+        filters={activeFilterChips}
+        onClearAll={handleClearAllFilters}
+        onRemove={handleRemoveColumnFilter}
+      />
 
       <Box
         sx={{
@@ -1355,7 +1404,17 @@ export function UserManagementListing() {
         anchorEl={actionMenuAnchor}
         open={Boolean(actionMenuAnchor)}
         onClose={handleCloseActionMenu}
-        actions={tableActions.map((action) => ({
+        actions={tableActions
+          .filter((action) => {
+            if (action.id !== "change-password" || !activeActionRow) {
+              return true;
+            }
+            return !(
+              isSuperAdminRole(activeActionRow.role) &&
+              !isSuperAdminUser(getCurrentUser())
+            );
+          })
+          .map((action) => ({
           id: action.id,
           label: action.label,
           icon: action.icon,
@@ -1837,6 +1896,26 @@ function FilterableColumnHeader({
           sx={(currentTheme) => listingTableHeaderIconButtonSx(currentTheme)}
         >
           <SortIndicator active={sortActive} direction={sortDirection} />
+        </IconButton>
+      ) : null}
+
+      {onOpen ? (
+        <IconButton
+          size="small"
+          aria-label={`Filter by ${label}`}
+          onClick={onOpen}
+          sx={(currentTheme) => listingTableHeaderIconButtonSx(currentTheme)}
+        >
+          <ListFilter
+            color={
+              active
+                ? theme.customTokens.brand.primary
+                : theme.customTokens.neutrals[700]
+            }
+            fill={active ? theme.customTokens.brand.primary : "none"}
+            size={portalIconSize.tableHeader}
+            strokeWidth={active ? portalIconStroke.emphasis : portalIconStroke.default}
+          />
         </IconButton>
       ) : null}
     </Stack>

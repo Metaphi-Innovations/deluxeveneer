@@ -312,13 +312,6 @@ export function UserManagementFormPage({
   const pageLabel =
     mode === "add" ? "Add User" : mode === "edit" ? "Edit User" : "View User";
 
-  const pageSubtitle =
-    mode === "add"
-      ? " "
-      : mode === "edit"
-        ? " "
-        : " ";
-
   const liveIdentityName =
     `${String(values.firstName ?? "")} ${String(values.lastName ?? "")}`.trim() ||
     String(values.userName ?? "") ||
@@ -773,7 +766,6 @@ export function UserManagementFormPage({
         { label: pageLabel },
       ]}
       title={pageLabel}
-      subtitle={pageSubtitle}
       contentGap={2}
     >
       <Box

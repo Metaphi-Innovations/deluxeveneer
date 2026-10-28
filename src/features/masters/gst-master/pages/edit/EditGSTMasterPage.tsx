@@ -30,7 +30,7 @@ export function EditGSTMasterPage() {
       }
       void invalidateMaster("gst");
     } catch (error) {
-      console.warn("Failed to update GST record via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

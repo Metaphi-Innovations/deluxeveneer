@@ -184,7 +184,7 @@ export function PageHeader({
             </Typography>
           </Box>
 
-          {subtitle ? (
+          {subtitle?.trim() ? (
             <Typography
               sx={{
                 m: 0,
@@ -196,7 +196,7 @@ export function PageHeader({
                 lineHeight: portalTypography.pageDescription.lineHeight,
               }}
             >
-              {subtitle}
+              {subtitle.trim()}
             </Typography>
           ) : null}
         </Stack>

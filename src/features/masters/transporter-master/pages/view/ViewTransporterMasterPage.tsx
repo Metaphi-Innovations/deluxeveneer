@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -92,10 +92,9 @@ export function ViewTransporterMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Transporter Master", to: paths.list },
-          { label: "View Transporter" },
+          { label: "View Transporter Master" },
         ]}
-        title="View Transporter"
-        subtitle=" "
+        title="View Transporter Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -112,19 +111,13 @@ export function ViewTransporterMasterPage() {
           { label: "Transporter Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Transporter"
+        title="View Transporter Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Transporter record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Transporter record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -135,7 +128,7 @@ export function ViewTransporterMasterPage() {
         { label: "Transporter Master", to: paths.list },
         { label: displayName || "View Transporter" },
       ]}
-      title="View Transporter"
+      title="View Transporter Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">

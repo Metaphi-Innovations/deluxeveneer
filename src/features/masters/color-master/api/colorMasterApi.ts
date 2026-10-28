@@ -100,45 +100,46 @@ export interface PaginatedColorResult {
 export async function fetchColorsPaginated(
   params: ColorQueryParams = {},
 ): Promise<PaginatedColorResult> {
-  try {
-    const query = new URLSearchParams();
-    if (params.page) query.set("page", String(params.page));
-    if (params.limit) query.set("limit", String(params.limit));
-    if (params.search?.trim()) query.set("search", params.search.trim());
-    if (params.status !== undefined) query.set("status", String(params.status));
-    if (params.sortBy) query.set("sortBy", params.sortBy);
-    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
-    if (params.filters && Object.keys(params.filters).length > 0) {
-      query.set("filters", encodeURIComponent(JSON.stringify(params.filters)));
-    }
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.status !== undefined) query.set("status", String(params.status));
+  if (params.sortBy) query.set("sortBy", params.sortBy);
+  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+  const queryString = query.toString();
+  const hasFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  const basePath = hasFilters ? "/masters/colors/filter" : "/masters/colors";
+  const endpoint = !hasFilters && queryString ? `${basePath}?${queryString}` : basePath;
 
-    const queryString = query.toString();
-    const endpoint = queryString ? `/masters/colors?${queryString}` : "/masters/colors";
-
-    const res = await apiRequest<ApiResponse<BackendColorListResponse>>(endpoint);
-    if (res?.success && Array.isArray(res?.data?.items)) {
-      return {
-        items: res.data.items.map((item, idx) => mapBackendColorToMasterRecord(item, idx)),
-        pagination: {
-          page: res.data.pagination.page,
-          limit: res.data.pagination.limit,
-          total: res.data.pagination.total,
-          totalPages: res.data.pagination.totalPages,
-        },
-      };
-    }
-  } catch (error) {
-    console.warn("Failed to fetch colors from backend API:", error);
+  const res = await apiRequest<ApiResponse<BackendColorListResponse>>(
+    endpoint,
+    hasFilters
+      ? {
+          method: "POST",
+          body: {
+            ...params,
+            ...(params.page ? { page: String(params.page) } : {}),
+            ...(params.limit ? { limit: String(params.limit) } : {}),
+            ...(params.status !== undefined
+              ? { status: String(params.status) }
+              : {}),
+          },
+        }
+      : {},
+  );
+  if (res?.success && Array.isArray(res?.data?.items)) {
+    return {
+      items: res.data.items.map((item, idx) => mapBackendColorToMasterRecord(item, idx)),
+      pagination: {
+        page: res.data.pagination.page,
+        limit: res.data.pagination.limit,
+        total: res.data.pagination.total,
+        totalPages: res.data.pagination.totalPages,
+      },
+    };
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
+  throw new Error(res?.message || "Unable to load colors.");
 }
 
 export async function fetchColorsApi(params?: {
@@ -149,22 +150,22 @@ export async function fetchColorsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchColorsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchColorsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export const fetchColoursApi = fetchColorsApi;
 
 export async function getColorByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendColorItem>>(`/masters/colors/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendColorToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch color with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendColorItem>>(`/masters/colors/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendColorToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Color record not found.");
 }
 
 export const getColourByIdApi = getColorByIdApi;
@@ -199,7 +200,7 @@ export async function createColorApi(values: {
   if (res?.success && res?.data) {
     return mapBackendColorToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save color.");
 }
 
 export const createColourApi = createColorApi;
@@ -222,9 +223,10 @@ export async function updateColorApi(
         : undefined;
 
   const body: any = {};
-  if (values.colorName || values.name) {
-    body.name = values.colorName || values.name;
-    body.colorName = values.colorName || values.name;
+  const colorName = values.colorName ?? values.name;
+  if (colorName !== undefined) {
+    body.name = colorName;
+    body.colorName = colorName;
   }
   if (values.remark !== undefined || values.remarks !== undefined) {
     body.remark = values.remark ?? values.remarks ?? null;
@@ -242,7 +244,7 @@ export async function updateColorApi(
   if (res?.success && res?.data) {
     return mapBackendColorToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save color.");
 }
 
 export const updateColourApi = updateColorApi;
@@ -259,7 +261,7 @@ export async function updateColorStatusApi(
   if (res?.success && res?.data) {
     return mapBackendColorToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save color.");
 }
 
 export const updateColourStatusApi = updateColorStatusApi;

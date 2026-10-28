@@ -389,7 +389,6 @@ export function ApiInwardViewForm({
           { label: viewStockTitle },
         ]}
         title={viewStockTitle}
-        subtitle=" "
       >
         <MasterSectionCard>
           <ContentLoader label="Loading inward record..." minHeight={220} />
@@ -429,7 +428,6 @@ export function ApiInwardViewForm({
         { label: warehouseName, to: warehouseRootPath },
         { label: viewStockTitle },
       ]}
-      subtitle=" "
       title={viewStockTitle}
       actions={
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

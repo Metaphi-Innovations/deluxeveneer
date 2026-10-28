@@ -51,6 +51,7 @@ import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
   exportStorageInventoryApi,
   fetchStorageProductionWarehouses,
+  issueVeneerBlocksToSawingApi,
   issueVeneerBlocksToSlicingApi,
   moveStorageItemToProductionApi,
   revertStorageItemApi,
@@ -475,7 +476,7 @@ export function StorageWarehousePage({
     async (targetRows: WarehouseInventoryRow[]) => {
       if (!targetRows.length) return;
       try {
-        issueSawingFromStorageRows(targetRows as unknown as Record<string, unknown>[]);
+        await issueVeneerBlocksToSawingApi(targetRows.map((r) => r.id));
         setToastNotification({
           message: `${targetRows.length} item(s) issued for Sawing successfully!`,
           severity: "success",
@@ -622,9 +623,9 @@ export function StorageWarehousePage({
         subtitle="Storage warehouse"
         title={warehouseName}
       >
-        <Stack sx={{ py: 2 }}>
+        <Alert severity="warning">
           You do not have permission to view this warehouse.
-        </Stack>
+        </Alert>
       </MasterPageShell>
     );
   }
@@ -686,9 +687,7 @@ export function StorageWarehousePage({
         { label: "Warehouses" },
         { label: warehouseName },
       ]}
-      contentGap={1}
-      subtitle=" "
-      title={warehouseName}
+      contentGap={1}      title={warehouseName}
     >
       <Stack
         sx={(t) => ({

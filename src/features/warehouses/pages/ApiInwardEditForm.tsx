@@ -421,11 +421,6 @@ export function ApiInwardEditForm({
           <Alert severity="error">
             {errorMessage || "The requested inward record could not be found."}
           </Alert>
-          <Box sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={closeForm}>
-              Back
-            </Button>
-          </Box>
         </MasterSectionCard>
       </InventoryPageShell>
     );
@@ -450,11 +445,6 @@ export function ApiInwardEditForm({
           <Alert severity="info">
             This inward cannot be edited after QC pass or fail.
           </Alert>
-          <Box sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={closeForm}>
-              Back
-            </Button>
-          </Box>
         </MasterSectionCard>
       </InventoryPageShell>
     );
@@ -471,9 +461,7 @@ export function ApiInwardEditForm({
         { label: "Warehouses" },
         { label: warehouseName, to: warehouseRootPath },
         { label: editStockTitle },
-      ]}
-      subtitle=" "
-      title={editStockTitle}
+      ]}      title={editStockTitle}
     >
       <MasterSectionCard>
         <Box

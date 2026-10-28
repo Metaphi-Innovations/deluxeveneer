@@ -134,13 +134,13 @@ export interface SawingListResponse<T> {
 }
 
 export interface SawingQueryParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: "asc" | "desc";
-  warehouseId?: string;
-  filters?: Record<string, unknown>;
+  page?: number | undefined;
+  limit?: number | undefined;
+  search?: string | undefined;
+  sortBy?: string | undefined;
+  sortOrder?: "asc" | "desc" | undefined;
+  warehouseId?: string | undefined;
+  filters?: Record<string, unknown> | undefined;
 }
 
 // ── API Methods ───────────────────────────────────────────────────
@@ -169,7 +169,7 @@ export async function fetchSawingIssued(
 
 export async function issueSawingFromStorageApi(
   storageItemIds: string[],
-  remark?: string
+  remark?: string | undefined
 ): Promise<any> {
   const endpoint = `${BASE_PATH}/issue-from-storage`;
   const response = await apiRequest<ApiResponse<any>>(endpoint, {
@@ -181,7 +181,7 @@ export async function issueSawingFromStorageApi(
 
 export async function revertSawingIssueApi(
   issueItemId: string,
-  remark?: string
+  remark?: string | undefined
 ): Promise<void> {
   const endpoint = `${BASE_PATH}/issued/${issueItemId}/revert`;
   await apiRequest<ApiResponse<any>>(endpoint, {
@@ -191,36 +191,36 @@ export async function revertSawingIssueApi(
 }
 
 export async function createSawingProcessApi(data: {
-  issueId?: string;
-  issueItemId?: string;
-  storageWarehouseId?: string;
-  processDate?: string;
-  remark?: string;
+  issueId?: string | undefined;
+  issueItemId?: string | undefined;
+  storageWarehouseId?: string | undefined;
+  processDate?: string | undefined;
+  remark?: string | undefined;
   processedItems: Array<{
-    batchNo?: string;
+    batchNo?: string | undefined;
     length: number;
     width: number;
     thickness: number;
-    cbm?: number;
-    cbf?: number;
-    receivedCbm?: number;
-    availableCbm?: number;
-    ratePerCbf?: number;
-    ratePerCbm?: number;
-    amount?: number;
-    remark?: string;
+    cbm?: number | undefined;
+    cbf?: number | undefined;
+    receivedCbm?: number | undefined;
+    availableCbm?: number | undefined;
+    ratePerCbf?: number | undefined;
+    ratePerCbm?: number | undefined;
+    amount?: number | undefined;
+    remark?: string | undefined;
   }>;
   rejectAvailableItems?: Array<{
     type: string;
-    length?: number;
-    width?: number;
-    height?: number;
-    thickness?: number;
-    cbm?: number;
-    cbf?: number;
-    amount?: number;
-    remark?: string;
-  }>;
+    length?: number | undefined;
+    width?: number | undefined;
+    height?: number | undefined;
+    thickness?: number | undefined;
+    cbm?: number | undefined;
+    cbf?: number | undefined;
+    amount?: number | undefined;
+    remark?: string | undefined;
+  }> | undefined;
 }): Promise<any> {
   const endpoint = `${BASE_PATH}/create-process`;
   const response = await apiRequest<ApiResponse<any>>(endpoint, {
@@ -332,3 +332,91 @@ export async function fetchSawingAvailable(
   );
   return response.data;
 }
+
+export async function fetchSawingIssuedById(id: string): Promise<SawingIssueItem> {
+  const endpoint = `${BASE_PATH}/issued/${id}`;
+  const response = await apiRequest<ApiResponse<SawingIssueItem>>(endpoint, {
+    method: "GET",
+  });
+  return response.data;
+}
+
+export async function fetchSawingDoneById(id: string): Promise<SawingDoneItem> {
+  const endpoint = `${BASE_PATH}/done/${id}`;
+  const response = await apiRequest<ApiResponse<SawingDoneItem>>(endpoint, {
+    method: "GET",
+  });
+  return response.data;
+}
+
+export async function fetchSawingHistoryById(id: string): Promise<SawingHistoryItem> {
+  const endpoint = `${BASE_PATH}/history/${id}`;
+  const response = await apiRequest<ApiResponse<SawingHistoryItem>>(endpoint, {
+    method: "GET",
+  });
+  return response.data;
+}
+
+export async function fetchSawingRejectedById(id: string): Promise<SawingRejectedItem> {
+  const endpoint = `${BASE_PATH}/rejected/${id}`;
+  const response = await apiRequest<ApiResponse<SawingRejectedItem>>(endpoint, {
+    method: "GET",
+  });
+  return response.data;
+}
+
+export async function editSawingDoneApi(
+  id: string,
+  payload: {
+    sawingDate?: string | undefined;
+    processDate?: string | undefined;
+    remark?: string | undefined;
+    outputs?: Array<{
+      id: string;
+      batchNo?: string | undefined;
+      length?: number | undefined;
+      width?: number | undefined;
+      thickness?: number | undefined;
+      cbm?: number | undefined;
+      cbf?: number | undefined;
+      remark?: string | undefined;
+    }> | undefined;
+  }
+): Promise<any> {
+  const endpoint = `${BASE_PATH}/done/${id}`;
+  const response = await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "PUT",
+    body: payload,
+  });
+  return response.data;
+}
+
+export async function revertSawingRejectedApi(
+  id: string,
+  remark?: string
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/rejected/${id}/revert`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: { remark },
+  });
+}
+
+export async function fetchSawingDropdownsApi(
+  tab: "issued" | "done" | "history" | "rejected" = "issued"
+): Promise<{
+  itemNames: string[];
+  batchNos: string[];
+  subCategories: string[];
+}> {
+  const endpoint = `${BASE_PATH}/dropdowns?tab=${tab}`;
+  const response = await apiRequest<
+    ApiResponse<{
+      itemNames: string[];
+      batchNos: string[];
+      subCategories: string[];
+    }>
+  >(endpoint, { method: "GET" });
+  return response.data;
+}
+

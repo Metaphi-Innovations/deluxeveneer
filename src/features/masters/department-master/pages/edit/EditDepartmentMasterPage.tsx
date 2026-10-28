@@ -33,7 +33,7 @@ export function EditDepartmentMasterPage() {
       }
       void invalidateMaster("department");
     } catch (error) {
-      console.warn("Failed to update department via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

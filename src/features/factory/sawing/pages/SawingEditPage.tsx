@@ -20,6 +20,8 @@ import { useLocation, useNavigate, useParams } from "react-router";
 
 import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpDatePickerField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { editSawingDoneApi } from "../api/sawingApi";
+
 import {
   highlightedRecordFormPrimaryButtonSx,
   recordFormActionButtonSx,
@@ -35,6 +37,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { canMutateFactorySawing } from "../../../permissions";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
   buildSawingAvailableValues,
@@ -321,7 +324,7 @@ export function SawingEditPage() {
     return true;
   };
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     setHasSubmitted(true);
     const rowsForSave = projectedItems;
     const validationError =
@@ -336,15 +339,52 @@ export function SawingEditPage() {
       return;
     }
 
-    saveSawingEditProcess({
-      formValues: { processDate: sawingDate },
-      lineItems: rowsForSave,
-      navigate,
-      originalRows: editContext.rows,
-      rejectAvailableValues: availableValues,
-      sourceRow,
-    });
+    try {
+      const targetDoneId = selectedRow.doneId || selectedRow.id;
+      await editSawingDoneApi(targetDoneId, {
+        processDate: sawingDate ? sawingDate.toISOString().slice(0, 10) : undefined,
+        remark: text(selectedRow.remark),
+        outputs: rowsForSave.map((item) => ({
+          id: item.id,
+          batchNo: item.values.batchNoCode || item.values.logNo,
+          length: Number(item.values.length) || undefined,
+          width: Number(item.values.width) || undefined,
+          thickness: Number(item.values.thickness) || undefined,
+          cbm: Number(item.values.cbm) || undefined,
+          cbf: Number(item.values.cbf) || undefined,
+          remark: item.values.remark,
+        })),
+      });
+
+      saveSawingEditProcess({
+        formValues: { processDate: sawingDate },
+        lineItems: rowsForSave,
+        navigate,
+        originalRows: editContext.rows,
+        rejectAvailableValues: availableValues,
+        sourceRow,
+      });
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to update sawing process.");
+    }
   };
+
+  if (!canMutateFactorySawing()) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: "Sawing", to: "/factory/sawing?tab=done" },
+          { label: "Edit Sawing" },
+        ]}
+        title="Edit Sawing"
+      >
+        <Alert severity="error">
+          You do not have permission to edit Sawing.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
 
   return (
     <FactoryPageShell

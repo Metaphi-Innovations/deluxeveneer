@@ -15,21 +15,8 @@ export function formatSawingCbmDisplay(value: unknown) {
 
 export function formatSawingStorageSerial(value: unknown) {
   const original = String(value ?? "").trim();
-  if (!original) return "-";
-
-  const segments = original.split(/[-/]/u).filter(Boolean);
-  const yearSegment = [...segments]
-    .reverse()
-    .find((segment) => /^(?:\d{2}|\d{4})$/u.test(segment));
-  const year = yearSegment
-    ? yearSegment.slice(-2)
-    : String(new Date().getFullYear()).slice(-2);
-  const rawSequence = segments.at(-1) ?? original;
-  const sequence = /^\d+$/u.test(rawSequence)
-    ? rawSequence.slice(-4).padStart(4, "0")
-    : rawSequence.slice(-4).toUpperCase();
-
-  return `ST-${year}-${sequence}`;
+  if (!original || original === "null" || original === "undefined") return "-";
+  return original;
 }
 
 const storageSerialColumn: EnterpriseTableColumn<any> = {
@@ -137,7 +124,7 @@ export const SAWING_AVAILABLE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
 ] as const;
 
 export const SAWING_PROCESS_TABS = [
-  { label: "Issue for Sawing", value: "issued" },
+  { label: "Issued for Sawing", value: "issued" },
   { label: "Sawing Done", value: "done" },
   { label: "Sawing History", value: "history" },
   { label: "Rejected Sawing", value: "rejected" },

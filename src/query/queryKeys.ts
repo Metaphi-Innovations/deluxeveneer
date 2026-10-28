@@ -15,6 +15,7 @@ export const queryKeys = {
     all: ["users"] as const,
     list: (params: unknown) => ["users", "list", params] as const,
     detail: (id: string) => ["users", "detail", id] as const,
+    columnDropdowns: ["users", "columnDropdown"] as const,
   },
   warehouse: {
     sidebar: ["warehouse", "sidebar"] as const,

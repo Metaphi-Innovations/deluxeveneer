@@ -139,18 +139,10 @@ export async function fetchItemCategoriesPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch item categories from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchItemCategoriesApi(params?: {
@@ -162,20 +154,20 @@ export async function fetchItemCategoriesApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchItemCategoriesPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchItemCategoriesPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getItemCategoryByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendItemCategoryItem>>(`/masters/item-categories/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendItemCategoryToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch item category with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendItemCategoryItem>>(`/masters/item-categories/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendItemCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Item category record not found.");
 }
 
 export async function createItemCategoryApi(values: {
@@ -220,7 +212,7 @@ export async function createItemCategoryApi(values: {
   if (res?.success && res?.data) {
     return mapBackendItemCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item category.");
 }
 
 export async function updateItemCategoryApi(
@@ -276,7 +268,7 @@ export async function updateItemCategoryApi(
   if (res?.success && res?.data) {
     return mapBackendItemCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item category.");
 }
 
 export async function updateItemCategoryStatusApi(
@@ -291,7 +283,7 @@ export async function updateItemCategoryStatusApi(
   if (res?.success && res?.data) {
     return mapBackendItemCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item category.");
 }
 
 export async function deleteItemCategoryApi(id: string): Promise<boolean> {

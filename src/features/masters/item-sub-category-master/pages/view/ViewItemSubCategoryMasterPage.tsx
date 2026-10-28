@@ -12,15 +12,13 @@ import {
 } from "@mui/material";
 import {
   FolderTree,
-  Layers,
   MessageSquare,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -91,10 +89,9 @@ export function ViewItemSubCategoryMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Item Sub-Category Master", to: paths.list },
-          { label: "View Item Sub-Category" },
+          { label: "View Item Sub-Category Master" },
         ]}
-        title="View Item Sub-Category"
-        subtitle=" "
+        title="View Item Sub-Category Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -111,19 +108,13 @@ export function ViewItemSubCategoryMasterPage() {
           { label: "Item Sub-Category Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Item Sub-Category"
+        title="View Item Sub-Category Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Item sub-category record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Item sub-category record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -134,7 +125,7 @@ export function ViewItemSubCategoryMasterPage() {
         { label: "Item Sub-Category Master", to: paths.list },
         { label: displayName || "View Item Sub-Category" },
       ]}
-      title="View Item Sub-Category"
+      title="View Item Sub-Category Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -290,40 +281,9 @@ export function ViewItemSubCategoryMasterPage() {
                     mt: 1,
                   }}
                 >
-                  <ProfileField label="Item Sub Category" value={row.itemSubCategory ? String(row.itemSubCategory) : undefined} />
+                  <ProfileField label="Item Sub-Category" value={row.itemSubCategory ? String(row.itemSubCategory) : undefined} />
                   <ProfileField label="Parent Category" value={row.category || row.categoryName ? String(row.category || row.categoryName) : undefined} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Metadata Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="Classification & System"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="Sub-Category ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

@@ -121,10 +121,10 @@ export async function fetchUnitsPaginated(params: {
         limit: res.data.pagination?.limit ?? params.limit,
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch paginated units from backend API:", error);
+    throw error;
   }
-  return { records: [], totalCount: 0, page: params.page, limit: params.limit };
 }
 
 export async function fetchUnitsApi(params?: {
@@ -154,15 +154,11 @@ export async function fetchUnitsApi(params?: {
 }
 
 export async function getUnitByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendUnitItem>>(`/masters/units/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendUnitToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch unit with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendUnitItem>>(`/masters/units/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendUnitToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unit record not found.");
 }
 
 export async function createUnitApi(values: {
@@ -199,7 +195,7 @@ export async function createUnitApi(values: {
   if (res?.success && res?.data) {
     return mapBackendUnitToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save unit.");
 }
 
 export async function updateUnitApi(
@@ -245,7 +241,7 @@ export async function updateUnitApi(
   if (res?.success && res?.data) {
     return mapBackendUnitToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save unit.");
 }
 
 export async function updateUnitStatusApi(
@@ -260,7 +256,7 @@ export async function updateUnitStatusApi(
   if (res?.success && res?.data) {
     return mapBackendUnitToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save unit.");
 }
 
 export async function deleteUnitApi(id: string): Promise<boolean> {

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -94,10 +94,9 @@ export function ViewItemMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Item Name Master", to: paths.list },
-          { label: "View Item" },
+          { label: "View Item Master" },
         ]}
-        title="View Item"
-        subtitle=" "
+        title="View Item Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -114,19 +113,13 @@ export function ViewItemMasterPage() {
           { label: "Item Name Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Item"
+        title="View Item Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Item record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Item record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -137,7 +130,7 @@ export function ViewItemMasterPage() {
         { label: "Item Name Master", to: paths.list },
         { label: displayName || "View Item" },
       ]}
-      title="View Item"
+      title="View Item Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -356,7 +349,7 @@ export function ViewItemMasterPage() {
                 >
                   <ProfileField label="HSN Code" value={row.hsn || row.hsnCode ? String(row.hsn || row.hsnCode) : undefined} />
                   <ProfileField
-                    label="GST%"
+                    label="GST %"
                     value={
                       row.gst || row.gstNo || row.gstPercentage
                         ? `${String(row.gst || row.gstNo || row.gstPercentage).replace(/%/g, "")}%`

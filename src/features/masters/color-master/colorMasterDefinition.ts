@@ -8,7 +8,7 @@ export const colorMasterDefinition: MasterDefinition = {
   gridColumns: 3,
   columns: [
     { key: "srNo", label: "Sr No" },
-    { key: "colorName", label: "Color name" },
+    { key: "colorName", label: "Color Name" },
     { key: "status", label: "Status" },
     { key: "createdBy", label: "Created By" },
     { key: "editedBy", label: "Updated By" },

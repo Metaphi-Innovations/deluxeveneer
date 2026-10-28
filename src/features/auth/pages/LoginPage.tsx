@@ -221,16 +221,16 @@ export function LoginPage() {
   };
 
   const forgotPasswordPrimaryLabel =
-    forgotPasswordStep === "email" ? "Verify Email" : "Verify";
+    forgotPasswordStep === "email" ? "Send Reset Link" : "Verify";
 
   const fieldVisualState = errorMessage ? "error" : "default";
   const loginFieldSx = [
     getCompactFieldSx(theme, fieldVisualState, { large: true }),
     {
       "& .MuiOutlinedInput-root": {
-        height: 42,
-        minHeight: 42,
-        borderRadius: "9px",
+        height: 36,
+        minHeight: 36,
+        borderRadius: "8px",
       },
     },
   ];
@@ -599,9 +599,9 @@ export function LoginPage() {
                     ) : undefined
                   }
                   sx={{
-                    minHeight: 42,
-                    height: 42,
-                    borderRadius: "9px",
+                    minHeight: 36,
+                    height: 36,
+                    borderRadius: "8px",
                     boxShadow: "none",
                     fontWeight: 600,
                     fontSize: "0.875rem",
@@ -709,7 +709,7 @@ export function LoginPage() {
         >
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              Verify your email and OTP before setting a new password.
+              Enter your email and we will send a password reset link.
             </Typography>
 
             <TextField

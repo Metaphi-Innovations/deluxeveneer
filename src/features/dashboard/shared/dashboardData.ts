@@ -371,7 +371,7 @@ function buildAttention(
     (record) => record.packingState === "issued",
   ).length;
   const pendingDispatch = packing.filter(
-    (record) => record.packingState === "done",
+    (record) => record.packingState === "dispatchIssued",
   ).length;
 
   const stockAttention = (["warehouse-a", "warehouse-b", "warehouse-c"] as const)
@@ -488,9 +488,11 @@ function buildActivity(
         ? "Issued for Packing"
         : record.packingState === "done"
           ? "Packing Completed"
-          : record.packingState === "dispatched"
-            ? "Dispatched"
-            : "Packing Updated";
+          : record.packingState === "dispatchIssued"
+            ? "Issued for Dispatch"
+            : record.packingState === "dispatched"
+              ? "Dispatched"
+              : "Packing Updated";
 
     items.push({
       id: `packing-${record.id}`,
@@ -498,7 +500,8 @@ function buildActivity(
       description,
       timestamp,
       href:
-        record.packingState === "dispatched" || record.packingState === "done"
+        record.packingState === "dispatched" ||
+        record.packingState === "dispatchIssued"
           ? "/dispatch"
           : "/packing",
     });

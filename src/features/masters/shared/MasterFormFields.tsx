@@ -784,6 +784,7 @@ export function MasterFormFields({
                       : undefined
                   }
                   onChange={(value) => handleFieldChange(field, value)}
+                  onOpen={field.onOpenDropdown}
                   options={getSelectOptions(field, locationOptions)}
                   placeholder={getFieldPlaceholder(field)}
                   renderBottomAction={field.renderDropdownAction}
@@ -1186,6 +1187,7 @@ export function MasterFormFields({
                 component="iframe"
                 src={url}
                 title={previewState.name}
+                sandbox=""
                 sx={{
                   width: "100%",
                   height: "70vh",
@@ -2117,7 +2119,7 @@ function getTextFieldSlotProps(
   return {
     input: {
       readOnly,
-      placeholder: !readOnly ? getFieldPlaceholder(field) : undefined,
+      placeholder: field.placeholder ?? (!readOnly ? getFieldPlaceholder(field) : undefined),
     },
     htmlInput: {
       autoComplete: "off",

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Avatar, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
+import { Alert, Avatar, Box, Button, CircularProgress, Stack, Typography } from "@mui/material";
 import { Save } from "lucide-react";
+import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
 import { useNavigate } from "react-router";
 
 import {
@@ -36,7 +38,9 @@ export function ProfilePage() {
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
   const profileFields = useMemo(
     () => withProfileRoleOptions(userManagementFormFields, roleOptions, currentUser.role),
@@ -136,6 +140,11 @@ export function ProfilePage() {
   const initials = useMemo(() => getUserInitials(displayName), [displayName]);
 
   const handleCancel = () => {
+    setLeaveConfirmOpen(true);
+  };
+
+  const handleConfirmLeave = () => {
+    setLeaveConfirmOpen(false);
     const persistedUser = getCurrentUser();
     setCurrentUser(persistedUser);
     setValues(buildProfileInitialValues(persistedUser));
@@ -153,6 +162,7 @@ export function ProfilePage() {
 
     try {
       setIsSaving(true);
+      setSaveError("");
       // Persist directly to backend database if user has an ID
       if (currentUser.id) {
         const updatedDetail = await updateUserManagementRecord(currentUser.id, values);
@@ -208,14 +218,21 @@ export function ProfilePage() {
       closeProfilePage(navigate);
     } catch (error) {
       console.error("[ProfilePage] Failed to save profile to database:", error);
-      // Fallback save to session
-      saveCurrentUser(nextUser);
-      setCurrentUser(nextUser);
-      closeProfilePage(navigate);
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save profile.",
+      );
     } finally {
       setIsSaving(false);
     }
   };
+
+  if (isLoadingProfile) {
+    return (
+      <MasterPageShell breadcrumbs={[{ label: "Profile" }]} title="Profile">
+        <ContentLoader label="Loading profile..." minHeight={240} />
+      </MasterPageShell>
+    );
+  }
 
   return (
     <MasterPageShell breadcrumbs={[{ label: "Profile" }]} title="Profile">
@@ -257,6 +274,8 @@ export function ProfilePage() {
             </Stack>
           </Stack>
 
+          {saveError ? <Alert severity="error">{saveError}</Alert> : null}
+
           <MasterFormFields
             definition={{
               fields: profileFields as MasterFieldDefinition[],
@@ -275,7 +294,7 @@ export function ProfilePage() {
           <Box
             sx={(theme) => ({
               display: "flex",
-              justifyContent: "center",
+              justifyContent: "space-between",
               gap: theme.spacing(1.5),
               flexWrap: "wrap",
             })}
@@ -302,6 +321,16 @@ export function ProfilePage() {
           </Box>
         </Stack>
       </MasterSectionCard>
+      <ConfirmationDialog
+        cancelLabel="Keep Editing"
+        confirmLabel="Leave"
+        description="Unsaved profile changes will be discarded."
+        onClose={() => setLeaveConfirmOpen(false)}
+        onConfirm={handleConfirmLeave}
+        open={leaveConfirmOpen}
+        title="Cancel Changes"
+        tone="danger"
+      />
     </MasterPageShell>
   );
 }

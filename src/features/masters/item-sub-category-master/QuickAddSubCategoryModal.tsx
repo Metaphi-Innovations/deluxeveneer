@@ -22,6 +22,7 @@ import {
   syncItemSubCategoryMasterToStorage,
 } from "./api/itemSubCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 import type { MasterRecord } from "../shared/types";
 
 interface QuickAddSubCategoryModalProps {
@@ -124,6 +125,10 @@ export function QuickAddSubCategoryModal({
         status: true,
       });
 
+      if (!created) {
+        throw new Error("Unable to create sub category.");
+      }
+
       const allRecords = await fetchItemSubCategoriesApi();
       if (allRecords.length > 0) {
         syncItemSubCategoryMasterToStorage(allRecords);
@@ -136,8 +141,8 @@ export function QuickAddSubCategoryModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to create sub category.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create sub category.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {

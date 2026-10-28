@@ -18,7 +18,44 @@ export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<TResponse> {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let resolvedOptions = options;
+
+  // Keep large master column filters out of the URL. Existing master API
+  // functions can continue building GET query strings; filtered requests are
+  // transparently converted to the shared JSON-payload endpoint here.
+  if ((options.method ?? 'GET').toUpperCase() === 'GET') {
+    const parsedPath = new URL(normalizedPath, 'http://local');
+    const serializedFilters = parsedPath.searchParams.get('filters');
+
+    if ((parsedPath.pathname.startsWith('/masters/') || parsedPath.pathname.startsWith('/orders')) && serializedFilters) {
+      let filters: Record<string, string[]> | undefined;
+      try {
+        filters = JSON.parse(serializedFilters) as Record<string, string[]>;
+      } catch {
+        try {
+          filters = JSON.parse(decodeURIComponent(serializedFilters)) as Record<
+            string,
+            string[]
+          >;
+        } catch {
+          filters = undefined;
+        }
+      }
+
+      if (filters) {
+        const payload: Record<string, unknown> = {};
+        parsedPath.searchParams.forEach((value, key) => {
+          if (key !== 'filters') payload[key] = value;
+        });
+        payload.filters = filters;
+
+        normalizedPath = `${parsedPath.pathname.replace(/\/$/, '')}/filter`;
+        resolvedOptions = { ...options, method: 'POST', body: payload };
+      }
+    }
+  }
+
   const url = `${BASE_API_URL}${normalizedPath}`;
 
   const token =
@@ -28,7 +65,7 @@ export async function apiRequest<TResponse>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(resolvedOptions.headers as Record<string, string>),
   };
 
   if (token) {
@@ -36,16 +73,16 @@ export async function apiRequest<TResponse>(
   }
 
   const requestInit: RequestInit = {
-    method: options.method || 'GET',
+    method: resolvedOptions.method || 'GET',
     headers,
     credentials: 'include',
   };
 
-  if (options.body !== undefined) {
+  if (resolvedOptions.body !== undefined) {
     requestInit.body =
-      typeof options.body === 'string'
-        ? options.body
-        : JSON.stringify(options.body);
+      typeof resolvedOptions.body === 'string'
+        ? resolvedOptions.body
+        : JSON.stringify(resolvedOptions.body);
   }
 
   let response = await fetch(url, requestInit);
@@ -80,7 +117,23 @@ export async function apiRequest<TResponse>(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    const validationMessage = Array.isArray(data?.error)
+      ? data.error.find(
+          (detail: unknown): detail is { message: string } =>
+            Boolean(
+              detail &&
+                typeof detail === 'object' &&
+                'message' in detail &&
+                typeof detail.message === 'string',
+            ),
+        )?.message
+      : data?.error &&
+          typeof data.error === 'object' &&
+          typeof data.error.message === 'string'
+        ? data.error.message
+        : null;
     const errorMessage =
+      validationMessage ||
       data?.message ||
       (typeof data?.error === 'string' ? data.error : null) ||
       `Request failed with status ${response.status}`;

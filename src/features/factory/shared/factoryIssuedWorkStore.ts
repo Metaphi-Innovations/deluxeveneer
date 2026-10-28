@@ -366,6 +366,33 @@ export function reopenMarquetryIssuedWork(workItemId: string) {
   return nextItem;
 }
 
+export function reopenCompletedFactoryWork(workItemId: string) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const { completedAt: _completedAt, ...rest } = current;
+  const sourceSnapshot = { ...current.sourceSnapshot };
+  sourceSnapshot.listingState = "issued";
+
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...rest,
+    listingState: "issued",
+    sourceSnapshot,
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
+export function reopenGroupingIssuedWork(workItemId: string) {
+  return reopenCompletedFactoryWork(workItemId);
+}
+
 export function revertFactoryIssuedWork(workItemId: string) {
   const store = readStore();
   const index = store.items.findIndex((item) => item.id === workItemId);

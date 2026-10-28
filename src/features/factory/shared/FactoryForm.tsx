@@ -26,7 +26,9 @@ import {
   type MasterFieldValue,
 } from "../../masters/shared";
 import {
+  canAccessFactorySawing,
   canAccessPermission,
+  canMutateFactorySawing,
   getFactoryPermissionKey,
 } from "../../permissions";
 import {
@@ -127,9 +129,18 @@ export function FactoryForm<Row extends FactoryRecord>({
   const params = useParams<{ id: string }>();
   const paths = getFactoryPaths(definition.slug);
   const permissionKey = getFactoryPermissionKey(definition.slug);
-  const canCreate = canAccessPermission(permissionKey, "create");
-  const canEdit = canAccessPermission(permissionKey, "edit");
-  const canView = canAccessPermission(permissionKey, "view");
+  const canCreate =
+    definition.slug === "sawing"
+      ? canMutateFactorySawing()
+      : canAccessPermission(permissionKey, "create");
+  const canEdit =
+    definition.slug === "sawing"
+      ? canMutateFactorySawing()
+      : canAccessPermission(permissionKey, "edit");
+  const canView =
+    definition.slug === "sawing"
+      ? canAccessFactorySawing()
+      : canAccessPermission(permissionKey, "view");
   const canUseMode =
     (mode === "add" && canCreate) ||
     (mode === "edit" && canEdit) ||
@@ -293,7 +304,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       >
         <MasterSectionCard>
           <Typography variant="body2" color="text.secondary">
-            The requested factory process record could not be found in the mock dataset.
+            The requested factory process record could not be found.
           </Typography>
         </MasterSectionCard>
       </FactoryPageShell>

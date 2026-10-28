@@ -125,18 +125,10 @@ export async function fetchCutsPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch cuts from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchCutsApi(params?: {
@@ -147,20 +139,20 @@ export async function fetchCutsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchCutsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchCutsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getCutByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendCutItem>>(`/masters/cuts/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendCutToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch cut with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendCutItem>>(`/masters/cuts/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendCutToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Record not found.");
 }
 
 export async function createCutApi(values: {
@@ -193,7 +185,7 @@ export async function createCutApi(values: {
   if (res?.success && res?.data) {
     return mapBackendCutToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save cut.");
 }
 
 export async function updateCutApi(
@@ -214,9 +206,10 @@ export async function updateCutApi(
         : undefined;
 
   const body: any = {};
-  if (values.cutName || values.name) {
-    body.name = values.cutName || values.name;
-    body.cutName = values.cutName || values.name;
+  const cutName = values.cutName ?? values.name;
+  if (cutName !== undefined) {
+    body.name = cutName;
+    body.cutName = cutName;
   }
   if (values.remark !== undefined || values.remarks !== undefined) {
     body.remark = values.remark ?? values.remarks ?? null;
@@ -234,7 +227,7 @@ export async function updateCutApi(
   if (res?.success && res?.data) {
     return mapBackendCutToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save cut.");
 }
 
 export async function updateCutStatusApi(
@@ -249,7 +242,7 @@ export async function updateCutStatusApi(
   if (res?.success && res?.data) {
     return mapBackendCutToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save cut.");
 }
 
 export async function deleteCutApi(id: string): Promise<boolean> {

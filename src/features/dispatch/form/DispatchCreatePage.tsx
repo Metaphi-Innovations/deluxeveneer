@@ -389,7 +389,7 @@ export function DispatchCreatePage({
         : "View Dispatch";
   const readOnly = mode === "view";
   const dispatchSourceRecords = useMemo(
-    () => records.filter((record) => record.packingState === "done"),
+    () => records.filter((record) => record.packingState === "dispatchIssued"),
     [records],
   );
   const [values, setValues] = useState<DispatchFormState>(() =>
@@ -735,7 +735,6 @@ export function DispatchCreatePage({
           { label: "Dispatch", to: "/dispatch" },
           { label: pageLabel },
         ]}
-        subtitle=""
         title={pageLabel}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>

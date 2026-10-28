@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -92,10 +92,9 @@ export function ViewWarehouseLocationMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Warehouse Master", to: paths.list },
-          { label: "View Warehouse" },
+          { label: "View Warehouse Location Master" },
         ]}
-        title="View Warehouse"
-        subtitle=" "
+        title="View Warehouse Location Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -112,19 +111,13 @@ export function ViewWarehouseLocationMasterPage() {
           { label: "Warehouse Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Warehouse"
+        title="View Warehouse Location Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Warehouse record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Warehouse record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -135,7 +128,7 @@ export function ViewWarehouseLocationMasterPage() {
         { label: "Warehouse Master", to: paths.list },
         { label: displayName || "View Warehouse" },
       ]}
-      title="View Warehouse"
+      title="View Warehouse Location Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">

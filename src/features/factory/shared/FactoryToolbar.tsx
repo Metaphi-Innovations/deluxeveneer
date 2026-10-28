@@ -1,12 +1,18 @@
 import { Button, Stack } from "@mui/material";
-import { FileOutput } from "lucide-react";
+import { Download } from "lucide-react";
 
 import {
-  getListingToolbarOutlinedButtonSx,
+  getListingToolbarButtonSx,
   portalButtonGroupGap,
 } from "../../shared/buttonStyles";
 
-export function FactoryToolbar() {
+export function FactoryToolbar({
+  disabled = false,
+  onExport,
+}: {
+  disabled?: boolean;
+  onExport: () => void;
+}) {
   return (
     <Stack
       direction="row"
@@ -19,10 +25,12 @@ export function FactoryToolbar() {
       }}
     >
       <Button
+        disabled={disabled}
+        onClick={onExport}
         type="button"
-        variant="outlined"
-        startIcon={<FileOutput size={15} />}
-        sx={(theme) => getListingToolbarOutlinedButtonSx(theme)}
+        variant="contained"
+        startIcon={<Download size={14} />}
+        sx={(theme) => getListingToolbarButtonSx(theme)}
       >
         Export
       </Button>

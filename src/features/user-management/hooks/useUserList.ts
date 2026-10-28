@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "../../../query/queryKeys";
+import { useColumnDropdownQuery } from "../../../query/useColumnDropdownQuery";
 import { useDebouncedValue } from "../../../query/useDebouncedValue";
 import {
   encodeAuditFilterValues,
@@ -9,10 +10,10 @@ import {
 } from "../../shared/columnFilters";
 import {
   fetchUserManagementPaginated,
+  fetchUserManagementColumnDropdown,
   updateUserManagementStatus,
 } from "../api/userManagementApi";
 import type { UserManagementRecord } from "../shared/userManagementConfig";
-import { getUniqueSortedValues, getUserDisplayName } from "./userRowDisplay";
 
 export type SortColumnKey =
   | "user"
@@ -45,11 +46,47 @@ export function useUserList(canEdit: boolean) {
   const [actionError, setActionError] = useState("");
   const debouncedSearch = useDebouncedValue(searchValue);
   const queryClient = useQueryClient();
-  const listParams = {
-    page,
-    limit: rowsPerPage,
-    search: debouncedSearch,
-  };
+  const { filterOptionsByColumn, loadColumnDropdown } = useColumnDropdownQuery(
+    queryKeys.users.columnDropdowns,
+    fetchUserManagementColumnDropdown,
+  );
+  const filters = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    if (userFilter.length > 0) result.user = userFilter;
+    if (departmentFilter.length > 0) result.department = departmentFilter;
+    if (emailFilter.length > 0) result.email = emailFilter;
+    if (phoneFilter.length > 0) result.phone = phoneFilter;
+    if (statusFilter.length > 0) result.status = statusFilter;
+    if (createdByFilter.length > 0) result.createdBy = createdByFilter;
+    if (createdDateFrom) result.createdAtFrom = [createdDateFrom];
+    if (createdDateTo) result.createdAtTo = [createdDateTo];
+    if (updatedByFilter.length > 0) result.updatedBy = updatedByFilter;
+    if (updatedDateFrom) result.updatedAtFrom = [updatedDateFrom];
+    if (updatedDateTo) result.updatedAtTo = [updatedDateTo];
+    return result;
+  }, [
+    createdByFilter,
+    createdDateFrom,
+    createdDateTo,
+    departmentFilter,
+    emailFilter,
+    phoneFilter,
+    statusFilter,
+    updatedByFilter,
+    updatedDateFrom,
+    updatedDateTo,
+    userFilter,
+  ]);
+  const listParams = useMemo(
+    () => ({
+      page,
+      limit: rowsPerPage,
+      search: debouncedSearch,
+      ...(sortConfig ? { sortBy: sortConfig.key, sortOrder: sortConfig.direction } : {}),
+      ...(Object.keys(filters).length > 0 ? { filters } : {}),
+    }),
+    [debouncedSearch, filters, page, rowsPerPage, sortConfig],
+  );
   const listQuery = useQuery({
     queryKey: queryKeys.users.list(listParams),
     placeholderData: keepPreviousData,
@@ -63,30 +100,14 @@ export function useUserList(canEdit: boolean) {
     actionError ||
     (listQuery.error instanceof Error ? listQuery.error.message : "");
 
-  const userOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => getUserDisplayName(row))),
-    [rows],
-  );
-  const departmentOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.department)),
-    [rows],
-  );
-  const emailOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.email)),
-    [rows],
-  );
-  const phoneOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.phoneNo)),
-    [rows],
-  );
-  const createdByOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.createdBy)),
-    [rows],
-  );
-  const updatedByOptions = useMemo(
-    () => getUniqueSortedValues(rows.map((row) => row.updatedBy)),
-    [rows],
-  );
+  const optionValues = (column: string) =>
+    (filterOptionsByColumn[column] ?? []).map((option) => option.value);
+  const userOptions = optionValues("user");
+  const departmentOptions = optionValues("department");
+  const emailOptions = optionValues("email");
+  const phoneOptions = optionValues("phone");
+  const createdByOptions = optionValues("createdBy");
+  const updatedByOptions = optionValues("updatedBy");
 
   const handleSort = (columnKey: SortColumnKey) => {
     setSortConfig((current) => {
@@ -100,122 +121,7 @@ export function useUserList(canEdit: boolean) {
     });
   };
 
-  const filteredRows = useMemo(() => {
-    const list = rows.filter((row: UserManagementRecord) => {
-      if (userFilter.length > 0 && !userFilter.includes(getUserDisplayName(row))) {
-        return false;
-      }
-      if (departmentFilter.length > 0 && !departmentFilter.includes(row.department)) {
-        return false;
-      }
-      if (emailFilter.length > 0 && !emailFilter.includes(row.email)) {
-        return false;
-      }
-      if (phoneFilter.length > 0 && !phoneFilter.includes(row.phoneNo)) {
-        return false;
-      }
-      if (statusFilter.length > 0) {
-        const matchesActive = statusFilter.includes("ACTIVE") && row.isActive;
-        const matchesInactive = statusFilter.includes("INACTIVE") && !row.isActive;
-        if (!matchesActive && !matchesInactive) {
-          return false;
-        }
-      }
-      if (createdByFilter.length > 0 && !createdByFilter.includes(row.createdBy)) {
-        return false;
-      }
-      if (!matchesAuditDateRange(row.createdDate, createdDateFrom, createdDateTo)) {
-        return false;
-      }
-      if (updatedByFilter.length > 0 && !updatedByFilter.includes(row.updatedBy)) {
-        return false;
-      }
-      if (!matchesAuditDateRange(row.updatedDate, updatedDateFrom, updatedDateTo)) {
-        return false;
-      }
-      return true;
-    });
-
-    if (sortConfig) {
-      return [...list].sort((left, right) => {
-        let leftVal: string | number | boolean = "";
-        let rightVal: string | number | boolean = "";
-
-        switch (sortConfig.key) {
-          case "user": {
-            leftVal = getUserDisplayName(left).toLowerCase();
-            rightVal = getUserDisplayName(right).toLowerCase();
-            break;
-          }
-          case "department": {
-            leftVal = (left.department || "").toLowerCase();
-            rightVal = (right.department || "").toLowerCase();
-            break;
-          }
-          case "email": {
-            leftVal = (left.email || "").toLowerCase();
-            rightVal = (right.email || "").toLowerCase();
-            break;
-          }
-          case "phone": {
-            leftVal = (left.phoneNo || "").toLowerCase();
-            rightVal = (right.phoneNo || "").toLowerCase();
-            break;
-          }
-          case "status": {
-            leftVal = left.isActive ? 1 : 0;
-            rightVal = right.isActive ? 1 : 0;
-            break;
-          }
-          case "createdBy": {
-            leftVal = (left.createdBy || "").toLowerCase();
-            rightVal = (right.createdBy || "").toLowerCase();
-            break;
-          }
-          case "updatedBy": {
-            leftVal = (left.updatedBy || "").toLowerCase();
-            rightVal = (right.updatedBy || "").toLowerCase();
-            break;
-          }
-        }
-
-        if (leftVal < rightVal) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (leftVal > rightVal) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-
-    return [...list].sort((left, right) => {
-      const leftTime =
-        left.updatedDate instanceof Date
-          ? left.updatedDate.getTime()
-          : new Date(left.updatedDate).getTime();
-      const rightTime =
-        right.updatedDate instanceof Date
-          ? right.updatedDate.getTime()
-          : new Date(right.updatedDate).getTime();
-
-      return rightTime - leftTime;
-    });
-  }, [
-    createdByFilter,
-    createdDateFrom,
-    createdDateTo,
-    departmentFilter,
-    emailFilter,
-    phoneFilter,
-    rows,
-    sortConfig,
-    statusFilter,
-    updatedByFilter,
-    updatedDateFrom,
-    updatedDateTo,
-    userFilter,
-  ]);
+  const filteredRows = rows;
 
   useEffect(() => {
     setPage(1);
@@ -374,6 +280,7 @@ export function useUserList(canEdit: boolean) {
     handleSort,
     handleStatusChange,
     isLoading,
+    loadColumnDropdown,
     page,
     phoneFilter,
     phoneOptions,
@@ -405,38 +312,4 @@ export function useUserList(canEdit: boolean) {
     userFilter,
     userOptions,
   };
-}
-
-function toIsoDate(value: Date | string) {
-  const date = value instanceof Date ? value : value ? new Date(value) : null;
-  if (!date || Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return date.toISOString().slice(0, 10);
-}
-
-function matchesAuditDateRange(
-  value: Date | string,
-  dateFrom: string,
-  dateTo: string,
-) {
-  if (!dateFrom && !dateTo) {
-    return true;
-  }
-
-  const dateValue = toIsoDate(value);
-  if (!dateValue) {
-    return false;
-  }
-
-  if (dateFrom && dateValue < dateFrom) {
-    return false;
-  }
-
-  if (dateTo && dateValue > dateTo) {
-    return false;
-  }
-
-  return true;
 }

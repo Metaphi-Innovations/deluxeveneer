@@ -137,18 +137,10 @@ export async function fetchItemSubCategoriesPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch item sub-categories from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchItemSubCategoriesApi(params?: {
@@ -161,8 +153,12 @@ export async function fetchItemSubCategoriesApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchItemSubCategoriesPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchItemSubCategoriesPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 let itemSubCategoryRowsCache: MasterRecord[] = [];
@@ -191,17 +187,13 @@ export async function refreshItemSubCategoryMasterCache(
 }
 
 export async function getItemSubCategoryByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendItemSubCategoryItem>>(
-      `/masters/item-sub-categories/${id}`,
-    );
-    if (res?.success && res?.data) {
-      return mapBackendItemSubCategoryToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch item sub-category with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendItemSubCategoryItem>>(
+    `/masters/item-sub-categories/${id}`,
+  );
+  if (res?.success && res?.data) {
+    return mapBackendItemSubCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Item sub-category record not found.");
 }
 
 export async function createItemSubCategoryApi(values: {
@@ -238,7 +230,7 @@ export async function createItemSubCategoryApi(values: {
   if (res?.success && res?.data) {
     return mapBackendItemSubCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item sub category.");
 }
 
 export async function updateItemSubCategoryApi(
@@ -283,7 +275,7 @@ export async function updateItemSubCategoryApi(
   if (res?.success && res?.data) {
     return mapBackendItemSubCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item sub category.");
 }
 
 export async function updateItemSubCategoryStatusApi(
@@ -297,7 +289,7 @@ export async function updateItemSubCategoryStatusApi(
   if (res?.success && res?.data) {
     return mapBackendItemSubCategoryToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save item sub category.");
 }
 
 export async function deleteItemSubCategoryApi(id: string): Promise<boolean> {

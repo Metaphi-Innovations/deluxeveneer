@@ -30,6 +30,7 @@ export function EditCutMasterPage() {
       void invalidateMaster("cut");
     } catch (error) {
       console.warn("Failed to update cut via API:", error);
+      throw error;
     }
   };
 

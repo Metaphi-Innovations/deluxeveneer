@@ -14,12 +14,11 @@ import {
   CircleDollarSign,
   MessageSquare,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -90,10 +89,9 @@ export function ViewCurrencyMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Currency Master", to: paths.list },
-          { label: "View Currency" },
+          { label: "View Currency Master" },
         ]}
-        title="View Currency"
-        subtitle=" "
+        title="View Currency Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -110,19 +108,13 @@ export function ViewCurrencyMasterPage() {
           { label: "Currency Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Currency"
+        title="View Currency Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Currency record not found.
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Currency record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -133,7 +125,7 @@ export function ViewCurrencyMasterPage() {
         { label: "Currency Master", to: paths.list },
         { label: displayName || "View Currency" },
       ]}
-      title="View Currency"
+      title="View Currency Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
@@ -289,37 +281,6 @@ export function ViewCurrencyMasterPage() {
                 >
                   <ProfileField label="Currency Name" value={displayName} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="Currency Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>
