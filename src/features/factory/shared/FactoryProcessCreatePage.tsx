@@ -4377,9 +4377,11 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
   }
 
   if (slug === "sawing") {
-    return sourceColumnDefinitions.map((column) =>
-      column.key === "batchNo" ? { ...column, label: "Log No." } : column,
-    );
+    return sourceColumnDefinitions
+      .filter((column) => column.key !== "cbm" && column.key !== "cbf")
+      .map((column) =>
+        column.key === "batchNo" ? { ...column, label: "Log No." } : column,
+      );
   }
 
   return sourceColumnDefinitions.filter((column) => {
@@ -5084,7 +5086,18 @@ function renderEditableField({
       helperText={errorText}
       size="small"
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => {
+        let val = event.target.value;
+        if (column.key === "thickness" || column.key === "height") {
+          // Only allow numeric values (digits and at most one decimal point)
+          val = val.replace(/[^0-9.]/g, "");
+          const parts = val.split(".");
+          if (parts.length > 2) {
+            val = parts[0] + "." + parts.slice(1).join("");
+          }
+        }
+        onChange(val);
+      }}
       onWheel={(event) => {
         if (!isWheelAdjustableMeasurementField(column.key)) {
           return;

@@ -92,8 +92,10 @@ export const SawingViewPage: React.FC = () => {
       ? "available"
       : "done");
 
+  const lastFetchedIdRef = React.useRef<string | null>(null);
   useEffect(() => {
-    if (passedRecord || !id) return;
+    if (!id || lastFetchedIdRef.current === id) return;
+    lastFetchedIdRef.current = id;
 
     if (tab === "issued") {
       void fetchSawingIssuedById(id).then(setFetchedRecord).catch(() => {});
@@ -104,11 +106,11 @@ export const SawingViewPage: React.FC = () => {
     } else {
       void fetchSawingDoneById(id).then(setFetchedRecord).catch(() => {});
     }
-  }, [id, passedRecord, tab]);
+  }, [id, tab]);
 
   const record = useMemo(() => {
-    if (passedRecord) return passedRecord;
     if (fetchedRecord) return fetchedRecord;
+    if (passedRecord) return passedRecord;
     if (!id) return undefined;
 
     // Search in local store for fallback
@@ -488,7 +490,7 @@ export const SawingViewPage: React.FC = () => {
                   gridTemplateColumns: {
                     xs: "1fr",
                     sm: "repeat(2, minmax(0, 1fr))",
-                    md: "repeat(4, minmax(0, 1fr))",
+                    md: "repeat(3, minmax(0, 1fr))",
                   },
                   gap: 1.75,
                 }}
@@ -698,7 +700,7 @@ export const SawingViewPage: React.FC = () => {
               >
                 {[
                   { label: "Storage Sr No.", value: sourceItem?.storageSrNo || "-" },
-                  { label: "Warehouse", value: sourceItem?.storageWarehouseName || "Warehouse B" },
+                  { label: "Source From", value: record?.storageWarehouseName || sourceItem?.storageWarehouseName || "Warehouse B" },
                   { label: "Item Name", value: sourceItem?.itemName || "-" },
                   { label: "Sub Category", value: sourceItem?.subCategory || "-" },
                   { label: "Log No.", value: sourceItem?.batchNo || "-" },
@@ -1109,17 +1111,17 @@ export const SawingViewPage: React.FC = () => {
         ? String(record.receivedCbm)
         : "-");
     const sourceAvailCbmDisplay =
-      formatSawingCbmDisplay(record?.availableCbm) ||
+      formatSawingCbmDisplay(record?.availableCbm ?? record?.sourceAvailableCbm ?? (sourceItem as any)?.availableCbm) ||
       (record?.availableCbm !== undefined && record?.availableCbm !== null
         ? String(record.availableCbm)
         : "-");
 
     return (
       <FactoryPageShell
-        title="Sawing Done Item"
-        subtitle="View completed Sawing output details and inspection status."
+        title={isHistory ? "Sawing History Item" : "Sawing Done Item"}
+        subtitle={isHistory ? "View completed Sawing history details." : "View completed Sawing output details and inspection status."}
         backNav={{
-          label: "Back to Sawing Done",
+          label: isHistory ? "Back to Sawing History" : "Back to Sawing Done",
           to: `/factory/sawing?tab=${tab}`,
           onBack: () => navigate(`/factory/sawing?tab=${tab}`),
         }}
@@ -1147,30 +1149,7 @@ export const SawingViewPage: React.FC = () => {
                 alignItems: "center",
               }}
             >
-              <Stack spacing={0.5}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  Sawing Item / Record No.
-                </Typography>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: "text.primary",
-                    fontWeight: 700,
-                    fontSize: "15px",
-                  }}
-                >
-                  {record?.batchNoCode || record?.sawingSrNo || record?.id || "-"}
-                </Typography>
-              </Stack>
+              
 
               <Stack spacing={0.5}>
                 <Typography
@@ -1218,7 +1197,7 @@ export const SawingViewPage: React.FC = () => {
                     fontSize: "15px",
                   }}
                 >
-                  {record?.batchNo || record?.logNo || sourceItem?.batchNo || "-"}
+                  {record?.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || record?.batchNo || "-"}
                 </Typography>
               </Stack>
 
@@ -1269,15 +1248,12 @@ export const SawingViewPage: React.FC = () => {
                 {[
                   {
                     label: "Storage Sr No.",
-                    value: record?.storageSrNo || sourceItem?.storageSrNo || "-",
+                    value: record?.storageSrNo || sourceItem?.storageSrNo || record?.storageItem?.storageSrNo || "-",
                   },
+                  
                   {
-                    label: "Inward Sr No.",
-                    value: record?.inwardSrNo || sourceItem?.inwardSrNo || "-",
-                  },
-                  {
-                    label: "Source Warehouse",
-                    value: sourceItem?.storageWarehouseName || record?.storageWarehouseName || "Warehouse B",
+                    label: "Source From",
+                    value: record?.storageWarehouseName || sourceItem?.storageWarehouseName || record?.storageWarehouse?.name || "Warehouse B",
                   },
                   {
                     label: "Source Item Name",
@@ -1299,10 +1275,7 @@ export const SawingViewPage: React.FC = () => {
                       sourceItem?.batchNo ||
                       "-",
                   },
-                  {
-                    label: "Parent Sawing No.",
-                    value: parentSawingSrNo,
-                  },
+                  
                   {
                     label: "Sawing Date",
                     value: formatDate(
@@ -1488,7 +1461,7 @@ export const SawingViewPage: React.FC = () => {
                   },
                   {
                     label: "Batch No",
-                    value: record?.batchNoCode || "-",
+                    value: record?.batchNoCode || record?.batchNo || "-",
                   },
                   {
                     label: "Output CBM",
@@ -2047,10 +2020,10 @@ export const SawingViewPage: React.FC = () => {
                 }}
               >
                 {[
-                  { label: "Created By", value: record?.createdBy || "-" },
-                  { label: "Created At", value: formatDate(record?.createdAt) },
-                  { label: "Updated By", value: record?.updatedBy || "-" },
-                  { label: "Updated At", value: formatDate(record?.updatedAt) },
+                  { label: "Created By", value: record?.createdBy || sourceItem?.createdBy || "-" },
+                  { label: "Created At", value: formatDate(record?.createdAt || sourceItem?.createdAt) },
+                  { label: "Updated By", value: record?.updatedBy || sourceItem?.updatedBy || "-" },
+                  { label: "Updated At", value: formatDate(record?.updatedAt || sourceItem?.updatedAt) },
                 ].map((field) => (
                   <Stack key={field.label} spacing={0.5} sx={{ minWidth: 0 }}>
                     <Typography

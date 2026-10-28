@@ -38,6 +38,7 @@ import {
   rejectSawingDoneApi,
   issueSawingForInspectionApi,
   fetchSawingDropdownsApi,
+  exportSawingDataApi,
 } from "../api/sawingApi";
 import {
   getSawingDoneEditBlockReason,
@@ -182,37 +183,14 @@ export function SawingListPage() {
       };
 
       let result: { items: any[]; pagination: { total: number } };
-      const flowState = readSawingFlowState();
       if (activeTab === "done") {
         result = await fetchSawingDone(queryParams);
-        const backendItems = result.items || [];
-        const extraDone = (flowState.extraDone || []).filter(
-          (ed: any) => !backendItems.some((bi: any) => bi.id === ed.id)
-        );
-        result.items = [...extraDone, ...backendItems];
-        result.pagination.total = (result.pagination.total || 0) + extraDone.length;
       } else if (activeTab === "history") {
         result = await fetchSawingHistory(queryParams);
       } else if (activeTab === "rejected") {
         result = await fetchSawingRejected(queryParams);
       } else {
         result = await fetchSawingIssued(queryParams);
-        // Apply dynamic available CBM overrides if any were tracked locally
-        if (result.items && flowState.issuedAvailability) {
-          result.items = result.items.map((item: any) => {
-            const availOverride =
-              flowState.issuedAvailability[item.id] ||
-              flowState.issuedAvailability[item.storageSrNo];
-            if (availOverride && availOverride.availableCbm !== undefined) {
-              return {
-                ...item,
-                availableCbm: availOverride.availableCbm,
-                availableCbf: availOverride.availableCbf ?? item.availableCbf,
-              };
-            }
-            return item;
-          });
-        }
       }
 
       setRows(result.items || []);
@@ -326,6 +304,7 @@ export function SawingListPage() {
           sourceRow: {
             ...row,
             issuedDate: new Date(),
+           
             qcStatus: "Pending",
           },
         });
@@ -484,32 +463,50 @@ export function SawingListPage() {
     }
   }, [activeTab]);
 
-  const handleExport = () => {
-    if (rows.length === 0) {
-      setToastNotification({
-        message: "No records available to export.",
-        severity: "info",
-      });
-      return;
-    }
+  const [isExporting, setIsExporting] = useState(false);
 
-    const columns: CsvColumn<Record<string, unknown>>[] = currentColumns.map((col) => ({
-      key: String(col.key),
-      label: col.label,
-    }));
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const exportParams = {
+        search: searchValue.trim() || undefined,
+        sortBy: sortConfig.sortBy || undefined,
+        sortOrder: sortConfig.sortOrder || undefined,
+        filters: Object.keys(columnFilters).length > 0 ? columnFilters : undefined,
+      };
 
-    exportRowsToCsv(
-      rows.map((row) => {
-        const item: Record<string, unknown> = {};
-        currentColumns.forEach((col) => {
-          const key = String(col.key);
-          item[key] = row[key] ?? "";
+      const items = await exportSawingDataApi(activeTab as any, exportParams);
+      if (!items || items.length === 0) {
+        setToastNotification({
+          message: "No records available to export.",
+          severity: "info",
         });
-        return item;
-      }),
-      columns,
-      `sawing-${activeTab}`
-    );
+        return;
+      }
+
+      const columns: CsvColumn<Record<string, unknown>>[] = currentColumns.map((col) => ({
+        key: String(col.key),
+        label: col.label,
+      }));
+
+      exportRowsToCsv(
+        items.map((row) => mapSawingExportRow(row, currentColumns)),
+        columns,
+        `sawing-${activeTab}`
+      );
+      setToastNotification({
+        message: `Successfully exported ${items.length} sawing record(s).`,
+        severity: "success",
+      });
+    } catch (err: any) {
+      setToastNotification({
+        message: err?.message || "Export failed.",
+        severity: "error",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!canAccessFactorySawing()) {
@@ -527,7 +524,8 @@ export function SawingListPage() {
 
   return (
     <FactoryPageShell
-      breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}      title="Sawing"
+      breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
+      title="Sawing"
       processTabs={
         <ModuleProcessTabs
           onChange={handleTabChange}
@@ -571,7 +569,7 @@ export function SawingListPage() {
               </>
             ) : null}
             <FactoryToolbar
-              disabled={isLoading || totalCount === 0}
+              disabled={isLoading || isExporting || totalCount === 0}
               onExport={handleExport}
             />
           </Stack>
