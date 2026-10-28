@@ -12,12 +12,7 @@ import { rawVeneerDefinition } from "../rawVeneerDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function RawVeneerListPage() {
-  return (
-    <Navigate
-      replace
-      to="/warehouse-b?section=inventory&inventory=raw-veneer"
-    />
-  );
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function AddRawVeneerPage() {
@@ -116,5 +111,5 @@ function RawVeneerRecordPage({ mode }: { mode: "view" | "edit" }) {
     );
   }
 
-  return <InventoryForm definition={rawVeneerDefinition} mode={mode} />;
+  return <Navigate replace to="/dashboard" />;
 }

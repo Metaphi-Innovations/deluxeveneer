@@ -100,6 +100,7 @@ type DynamicLineItem = {
 export interface InwardEditStockLineItemsHandle {
   getFilledLineItems: () => Array<{ id: string; values: Record<string, string> }>;
   validate: () => boolean;
+  applyTestAutofill: (itemCount?: number) => void;
 }
 
 const warehouseAAddStockTableConfigs: Record<
@@ -108,8 +109,8 @@ const warehouseAAddStockTableConfigs: Record<
 > = {
   "veneer-blocks": [
     { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "logCode", label: "Log No", minWidth: 110, placeholder: "Enter log no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
@@ -127,8 +128,8 @@ const warehouseAAddStockTableConfigs: Record<
   ],
   "raw-veneer": [
     { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "logCode", label: "Log Code", minWidth: 110, placeholder: "Enter log code", type: "text" },
     { key: "bundleNumber", label: "Bundle Number", minWidth: 110, placeholder: "Enter bundle no", type: "text" },
@@ -149,8 +150,8 @@ const warehouseAAddStockTableConfigs: Record<
   ],
   plywood: [
     { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
@@ -169,8 +170,8 @@ const warehouseAAddStockTableConfigs: Record<
   ],
   mdf: [
     { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
@@ -189,8 +190,8 @@ const warehouseAAddStockTableConfigs: Record<
   ],
   consumables: [
     { key: "inwardItemCode", label: "Inward Item Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
-    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Search or enter item", type: "item-name", required: true },
-    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Enter code", type: "text", required: true },
+    { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
+    { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "itemSubCategory", label: "Sub Category", minWidth: 170, placeholder: "Auto from item", type: "select", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "specification", label: "Specification / Model", minWidth: 180, placeholder: "Enter specification", type: "text" },
@@ -382,7 +383,7 @@ export const InwardEditStockLineItems = forwardRef<
         if (
           key !== "itemName" &&
           isItemMasterDrivenField(key) &&
-          getItemMasterLockedFieldKeys(row.values.itemName ?? "").has(key)
+          getItemMasterLockedFieldKeys(row.values).has(key)
         ) {
           return row;
         }
@@ -525,6 +526,84 @@ export const InwardEditStockLineItems = forwardRef<
               amount: row.values.productAmount ?? row.values.amount ?? "",
             },
           })),
+      applyTestAutofill: (itemCount = 1) => {
+        const safeCount = Math.min(
+          50,
+          Math.max(1, Math.floor(Number(itemCount) || 1)),
+        );
+
+        const buildAutofillRowValues = (
+          index: number,
+          nextItemNames: readonly string[],
+          nextUnits: readonly string[],
+        ): Record<string, string> => {
+          const itemName =
+            nextItemNames.length > 0
+              ? nextItemNames[index % nextItemNames.length]!
+              : "";
+
+          let values: Record<string, string> = {
+            ...createEmptyValues(columnConfig),
+            ...buildLineItemAutofillTextValues(slug, index),
+          };
+
+          if (itemName) {
+            values.itemName = itemName;
+            values = applyItemMasterDefaults(values, itemName);
+          }
+
+          values.unitName = coerceSelectValue(values.unitName, nextUnits);
+          values.itemSubCategory = coerceSelectValue(
+            values.itemSubCategory,
+            getLiveItemSubCategoryOptions(),
+          );
+          values.gstPercentage = coerceSelectValue(
+            values.gstPercentage,
+            gstMasterOptions,
+          );
+
+          values = applyAutofillDerivedMeasures(values, slug);
+          return applyTaxCalculations(values, gstMode);
+        };
+
+        const applyWithOptions = (
+          nextItemNames: readonly string[],
+          nextUnits: readonly string[],
+        ) => {
+          nextRowId.current = 1;
+          const rows: DynamicLineItem[] = Array.from(
+            { length: safeCount },
+            (_, index) => ({
+              id: `${slug}-${nextRowId.current++}`,
+              values: buildAutofillRowValues(index, nextItemNames, nextUnits),
+            }),
+          );
+
+          setLineItems(rows);
+          setSubmitAttempted(false);
+          setRowErrors({});
+        };
+
+        void Promise.all([
+          refreshItemMasterCache(),
+          refreshItemSubCategoryMasterCache(),
+          fetchUnitsApi({ status: true, limit: 1000 }).then((rows) => {
+            if (rows.length > 0) {
+              syncUnitMasterToStorage(rows);
+            }
+          }),
+        ])
+          .then(() => {
+            setMasterOptionsRevision((current) => current + 1);
+            applyWithOptions(
+              getLiveItemMasterOptions(),
+              getLiveUnitOptions(),
+            );
+          })
+          .catch(() => {
+            applyWithOptions(itemNameOptions, unitNameOptions);
+          });
+      },
       validate: () => {
         setSubmitAttempted(true);
 
@@ -562,7 +641,7 @@ export const InwardEditStockLineItems = forwardRef<
         return isValid;
       },
     }),
-    [columnConfig, lineItems],
+    [columnConfig, gstMode, itemNameOptions, lineItems, slug, unitNameOptions],
   );
 
   return (
@@ -616,9 +695,7 @@ export const InwardEditStockLineItems = forwardRef<
                     }}
                   >
                     {visibleColumns.map((column) => {
-                      const lockedKeys = getItemMasterLockedFieldKeys(
-                        row.values.itemName ?? "",
-                      );
+                      const lockedKeys = getItemMasterLockedFieldKeys(row.values);
                       return (
                       <TableCell key={column.key} sx={getBodyCellSx(theme)}>
                         {renderEditableField({
@@ -688,6 +765,7 @@ export const InwardEditStockLineItems = forwardRef<
 });
 
 const ITEM_MASTER_DRIVEN_FIELDS = [
+  "factoryCode",
   "itemSubCategory",
   "hsn",
   "unitName",
@@ -698,30 +776,11 @@ function isItemMasterDrivenField(key: string): boolean {
   return (ITEM_MASTER_DRIVEN_FIELDS as readonly string[]).includes(key);
 }
 
-/** Fields populated from the selected item master — locked for edit. */
-function getItemMasterLockedFieldKeys(itemName: string): Set<string> {
-  const locked = new Set<string>();
-  const item = getLiveItemMasterRecord(itemName);
-  if (!item) return locked;
-
-  if (String(item.subCategory ?? item.subCategoryName ?? "").trim()) {
-    locked.add("itemSubCategory");
-  }
-  const hsn = String(item.hsn ?? item.hsnCode ?? "").trim();
-  if (hsn) {
-    locked.add("hsn");
-  }
-  if (String(item.unitName ?? item.unit ?? "").trim()) {
-    locked.add("unitName");
-  }
-  const gst = String(
-    item.gstPercentage ?? item.gst ?? item.gstNo ?? "",
-  ).trim();
-  if (gst || (hsn && getHsnGstPercentage(hsn))) {
-    locked.add("gstPercentage");
-  }
-
-  return locked;
+/** Master-driven columns are never manually edited — only set when Item Name is chosen. */
+function getItemMasterLockedFieldKeys(
+  _values: Record<string, string>,
+): Set<string> {
+  return new Set(ITEM_MASTER_DRIVEN_FIELDS);
 }
 
 function applyItemMasterDefaults(
@@ -731,10 +790,22 @@ function applyItemMasterDefaults(
   const item = getLiveItemMasterRecord(itemName);
 
   if (!item) {
-    return values;
+    return {
+      ...values,
+      itemName,
+      itemId: "",
+      factoryCode: "",
+      itemSubCategory: "",
+      hsn: "",
+      unitName: "",
+      gstPercentage: "",
+    };
   }
 
-  const nextValues = { ...values };
+  const nextValues: Record<string, string> = {
+    ...values,
+    itemId: String(item.id ?? "").trim(),
+  };
   const subCategory = String(
     item.subCategory ?? item.subCategoryName ?? "",
   ).trim();
@@ -744,6 +815,13 @@ function applyItemMasterDefaults(
   ).trim();
 
   const unitName = String(item.unitName ?? item.unit ?? "").trim();
+  const factoryCode = String(
+    item.factoryItemCode ?? item.itemCode ?? "",
+  ).trim();
+
+  if (factoryCode) {
+    nextValues.factoryCode = factoryCode;
+  }
 
   if (subCategory) {
     nextValues.itemSubCategory = subCategory;
@@ -969,10 +1047,14 @@ function createInitialLineItems(
       ...createEmptyValues(columns),
       ...row.values,
     };
+    const itemName = (mergedValues.itemName ?? "").trim();
+    const withMaster = itemName
+      ? applyItemMasterDefaults(mergedValues, itemName)
+      : mergedValues;
 
     return {
       id,
-      values: applyTaxCalculations(mergedValues, gstMode),
+      values: applyTaxCalculations(withMaster, gstMode),
     };
   });
 }
@@ -995,7 +1077,101 @@ function createEmptyValues(columns: readonly DynamicFieldConfig[]) {
   return columns.reduce<Record<string, string>>((accumulator, column) => {
     accumulator[column.key] = "";
     return accumulator;
-  }, {});
+  }, { itemId: "" });
+}
+
+function coerceSelectValue(
+  value: string | null | undefined,
+  options: readonly string[] | null | undefined,
+): string {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed || !options?.length) return "";
+  return options.includes(trimmed) ? trimmed : "";
+}
+
+function buildLineItemAutofillTextValues(
+  slug: WarehouseAAddStockSlug,
+  index = 0,
+): Record<string, string> {
+  const stamp = `${Date.now().toString().slice(-4)}${index + 1}`;
+  const base = {
+    inwardItemCode: `TEST-${stamp}`,
+    rate: "100",
+    remark: "Autofill test line",
+    remarks: "Autofill test line",
+  };
+
+  switch (slug) {
+    case "veneer-blocks":
+      return {
+        ...base,
+        length: "2.5",
+        width: "1.2",
+        thickness: "0.8",
+        logCode: `LOG-${stamp}`,
+      };
+    case "raw-veneer":
+      return {
+        ...base,
+        length: "2.5",
+        width: "1.2",
+        thickness: "0.001",
+        noOfLeaves: "10",
+        logCode: `LOG-${stamp}`,
+        bundleNumber: `B-${stamp}`,
+        palletNo: `P-${stamp}`,
+      };
+    case "plywood":
+    case "mdf":
+      return {
+        ...base,
+        length: "2.44",
+        width: "1.22",
+        thickness: "0.018",
+        sheets: "5",
+        palletNo: `P-${stamp}`,
+      };
+    case "consumables":
+      return {
+        ...base,
+        quantity: "10",
+      };
+    default:
+      return base;
+  }
+}
+
+function applyAutofillDerivedMeasures(
+  values: Record<string, string>,
+  slug: WarehouseAAddStockSlug,
+): Record<string, string> {
+  const next = { ...values };
+
+  if (slug === "veneer-blocks") {
+    const l = parseAmountValue(next.length ?? "");
+    const w = parseAmountValue(next.width ?? "");
+    const h = parseAmountValue(next.thickness ?? next.height ?? "");
+    if (l > 0 && w > 0 && h > 0) {
+      next.cbm = formatMeasureValue(l * w * h, 6);
+    }
+  }
+
+  if (slug === "raw-veneer" || slug === "plywood" || slug === "mdf") {
+    const l = parseAmountValue(next.length ?? "");
+    const w = parseAmountValue(next.width ?? "");
+    const count = parseAmountValue(
+      next.noOfLeaves ?? next.sheets ?? next.noOfSheets ?? "",
+    );
+    if (l > 0 && w > 0 && count > 0) {
+      const sqm = formatMeasureValue(l * w * count, 3);
+      next.totalSqMeter = sqm;
+      if ("totalSqm" in next) {
+        next.totalSqm = sqm;
+      }
+    }
+  }
+
+  return next;
 }
 
 function allValuesEmpty(values: Record<string, string>) {
@@ -1042,16 +1218,59 @@ function getFieldValidationError(
     return `${column.label} is required.`;
   }
 
+  if (column.type === "item-name") {
+    const name = (values.itemName ?? "").trim();
+    if (name && !String(values.itemId ?? "").trim()) {
+      return "Select an item from Item Master.";
+    }
+    if (name && !getLiveItemMasterRecord(name)) {
+      return "Select an item from Item Master.";
+    }
+  }
+
+  if (isNumericLineFieldKey(column.key)) {
+    const raw = (values[column.key] ?? "").trim();
+    if (raw && !isValidNumericInput(raw)) {
+      return `${column.label} must be a valid number.`;
+    }
+  }
+
   return "";
 }
 
-function isDynamicColumnRequired(_column: DynamicFieldConfig) {
-  return false;
+const NUMERIC_LINE_FIELD_KEYS = new Set([
+  "length",
+  "width",
+  "height",
+  "thickness",
+  "cbm",
+  "rate",
+  "noOfLeaves",
+  "sheets",
+  "noOfSheets",
+  "totalSqMeter",
+  "totalSqm",
+  "quantity",
+  "productAmount",
+]);
+
+function isNumericLineFieldKey(key: string): boolean {
+  return NUMERIC_LINE_FIELD_KEYS.has(key);
+}
+
+function isValidNumericInput(value: string): boolean {
+  const trimmed = value.replace(/,/g, "").trim();
+  if (!trimmed) return true;
+  return /^-?\d+(\.\d+)?$/.test(trimmed);
+}
+
+function isDynamicColumnRequired(column: DynamicFieldConfig) {
+  return column.required === true;
 }
 
 function ColumnLabel({
   label,
-  required: _required,
+  required,
 }: {
   label: string;
   required: boolean;
@@ -1059,6 +1278,11 @@ function ColumnLabel({
   return (
     <Stack component="span" direction="row" spacing={0.25} alignItems="center">
       <span>{label}</span>
+      {required ? (
+        <Typography component="span" color="error" variant="caption">
+          *
+        </Typography>
+      ) : null}
     </Stack>
   );
 }
@@ -1258,11 +1482,13 @@ function renderEditableField({
 }): ReactNode {
   if (column.type === "computed" || readOnly || fieldReadOnly) {
     const isEmpty = !String(value ?? "").trim();
+    const isDisabled = readOnly || fieldReadOnly;
     return (
       <TextField
         fullWidth
         size="small"
         value={value}
+        disabled={isDisabled}
         placeholder={
           fieldReadOnly && isEmpty
             ? column.placeholder || "Auto from item"
@@ -1286,17 +1512,11 @@ function renderEditableField({
   if (column.type === "item-name") {
     return (
       <Autocomplete
-        freeSolo
         options={[...(itemNameOptions ?? getLiveItemMasterOptions())]}
-        value={value}
+        value={value || null}
         onChange={(_, nextValue) =>
           onChange(typeof nextValue === "string" ? nextValue : nextValue ?? "")
         }
-        onInputChange={(_, nextValue, reason) => {
-          if (reason === "input" || reason === "clear") {
-            onChange(nextValue);
-          }
-        }}
         sx={{
           cursor: "text",
           "& .MuiInputBase-root": { cursor: "text" },
@@ -1441,8 +1661,20 @@ function renderEditableField({
       helperText={errorText || undefined}
       placeholder={column.placeholder}
       size="small"
+      type={isNumericLineFieldKey(column.key) ? "text" : "text"}
+      inputMode={isNumericLineFieldKey(column.key) ? "decimal" : "text"}
       value={value}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (
+          isNumericLineFieldKey(column.key) &&
+          next.trim() &&
+          !/^-?\d*\.?\d*$/.test(next.replace(/,/g, ""))
+        ) {
+          return;
+        }
+        onChange(next);
+      }}
       sx={{
         ...getCompactFieldSx(theme, errorText ? "error" : "default", {
           dense: true,

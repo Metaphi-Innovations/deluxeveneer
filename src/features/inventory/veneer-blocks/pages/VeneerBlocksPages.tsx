@@ -10,12 +10,7 @@ import { veneerBlocksDefinition } from "../veneerBlocksDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function VeneerBlocksListPage() {
-  return (
-    <Navigate
-      replace
-      to="/warehouse-b?section=inventory&inventory=veneer-blocks"
-    />
-  );
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function AddVeneerBlocksPage() {
@@ -102,5 +97,5 @@ function VeneerBlocksRecordPage({ mode }: { mode: "view" | "edit" }) {
     );
   }
 
-  return <InventoryForm definition={veneerBlocksDefinition} mode={mode} />;
+  return <Navigate replace to="/dashboard" />;
 }

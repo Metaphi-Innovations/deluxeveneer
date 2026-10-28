@@ -44,7 +44,6 @@ import {
   createWarehouseAAddStockHeaderFields,
   isInrCurrency,
 } from "./warehouseAAddStockConfig";
-import { saveWarehouseAInwardItems } from "../../warehouses/shared/warehouseAInwardStore";
 import { createInwardApi, getInwardInventoryTypeFromSlug } from "../../warehouses/api/inwardApi";
 import { buildCreateInwardPayload } from "../../warehouses/api/buildCreateInwardPayload";
 import { resolveInwardAttachmentUrl } from "../../warehouses/api/resolveInwardAttachment";
@@ -233,8 +232,8 @@ function InventoryFormContent<Row extends InventoryRecord>({
       : findInventoryContextRow(inventoryRows, params.id);
   const warehouseAAddStockSlug =
     mode === "add" &&
-    activeWarehouse === "warehouse-a" &&
-    isWarehouseAAddStockSlug(definition.slug)
+    isWarehouseAAddStockSlug(definition.slug) &&
+    Boolean(apiWarehouseId)
       ? definition.slug
       : null;
   const warehouseRecordDetailSlug =
@@ -893,48 +892,41 @@ function InventoryFormContent<Row extends InventoryRecord>({
                                 : "",
                         };
 
-                        if (apiWarehouseId) {
-                          if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
-                            setSaveError(
-                              "Only Veneer Blocks, Raw Veneer, Plywood, MDF, and Consumables inward are supported currently.",
-                            );
-                            return;
-                          }
-
-                          setIsSaving(true);
-                          try {
-                            const payload = await buildCreateInwardPayload({
-                              warehouseId: apiWarehouseId,
-                              inventorySlug: warehouseAAddStockSlug,
-                              header,
-                              lineItems,
-                              additionalCharges,
-                            });
-                            await createInwardApi(payload);
-                            navigateToList();
-                          } catch (error) {
-                            setSaveError(
-                              error instanceof Error
-                                ? error.message
-                                : "Failed to save inward.",
-                            );
-                          } finally {
-                            setIsSaving(false);
-                          }
+                        if (!apiWarehouseId) {
+                          setSaveError(
+                            "Open Add Stock from an Inward warehouse in the sidebar (Warehouses menu).",
+                          );
                           return;
                         }
 
-                        // Legacy local-only path (no warehouseId query).
-                        if (warehouseAAddStockSlug !== "consumables") {
-                          saveWarehouseAInwardItems({
+                        if (!isApiSupportedInwardSlug(warehouseAAddStockSlug)) {
+                          setSaveError(
+                            "Only Veneer Blocks, Raw Veneer, Plywood, MDF, and Consumables inward are supported currently.",
+                          );
+                          return;
+                        }
+
+                        setIsSaving(true);
+                        try {
+                          const payload = await buildCreateInwardPayload({
+                            warehouseId: apiWarehouseId,
+                            inventorySlug: warehouseAAddStockSlug,
                             header,
                             lineItems,
-                            slug: warehouseAAddStockSlug,
+                            additionalCharges,
                           });
+                          await createInwardApi(payload);
+                          navigateToList();
+                        } catch (error) {
+                          setSaveError(
+                            error instanceof Error
+                              ? error.message
+                              : "Failed to save inward.",
+                          );
+                        } finally {
+                          setIsSaving(false);
                         }
                       }
-
-                      navigateToList();
                     })();
                   }}
                 >

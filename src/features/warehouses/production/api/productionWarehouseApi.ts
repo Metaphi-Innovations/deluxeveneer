@@ -37,7 +37,7 @@ export interface ProductionInventoryItem {
 
 export interface ProductionWarehouseFetchParams {
   warehouseId?: string | undefined;
-  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets" | "sawing";
   search?: string | undefined;
   page?: number | undefined;
   limit?: number | undefined;
@@ -86,7 +86,7 @@ export async function fetchProductionWarehouseInventory(
 
 export async function fetchProductionColumnDropdown(params: {
   warehouseId: string;
-  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets" | "sawing";
   column: string;
 }): Promise<{ options: Array<{ value: string; label: string }> }> {
   const query = new URLSearchParams();

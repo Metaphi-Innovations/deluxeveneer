@@ -12,12 +12,7 @@ import { plywoodDefinition } from "../plywoodDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function PlywoodListPage() {
-  return (
-    <Navigate
-      replace
-      to="/warehouse-b?section=inventory&inventory=plywood"
-    />
-  );
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function AddPlywoodPage() {
@@ -112,5 +107,5 @@ function PlywoodRecordPage({ mode }: { mode: "view" | "edit" }) {
     );
   }
 
-  return <InventoryForm definition={plywoodDefinition} mode={mode} />;
+  return <Navigate replace to="/dashboard" />;
 }

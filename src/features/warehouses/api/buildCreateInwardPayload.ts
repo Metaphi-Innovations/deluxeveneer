@@ -1,7 +1,7 @@
 import { fetchCurrenciesPaginated } from "../../masters/currency-master/api/currencyMasterApi";
 import { fetchGstsPaginated } from "../../masters/gst-master/api/gstMasterApi";
 import { fetchHsnsPaginated } from "../../masters/hsn-master/api/hsnMasterApi";
-import { fetchItemsPaginated } from "../../masters/item-name-master/api/itemMasterApi";
+import { fetchItemsPaginated, getItemByIdApi } from "../../masters/item-name-master/api/itemMasterApi";
 import {
   getCachedSupplierMasterRows,
   refreshSupplierMasterCache,
@@ -24,8 +24,26 @@ function parseNumber(value: string | undefined | null): number | null {
   if (value === undefined || value === null || value.trim() === "") {
     return null;
   }
-  const parsed = Number(String(value).replace(/,/g, ""));
+  const trimmed = String(value).replace(/,/g, "").trim();
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+  const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseNumericField(
+  value: string | undefined | null,
+  fieldLabel: string,
+): number | null {
+  if (value === undefined || value === null || value.trim() === "") {
+    return null;
+  }
+  const parsed = parseNumber(value);
+  if (parsed === null) {
+    throw new Error(`${fieldLabel} must be a valid number.`);
+  }
+  return parsed;
 }
 
 function parseRequiredNumber(value: string | undefined | null): number {
@@ -138,6 +156,31 @@ async function resolveItemMasterByName(
   );
 }
 
+async function resolveItemMasterForLine(
+  values: Record<string, string>,
+): Promise<MasterRecord> {
+  const itemId = String(values.itemId ?? "").trim();
+  const itemName = String(values.itemName ?? "").trim();
+
+  if (itemId) {
+    const byId = await getItemByIdApi(itemId);
+    if (byId?.id) {
+      return byId;
+    }
+  }
+
+  const byName = await resolveItemMasterByName(itemName);
+  if (!byName?.id) {
+    throw new Error(
+      itemName
+        ? `Item "${itemName}" must be selected from Item Master.`
+        : "Item Name is required — select an item from Item Master.",
+    );
+  }
+
+  return byName;
+}
+
 async function resolveHsnRecord(hsnCode: string): Promise<MasterRecord | null> {
   const normalized = normalizeLabel(hsnCode);
   if (!normalized) return null;
@@ -239,6 +282,12 @@ async function mapLineItemToPayload(
     throw new Error("Factory Code is required.");
   }
 
+  const itemMaster = await resolveItemMasterForLine(values);
+  const resolvedItemName = String(
+    itemMaster.itemName ?? itemMaster.name ?? itemName,
+  ).trim();
+  const itemId = String(itemMaster.id);
+
   const amount = parseRequiredNumber(
     values.productAmount ?? values.amount ?? "0",
   );
@@ -248,7 +297,6 @@ async function mapLineItemToPayload(
   const totalAmount =
     parseNumber(values.totalAmount) ?? amount + cgst + sgst + igst;
 
-  const itemMaster = await resolveItemMasterByName(itemName);
   const itemCategoryId = asOptionalId(itemMaster?.categoryId);
   const subCategoryName = String(values.itemSubCategory ?? "").trim();
   const itemSubCategoryId =
@@ -288,8 +336,8 @@ async function mapLineItemToPayload(
   }
 
   const base: CreateInwardItemPayload = {
-    itemId: asOptionalId(itemMaster?.id),
-    itemName,
+    itemId,
+    itemName: resolvedItemName,
     itemCategoryId,
     itemSubCategoryId,
     hsnId,
@@ -300,15 +348,32 @@ async function mapLineItemToPayload(
     palletNo: String(values.palletNo ?? values.palletNumber ?? "").trim() || null,
     logCode: String(values.logCode ?? "").trim() || null,
     bundleNumber: String(values.bundleNumber ?? "").trim() || null,
-    noOfLeaves: parseNumber(values.noOfLeaves) !== null ? Math.round(parseNumber(values.noOfLeaves)!) : null,
-    sheets: parseNumber(values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets) !== null ? Math.round(parseNumber(values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets)!) : null,
-    totalSqMeter: parseNumber(values.totalSqMeter ?? values.totalSqm),
-    length: parseNumber(values.length),
-    width: parseNumber(values.width),
-    height: parseNumber(values.height),
-    thickness: parseNumber(values.thickness),
-    cbm: parseNumber(values.cbm),
-    rate: parseNumber(values.rate),
+    noOfLeaves:
+      parseNumericField(values.noOfLeaves, "No of Leaves") !== null
+        ? Math.round(parseNumericField(values.noOfLeaves, "No of Leaves")!)
+        : null,
+    sheets:
+      parseNumericField(
+        values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets,
+        "Sheets",
+      ) !== null
+        ? Math.round(
+            parseNumericField(
+              values.sheets ?? values.noOfSheets ?? values.totalNoOfSheets,
+              "Sheets",
+            )!,
+          )
+        : null,
+    totalSqMeter: parseNumericField(
+      values.totalSqMeter ?? values.totalSqm,
+      "Total Sq Meter",
+    ),
+    length: parseNumericField(values.length, "Length"),
+    width: parseNumericField(values.width, "Width"),
+    height: parseNumericField(values.height, "Height"),
+    thickness: parseNumericField(values.thickness, "Thickness"),
+    cbm: parseNumericField(values.cbm, "CBM"),
+    rate: parseNumericField(values.rate, "Rate"),
     amount,
     gstId,
     cgst,
@@ -325,9 +390,9 @@ async function mapLineItemToPayload(
       logCode: String(values.logCode ?? "").trim() || null,
       bundleNumber: String(values.bundleNumber ?? "").trim() || null,
       palletNo: String(values.palletNo ?? "").trim() || null,
-      noOfLeaves: parseNumber(values.noOfLeaves),
-      totalSqMeter: parseNumber(values.totalSqMeter),
-      thickness: parseNumber(values.thickness),
+      noOfLeaves: parseNumericField(values.noOfLeaves, "No of Leaves"),
+      totalSqMeter: parseNumericField(values.totalSqMeter, "Total Sq Meter"),
+      thickness: parseNumericField(values.thickness, "Thickness"),
     };
   }
 
@@ -337,11 +402,11 @@ async function mapLineItemToPayload(
       batchNo: null,
       logCode: null,
       palletNo: String(values.palletNo ?? "").trim() || null,
-      sheets: parseNumber(values.sheets),
-      totalSqMeter: parseNumber(values.totalSqMeter),
-      thickness: parseNumber(values.thickness),
-      length: parseNumber(values.length),
-      width: parseNumber(values.width),
+      sheets: parseNumericField(values.sheets, "Sheets"),
+      totalSqMeter: parseNumericField(values.totalSqMeter, "Total Sq Meter"),
+      thickness: parseNumericField(values.thickness, "Thickness"),
+      length: parseNumericField(values.length, "Length"),
+      width: parseNumericField(values.width, "Width"),
     };
   }
 
@@ -368,7 +433,7 @@ async function mapLineItemToPayload(
       brandName: String(values.brandName ?? "").trim() || null,
       unitId,
       unitName: unitName || null,
-      quantity: parseNumber(values.quantity),
+      quantity: parseNumericField(values.quantity, "Quantity"),
     };
   }
 
@@ -377,8 +442,8 @@ async function mapLineItemToPayload(
     ...base,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
     logCode: null,
-    height: parseNumber(values.height ?? values.thickness),
-    cbm: parseNumber(values.cbm),
+    height: parseNumericField(values.height ?? values.thickness, "Height"),
+    cbm: parseNumericField(values.cbm, "CBM"),
   };
 }
 

@@ -1,16 +1,29 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { EnterpriseDataTable } from "../../../../components/data-display/EnterpriseDataTable";
-import { useWarehouseCMovedRows } from "../../shared/warehouseCTransferStore";
+import {
+  toApiColumnFilters,
+  type ColumnFilterValue,
+} from "../../../shared/columnFilters";
+import {
+  fetchProductionColumnDropdown,
+  fetchProductionWarehouseInventory,
+  type ProductionInventoryItem,
+} from "../api/productionWarehouseApi";
+import { queryKeys } from "../../../../query/queryKeys";
+import { useDebouncedValue } from "../../../../query/useDebouncedValue";
 import {
   sawingColumns,
   type SawingRow,
 } from "../types/productionWarehouseTypes";
+import type { ProductionListQueryState } from "../productionListQuery";
 
 export interface SawingTabProps {
   warehouseName: string;
@@ -22,130 +35,164 @@ export interface SawingTabProps {
     | Dispatch<SetStateAction<SawingRow[]>>
     | ((rows: SawingRow[]) => void)
     | undefined;
+  onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
+}
+
+function mapApiItem(item: ProductionInventoryItem): SawingRow {
+  return {
+    id: String(item.id),
+    storageSrNo: String(item.storageSrNo ?? ""),
+    issuedDate: (item.inwardDate ?? item.issuedDate ?? "") as string | Date,
+    sawingDate: (item.sawingDate ?? item.processDate ?? "") as string | Date,
+    itemName: String(item.itemName ?? ""),
+    subCategory: String(item.subCategory ?? item.itemSubCategory ?? ""),
+    batchNo: String(item.batchNo ?? item.logNo ?? ""),
+    batchNoCode: String(item.batchNoCode ?? ""),
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? item.height ?? ""),
+    cbm: String(item.cbm ?? ""),
+    cbf: String(item.cbf ?? ""),
+    remark: String(item.remark ?? ""),
+    createdBy: String(item.createdBy ?? ""),
+    updatedBy: String(item.updatedBy ?? ""),
+    inventorySlug: "sawing",
+    inventoryRecordId: item.inventoryRecordId
+      ? String(item.inventoryRecordId)
+      : String(item.id),
+  };
 }
 
 export function SawingTab({
   searchValue,
-  warehouseName,
+  warehouseId,
   canView,
   onExportReady,
+  onListQueryChange,
 }: SawingTabProps) {
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const movedRows = useWarehouseCMovedRows();
-  const sawingRows = useMemo(() => {
-    const currentWarehouse = warehouseName.trim().toLowerCase();
-
-    return movedRows
-      .filter((row) => readMovedText(row, ["inventorySlug"]) === "sawing")
-      .filter((row) => {
-        const storedWarehouse = readMovedText(row, ["warehouseName", "destinationWarehouse"]).toLowerCase();
-        if (!storedWarehouse || storedWarehouse === "warehouse c") {
-          return true;
-        }
-
-        return storedWarehouse === currentWarehouse;
-      })
-      .map(toSawingRow);
-  }, [movedRows, warehouseName]);
-
-  const filteredRows = useMemo(() => {
-    const normalizedSearch = searchValue.trim().toLowerCase();
-    if (!normalizedSearch) return sawingRows;
-    return sawingRows.filter((row) =>
-      Object.values(row).some((val) =>
-        String(val ?? "")
-          .toLowerCase()
-          .includes(normalizedSearch),
-      ),
-    );
-  }, [sawingRows, searchValue]);
+  const [sortBy, setSortBy] = useState<string | null>("storageSrNo");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc" | null>("desc");
+  const [columnFilters, setColumnFilters] = useState<
+    Partial<Record<string, ColumnFilterValue>>
+  >({});
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+  const debouncedSearch = useDebouncedValue(searchValue, 150);
 
   useEffect(() => {
     setPage(1);
-  }, [searchValue]);
+  }, [searchValue, warehouseId]);
+
+  const apiFilters = toApiColumnFilters(columnFilters);
+  const listParams = {
+    warehouseId,
+    page,
+    limit: rowsPerPage,
+    search: debouncedSearch.trim(),
+    sortBy,
+    sortOrder,
+    filters: apiFilters,
+  };
+  const listQuery = useQuery({
+    queryKey: queryKeys.warehouse.production.list("sawing", listParams),
+    enabled: Boolean(warehouseId),
+    placeholderData: keepPreviousData,
+    queryFn: () =>
+      fetchProductionWarehouseInventory({
+        warehouseId,
+        tab: "sawing",
+        page,
+        limit: rowsPerPage,
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+      }),
+  });
+
+  const rows =
+    listQuery.data && Array.isArray(listQuery.data.items)
+      ? listQuery.data.items.map(mapApiItem)
+      : [];
+  const totalCount = listQuery.data?.total ?? 0;
+  const isLoading = Boolean(warehouseId) && listQuery.isLoading;
 
   useEffect(() => {
-    onExportReady?.(filteredRows);
-  }, [filteredRows, onExportReady]);
+    onListQueryChange?.({
+      sortBy,
+      sortOrder,
+      filters: apiFilters,
+      totalCount,
+    });
+  }, [sortBy, sortOrder, apiFilters, totalCount, onListQueryChange]);
 
-  const pagedRows = useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    return filteredRows.slice(start, start + rowsPerPage);
-  }, [filteredRows, page, rowsPerPage]);
+  useEffect(() => {
+    onExportReady?.(rows);
+  }, [onExportReady, rows]);
+
+  const loadDropdownOptions = useCallback(
+    async (columnKey: string) => {
+      if (!warehouseId) return;
+      try {
+        const result = await fetchProductionColumnDropdown({
+          warehouseId,
+          tab: "sawing",
+          column: columnKey,
+        });
+        setFilterOptionsByColumn((prev) => ({
+          ...prev,
+          [columnKey]: result.options,
+        }));
+      } catch {
+        setFilterOptionsByColumn((prev) => ({
+          ...prev,
+          [columnKey]: [],
+        }));
+      }
+    },
+    [warehouseId],
+  );
 
   return (
     <EnterpriseDataTable
       key="production-sawing"
       actions={[]}
       columns={sawingColumns}
+      columnFilters={columnFilters}
       emptyStateLabel="No sawing inventory records are available."
+      filterOptionsByColumn={filterOptionsByColumn}
+      loading={isLoading}
+      loadingLabel="Loading sawing inventory..."
+      onColumnFilterOpen={(columnKey) => {
+        void loadDropdownOptions(columnKey);
+      }}
+      onColumnFiltersChange={(next) => {
+        setColumnFilters(next);
+        setPage(1);
+      }}
       pagination={{
         page,
         rowsPerPage,
-        totalCount: filteredRows.length,
+        totalCount,
         onPageChange: setPage,
         onRowsPerPageChange: (newPerPage: number) => {
           setRowsPerPage(newPerPage);
           setPage(1);
         },
       }}
-      rows={canView ? pagedRows : []}
+      rows={canView ? rows : []}
+      sorting={{
+        sortBy,
+        sortOrder,
+        onSortChange: (key: string, order: "asc" | "desc") => {
+          setSortBy(key);
+          setSortOrder(order);
+          setPage(1);
+        },
+      }}
     />
   );
-}
-
-function toSawingRow(row: object): SawingRow {
-  return {
-    id: readMovedText(row, ["id"]),
-    storageSrNo: readMovedText(row, ["storageSrNo"]),
-    issuedDate: readMovedDate(row, ["issuedDate", "issueDate"]),
-    sawingDate: readMovedDate(row, ["sawingDate", "processDate"]),
-    itemName: readMovedText(row, ["itemName"]),
-    subCategory: readMovedText(row, ["subCategory", "itemSubCategory"]),
-    batchNo: readMovedText(row, ["batchNo", "logNo", "logCode"]),
-    batchNoCode: readMovedText(row, ["batchNoCode"]),
-    length: readMovedText(row, ["length"]),
-    width: readMovedText(row, ["width"]),
-    thickness: readMovedText(row, ["thickness", "height"]),
-    cbm: readMovedText(row, ["cbm", "receivedCbm"]),
-    cbf: readMovedText(row, ["cbf"]),
-    remark: readMovedText(row, ["remark"]),
-    createdBy: readMovedText(row, ["createdBy"]),
-    updatedBy: readMovedText(row, ["updatedBy"]),
-    inventorySlug: "sawing",
-    inventoryRecordId: readMovedText(row, ["inventoryRecordId"]),
-  };
-}
-
-function readMovedDate(row: object, keys: readonly string[]) {
-  const record = row as Record<string, unknown>;
-  for (const key of keys) {
-    const value = record[key];
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return value;
-    }
-    if (typeof value === "string" && value.trim()) {
-      const parsed = new Date(value);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed;
-      }
-      return value.trim();
-    }
-  }
-  return "";
-}
-
-function readMovedText(row: object, keys: readonly string[]) {
-  const record = row as Record<string, unknown>;
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value);
-    }
-  }
-  return "";
 }
