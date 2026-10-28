@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { FileOutput, Plus } from "lucide-react";
 import { Button, Stack } from "@mui/material";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { ModuleProcessTabs } from "../../../components/navigation/ModuleProcessTabs";
 import { MasterPageShell } from "../../masters/shared";
@@ -45,6 +45,7 @@ import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
 import { getFactoryIssuedWorkItems } from "../../factory/shared/factoryIssuedWorkStore";
 import {
   exportProductionInventoryApi,
+  getBoardIssueToOrderPath,
   issueOrderToProduction,
   type ProductionInventoryItem,
 } from "../production/api/productionWarehouseApi";
@@ -70,6 +71,7 @@ export function ProductionWarehousePage({
   warehouseId,
   warehouseName = "Warehouse C",
 }: ProductionWarehousePageProps) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebouncedValue(searchValue, 450);
@@ -135,10 +137,30 @@ export function ProductionWarehousePage({
     [selectedIssueOrder],
   );
 
-  const showIssueOrderButton =
-    !isSampleSheetsTab && !isSawingTab && canEditWarehouseC;
+  const isBoardIssueTab =
+    activeInventory === "plywood" || activeInventory === "mdf";
+  const isLegacyIssueDialogTab =
+    activeInventory === "raw-veneer" || activeInventory === "consumables";
 
-  const handleOpenIssueOrderDialog = () => {
+  const showIssueOrderButton =
+    !isSampleSheetsTab &&
+    !isSawingTab &&
+    canEditWarehouseC &&
+    (isBoardIssueTab || isLegacyIssueDialogTab);
+
+  const handleOpenIssueOrder = () => {
+    if (isBoardIssueTab) {
+      if (!warehouseId) {
+        return;
+      }
+      navigate(
+        getBoardIssueToOrderPath({
+          warehouseId,
+          materialType: activeInventory as "plywood" | "mdf",
+        }),
+      );
+      return;
+    }
     setIssueOrderValues({ orderItemNo: "", orderNo: "" });
     setIssueOrderDialogOpen(true);
   };
@@ -328,7 +350,7 @@ export function ProductionWarehousePage({
               <Button
                 variant="contained"
                 startIcon={<Plus size={15} />}
-                onClick={handleOpenIssueOrderDialog}
+                onClick={handleOpenIssueOrder}
                 sx={(theme) => getListingToolbarButtonSx(theme)}
               >
                 Issue Order
@@ -419,15 +441,17 @@ export function ProductionWarehousePage({
         )}
       </Stack>
 
-      <IssueOrderDialog
-        itemNoOptions={issueOrderItemNoOptions}
-        onChange={setIssueOrderValues}
-        onClose={() => setIssueOrderDialogOpen(false)}
-        onSubmit={handleSubmitIssueOrder}
-        open={issueOrderDialogOpen}
-        orderNoOptions={issueOrderNoOptions}
-        values={issueOrderValues}
-      />
+      {isLegacyIssueDialogTab ? (
+        <IssueOrderDialog
+          itemNoOptions={issueOrderItemNoOptions}
+          onChange={setIssueOrderValues}
+          onClose={() => setIssueOrderDialogOpen(false)}
+          onSubmit={handleSubmitIssueOrder}
+          open={issueOrderDialogOpen}
+          orderNoOptions={issueOrderNoOptions}
+          values={issueOrderValues}
+        />
+      ) : null}
     </MasterPageShell>
   );
 }

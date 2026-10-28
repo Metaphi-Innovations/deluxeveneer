@@ -382,6 +382,25 @@ export async function moveStorageItemToProductionApi(
   });
 }
 
+export async function batchMoveStorageItemsToProductionApi(
+  tabSlug: string,
+  data: {
+    productionWarehouseId: string;
+    remark?: string | null;
+    items: Array<{
+      storageItemId: string;
+      gradeId: string;
+      quantity?: number | null;
+    }>;
+  }
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/${tabSlug}/move-to-production/batch`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: data,
+  });
+}
+
 export interface StorageKpiData {
   totalStock: { count: number; secondary: number };
   receivedToday: { count: number; secondary: number };

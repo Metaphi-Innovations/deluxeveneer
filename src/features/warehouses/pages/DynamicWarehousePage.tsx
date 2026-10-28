@@ -13,8 +13,8 @@ import { StorageWarehousePage } from "./StorageWarehousePage";
 import { ProductionWarehousePage } from "../production/ProductionWarehousePage";
 
 export function DynamicWarehousePage() {
-  const params = useParams<{ warehouseSlug: string }>();
-  const warehouseId = params.warehouseSlug ?? "";
+  const params = useParams<{ warehouseId?: string; warehouseSlug?: string }>();
+  const warehouseId = params.warehouseId ?? params.warehouseSlug ?? "";
   const [warehouseName, setWarehouseName] = useState("Warehouse");
   const [warehouseType, setWarehouseType] = useState("");
   const [errorMessage, setErrorMessage] = useState("");

@@ -18,6 +18,7 @@ import { ProfilePage } from "../features/profile";
 import { rolesPermissionsRoutes } from "../features/roles-permissions";
 import { userManagementRoutes } from "../features/user-management";
 import { DynamicWarehousePage } from "../features/warehouses";
+import { BoardIssueToOrderPage } from "../features/warehouses/production/pages/BoardIssueToOrderPage";
 import { FeaturePlaceholderPage } from "../features/shared/FeaturePlaceholderPage";
 import { ComponentLibraryPage } from "../pages/ComponentLibraryPage";
 
@@ -72,8 +73,17 @@ const router = createBrowserRouter([
         element: <Navigate replace to="/dashboard" />,
       },
       {
-        path: "warehouses/:warehouseSlug",
-        Component: DynamicWarehousePage,
+        path: "warehouses/:warehouseId",
+        children: [
+          {
+            index: true,
+            Component: DynamicWarehousePage,
+          },
+          {
+            path: "issue-order/:materialType",
+            Component: BoardIssueToOrderPage,
+          },
+        ],
       },
       {
         path: "inventory",
