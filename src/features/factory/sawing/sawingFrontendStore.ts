@@ -111,6 +111,10 @@ function writeState(next: SawingFlowState) {
   listeners.forEach((listener) => listener());
 }
 
+export function readSawingFlowState(): SawingFlowState {
+  return readState();
+}
+
 export function useSawingFlowState(): SawingFlowState {
   return useSyncExternalStore(
     (listener: () => void) => {
