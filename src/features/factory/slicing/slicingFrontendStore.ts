@@ -17,7 +17,9 @@ export type SlicingIssuedPatch = {
 type SlicingFlowState = {
   doneAvailableLeaves: Record<string, number>;
   extraDone: SlicingFlowRow[];
+  extraHistory: SlicingFlowRow[];
   hiddenDoneIds: string[];
+  hiddenHistoryIds: string[];
   hiddenIssuedIds: string[];
   issuedPatches: Record<string, SlicingIssuedPatch>;
   rejectedDoneIds: string[];
@@ -26,7 +28,9 @@ type SlicingFlowState = {
 const emptyState = (): SlicingFlowState => ({
   doneAvailableLeaves: {},
   extraDone: [],
+  extraHistory: [],
   hiddenDoneIds: [],
+  hiddenHistoryIds: [],
   hiddenIssuedIds: [],
   issuedPatches: {},
   rejectedDoneIds: [],
@@ -57,8 +61,12 @@ function readState(): SlicingFlowState {
           ? parsed.doneAvailableLeaves
           : {},
       extraDone: Array.isArray(parsed.extraDone) ? parsed.extraDone : [],
+      extraHistory: Array.isArray(parsed.extraHistory) ? parsed.extraHistory : [],
       hiddenDoneIds: Array.isArray(parsed.hiddenDoneIds)
         ? parsed.hiddenDoneIds.map(String)
+        : [],
+      hiddenHistoryIds: Array.isArray(parsed.hiddenHistoryIds)
+        ? parsed.hiddenHistoryIds.map(String)
         : [],
       hiddenIssuedIds: Array.isArray(parsed.hiddenIssuedIds)
         ? parsed.hiddenIssuedIds.map(String)
@@ -196,6 +204,16 @@ export function applySlicingListingRows<Row extends SlicingFlowRow>(
     });
   }
 
+  if (tab === "history") {
+    const hidden = new Set(state.hiddenHistoryIds);
+    const visibleRows = rows.filter((row) => !hidden.has(String(row.id)));
+    const existingIds = new Set(visibleRows.map((row) => String(row.id)));
+    const extras = state.extraHistory.filter(
+      (row) => !hidden.has(String(row.id)) && !existingIds.has(String(row.id)),
+    ) as Row[];
+    return [...extras, ...visibleRows];
+  }
+
   return [...rows];
 }
 
@@ -291,6 +309,87 @@ export function getSlicingDoneEditBlockReason(
     return "Edit is unavailable because an item from this slicing entry was rejected.";
   }
   return "";
+}
+
+export function getSlicingDoneRevertBlockReason(
+  selected: SlicingFlowRow,
+  definitionRows: readonly SlicingFlowRow[] = [],
+) {
+  const state = readState();
+  const historyForRow = state.extraHistory.some(
+    (row) =>
+      String(row.sourceDoneId ?? row.sourceRowId ?? "") === String(selected.id) ||
+      sameSlicingCreation(row, selected),
+  );
+  if (historyForRow) {
+    return "Revert is unavailable because leaves were issued to Drying.";
+  }
+
+  const reason = getSlicingDoneEditBlockReason(selected, definitionRows);
+  if (reason.includes("forwarded")) {
+    return "Revert is unavailable because leaves were issued to Drying.";
+  }
+  if (reason.includes("rejected")) {
+    return "Revert is unavailable because an item from this slicing entry was rejected.";
+  }
+  return "";
+}
+
+function issuedAliases(row: SlicingFlowRow) {
+  return [
+    row.sourceIssueId,
+    row.issueId,
+    row.workItemId,
+    row.storageSrNo,
+    row.sourceStorageId,
+    row.sourceRowId,
+  ]
+    .filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
+    .map(String);
+}
+
+export function revertSlicingDoneToIssued(row: SlicingFlowRow) {
+  const state = readState();
+  const doneId = String(row.id);
+  const cbm = Number(row.cbm) || 0;
+  const keys = Array.from(new Set(issuedAliases(row)));
+  const issuedPatches = { ...state.issuedPatches };
+  const existing = keys.map((key) => issuedPatches[key]).find(Boolean);
+
+  if (cbm > 0 && keys.length > 0) {
+    const nextPatch: SlicingIssuedPatch = existing
+      ? { ...existing, availableCbm: existing.availableCbm + cbm }
+      : {
+          availableCbm: cbm,
+          height: String(row.sourceHeight ?? row.height ?? row.thickness ?? ""),
+          length: String(row.sourceLength ?? row.length ?? ""),
+          width: String(row.sourceWidth ?? row.width ?? ""),
+        };
+    keys.forEach((key) => {
+      issuedPatches[key] = nextPatch;
+    });
+  }
+
+  const aliases = rowAliases(row);
+  writeState({
+    ...state,
+    extraDone: state.extraDone.filter((item) => String(item.id) !== doneId),
+    hiddenDoneIds: Array.from(new Set([...state.hiddenDoneIds, doneId, ...aliases])),
+    issuedPatches,
+    hiddenIssuedIds: state.hiddenIssuedIds.filter((id) => !keys.includes(id)),
+  });
+}
+
+export function recordSlicingHistory(rows: readonly SlicingFlowRow[]) {
+  if (rows.length === 0) return;
+  const state = readState();
+  writeState({
+    ...state,
+    extraHistory: [
+      ...rows.map((row) => ({ ...row, listingState: "history" })),
+      ...state.extraHistory,
+    ],
+  });
 }
 
 export function updateSlicingIssuedAvailability(

@@ -323,6 +323,17 @@ export async function issueVeneerBlocksToSlicingApi(
   });
 }
 
+export async function issueVeneerBlocksToSawingApi(
+  ids: string[],
+  remark?: string | null
+): Promise<void> {
+  const endpoint = `${BASE_PATH}/veneer-blocks/issue-to-sawing`;
+  await apiRequest<ApiResponse<any>>(endpoint, {
+    method: "POST",
+    body: { ids, remark },
+  });
+}
+
 export interface StorageProductionWarehouseOption {
   id: string;
   name: string;

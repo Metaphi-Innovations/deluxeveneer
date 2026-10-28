@@ -25,15 +25,17 @@ export function AddColorMasterPage() {
           ? { status }
           : { status: true }),
       });
-      if (created) {
-        const allRecords = await fetchColorsApi();
-        if (allRecords.length > 0) {
-          syncColorMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to save color.");
+      }
+      const allRecords = await fetchColorsApi();
+      if (allRecords.length > 0) {
+        syncColorMasterToStorage(allRecords);
       }
       void invalidateMaster("color");
     } catch (error) {
-      console.warn("Failed to create color via API, fallback will persist locally:", error);
+      console.warn("Failed to create color via API:", error);
+      throw error;
     }
   };
 

@@ -11,7 +11,6 @@ import {
   useTheme,
 } from "@mui/material";
 import {
-  ChevronLeft,
   Layers,
   MessageSquare,
   Package,
@@ -21,7 +20,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -55,10 +54,6 @@ export function ViewItemMasterPage() {
       : detailQuery.error instanceof Error
         ? detailQuery.error.message
         : "";
-
-  const handleBack = () => {
-    navigate(paths.list);
-  };
 
   const displayName = useMemo(() => {
     if (!row) return "Item";
@@ -99,10 +94,9 @@ export function ViewItemMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Item Name Master", to: paths.list },
-          { label: "View Item" },
+          { label: "View Item Master" },
         ]}
-        title="View Item"
-        subtitle=" "
+        title="View Item Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -119,35 +113,13 @@ export function ViewItemMasterPage() {
           { label: "Item Name Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Item"
+        title="View Item Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Item record not found.
-          </Typography>
-          <Button
-            onClick={handleBack}
-            sx={{
-              ...recordViewActionButtonSx,
-              mt: 2,
-              minHeight: 32,
-              height: 32,
-              borderRadius: "8px",
-              fontSize: "0.8125rem",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-            }}
-            variant="contained"
-          >
-            Back to Listing
-          </Button>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Item record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -158,27 +130,10 @@ export function ViewItemMasterPage() {
         { label: "Item Name Master", to: paths.list },
         { label: displayName || "View Item" },
       ]}
-      title="View Item"
+      title="View Item Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={16} />}
-            sx={{
-              ...actionButtonSx,
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              color: theme.customTokens.text.primary,
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderColor: theme.customTokens.borders.default,
-              },
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
 
           {canEdit && (
             <Button
@@ -394,7 +349,7 @@ export function ViewItemMasterPage() {
                 >
                   <ProfileField label="HSN Code" value={row.hsn || row.hsnCode ? String(row.hsn || row.hsnCode) : undefined} />
                   <ProfileField
-                    label="GST%"
+                    label="GST %"
                     value={
                       row.gst || row.gstNo || row.gstPercentage
                         ? `${String(row.gst || row.gstNo || row.gstPercentage).replace(/%/g, "")}%`

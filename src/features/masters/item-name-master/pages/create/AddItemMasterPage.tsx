@@ -7,7 +7,6 @@ import { QuickAddSubCategoryModal } from "../../../item-sub-category-master/Quic
 import { QuickAddColorModal } from "../../../color-master/QuickAddColorModal";
 import { QuickAddUnitModal } from "../../../unit-master/QuickAddUnitModal";
 import { MasterFormPage } from "../../../shared";
-import { createLocalMasterRecord } from "../../../shared/localMasterStore";
 import type { MasterDefinition, MasterRecord } from "../../../shared/types";
 import {
   createItemApi,
@@ -120,40 +119,20 @@ export function AddItemMasterPage() {
 
       const created = await createItemApi(payload);
 
-      if (created) {
-        const existing = getStoredItemMasterRows();
-        syncItemMasterToStorage([created, ...existing.filter((row) => row.id !== created.id)]);
+      if (!created) {
+        throw new Error("Unable to save item.");
+      }
 
-        const allRecords = await fetchItemsApi({ limit: 1000 });
-        if (allRecords.length > 0) {
-          syncItemMasterToStorage(allRecords);
-        }
-      } else {
-        const localRecord = createLocalMasterRecord(context.definition, context.values);
-        const existing = getStoredItemMasterRows();
-        syncItemMasterToStorage([
-          localRecord,
-          ...existing.filter((row) => row.id !== localRecord.id),
-        ]);
+      const existing = getStoredItemMasterRows();
+      syncItemMasterToStorage([created, ...existing.filter((row) => row.id !== created.id)]);
+
+      const allRecords = await fetchItemsApi({ limit: 1000 });
+      if (allRecords.length > 0) {
+        syncItemMasterToStorage(allRecords);
       }
       void invalidateMaster("item");
-    } catch (error: any) {
-      console.warn("Failed to create item via API:", error);
-      const message = error?.message || "";
-      if (
-        message.includes("already exists") ||
-        message.includes("Validation") ||
-        message.includes("required") ||
-        message.includes("cannot be empty")
-      ) {
-        throw error;
-      }
-      const localRecord = createLocalMasterRecord(context.definition, context.values);
-      const existing = getStoredItemMasterRows();
-      syncItemMasterToStorage([
-        localRecord,
-        ...existing.filter((row) => row.id !== localRecord.id),
-      ]);
+    } catch (error) {
+      throw error;
     }
   };
 

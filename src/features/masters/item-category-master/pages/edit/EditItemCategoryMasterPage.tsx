@@ -4,7 +4,6 @@ import { useParams } from "react-router";
 
 import { invalidateMaster } from "../../../../../query/queryClient";
 import { MasterFormPage } from "../../../shared";
-import { updateLocalMasterRecord } from "../../../shared/localMasterStore";
 import type { MasterDefinition, MasterRecord } from "../../../shared/types";
 import {
   fetchItemCategoriesApi,
@@ -85,19 +84,15 @@ export function EditItemCategoryMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status,
       });
-      if (updated) {
-        const allRecords = await fetchItemCategoriesApi();
-        if (allRecords.length > 0) {
-          syncItemCategoryMasterToStorage(allRecords);
-        }
-      } else if (context.row) {
-        updateLocalMasterRecord(context.definition, context.row, context.values);
+      if (!updated) {
+        throw new Error("Unable to save item category.");
+      }
+      const allRecords = await fetchItemCategoriesApi();
+      if (allRecords.length > 0) {
+        syncItemCategoryMasterToStorage(allRecords);
       }
     } catch (error) {
-      console.warn("Failed to update item category via API, persisting locally:", error);
-      if (context.row) {
-        updateLocalMasterRecord(context.definition, context.row, context.values);
-      }
+      throw error;
     }
     void invalidateMaster("itemCategory");
   };

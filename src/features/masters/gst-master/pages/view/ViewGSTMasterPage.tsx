@@ -11,16 +11,14 @@ import {
   useTheme,
 } from "@mui/material";
 import {
-  ChevronLeft,
   MessageSquare,
   Percent,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -54,10 +52,6 @@ export function ViewGSTMasterPage() {
       : detailQuery.error instanceof Error
         ? detailQuery.error.message
         : "";
-
-  const handleBack = () => {
-    navigate(paths.list);
-  };
 
   const displayName = useMemo(() => {
     if (!row) return "GST";
@@ -93,10 +87,9 @@ export function ViewGSTMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "GST Master", to: paths.list },
-          { label: "View GST" },
+          { label: "View GST Master" },
         ]}
-        title="View GST"
-        subtitle=" "
+        title="View GST Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -113,35 +106,13 @@ export function ViewGSTMasterPage() {
           { label: "GST Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View GST"
+        title="View GST Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            GST record not found.
-          </Typography>
-          <Button
-            onClick={handleBack}
-            sx={{
-              ...recordViewActionButtonSx,
-              mt: 2,
-              minHeight: 32,
-              height: 32,
-              borderRadius: "8px",
-              fontSize: "0.8125rem",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-            }}
-            variant="contained"
-          >
-            Back to Listing
-          </Button>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="GST record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -152,27 +123,10 @@ export function ViewGSTMasterPage() {
         { label: "GST Master", to: paths.list },
         { label: `GST ${displayName}` },
       ]}
-      title="View GST"
+      title="View GST Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={16} />}
-            sx={{
-              ...actionButtonSx,
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              color: theme.customTokens.text.primary,
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderColor: theme.customTokens.borders.default,
-              },
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
 
           {canEdit && (
             <Button
@@ -244,26 +198,8 @@ export function ViewGSTMasterPage() {
                       lineHeight: 1.25,
                     }}
                   >
-                    GST Rate: {displayName}
+                    {displayName}
                   </Typography>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                    sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}
-                  >
-                    <Chip
-                      label={`Rate: ${displayName}`}
-                      size="small"
-                      sx={{
-                        height: 22,
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        backgroundColor: theme.customTokens.surfaces.paper,
-                        border: `1px solid ${theme.customTokens.borders.default}`,
-                      }}
-                    />
-                  </Stack>
                 </Box>
               </Stack>
 
@@ -325,37 +261,6 @@ export function ViewGSTMasterPage() {
                 >
                   <ProfileField label="GST Percentage" value={displayName} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="GST Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

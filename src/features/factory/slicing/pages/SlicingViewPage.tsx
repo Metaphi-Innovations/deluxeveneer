@@ -2,7 +2,6 @@ import React, { useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Box,
-  Button,
   Chip,
   LinearProgress,
   Paper,
@@ -10,7 +9,6 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ChevronLeft } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import {
@@ -768,23 +766,6 @@ export const SlicingViewPage: React.FC = () => {
           </Box>
         )}
 
-        {/* Bottom Back Button */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", pt: 1 }}>
-          <Button
-            onClick={() => navigate(listPath)}
-            startIcon={<ChevronLeft size={16} />}
-            variant="outlined"
-            sx={{
-              borderRadius: "8px",
-              fontWeight: 600,
-              textTransform: "none",
-              px: 2.5,
-              height: 36,
-            }}
-          >
-            Back
-          </Button>
-        </Box>
       </Stack>
     </FactoryPageShell>
   );

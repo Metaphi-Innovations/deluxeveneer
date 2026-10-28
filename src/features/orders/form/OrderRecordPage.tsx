@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
@@ -16,7 +17,7 @@ import {
   Typography,
 } from "@mui/material";
 import type { Theme } from "@mui/material/styles";
-import { ChevronLeft, Info, Pencil, Save } from "lucide-react";
+import { Info, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams, useSearchParams, useLocation } from "react-router";
 
 import {
@@ -29,6 +30,7 @@ import {
   type MasterFieldValue,
   type MasterRecord,
 } from "../../masters/shared";
+import { fetchCustomerMasterDetail } from "../../masters/customer-master/api/customerMasterApi";
 import { canAccessPermission } from "../../permissions";
 import {
   recordFormActionButtonSx,
@@ -53,6 +55,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
 import {
+  appendCreatedOrderToStore,
   createOrderRecord,
   getCreateOrderFormFields,
   getOrderCustomerRows,
@@ -64,6 +67,7 @@ import {
   getOrderVariantLabel,
   ordersModuleConfig,
   orderViewFields,
+  setCachedOrderCustomerData,
   type OrderDraft,
   type OrderCreateVariant,
   type OrderLineItem,
@@ -72,12 +76,19 @@ import {
   updateOrderRecord,
   useOrderRecords,
 } from "../shared/ordersStore";
-import { refreshCustomerMasterCache } from "../../masters/customer-master/api/customerMasterApi";
 import {
   OrderLineItemsTable,
   type OrderLineItemsTableHandle,
 } from "./OrderLineItemsTable";
 import { allocateSampleToOrder } from "../../factory/shared/sampleSheetIdentityStore";
+import {
+  createOrderApi,
+  fetchNextOrderNoApi,
+  fetchOrderByIdApi,
+  fetchOrderDropdownsApi,
+  mapBackendOrderToOrderRecord,
+  updateOrderApi,
+} from "../api/ordersApi";
 
 interface OrderRecordPageProps {
   mode: "add" | "edit" | "view";
@@ -195,15 +206,33 @@ export function OrderRecordPage({
   );
   const activeVariant = mode === "add" ? createVariant : recordVariant;
   const [customerOptionsVersion, setCustomerOptionsVersion] = useState(0);
-  const activeFields = useMemo(
-    () =>
+  const activeFields = useMemo(() => {
+    const rawFields =
       mode === "view"
         ? orderViewFields
         : activeVariant
           ? getCreateOrderFormFields(activeVariant)
-          : getOrderFormFields(),
-    [activeVariant, customerOptionsVersion, mode],
-  );
+          : getOrderFormFields();
+
+    return rawFields.map((field) => {
+      if (field.key === "customerName") {
+        return {
+          ...field,
+          onOpenDropdown: () => {
+            void fetchOrderDropdownsApi({ type: "customers" })
+              .then((data) => {
+                if (data?.customers && data.customers.length > 0) {
+                  setCachedOrderCustomerData(data.customers);
+                  setCustomerOptionsVersion((v) => v + 1);
+                }
+              })
+              .catch(() => {});
+          },
+        };
+      }
+      return field;
+    });
+  }, [activeVariant, customerOptionsVersion, mode]);
   const pageTitle = getOrderPageTitle(mode, activeVariant);
   const activeOrderTypeLabel = activeVariant
     ? getOrderVariantLabel(activeVariant)
@@ -212,6 +241,7 @@ export function OrderRecordPage({
     buildOrderInitialValues(activeFields, record, activeVariant),
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const lineItemsTableRef = useRef<OrderLineItemsTableHandle>(null);
   const [isCustomerDetailsOpen, setIsCustomerDetailsOpen] = useState(false);
@@ -241,31 +271,60 @@ export function OrderRecordPage({
   const canUseMode =
     mode === "add" ? canCreate : mode === "edit" ? canEdit : canView;
 
+  // When in add mode, fetch and display the auto-generated order number from the backend
   useEffect(() => {
+    if (mode !== "add") return;
+
+    let isMounted = true;
+    fetchNextOrderNoApi()
+      .then((nextOrderNo) => {
+        if (!isMounted || !nextOrderNo) return;
+        setValues((current) => ({
+          ...current,
+          orderNo: nextOrderNo,
+        }));
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode === "add" || !id) return;
+
+    let isMounted = true;
+    fetchOrderByIdApi(id)
+      .then((backendOrder) => {
+        if (!isMounted) return;
+        const { record: mappedRecord, lineItems: mappedItems } =
+          mapBackendOrderToOrderRecord(backendOrder);
+        appendCreatedOrderToStore(mappedRecord, mappedItems);
+        setValues(buildOrderInitialValues(activeFields, mappedRecord, activeVariant));
+        setLineItems(mappedItems);
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        const msg = err instanceof Error ? err.message : "Failed to load order from server.";
+        setErrorMessage(msg);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeFields, activeVariant, id, mode]);
+
+  useEffect(() => {
+    if (mode === "add") return;
     setValues(buildOrderInitialValues(activeFields, record, activeVariant));
-  }, [activeFields, activeVariant, record]);
+  }, [activeFields, activeVariant, mode, record]);
 
   useEffect(() => {
     setLineItems(record ? getOrderLineItems(record.id) : []);
   }, [record]);
 
-  useEffect(() => {
-    let ignore = false;
 
-    void refreshCustomerMasterCache()
-      .then(() => {
-        if (!ignore) {
-          setCustomerOptionsVersion((value) => value + 1);
-        }
-      })
-      .catch(() => {
-        // Keep order form usable even if customer master API is unavailable.
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   if ((mode === "edit" || mode === "view") && !record) {
     return (
@@ -278,7 +337,7 @@ export function OrderRecordPage({
       >
         <MasterSectionCard>
           <Typography variant="body2" color="text.secondary">
-            The requested order could not be found in the mock dataset.
+            The requested order could not be found.
           </Typography>
         </MasterSectionCard>
       </MasterPageShell>
@@ -391,14 +450,6 @@ export function OrderRecordPage({
               gap: theme.spacing(1.25),
             })}
           >
-            <Button
-              onClick={() => navigate(paths.list)}
-              startIcon={<ChevronLeft size={16} />}
-              sx={recordViewActionButtonSx}
-              variant="outlined"
-            >
-              Back
-            </Button>
 
             <Button
               onClick={() => {
@@ -500,6 +551,20 @@ export function OrderRecordPage({
                   ...current,
                   [key]: value,
                 }));
+
+                // When user selects from customer dropdown, call the specific customer dropdown API
+                if (key === "customerName" && typeof value === "string" && value.trim()) {
+                  void fetchOrderDropdownsApi({
+                    type: "customers",
+                    search: value.trim(),
+                  })
+                    .then((data) => {
+                      if (data?.customers && data.customers.length > 0) {
+                        setCachedOrderCustomerData(data.customers);
+                      }
+                    })
+                    .catch(() => {});
+                }
               }}
               showRequiredErrors={hasSubmitted}
               values={{
@@ -507,8 +572,7 @@ export function OrderRecordPage({
                 orderNo:
                   (typeof values.orderNo === "string" && values.orderNo.trim()
                     ? values.orderNo
-                    : record?.orderNo) ||
-                  (mode === "add" ? "Auto-generated" : ""),
+                    : record?.orderNo) || "",
               }}
             />
           </Stack>
@@ -525,10 +589,12 @@ export function OrderRecordPage({
 
         <OrderFormFooter
           createLayout={mode === "add"}
+          customerState={selectedCustomer?.state ? String(selectedCustomer.state) : ""}
+          isSaving={isSaving}
           lineItems={lineItems}
           onCancel={() => navigate(paths.list)}
-          onSave={() => {
-            if (!canUseMode) {
+          onSave={async () => {
+            if (!canUseMode || isSaving) {
               return;
             }
 
@@ -566,35 +632,68 @@ export function OrderRecordPage({
                 payload.orderType = getOrderVariantLabel(activeVariant);
               }
 
-              const createdId = createOrderRecord(payload);
-              if (samplePrefill?.fromSampleSheet && samplePrefill.sampleNo) {
-                const createdOrder = getOrderRecord(createdId);
-                const issuedSheets = lineItems.reduce((total, item) => {
-                  const parsed = Number(
-                    String(item.quantitySheets ?? "").replace(/[^\d.]/g, ""),
-                  );
-                  return total + (Number.isFinite(parsed) ? parsed : 0);
-                }, 0);
-                allocateSampleToOrder({
-                  sampleNo: samplePrefill.sampleNo,
-                  orderNo: createdOrder?.orderNo ?? createdId,
-                  sheets: issuedSheets,
+              setIsSaving(true);
+              try {
+                // Call real Create Order Backend API
+                const createdBackendOrder = await createOrderApi(payload);
+                const { record: mappedRecord, lineItems: mappedItems } =
+                  mapBackendOrderToOrderRecord(createdBackendOrder);
+
+                // Update in-memory & local storage sync for listings
+                appendCreatedOrderToStore(mappedRecord, mappedItems);
+
+                if (samplePrefill?.fromSampleSheet && samplePrefill.sampleNo) {
+                  const issuedSheets = lineItems.reduce((total, item) => {
+                    const parsed = Number(
+                      String(item.quantitySheets ?? "").replace(/[^\d.]/g, ""),
+                    );
+                    return total + (Number.isFinite(parsed) ? parsed : 0);
+                  }, 0);
+                  allocateSampleToOrder({
+                    sampleNo: samplePrefill.sampleNo,
+                    orderNo: mappedRecord.orderNo,
+                    sheets: issuedSheets,
+                  });
+                }
+
+                navigate(paths.list, {
+                  state: {
+                    orderFlashMessage: `Order ${mappedRecord.orderNo} created successfully.`,
+                  },
                 });
+              } catch (err: unknown) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to create order on server. Please check your network or inputs.";
+                setErrorMessage(message);
+              } finally {
+                setIsSaving(false);
               }
             } else if (record) {
-              updateOrderRecord(record.id, payload);
+              setIsSaving(true);
+              try {
+                const updatedBackendOrder = await updateOrderApi(record.id, payload);
+                const { record: mappedRecord, lineItems: mappedItems } =
+                  mapBackendOrderToOrderRecord(updatedBackendOrder);
+
+                appendCreatedOrderToStore(mappedRecord, mappedItems);
+
+                navigate(paths.list, {
+                  state: {
+                    orderFlashMessage: `Order ${mappedRecord.orderNo} updated successfully.`,
+                  },
+                });
+              } catch (err: unknown) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : "Failed to update order on server. Please check your network or inputs.";
+                setErrorMessage(message);
+              } finally {
+                setIsSaving(false);
+              }
             }
-
-            const isEdit = mode !== "add" && Boolean(record);
-            const successMsg = isEdit
-              ? "Order updated successfully."
-              : "Order created successfully.";
-
-            navigate(paths.list, {
-              state: {
-                orderFlashMessage: successMsg,
-              },
-            });
           }}
         />
       </Stack>
@@ -671,6 +770,7 @@ function getOrderDetailsFields(
         key: "orderNo",
         label: "Order No",
         type: "text",
+        placeholder: "Auto-generated",
         readOnly: true,
       });
       continue;
@@ -766,16 +866,30 @@ function OrderHeaderFields({
 
 function OrderFormFooter({
   createLayout,
+  customerState = "",
+  isSaving = false,
   lineItems,
   onCancel,
   onSave,
 }: {
   createLayout: boolean;
+  customerState?: string;
+  isSaving?: boolean;
   lineItems: readonly OrderLineItem[];
   onCancel: () => void;
   onSave: () => void;
 }) {
   const totals = computeOrderLineTotals(lineItems);
+  const normCustomerState = (customerState || "").trim().toLowerCase();
+  // Deluxe Veneers primary/factory state is Gujarat (or Maharashtra)
+  // If customer is within the same state (Gujarat/Maharashtra or unspecified), apply CGST + SGST (9% + 9%)
+  // If customer is from a different state (e.g. Rajasthan, Delhi, Karnataka, etc.), apply IGST (18%)
+  const isInterState = Boolean(normCustomerState && normCustomerState !== "gujarat" && normCustomerState !== "maharashtra");
+  const cgstAmount = isInterState ? 0 : totals.orderAmount * 0.09;
+  const sgstAmount = isInterState ? 0 : totals.orderAmount * 0.09;
+  const igstAmount = isInterState ? totals.orderAmount * 0.18 : 0;
+  const totalTax = cgstAmount + sgstAmount + igstAmount;
+  const totalInvoiceAmount = totals.orderAmount + totalTax;
 
   if (!createLayout) {
     return (
@@ -809,7 +923,7 @@ function OrderFormFooter({
           <OrderTotalMetric label="Total SQF" value={formatTotalNumber(totals.totalSqf, 3)} />
           <OrderTotalMetric emphasize label="Order Amount" value={formatCurrency(totals.orderAmount, { withSymbol: true })} />
         </Box>
-        <OrderFooterActions onCancel={onCancel} onSave={onSave} />
+        <OrderFooterActions isSaving={isSaving} onCancel={onCancel} onSave={onSave} />
       </Box>
     );
   }
@@ -859,17 +973,119 @@ function OrderFormFooter({
           />
         </Box>
 
-        <OrderFooterActions onCancel={onCancel} onSave={onSave} responsive />
+        {/* Invoice Totals Box */}
+        <Box
+          sx={(theme) => ({
+            backgroundColor: theme.customTokens.surfaces.alt,
+            border: `1px solid ${theme.customTokens.borders.default}`,
+            borderRadius: "8px",
+            minWidth: { xs: "100%", sm: "320px" },
+            p: 1.5,
+          })}
+        >
+          <Typography
+            sx={(theme) => ({
+              borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+              color: theme.customTokens.text.primary,
+              fontSize: "12px",
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              pb: 0.75,
+              textTransform: "uppercase",
+            })}
+          >
+            Invoice Totals
+          </Typography>
+          <Stack spacing={0.65} sx={{ pt: 1 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Typography sx={(theme) => ({ color: theme.customTokens.text.secondary, fontSize: "12px" })}>
+                Sub Total
+              </Typography>
+              <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "12px", fontWeight: 600 })}>
+                {formatCurrency(totals.orderAmount, { withSymbol: true })}
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Typography sx={(theme) => ({ color: theme.customTokens.text.secondary, fontSize: "12px" })}>
+                Taxable Amount
+              </Typography>
+              <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "12px", fontWeight: 600 })}>
+                {formatCurrency(totals.orderAmount, { withSymbol: true })}
+              </Typography>
+            </Box>
+            {isInterState ? (
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Typography sx={(theme) => ({ color: theme.customTokens.text.secondary, fontSize: "12px" })}>
+                  IGST (18%)
+                </Typography>
+                <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "12px", fontWeight: 600 })}>
+                  {formatCurrency(igstAmount, { withSymbol: true })}
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Typography sx={(theme) => ({ color: theme.customTokens.text.secondary, fontSize: "12px" })}>
+                    CGST (9%)
+                  </Typography>
+                  <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "12px", fontWeight: 600 })}>
+                    {formatCurrency(cgstAmount, { withSymbol: true })}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <Typography sx={(theme) => ({ color: theme.customTokens.text.secondary, fontSize: "12px" })}>
+                    SGST (9%)
+                  </Typography>
+                  <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "12px", fontWeight: 600 })}>
+                    {formatCurrency(sgstAmount, { withSymbol: true })}
+                  </Typography>
+                </Box>
+              </>
+            )}
+            <Box
+              sx={(theme) => ({
+                borderTop: `1px solid ${theme.customTokens.borders.default}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                pt: 0.75,
+              })}
+            >
+              <Typography sx={(theme) => ({ color: theme.customTokens.text.primary, fontSize: "13px", fontWeight: 700 })}>
+                Total
+              </Typography>
+              <Typography sx={(theme) => ({ color: theme.customTokens.brand.primary, fontSize: "14px", fontWeight: 700 })}>
+                {formatCurrency(totalInvoiceAmount, { withSymbol: true })}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+      </Box>
+
+      {/* Action buttons row below Order Summary & Invoice Totals */}
+      <Box
+        sx={(theme) => ({
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          pt: theme.spacing(1.5),
+          borderTop: `1px solid ${theme.customTokens.borders.default}`,
+          mt: theme.spacing(1),
+        })}
+      >
+        <OrderFooterActions isSaving={isSaving} onCancel={onCancel} onSave={onSave} responsive />
       </Box>
     </Box>
   );
 }
 
 function OrderFooterActions({
+  isSaving = false,
   onCancel,
   onSave,
   responsive = false,
 }: {
+  isSaving?: boolean;
   onCancel: () => void;
   onSave: () => void;
   responsive?: boolean;
@@ -886,17 +1102,18 @@ function OrderFooterActions({
         width: responsive ? { xs: "100%", sm: "auto" } : "auto",
       })}
     >
-      <Button type="button" onClick={onCancel} sx={recordFormActionButtonSx} variant="outlined">
+      <Button disabled={isSaving} type="button" onClick={onCancel} sx={recordFormActionButtonSx} variant="outlined">
         Cancel
       </Button>
       <Button
+        disabled={isSaving}
         type="button"
         onClick={onSave}
         startIcon={<Save size={16} />}
         sx={recordFormActionButtonSx}
         variant="contained"
       >
-        Save Order
+        {isSaving ? "Saving..." : "Save Order"}
       </Button>
     </Box>
   );
@@ -1066,10 +1283,32 @@ function CustomerDetailsDialog({
   onClose: () => void;
   open: boolean;
 }) {
+  const [detailCustomer, setDetailCustomer] = useState<MasterRecord | undefined>(customer);
+
+  useEffect(() => {
+    setDetailCustomer(customer);
+    if (!open || !customer?.id) return;
+    
+    // Call the View API for customer details when (i) button is opened
+    void fetchCustomerMasterDetail(customer.id)
+      .then((data) => {
+        if (data) {
+          setDetailCustomer((prev) => ({
+            ...(prev ?? {}),
+            ...data,
+            customerName: data.customerName || prev?.customerName || "",
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [open, customer]);
+
+  const activeData = detailCustomer ?? customer;
+
   return (
     <Dialog
       fullWidth
-      maxWidth={false}
+      maxWidth="sm"
       onClose={onClose}
       open={open}
       slotProps={{
@@ -1077,16 +1316,8 @@ function CustomerDetailsDialog({
           sx: (theme) => ({
             borderRadius: `${theme.customTokens.radius.md}px`,
             boxShadow: theme.customTokens.elevation.md,
-            maxHeight: "none",
-            overflow: "visible",
-            outline: "none",
-            width: "min(96vw, 1760px)",
-            "&:focus": {
-              outline: "none",
-            },
-            "&:focus-visible": {
-              outline: "none",
-            },
+            overflow: "hidden",
+            width: { xs: "92vw", sm: "520px" },
           }),
         },
       }}
@@ -1094,37 +1325,78 @@ function CustomerDetailsDialog({
       <DialogTitle
         sx={(theme) => ({
           borderBottom: `1px solid ${theme.customTokens.borders.default}`,
-          fontSize: theme.typography.h3.fontSize,
+          fontSize: "1rem",
           fontWeight: 700,
-          px: theme.spacing(2),
-          py: theme.spacing(1.5),
+          px: theme.spacing(2.5),
+          py: theme.spacing(1.75),
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         })}
       >
-        Customer Details
+        <span>Customer Details</span>
+        <Button
+          onClick={onClose}
+          size="small"
+          sx={{ minWidth: "auto", p: 0.5, color: "text.secondary" }}
+        >
+          ✕
+        </Button>
       </DialogTitle>
 
       <DialogContent
         sx={(theme) => ({
-          px: theme.spacing(2),
-          py: theme.spacing(2),
+          px: theme.spacing(3),
+          pt: `${theme.spacing(2.75)} !important`,
+          pb: theme.spacing(2.5),
         })}
       >
-        <Stack sx={(theme) => ({ gap: theme.spacing(2) })}>
-          <OrderDetailTable
-            columns={customerDetailColumns}
-            emptyLabel="Customer details are not available."
-            fitToContainer
-            rows={customer ? [customer] : []}
-            title="Selected Customer"
-          />
-
-          <Box sx={{ display: "flex", justifyContent: "center" }}>
-            <Button onClick={onClose} variant="contained">
-              Close
-            </Button>
+        {activeData ? (
+          <Box
+            sx={(theme) => ({
+              display: "grid",
+              gap: theme.spacing(1.5),
+              gridTemplateColumns: "repeat(2, 1fr)",
+            })}
+          >
+            {customerDetailColumns.map((col) => {
+              const val = formatDetailValue(col.getValue(activeData));
+              return (
+                <Stack key={col.label} spacing={0.25} sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={(theme) => ({
+                      color: theme.customTokens.text.secondary,
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                    })}
+                  >
+                    {col.label}
+                  </Typography>
+                  <Typography
+                    sx={(theme) => ({
+                      color: theme.customTokens.text.primary,
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      wordBreak: "break-word",
+                    })}
+                  >
+                    {val}
+                  </Typography>
+                </Stack>
+              );
+            })}
           </Box>
-        </Stack>
+        ) : (
+          <Typography color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+            Customer details are not available.
+          </Typography>
+        )}
       </DialogContent>
+      <DialogActions sx={{ px: 2.5, pb: 2 }}>
+        <Button onClick={onClose} variant="contained" size="small">
+          Close
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 }
@@ -1422,6 +1694,11 @@ function buildOrderInitialValues(
   return fields.reduce<Record<string, MasterFieldValue>>((accumulator, field) => {
     const value = record?.[field.key as keyof OrderRecord];
 
+    if (!record && field.key === "orderNo") {
+      accumulator[field.key] = "Auto-generated";
+      return accumulator;
+    }
+
     if (!record && variant && field.key === "orderType") {
       accumulator[field.key] = getOrderVariantLabel(variant);
       return accumulator;
@@ -1433,7 +1710,7 @@ function buildOrderInitialValues(
     }
 
     if (!record && field.key === "status") {
-      accumulator[field.key] = "Draft";
+      accumulator[field.key] = "Pending";
       return accumulator;
     }
 

@@ -40,7 +40,7 @@ export function EditHSNMasterPage() {
       }
       void invalidateMaster("hsn");
     } catch (error) {
-      console.warn("Failed to update HSN record via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

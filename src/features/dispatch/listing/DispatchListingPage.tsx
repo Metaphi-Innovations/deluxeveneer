@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Snackbar, Stack } from "@mui/material";
-import { CheckCircle2, Eye, RotateCcw, Truck } from "lucide-react";
+import { Eye, RotateCcw, Truck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -19,7 +19,6 @@ import { useDispatchList } from "../hooks/useDispatchList";
 import { canAccessPermission } from "../../permissions";
 import { listingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { DispatchMarkDoneDialog } from "../form/DispatchMarkDoneDialog";
 
 const dispatchTabs = [
   { label: "Issued for Dispatch", value: "issued" },
@@ -37,9 +36,6 @@ export function DispatchPage() {
     setActiveTab,
     setSearchValue,
   } = useDispatchList();
-  const [markDoneRecord, setMarkDoneRecord] = useState<PackingRecord | null>(
-    null,
-  );
   const [revertRecord, setRevertRecord] = useState<PackingRecord | null>(null);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
@@ -81,18 +77,8 @@ export function DispatchPage() {
             },
           ]
         : []),
-      ...(canEdit || canCreate
-        ? [
-            {
-              id: "mark-dispatch-done",
-              label: "Mark Dispatch Done",
-              icon: CheckCircle2,
-              onSelect: (row: PackingRecord) => setMarkDoneRecord(row),
-            },
-          ]
-        : []),
     ],
-    [canCreate, canEdit, canView, navigate],
+    [canView, navigate],
   );
 
   const doneActions = useMemo<
@@ -165,7 +151,7 @@ export function DispatchPage() {
               onClick={() => navigate("/dispatch/add")}
               startIcon={<Truck size={14} />}
               sx={listingToolbarButtonSx}
-              variant="outlined"
+              variant="contained"
             >
               Create Dispatch
             </Button>
@@ -178,25 +164,13 @@ export function DispatchPage() {
           defaultRowsPerPage={10}
           emptyStateLabel={
             activeTab === "issued"
-              ? "No Packing Done records waiting for dispatch."
+              ? "No items issued for dispatch yet."
               : "No Dispatch Done records yet."
           }
           initialSort={{ key: "updatedDate", direction: "desc" }}
           rows={canView ? rows : []}
         />
       </Stack>
-
-      <DispatchMarkDoneDialog
-        open={Boolean(markDoneRecord)}
-        record={markDoneRecord}
-        onClose={() => setMarkDoneRecord(null)}
-        onDone={(rec) => {
-          setToastNotification({
-            message: `Order ${rec.orderNo} (Item ${rec.orderItemNo}) marked as Dispatch Done.`,
-            severity: "success",
-          });
-        }}
-      />
 
       <ConfirmationDialog
         cancelLabel="Keep Dispatched"

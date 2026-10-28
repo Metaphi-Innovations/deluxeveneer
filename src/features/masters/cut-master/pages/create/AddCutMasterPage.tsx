@@ -17,15 +17,17 @@ export function AddCutMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
-      if (created) {
-        const allRecords = await fetchCutsApi();
-        if (allRecords.length > 0) {
-          syncCutMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to save cut.");
+      }
+      const allRecords = await fetchCutsApi();
+      if (allRecords.length > 0) {
+        syncCutMasterToStorage(allRecords);
       }
       void invalidateMaster("cut");
     } catch (error) {
       console.warn("Failed to create cut via API:", error);
+      throw error;
     }
   };
 

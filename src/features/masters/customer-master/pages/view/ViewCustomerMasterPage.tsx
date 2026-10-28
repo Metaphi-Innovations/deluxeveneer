@@ -18,7 +18,7 @@ import {
 import { Eye, FileCheck, FileText, MapPin, MessageSquare, Pencil, UserCheck, X } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -26,7 +26,7 @@ import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../../../shared/formSectionStyles";
-import { getMasterPaths } from "../../../shared/utils";
+import { getGmailComposeUrl, getMasterPaths } from "../../../shared/utils";
 import {
   fetchCustomerMasterDetail,
   type CustomerMasterDetail,
@@ -97,7 +97,7 @@ export function ViewCustomerMasterPage() {
   }, [row]);
 
   const initials = getInitials(displayName);
-  const isActive = Boolean(row?.status);
+  const isActive = String(row?.status ?? "Active").toLowerCase() !== "inactive";
 
   const addresses: CustomerAddress[] = useMemo(() => {
     if (!row) return [];
@@ -134,10 +134,9 @@ export function ViewCustomerMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Customer Master", to: paths.list },
-          { label: "View Customer" },
+          { label: "View Customer Master" },
         ]}
-        title="View Customer"
-        subtitle=" "
+        title="View Customer Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -154,19 +153,13 @@ export function ViewCustomerMasterPage() {
           { label: "Customer Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Customer"
+        title="View Customer Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            {errorMessage || "The requested customer could not be found."}
-          </Typography>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error || errorMessage}
+          notFoundLabel="Customer record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -186,20 +179,20 @@ export function ViewCustomerMasterPage() {
       }}
       breadcrumbs={[
         { label: "Customer Master", to: paths.list },
-        { label: "View Customer" },
+        { label: "View Customer Master" },
       ]}
-      title="View Customer"
+      title="View Customer Master"
       contentGap={1.5}
       actions={
         row && canEdit ? (
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button
               onClick={() => navigate(paths.edit(String(row.id)))}
-              startIcon={<Pencil size={14} />}
+              startIcon={<Pencil size={16} />}
               sx={[recordViewActionButtonSx, actionButtonSx]}
               variant="contained"
             >
-              Edit
+              Edit Customer
             </Button>
           </Stack>
         ) : null
@@ -213,7 +206,7 @@ export function ViewCustomerMasterPage() {
         ) : null}
 
         {isLoading || !row ? (
-          <ContentLoader label="Loading..." minHeight={200} />
+          <ContentLoader label="Loading customer details..." minHeight={200} />
         ) : (
           <Stack spacing={2}>
             {/* Header Identity Card */}
@@ -311,6 +304,7 @@ export function ViewCustomerMasterPage() {
                   </Stack>
 
                   <Typography
+                    component="div"
                     sx={{
                       fontSize: "0.8125rem",
                       color: theme.customTokens.text.secondary,
@@ -319,11 +313,43 @@ export function ViewCustomerMasterPage() {
                   >
                     {[
                       row.companyName ? `Company: ${row.companyName}` : "",
-                      row.email ? String(row.email) : "",
+                      row.email ? String(row.email).trim() : "",
                       phoneValue || "",
                     ]
                       .filter(Boolean)
-                      .join(" · ")}
+                      .map((part, index, parts) => {
+                        const emailValue = row.email ? String(row.email).trim() : "";
+                        const isEmailPart = Boolean(emailValue) && part === emailValue;
+
+                        return (
+                          <Box
+                            key={`${part}-${index}`}
+                            component="span"
+                          >
+                            {isEmailPart ? (
+                              <Typography
+                                component="a"
+                                href={getGmailComposeUrl(emailValue)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                sx={{
+                                  color: theme.customTokens.brand.primary,
+                                  textDecoration: "none",
+                                  fontSize: "inherit",
+                                  "&:hover": {
+                                    textDecoration: "underline",
+                                  },
+                                }}
+                              >
+                                {emailValue}
+                              </Typography>
+                            ) : (
+                              part
+                            )}
+                            {index < parts.length - 1 ? " · " : null}
+                          </Box>
+                        );
+                      })}
                   </Typography>
                 </Stack>
               </Stack>
@@ -369,14 +395,17 @@ export function ViewCustomerMasterPage() {
                   <ProfileField label="Customer Name" value={row.customerName as string} />
                   <ProfileField label="Company Name" value={row.companyName as string} />
                   <ProfileField label="Customer Type" value={row.customerType as string} />
-                  <ProfileField label="Email" value={row.email as string} />
+                  <ProfileField
+                    label="Email"
+                    value={row.email as string}
+                    isEmail
+                  />
                   <ProfileField
                     label="Phone Number"
                     value={phoneValue || (row.phoneNumber as string)}
-                    isPhone
                   />
                   <ProfileField
-                    label="Date Of Birth"
+                    label="Date of Birth"
                     value={formatDisplayDate(row.dob as string | Date | undefined)}
                   />
                 </Box>
@@ -415,7 +444,7 @@ export function ViewCustomerMasterPage() {
                     title="GSTIN Document"
                     onPreview={openDocumentPreview}
                   />
-                  <ProfileField label="PAN Number" value={row.panNo as string} />
+                  <ProfileField label="PAN No" value={row.panNo as string} />
                   <DocumentStatusField
                     label="PAN Document"
                     fileUrl={row.panUpload as string}
@@ -677,12 +706,12 @@ export function ViewCustomerMasterPage() {
 function ProfileField({
   label,
   value,
-  isPhone = false,
+  isEmail = false,
   allowWrap = false,
 }: {
   label: string;
   value?: string | number | null | undefined;
-  isPhone?: boolean | undefined;
+  isEmail?: boolean | undefined;
   allowWrap?: boolean | undefined;
 }) {
   const theme = useTheme();
@@ -705,10 +734,12 @@ function ProfileField({
         {label}
       </Typography>
 
-      {isPhone && hasValue ? (
+      {isEmail && hasValue ? (
         <Typography
           component="a"
-          href={`tel:${rawValue.replace(/[^\d+]/g, "")}`}
+          href={getGmailComposeUrl(rawValue)}
+          target="_blank"
+          rel="noopener noreferrer"
           sx={{
             fontSize: "0.875rem",
             fontWeight: 500,

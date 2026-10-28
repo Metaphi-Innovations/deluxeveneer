@@ -22,6 +22,7 @@ import {
   syncItemCategoryMasterToStorage,
 } from "./api/itemCategoryMasterApi";
 import { invalidateMaster } from "../../../query/queryClient";
+import { getMasterApiErrorMessage } from "../shared/getMasterApiErrorMessage";
 import type { MasterRecord } from "../shared/types";
 
 interface QuickAddCategoryModalProps {
@@ -44,6 +45,7 @@ export function QuickAddCategoryModal({
   const [existingCategories, setExistingCategories] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [hsnError, setHsnError] = useState("");
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error" | "warning";
@@ -82,6 +84,7 @@ export function QuickAddCategoryModal({
       setGst("");
       setRemark("");
       setError("");
+      setHsnError("");
 
       loadHsns();
       loadCategories();
@@ -90,6 +93,8 @@ export function QuickAddCategoryModal({
 
   const handleHsnChange = (selectedHsn: string, customRows?: MasterRecord[]) => {
     setHsn(selectedHsn);
+    if (hsnError) setHsnError("");
+    if (error) setError("");
     const rowsToSearch = customRows || hsnRows;
     const matched = rowsToSearch.find(
       (r) => String(r.hsnCode || r.code || "").trim() === selectedHsn.trim(),
@@ -110,6 +115,16 @@ export function QuickAddCategoryModal({
       return;
     }
 
+    if (!hsn.trim()) {
+      const msg = "HSN Code is required.";
+      setError(msg);
+      setHsnError(msg);
+      setToastNotification({ message: msg, severity: "error" });
+      return;
+    }
+
+    setHsnError("");
+
     if (existingCategories.includes(trimmed.toLowerCase())) {
       const msg = `Category Name "${trimmed}" already exists.`;
       setError(msg);
@@ -129,6 +144,10 @@ export function QuickAddCategoryModal({
         status: true,
       });
 
+      if (!created) {
+        throw new Error("Unable to create category.");
+      }
+
       const allRecords = await fetchItemCategoriesApi({ limit: 1000 });
       if (allRecords.length > 0) {
         syncItemCategoryMasterToStorage(allRecords);
@@ -141,8 +160,8 @@ export function QuickAddCategoryModal({
       setTimeout(() => {
         onClose();
       }, 300);
-    } catch (err: any) {
-      const msg = err?.message || "Failed to create category.";
+    } catch (err) {
+      const msg = getMasterApiErrorMessage(err, "Unable to create category.");
       setError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {
@@ -247,12 +266,14 @@ export function QuickAddCategoryModal({
                     color: theme.customTokens.text.primary,
                   })}
                 >
-                  HSN Code
+                  HSN Code *
                 </Typography>
               </Box>
               <TextField
                 select
+                error={Boolean(hsnError)}
                 fullWidth
+                helperText={hsnError || " "}
                 value={hsn}
                 onChange={(e) => handleHsnChange(e.target.value)}
                 slotProps={{

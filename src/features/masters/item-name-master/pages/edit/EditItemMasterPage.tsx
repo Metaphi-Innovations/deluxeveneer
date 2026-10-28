@@ -8,7 +8,6 @@ import { QuickAddSubCategoryModal } from "../../../item-sub-category-master/Quic
 import { QuickAddColorModal } from "../../../color-master/QuickAddColorModal";
 import { QuickAddUnitModal } from "../../../unit-master/QuickAddUnitModal";
 import { MasterFormPage } from "../../../shared";
-import { updateLocalMasterRecord } from "../../../shared/localMasterStore";
 import type { MasterDefinition, MasterRecord } from "../../../shared/types";
 import {
   fetchItemsApi,
@@ -156,29 +155,19 @@ export function EditItemMasterPage() {
 
       const updated = await updateItemApi(editId, payload);
 
-      if (updated) {
-        const existing = getStoredItemMasterRows();
-        syncItemMasterToStorage(existing.map((row) => (row.id === editId ? updated : row)));
-        const allRecords = await fetchItemsApi({ limit: 1000 });
-        if (allRecords.length > 0) {
-          syncItemMasterToStorage(allRecords);
-        }
-      } else {
-        updateLocalMasterRecord(context.definition, context.row ?? { id: editId }, context.values);
+      if (!updated) {
+        throw new Error("Unable to save item.");
+      }
+
+      const existing = getStoredItemMasterRows();
+      syncItemMasterToStorage(existing.map((row) => (row.id === editId ? updated : row)));
+      const allRecords = await fetchItemsApi({ limit: 1000 });
+      if (allRecords.length > 0) {
+        syncItemMasterToStorage(allRecords);
       }
       void invalidateMaster("item");
-    } catch (error: any) {
-      console.warn("Failed to update item via API:", error);
-      const message = error?.message || "";
-      if (
-        message.includes("already exists") ||
-        message.includes("Validation") ||
-        message.includes("required") ||
-        message.includes("cannot be empty")
-      ) {
-        throw error;
-      }
-      updateLocalMasterRecord(context.definition, context.row ?? { id: editId }, context.values);
+    } catch (error) {
+      throw error;
     }
   };
 

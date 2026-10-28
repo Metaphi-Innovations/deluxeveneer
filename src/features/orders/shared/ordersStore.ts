@@ -5,7 +5,10 @@ import type {
   EnterpriseTableRow,
 } from "../../../components/data-display/EnterpriseDataTable";
 import { buildLocalMasterDefinition } from "../../masters/shared/localMasterStore";
-import { itemMasterDefinition } from "../../masters/shared/masterDefinitions";
+import {
+  customerMasterDefinition,
+  itemMasterDefinition,
+} from "../../masters/shared/masterDefinitions";
 import { getCachedCustomerMasterRows } from "../../masters/customer-master/api/customerMasterApi";
 import type { MasterFieldDefinition, MasterRecord } from "../../masters/shared";
 import {
@@ -20,6 +23,7 @@ const sqmToSqf = SQM_TO_SQF;
 
 export interface OrderLineItem {
   id: string;
+  orderItemNo?: string | undefined;
   productCategory: string;
   finishedType: string;
   salesItemName: string;
@@ -51,6 +55,7 @@ export interface OrderLineItem {
   designCode?: string | undefined;
   structuredCode?: string | undefined;
   remark: string;
+  status?: string | undefined;
 }
 
 export interface OrderRecord extends EnterpriseTableRow {
@@ -213,7 +218,7 @@ const salesCoordinatorOptions = [
 ] as const;
 
 export const statusOptions = [
-  "Draft",
+  "Pending",
   "Confirmed",
   "In Production",
   "Packed",
@@ -222,6 +227,9 @@ export const statusOptions = [
   "Completed",
   "Cancelled",
 ] as const;
+
+let cachedOrderCustomerOptions: string[] = [];
+let cachedOrderCustomerMasterRows: MasterRecord[] = [];
 
 export const orderFormFields: readonly MasterFieldDefinition[] =
   getOrderFormFields();
@@ -292,18 +300,57 @@ export function getCreateOrderFormFields(
     );
 }
 
+export function setCachedOrderCustomerData(customers: Array<{
+  customerName?: string | null;
+  companyName?: string | null;
+  [key: string]: any;
+}>) {
+  cachedOrderCustomerOptions = Array.from(
+    new Set(
+      customers
+        .map((c) => String(c.customerName || c.name || "").trim())
+        .filter(Boolean),
+    ),
+  );
+  cachedOrderCustomerMasterRows = customers.map((c, idx) => ({
+    id: c.id || `cust-${idx}`,
+    customerName: c.customerName || c.name || "",
+    companyName: c.companyName || "",
+    customerType: c.customerType || "",
+    email: c.email || "",
+    phoneNumber: c.phoneNumber || "",
+    gstNo: c.gstNo || "",
+    panNo: c.panNo || "",
+    pincode: c.pincode || "",
+    country: c.country || "",
+    state: c.state || "",
+    city: c.city || "",
+    remark: c.remark || "",
+  }));
+}
+
 export function getOrderCustomerRows(): MasterRecord[] {
-  return getCachedCustomerMasterRows();
+  if (cachedOrderCustomerMasterRows.length > 0) {
+    return cachedOrderCustomerMasterRows;
+  }
+  const cached = getCachedCustomerMasterRows();
+  if (cached && cached.length > 0) {
+    return cached;
+  }
+  return buildLocalMasterDefinition(customerMasterDefinition).rows;
 }
 
 export function getOrderCustomerOptions() {
+  if (cachedOrderCustomerOptions.length > 0) {
+    return cachedOrderCustomerOptions;
+  }
   return Array.from(
     new Set(
       getOrderCustomerRows()
         .filter(
           (row) => String(row.status ?? "Active").toLowerCase() !== "inactive",
         )
-        .map((row) => String(row.customerName ?? "").trim())
+        .map((row) => String(row.customerName ?? row.name ?? "").trim())
         .filter(Boolean),
     ),
   );
@@ -550,7 +597,7 @@ export function createOrderRecord(order: Partial<OrderDraft>) {
       updatedBy: salesCoordinator,
       createdDate: timestamp,
       updatedDate: timestamp,
-      status: normalizeString(order.status, "Draft"),
+      status: normalizeString(order.status, "Pending"),
     },
     lineItems,
   );
@@ -560,6 +607,12 @@ export function createOrderRecord(order: Partial<OrderDraft>) {
   emitOrdersChange();
 
   return record.id;
+}
+
+export function appendCreatedOrderToStore(record: OrderRecord, lineItems: OrderLineItem[]) {
+  orderRecords = [record, ...orderRecords.filter((r) => r.id !== record.id && r.orderNo !== record.orderNo)];
+  orderLineItemsById.set(record.id, lineItems);
+  emitOrdersChange();
 }
 
 export function updateOrderRecord(
@@ -593,19 +646,48 @@ export function updateOrderRecord(
   emitOrdersChange();
 }
 
-export function cancelOrderRecord(recordId: string) {
+export function cancelOrderRecord(recordId: string, orderItemId?: string) {
   const timestamp = new Date();
 
-  orderRecords = orderRecords.map((record) =>
-    record.id === recordId
-      ? {
-        ...record,
-        status: "Cancelled",
-        updatedBy: "Order Desk",
-        updatedDate: timestamp,
+  if (orderItemId) {
+    const existingItems = orderLineItemsById.get(recordId);
+    if (existingItems) {
+      const updatedItems = existingItems.map((item) =>
+        item.id === orderItemId || item.orderItemNo === orderItemId
+          ? { ...item, status: "Cancelled" }
+          : item
+      );
+      orderLineItemsById.set(recordId, updatedItems);
+
+      const allCancelled = updatedItems.every(
+        (item) => String(item.status ?? "").toLowerCase() === "cancelled"
+      );
+
+      if (allCancelled) {
+        orderRecords = orderRecords.map((record) =>
+          record.id === recordId
+            ? {
+              ...record,
+              status: "Cancelled",
+              updatedBy: "Order Desk",
+              updatedDate: timestamp,
+            }
+            : record,
+        );
       }
-      : record,
-  );
+    }
+  } else {
+    orderRecords = orderRecords.map((record) =>
+      record.id === recordId
+        ? {
+          ...record,
+          status: "Cancelled",
+          updatedBy: "Order Desk",
+          updatedDate: timestamp,
+        }
+        : record,
+    );
+  }
 
   emitOrdersChange();
 }

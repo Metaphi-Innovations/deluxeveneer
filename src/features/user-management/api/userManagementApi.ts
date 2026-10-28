@@ -29,6 +29,7 @@ interface BackendUserListItem {
   } | null;
   remarks?: string | null;
   isActive: boolean;
+  isSuperAdmin?: boolean;
   createdBy: {
     id: string;
     firstName: string;
@@ -89,6 +90,12 @@ export interface UserManagementQueryParams {
   isActive?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
+}
+
+export interface UserManagementColumnDropdownResult {
+  column: string;
+  options: Array<{ value: string; label: string }>;
 }
 
 export interface UserManagementPagination {
@@ -120,6 +127,9 @@ export async function fetchUserManagementPaginated(
   if (params.isActive !== undefined) queryParts.push(`isActive=${params.isActive}`);
   if (params.sortBy) queryParts.push(`sortBy=${encodeURIComponent(params.sortBy)}`);
   if (params.sortOrder) queryParts.push(`sortOrder=${encodeURIComponent(params.sortOrder)}`);
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    queryParts.push(`filters=${encodeURIComponent(JSON.stringify(params.filters))}`);
+  }
 
   const qs = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
   const res = await apiRequest<ApiResponse<{ items: BackendUserListItem[]; pagination: UserManagementPagination }>>(
@@ -127,21 +137,27 @@ export async function fetchUserManagementPaginated(
   );
 
   if (!res?.success || !res.data?.items) {
-    return {
-      items: [],
-      pagination: {
-        page: params.page || 1,
-        limit: params.limit || 10,
-        total: 0,
-        totalPages: 1,
-      },
-    };
+    throw new Error(res?.message || "Unable to load users.");
   }
 
   return {
     items: res.data.items.map(mapBackendListItemToRecord),
     pagination: res.data.pagination,
   };
+}
+
+export async function fetchUserManagementColumnDropdown(
+  column: string,
+): Promise<UserManagementColumnDropdownResult> {
+  const res = await apiRequest<ApiResponse<UserManagementColumnDropdownResult>>(
+    `/users/dropdowns?column=${encodeURIComponent(column)}`,
+  );
+
+  if (!res?.success || !res.data) {
+    return { column, options: [] };
+  }
+
+  return res.data;
 }
 
 /**
@@ -300,8 +316,16 @@ export async function updateUserManagementRecord(
 }
 
 export async function changeUserPassword(id: string, password: string) {
-  // Password change is handled via backend auth/reset-password endpoint
-  return { id, password };
+  const res = await apiRequest<ApiResponse<{ id: string }>>(`/users/${id}/password`, {
+    method: "PATCH",
+    body: { password },
+  });
+
+  if (!res?.success) {
+    throw new Error(res?.message || "Unable to change password.");
+  }
+
+  return res.data;
 }
 
 /**
@@ -364,7 +388,7 @@ function mapBackendListItemToRecord(item: BackendUserListItem): UserManagementRe
     userType: "Staff",
     department: item.department?.name || "-",
     approver: "-",
-    role: "Staff",
+    role: item.isSuperAdmin ? "Super Admin" : "Staff",
     firstName: item.firstName,
     lastName: item.lastName,
     email: item.email,
@@ -491,6 +515,12 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     edit: codes.includes("WAREHOUSE_MASTER_UPDATE"),
   };
 
+  permissions.placeOrder = {
+    view: codes.includes("ORDER_VIEW"),
+    create: codes.includes("ORDER_CREATE"),
+    edit: codes.includes("ORDER_UPDATE"),
+  };
+
   applyWarehouseScopedCodesToPermissions(codes, permissions);
 
   return {
@@ -499,7 +529,7 @@ function mapBackendDetailToUserDetail(item: BackendUserDetail): UserManagementDe
     userType: "Staff",
     department: item.department?.name || "",
     approver: "",
-    role: "Staff",
+    role: item.isSuperAdmin ? "Super Admin" : "Staff",
     firstName: item.firstName,
     lastName: item.lastName,
     email: item.email,
@@ -607,6 +637,14 @@ function convertUiPermissionsToCodes(permissions?: Record<string, UserPermission
     codes.push("WAREHOUSE_MASTER_STATUS_CHANGE");
   }
 
+  const orderPerm = permissions.placeOrder;
+  if (orderPerm?.view) codes.push("ORDER_VIEW");
+  if (orderPerm?.create) codes.push("ORDER_CREATE");
+  if (orderPerm?.edit) {
+    codes.push("ORDER_UPDATE");
+    codes.push("ORDER_CANCEL");
+  }
+
   codes.push(...collectWarehouseScopedCodesFromPermissions(permissions));
 
   return Array.from(new Set(codes));
@@ -631,6 +669,10 @@ async function getFilePayloadValue(value: MasterFieldValue | undefined): Promise
   if (typeof value === "object" && !(value instanceof Date)) {
     const file = "file" in value ? value.file : undefined;
     if (file instanceof File) {
+      const maxBytes = 1024 * 1024;
+      if (file.size > maxBytes) {
+        throw new Error("Document must be 1 MB or smaller.");
+      }
       return new Promise<string | null>((resolve) => {
         const reader = new FileReader();
         reader.onload = () => {

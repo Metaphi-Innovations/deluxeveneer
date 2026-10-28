@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -35,7 +35,11 @@ import {
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
 import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { addSawingDoneItems } from "../sawingFrontendStore";
+import {
+  createSawingProcessApi,
+  fetchSawingIssuedById,
+} from "../api/sawingApi";
+
 
 interface ProcessItemRow {
   id: string;
@@ -78,7 +82,8 @@ export function SawingCreatePage() {
       }
     | undefined;
 
-  const sourceItem = state?.sourceItem;
+  const [loadedSourceItem, setLoadedSourceItem] = useState<any>(state?.sourceItem || null);
+  const sourceItem = loadedSourceItem || state?.sourceItem;
   const issueItemId = state?.issueItemId || sourceItem?.id;
   const issueId = state?.issueId || sourceItem?.issueId;
   const storageWarehouseId = state?.storageWarehouseId || sourceItem?.storageWarehouseId;
@@ -110,15 +115,33 @@ export function SawingCreatePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  useEffect(() => {
+    const idToFetch = issueId || issueItemId;
+    if (idToFetch && !loadedSourceItem) {
+      void fetchSawingIssuedById(idToFetch).then((data) => {
+        if (data) {
+          setLoadedSourceItem(data);
+          if (!batchNo) setBatchNo(data.batchNo || "");
+          if (!length) setLength(data.length ? String(data.length) : "");
+          if (!width) setWidth(data.width ? String(data.width) : "");
+        }
+      }).catch(() => {});
+    }
+  }, [issueId, issueItemId, loadedSourceItem]);
+
   // Auto-calculated fields for Process Details
   const calculatedCbm = useMemo(() => {
     const l = Number(length) || 0;
     const w = Number(width) || 0;
     const t = Number(thickness) || 0;
     if (!l || !w || !t) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * t) / divisor).toFixed(6));
+    // Standard dimensions:
+    // If length or width > 50, it is in millimeters -> divisor 1,000,000,000 to get m³
+    // If numbers are meters (e.g. 2.5m x 1.2m x 0.2m), divisor is 1
+    // If numbers are cm (e.g. 250 x 120 x 20), divisor is 1,000,000
+    const maxDim = Math.max(l, w);
+    const divisor = maxDim > 50 ? 1_000_000_000 : maxDim > 5 ? 1_000_000 : 1;
+    return Number(((l * w * t) / divisor).toFixed(4));
   }, [length, width, thickness]);
 
   const calculatedCbf = useMemo(() => {
@@ -127,18 +150,25 @@ export function SawingCreatePage() {
   }, [calculatedCbm]);
 
   const sourceCbm = useMemo(() => {
-    const srcCbmVal = Number(sourceItem?.cbm) || 0;
-    if (srcCbmVal) return srcCbmVal;
+    const rawAvail = sourceItem?.availableCbm ?? sourceItem?.cbm;
+    const parsedAvail = rawAvail !== undefined && rawAvail !== null ? parseFloat(String(rawAvail).replace(/[^\d.]/g, "")) : 0;
+    if (!Number.isNaN(parsedAvail) && parsedAvail > 0) return parsedAvail;
+
     const l = Number(sourceItem?.length) || 0;
     const w = Number(sourceItem?.width) || 0;
     const h = Number(sourceItem?.height || sourceItem?.thickness) || 0;
     if (!l || !w || !h) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * h) / divisor).toFixed(6));
+    const maxDim = Math.max(l, w);
+    const divisor = maxDim > 50 ? 1_000_000_000 : maxDim > 5 ? 1_000_000 : 1;
+    return Number(((l * w * h) / divisor).toFixed(4));
   }, [sourceItem]);
 
-  const receivedCbm = sourceCbm || calculatedCbm;
+  const receivedCbm = useMemo(() => {
+    const rawRcv = sourceItem?.receivedCbm ?? sourceItem?.cbm;
+    const parsedRcv = rawRcv !== undefined && rawRcv !== null ? parseFloat(String(rawRcv).replace(/[^\d.]/g, "")) : 0;
+    if (!Number.isNaN(parsedRcv) && parsedRcv > 0) return parsedRcv;
+    return sourceCbm;
+  }, [sourceItem, sourceCbm]);
 
   const totalUsedCbm = useMemo(() => {
     return processedItems.reduce((acc, curr) => {
@@ -148,9 +178,10 @@ export function SawingCreatePage() {
   }, [processedItems, editingItemId]);
 
   const availableCbm = useMemo(() => {
-    const avail = (receivedCbm || 0) - totalUsedCbm - (editingItemId ? 0 : calculatedCbm);
-    return Number((avail > 0 ? avail : 0).toFixed(6));
-  }, [receivedCbm, totalUsedCbm, editingItemId, calculatedCbm]);
+    const baseAvail = sourceCbm > 0 ? sourceCbm : receivedCbm;
+    const avail = (baseAvail || 0) - totalUsedCbm - (editingItemId ? 0 : calculatedCbm);
+    return Number((avail > 0 ? avail : 0).toFixed(4));
+  }, [sourceCbm, receivedCbm, totalUsedCbm, editingItemId, calculatedCbm]);
 
   const calculatedAmount = useMemo(() => {
     const rate = Number(ratePerCbm) || 0;
@@ -164,9 +195,9 @@ export function SawingCreatePage() {
     const w = Number(raWidth) || 0;
     const h = Number(raHeight) || 0;
     if (!l || !w || !h) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * h) / divisor).toFixed(6));
+    const maxDim = Math.max(l, w);
+    const divisor = maxDim > 50 ? 1_000_000_000 : maxDim > 5 ? 1_000_000 : 1;
+    return Number(((l * w * h) / divisor).toFixed(4));
   }, [raLength, raWidth, raHeight]);
 
   const calculatedRaCbf = useMemo(() => {
@@ -186,10 +217,11 @@ export function SawingCreatePage() {
       { label: "Source Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Height", value: sourceItem.height ? String(sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Source CBM", value: sourceItem.cbm ? String(sourceItem.cbm).replace(/\s*(m³|cbm)$/i, "") : "-" },
+      { label: "Received CBM", value: receivedCbm ? String(receivedCbm) : "-" },
+      { label: "Available CBM", value: sourceCbm ? String(sourceCbm) : "-" },
       { label: "Warehouse", value: sourceItem.storageWarehouseName || "-" },
     ];
-  }, [sourceItem]);
+  }, [sourceItem, receivedCbm, sourceCbm]);
 
   // ── Add Item to Process Items ─────────────────────────────────────
   const handleAddProcessItem = () => {
@@ -307,43 +339,80 @@ export function SawingCreatePage() {
       return;
     }
 
+    const targetIssueId = issueId || issueItemId;
+    if (!targetIssueId) {
+      setErrorMessage("Source issued item is missing. Please select an item from Issued for Sawing.");
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
     try {
       const sawingDate = new Date().toISOString().slice(0, 10);
-      const issuedDate = sourceItem?.issueDate || sourceItem?.issuedDate || sawingDate;
-      const subCategory = sourceItem?.subCategory || sourceItem?.itemSubCategoryName || sourceItem?.itemSubCategory || "-";
-      addSawingDoneItems(
-        processedItems.map((item, index) => ({
-          id: `done-${Date.now()}-${index}`,
-          storageSrNo: sourceItem?.storageSrNo || "-",
-          issueDate: issuedDate,
-          issuedDate,
-          processDate: sawingDate,
-          sawingDate,
-          itemName: sourceItem?.itemName || "Veneer Block",
-          subCategory,
-          itemSubCategory: subCategory,
-          batchNo: sourceItem?.batchNo || "-",
-          batchNoCode: item.batchNo || sourceItem?.batchNo || "-",
+      const totalProcessedCbm = Number(
+        processedItems.reduce((acc, it) => acc + (Number(it.cbm) || 0), 0).toFixed(4)
+      );
+
+      const rejectRow = rejectAvailableItems.find((r) => r.type.toLowerCase() === "reject");
+      const availableRow = rejectAvailableItems.find((r) => r.type.toLowerCase() === "available");
+
+      const rejectedCbm = rejectRow ? Number((Number(rejectRow.cbm) || 0).toFixed(4)) : 0;
+      const prevAvailableCbm = sourceCbm > 0 ? sourceCbm : receivedCbm;
+      
+      // Calculate remaining CBM ensuring: processedCbm + rejectedCbm + remainingCbm = prevAvailableCbm
+      const computedRemainingCbm = Number(
+        Math.max(0, prevAvailableCbm - (totalProcessedCbm + rejectedCbm)).toFixed(4)
+      );
+      const remainingCbm = availableRow?.cbm !== undefined ? Number(Number(availableRow.cbm).toFixed(4)) : computedRemainingCbm;
+
+      await createSawingProcessApi({
+        issueId: targetIssueId,
+        storageWarehouseId,
+        processDate: sawingDate,
+        previousAvailableCbm: prevAvailableCbm,
+        processedItems: processedItems.map((item) => ({
+          batchNo: item.batchNo,
           length: item.length,
           width: item.width,
           thickness: item.thickness,
-          height: item.thickness,
-          cbm: item.cbm,
-          cbf: item.cbf,
-          remark: item.remark || sourceItem?.remark || "-",
-          createdBy: "Admin",
-          updatedBy: "Admin",
-          listingState: "done",
-          issueItemId,
-          issueId,
-          storageWarehouseId,
+          cbm: Number(Number(item.cbm).toFixed(4)),
+          cbf: Number(Number(item.cbf).toFixed(4)),
+          ratePerCbm: item.ratePerCbm,
+          amount: item.amount,
+          remark: item.remark,
         })),
-      );
+        rejectAvailableItems: [
+          ...(rejectedCbm > 0 && rejectRow
+            ? [
+                {
+                  type: "Reject",
+                  length: rejectRow.length,
+                  width: rejectRow.width,
+                  height: rejectRow.height,
+                  cbm: rejectedCbm,
+                  cbf: Number((rejectedCbm * 35.3147).toFixed(4)),
+                  remark: rejectRow.remark,
+                },
+              ]
+            : []),
+          {
+            type: "Available",
+            length: availableRow?.length ?? Number(sourceItem?.availableLength ?? sourceItem?.length ?? 0),
+            width: availableRow?.width ?? Number(sourceItem?.availableWidth ?? sourceItem?.width ?? 0),
+            height: availableRow?.height ?? Number(sourceItem?.availableHeight ?? sourceItem?.height ?? 0),
+            cbm: Math.max(0, remainingCbm),
+            cbf: Number((Math.max(0, remainingCbm) * 35.3147).toFixed(4)),
+            remark: availableRow?.remark ?? "Remaining block after sawing",
+          },
+        ],
+      });
 
-      navigate("/factory/sawing?tab=done");
+      navigate("/factory/sawing?tab=done", {
+        state: {
+          sawingFlashMessage: "Sawing process created successfully. Output items are now listed in Sawing Done.",
+        },
+      });
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to save sawing process.");
     } finally {

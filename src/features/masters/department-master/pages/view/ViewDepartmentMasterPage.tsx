@@ -12,15 +12,13 @@ import {
 } from "@mui/material";
 import {
   Building2,
-  ChevronLeft,
   MessageSquare,
   Pencil,
-  Tag,
   UserCheck,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
-import { MasterPageShell, MasterSectionCard } from "../../../shared";
+import { MasterDetailLoadAlert, MasterPageShell } from "../../../shared";
 import { ContentLoader } from "../../../../../components/feedback/ContentLoader";
 import { canAccessPermission } from "../../../../permissions";
 import { recordViewActionButtonSx } from "../../../../shared/buttonStyles";
@@ -54,10 +52,6 @@ export function ViewDepartmentMasterPage() {
       : detailQuery.error instanceof Error
         ? detailQuery.error.message
         : "";
-
-  const handleBack = () => {
-    navigate(paths.list);
-  };
 
   const displayName = useMemo(() => {
     if (!row) return "Department";
@@ -95,10 +89,9 @@ export function ViewDepartmentMasterPage() {
       <MasterPageShell
         breadcrumbs={[
           { label: "Department Master", to: paths.list },
-          { label: "View Department" },
+          { label: "View Department Master" },
         ]}
-        title="View Department"
-        subtitle=" "
+        title="View Department Master"
         contentGap={1.5}
       >
         <Alert severity="warning">
@@ -115,35 +108,13 @@ export function ViewDepartmentMasterPage() {
           { label: "Department Master", to: paths.list },
           { label: "Not Found" },
         ]}
-        title="View Department"
+        title="View Department Master"
         contentGap={1.5}
       >
-        <MasterSectionCard>
-          <Typography
-            sx={{
-              fontSize: "0.875rem",
-              color: theme.customTokens.text.secondary,
-            }}
-          >
-            Department record not found.
-          </Typography>
-          <Button
-            onClick={handleBack}
-            sx={{
-              ...recordViewActionButtonSx,
-              mt: 2,
-              minHeight: 32,
-              height: 32,
-              borderRadius: "8px",
-              fontSize: "0.8125rem",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-            }}
-            variant="contained"
-          >
-            Back to Listing
-          </Button>
-        </MasterSectionCard>
+        <MasterDetailLoadAlert
+          error={detailQuery.error}
+          notFoundLabel="Department record not found."
+        />
       </MasterPageShell>
     );
   }
@@ -154,27 +125,10 @@ export function ViewDepartmentMasterPage() {
         { label: "Department Master", to: paths.list },
         { label: displayName || "View Department" },
       ]}
-      title="View Department"
+      title="View Department Master"
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={16} />}
-            sx={{
-              ...actionButtonSx,
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              color: theme.customTokens.text.primary,
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderColor: theme.customTokens.borders.default,
-              },
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
 
           {canEdit && (
             <Button
@@ -327,37 +281,6 @@ export function ViewDepartmentMasterPage() {
                 >
                   <ProfileField label="Department Name" value={displayName} />
                   <ProfileField label="Status" value={isActive ? "Active" : "Inactive"} />
-                </Box>
-              </Box>
-
-              {/* Classification & Identification Card */}
-              <Box
-                sx={(theme) => ({
-                  ...formSectionCardSx(theme),
-                  borderRadius: "8px",
-                  display: "flex",
-                  flexDirection: "column",
-                })}
-              >
-                <FormSectionHeader
-                  title="System & Classification"
-                  icon={Tag}
-                  variant="cardTop"
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                    },
-                    columnGap: 2.5,
-                    rowGap: 1,
-                    mt: 1,
-                  }}
-                >
-                  <ProfileField label="Active State" value={isActive ? "Active" : "Inactive"} />
-                  <ProfileField label="Department Record ID" value={row.id ? String(row.id) : undefined} />
                 </Box>
               </Box>
             </Box>

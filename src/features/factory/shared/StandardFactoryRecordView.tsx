@@ -11,9 +11,8 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, ChevronRight, CircleX, Eye, Info, X } from "lucide-react";
+import { ChevronRight, CircleX, Eye, Info, X } from "lucide-react";
 
-import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
   getOrderLineItems,
   getOrderRecordByOrderNo,
@@ -64,11 +63,9 @@ export function getStandardFactoryStatusColor(row: FactoryRecord) {
 
 export function StandardFactoryRecordView<Row extends FactoryRecord>({
   definition,
-  onBack,
   row,
 }: {
   definition: FactoryDefinition<Row>;
-  onBack: () => void;
   row: Row;
 }) {
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
@@ -344,17 +341,6 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
           title="Remark"
         />
       ) : null}
-
-      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button
-          onClick={onBack}
-          startIcon={<ChevronLeft size={16} />}
-          sx={recordViewActionButtonSx}
-          variant="outlined"
-        >
-          Back
-        </Button>
-      </Box>
 
       <FactoryOrderItemDetailsDialog
         fields={orderDialogFields}

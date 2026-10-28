@@ -7,6 +7,7 @@ import { useMasterListQuery } from "../../../query/useMasterListQuery";
 import type { ColumnFilterValue } from "../../shared/columnFilters";
 import { toApiColumnFilters } from "../../shared/columnFilters";
 import type { MasterRecord } from "./types";
+import { getMasterApiErrorMessage } from "./getMasterApiErrorMessage";
 
 type MasterListParams = {
   page: number;
@@ -70,7 +71,12 @@ export function useMasterListingController({
   });
   const errorMessage =
     actionError ||
-    (listQuery.error instanceof Error ? listQuery.error.message : "");
+    (listQuery.error
+      ? getMasterApiErrorMessage(
+          listQuery.error,
+          "Unable to load records. Please try again.",
+        )
+      : "");
 
   const handleStatusToggle = useCallback(
     async (row: MasterRecord, checked: boolean) => {
@@ -81,9 +87,7 @@ export function useMasterListingController({
           queryKey: queryKeys.masters.all(master),
         });
       } catch (error) {
-        setActionError(
-          error instanceof Error ? error.message : statusErrorMessage,
-        );
+        setActionError(getMasterApiErrorMessage(error, statusErrorMessage));
         throw error;
       }
     },

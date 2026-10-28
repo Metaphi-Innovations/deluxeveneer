@@ -1,4 +1,4 @@
-import { Eye, XCircle } from "lucide-react";
+import { Eye, RotateCcw, XCircle } from "lucide-react";
 
 import type { EnterpriseTableAction } from "../../../components/data-display/EnterpriseDataTable";
 import {
@@ -18,6 +18,7 @@ export function buildGroupingDoneRowActions<Row extends FactoryRecord>({
   canView,
   onOrderIssue,
   onReject,
+  onRevert,
   onSampleIssue,
   onView,
   rowActions = [],
@@ -28,6 +29,7 @@ export function buildGroupingDoneRowActions<Row extends FactoryRecord>({
   canView: boolean;
   onOrderIssue: (row: Row) => void;
   onReject: (row: Row) => void;
+  onRevert?: (row: Row) => void;
   onSampleIssue: (row: Row) => void;
   onView: (row: Row) => void;
   rowActions?: readonly EnterpriseTableAction<Row>[];
@@ -76,6 +78,23 @@ export function buildGroupingDoneRowActions<Row extends FactoryRecord>({
         icon: XCircle,
         tone: "danger",
         onSelect: onReject,
+      });
+    }
+
+    if (onRevert && (canEdit || canCreate)) {
+      const issuedCount = getIssuedGroupedSheetsTotal(String(row.id));
+      const revertBlocked =
+        issuedCount > 0
+          ? "Revert is unavailable because sheets from this grouping have already been issued."
+          : "";
+      actions.push({
+        id: "revert-grouping-done",
+        label: "Revert",
+        icon: RotateCcw,
+        tone: "danger",
+        disabled: Boolean(revertBlocked),
+        disabledReason: revertBlocked || undefined,
+        onSelect: onRevert,
       });
     }
 

@@ -11,7 +11,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Pencil, Save } from "lucide-react";
+import { Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -568,11 +568,11 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
         }}
         breadcrumbs={[
           { label: "Packing", to: paths.list },
-          { label: "Issue for Packing" },
+          { label: "Create Packing" },
         ]}
         contentGap={1.5}
         subtitle="Select order items and prepare them for packing."
-        title="Issue for Packing"
+        title="Create Packing"
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(1.5), width: "100%" })}>
           {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -764,14 +764,6 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
           >
             {mode === "view" ? (
               <>
-                <Button
-                  onClick={handleRequestBack}
-                  startIcon={<ChevronLeft size={16} />}
-                  sx={recordViewActionButtonSx}
-                  variant="outlined"
-                >
-                  Back
-                </Button>
 
                 {canEdit ? (
                   <Button

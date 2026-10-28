@@ -23,6 +23,7 @@ import {
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
 import {
+  appendCreatedOrderToStore,
   getOrderLineItems,
   getOrderVariantFromType,
   type OrderCreateVariant,
@@ -30,6 +31,7 @@ import {
   type OrderRecord,
 } from "../shared/ordersStore";
 import { OrderStatusChip } from "../shared/OrderStatusChip";
+import { fetchOrderByIdApi, mapBackendOrderToOrderRecord } from "../api/ordersApi";
 
 type DetailColumn<TRow> = {
   getValue: (row: TRow) => unknown;
@@ -162,20 +164,55 @@ export function OrderViewDetailsDialog({
   onClose,
   onEdit,
   open,
-  record,
+  record: initialRecord,
 }: {
   onClose: () => void;
   onEdit?: (() => void | Promise<void>) | undefined;
   open: boolean;
   record: OrderRecord | undefined;
 }) {
-  const lineItems = record ? getOrderLineItems(record.id) : [];
+  const [activeRecord, setActiveRecord] = React.useState<OrderRecord | undefined>(initialRecord);
+  const [activeItems, setActiveItems] = React.useState<OrderLineItem[]>(() =>
+    initialRecord ? getOrderLineItems(initialRecord.id) : [],
+  );
+
+  React.useEffect(() => {
+    setActiveRecord(initialRecord);
+    if (initialRecord) {
+      setActiveItems(getOrderLineItems(initialRecord.id));
+    }
+  }, [initialRecord]);
+
+  React.useEffect(() => {
+    if (!open || !initialRecord?.id) return;
+    let isMounted = true;
+
+    fetchOrderByIdApi(initialRecord.id)
+      .then((backendOrder) => {
+        if (!isMounted) return;
+        const { record: mappedRecord, lineItems: mappedItems } =
+          mapBackendOrderToOrderRecord(backendOrder);
+        setActiveRecord(mappedRecord);
+        setActiveItems(mappedItems);
+        appendCreatedOrderToStore(mappedRecord, mappedItems);
+      })
+      .catch(() => {
+        // Fallback to local record if network fails
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [initialRecord?.id, open]);
+
+  const record = activeRecord;
+  const lineItems = activeItems;
   const variant = getOrderVariantFromType(record?.orderType);
   const itemColumns = getItemDetailColumns(variant, lineItems);
   const isFinished = variant === "finished";
   const itemRows = lineItems.map((item, index) => ({
     ...item,
-    orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
+    orderItemNo: item.orderItemNo || `OI-${String(index + 1).padStart(3, "0")}`,
   }));
 
   return (
@@ -300,7 +337,7 @@ export function OrderViewDetailsDialog({
           </Stack>
         ) : (
           <Typography variant="body2" color="text.secondary">
-            The requested order could not be found in the mock dataset.
+            The requested order could not be found.
           </Typography>
         )}
       </DialogContent>

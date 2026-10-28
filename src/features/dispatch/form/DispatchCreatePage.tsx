@@ -23,7 +23,7 @@ import {
   useTheme,
 } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material/styles";
-import { ChevronLeft, Info, Pencil, Save } from "lucide-react";
+import { Info, Pencil, Save } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -389,7 +389,7 @@ export function DispatchCreatePage({
         : "View Dispatch";
   const readOnly = mode === "view";
   const dispatchSourceRecords = useMemo(
-    () => records.filter((record) => record.packingState === "done"),
+    () => records.filter((record) => record.packingState === "dispatchIssued"),
     [records],
   );
   const [values, setValues] = useState<DispatchFormState>(() =>
@@ -735,7 +735,6 @@ export function DispatchCreatePage({
           { label: "Dispatch", to: "/dispatch" },
           { label: pageLabel },
         ]}
-        subtitle=""
         title={pageLabel}
       >
         <Stack sx={(theme) => ({ gap: theme.spacing(1.5) })}>
@@ -1463,14 +1462,6 @@ export function DispatchCreatePage({
           >
             {mode === "view" ? (
               <>
-                <Button
-                  onClick={handleRequestBack}
-                  startIcon={<ChevronLeft size={16} />}
-                  sx={recordViewActionButtonSx}
-                  variant="outlined"
-                >
-                  Back
-                </Button>
 
                 {canEdit && sourceRecord ? (
                   <Button

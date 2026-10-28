@@ -59,7 +59,7 @@ export const itemMasterDefinition: MasterDefinition = {
     { key: "color", label: "Color", type: "select", options: [] },
     { key: "unitName", label: "Unit Name", type: "select", options: [] },
     { key: "hsn", label: "HSN Code", type: "select", options: [], readOnly: true },
-    { key: "gst", label: "GST%", type: "select", options: [], readOnly: true },
+    { key: "gst", label: "GST %", type: "select", options: [], readOnly: true },
     { key: "remark", label: "Remark", type: "text" },
     { key: "status", label: "Status", type: "select", options: statusOptions },
   ],

@@ -82,6 +82,7 @@ export interface CurrencyQueryParams {
   status?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  filters?: Record<string, string[]>;
 }
 
 export interface PaginatedCurrencyResult {
@@ -105,6 +106,9 @@ export async function fetchCurrenciesPaginated(
     if (params.status !== undefined) query.set("status", String(params.status));
     if (params.sortBy) query.set("sortBy", params.sortBy);
     if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      query.set("filters", JSON.stringify(params.filters));
+    }
 
     const queryString = query.toString();
     const endpoint = queryString ? `/masters/currencies?${queryString}` : "/masters/currencies";
@@ -121,18 +125,10 @@ export async function fetchCurrenciesPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch currencies from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchCurrenciesApi(params?: {
@@ -143,20 +139,20 @@ export async function fetchCurrenciesApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchCurrenciesPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchCurrenciesPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getCurrencyByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendCurrencyItem>>(`/masters/currencies/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendCurrencyToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch currency with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendCurrencyItem>>(`/masters/currencies/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendCurrencyToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Record not found.");
 }
 
 export async function createCurrencyApi(values: {
@@ -189,7 +185,7 @@ export async function createCurrencyApi(values: {
   if (res?.success && res?.data) {
     return mapBackendCurrencyToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save currency.");
 }
 
 export async function updateCurrencyApi(
@@ -210,9 +206,10 @@ export async function updateCurrencyApi(
         : undefined;
 
   const body: any = {};
-  if (values.currencyName || values.name) {
-    body.name = values.currencyName || values.name;
-    body.currencyName = values.currencyName || values.name;
+  const currencyName = values.currencyName ?? values.name;
+  if (currencyName !== undefined) {
+    body.name = currencyName;
+    body.currencyName = currencyName;
   }
   if (values.remark !== undefined || values.remarks !== undefined) {
     body.remark = values.remark ?? values.remarks ?? null;
@@ -230,7 +227,7 @@ export async function updateCurrencyApi(
   if (res?.success && res?.data) {
     return mapBackendCurrencyToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save currency.");
 }
 
 export async function updateCurrencyStatusApi(
@@ -245,7 +242,7 @@ export async function updateCurrencyStatusApi(
   if (res?.success && res?.data) {
     return mapBackendCurrencyToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save currency.");
 }
 
 export async function deleteCurrencyApi(id: string): Promise<boolean> {

@@ -35,6 +35,7 @@ import {
   getMasterPageTitle,
   getMasterPaths,
 } from "./utils";
+import { getMasterApiErrorMessage } from "./getMasterApiErrorMessage";
 
 interface MasterFormPageProps {
   additionalValues?: Record<string, MasterFieldValue> | undefined;
@@ -505,7 +506,7 @@ export function MasterFormPage({
         },
       });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Unable to save record.";
+      const msg = getMasterApiErrorMessage(error, "Unable to save record.");
       setSaveError(msg);
       setToastNotification({ message: msg, severity: "error" });
     } finally {
@@ -615,7 +616,11 @@ export function MasterFormPage({
           ) : null}
 
           {errorMessage || saveError ? (
-            <Alert severity="error">{errorMessage || saveError}</Alert>
+            <Alert severity="error">
+              {errorMessage
+                ? getMasterApiErrorMessage(errorMessage, "Unable to load this record.")
+                : getMasterApiErrorMessage(saveError, "Unable to save record.")}
+            </Alert>
           ) : null}
 
           {renderFields ? (

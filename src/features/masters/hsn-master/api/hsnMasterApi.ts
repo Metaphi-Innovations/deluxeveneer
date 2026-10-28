@@ -139,18 +139,10 @@ export async function fetchHsnsPaginated(
         },
       };
     }
+    throw new Error(res?.message || "Unable to load records.");
   } catch (error) {
-    console.warn("Failed to fetch HSN records from backend API:", error);
+    throw error;
   }
-  return {
-    items: [],
-    pagination: {
-      page: params.page || 1,
-      limit: params.limit || 10,
-      total: 0,
-      totalPages: 1,
-    },
-  };
 }
 
 export async function fetchHsnsApi(params?: {
@@ -162,20 +154,20 @@ export async function fetchHsnsApi(params?: {
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }): Promise<MasterRecord[]> {
-  const result = await fetchHsnsPaginated(params);
-  return result.items;
+  try {
+    const result = await fetchHsnsPaginated(params);
+    return result.items;
+  } catch {
+    return [];
+  }
 }
 
 export async function getHsnByIdApi(id: string): Promise<MasterRecord | null> {
-  try {
-    const res = await apiRequest<ApiResponse<BackendHsnItem>>(`/masters/hsns/${id}`);
-    if (res?.success && res?.data) {
-      return mapBackendHsnToMasterRecord(res.data);
-    }
-  } catch (error) {
-    console.warn(`Failed to fetch HSN record with id ${id} from API:`, error);
+  const res = await apiRequest<ApiResponse<BackendHsnItem>>(`/masters/hsns/${id}`);
+  if (res?.success && res?.data) {
+    return mapBackendHsnToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "HSN record not found.");
 }
 
 export async function createHsnApi(values: {
@@ -217,7 +209,7 @@ export async function createHsnApi(values: {
   if (res?.success && res?.data) {
     return mapBackendHsnToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save HSN.");
 }
 
 export async function updateHsnApi(
@@ -270,7 +262,7 @@ export async function updateHsnApi(
   if (res?.success && res?.data) {
     return mapBackendHsnToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save HSN.");
 }
 
 export async function updateHsnStatusApi(
@@ -285,7 +277,7 @@ export async function updateHsnStatusApi(
   if (res?.success && res?.data) {
     return mapBackendHsnToMasterRecord(res.data);
   }
-  return null;
+  throw new Error(res?.message || "Unable to save HSN.");
 }
 
 export async function deleteHsnApi(id: string): Promise<boolean> {

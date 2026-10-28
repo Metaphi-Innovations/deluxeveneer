@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Alert,
@@ -17,9 +17,10 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { ArrowLeft, CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
+import { canAccessFactorySawing } from "../../../permissions";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import { FactoryProductionPipeline } from "../../shared/FactoryProductionPipeline";
 import { FactoryContextualStatusMessage } from "../../shared/StandardFactoryRecordView";
@@ -48,6 +49,12 @@ import {
   recordSawingHistory,
   type SawingFlowTab,
 } from "../sawingFrontendStore";
+import {
+  fetchSawingIssuedById,
+  fetchSawingDoneById,
+  fetchSawingHistoryById,
+  fetchSawingRejectedById,
+} from "../api/sawingApi";
 
 function formatDate(value: unknown): string {
   if (!value) return "-";
@@ -69,20 +76,42 @@ export const SawingViewPage: React.FC = () => {
 
   const stateData = location.state as { record?: any; tab?: string } | undefined;
   const passedRecord = stateData?.record;
+  const [fetchedRecord, setFetchedRecord] = useState<any | null>(null);
+
+  const tab =
+    stateData?.tab ||
+    (passedRecord?.listingState === "rejected" ||
+    passedRecord?.eventType === "REJECTED" ||
+    Boolean(passedRecord?.rejectedId)
+      ? "rejected"
+      : passedRecord?.listingState === "history" || passedRecord?.eventType === "UPDATED"
+      ? "history"
+      : passedRecord?.listingState === "issued"
+      ? "issued"
+      : passedRecord?.listingState === "available"
+      ? "available"
+      : "done");
+
+  useEffect(() => {
+    if (passedRecord || !id) return;
+
+    if (tab === "issued") {
+      void fetchSawingIssuedById(id).then(setFetchedRecord).catch(() => {});
+    } else if (tab === "history") {
+      void fetchSawingHistoryById(id).then(setFetchedRecord).catch(() => {});
+    } else if (tab === "rejected") {
+      void fetchSawingRejectedById(id).then(setFetchedRecord).catch(() => {});
+    } else {
+      void fetchSawingDoneById(id).then(setFetchedRecord).catch(() => {});
+    }
+  }, [id, passedRecord, tab]);
 
   const record = useMemo(() => {
     if (passedRecord) return passedRecord;
+    if (fetchedRecord) return fetchedRecord;
     if (!id) return undefined;
 
-    // Search in sawingDefinition rows
-    const foundInRows = sawingDefinition.rows.find((r) => String(r.id) === String(id));
-    if (foundInRows) return foundInRows;
-
-    // Search in factoryIssuedWorkStore
-    const workItem = getFactoryIssuedWorkById(id);
-    if (workItem) return factoryIssuedWorkToRow(workItem);
-
-    // Search in local store for each flow tab
+    // Search in local store for fallback
     const tabs: SawingFlowTab[] = ["issued", "done", "history", "rejected"];
     for (const t of tabs) {
       const found = listSawingFlowRows(t, sawingDefinition.rows as any[]).find(
@@ -92,21 +121,8 @@ export const SawingViewPage: React.FC = () => {
     }
 
     return undefined;
-  }, [id, passedRecord]);
+  }, [id, passedRecord, fetchedRecord]);
 
-  const tab =
-    stateData?.tab ||
-    (record?.listingState === "rejected" ||
-    record?.eventType === "REJECTED" ||
-    Boolean(record?.rejectedId)
-      ? "rejected"
-      : record?.listingState === "history" || record?.eventType === "UPDATED"
-      ? "history"
-      : record?.listingState === "issued"
-      ? "issued"
-      : record?.listingState === "available"
-      ? "available"
-      : "done");
 
   const isIssued = tab === "issued";
   const isRejected =
@@ -114,6 +130,7 @@ export const SawingViewPage: React.FC = () => {
     record?.eventType === "REJECTED" ||
     Boolean(record?.rejectedId);
   const isHistory = tab === "history" || record?.eventType === "UPDATED";
+  const canViewSawing = canAccessFactorySawing();
 
   // Source item info extraction
   const sourceItem = useMemo(() => {
@@ -403,6 +420,19 @@ export const SawingViewPage: React.FC = () => {
     }
   }, [availabilityStatus]);
 
+  if (!canViewSawing) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[{ label: "Factory" }, { label: "Sawing" }]}
+        title="Sawing"
+      >
+        <Alert severity="error">
+          You do not have permission to access Sawing.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER FOR: ISSUE FOR SAWING VIEW PAGE
   // ─────────────────────────────────────────────────────────────────────────────
@@ -418,21 +448,6 @@ export const SawingViewPage: React.FC = () => {
         }}
         actions={
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ArrowLeft size={15} />}
-              onClick={() => navigate("/factory/sawing?tab=issued")}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                borderRadius: "8px",
-                height: 34,
-                px: 1.75,
-              }}
-            >
-              Back
-            </Button>
 
             {availableCbm > 0 && (
               <Button
@@ -1108,26 +1123,6 @@ export const SawingViewPage: React.FC = () => {
           to: `/factory/sawing?tab=${tab}`,
           onBack: () => navigate(`/factory/sawing?tab=${tab}`),
         }}
-        actions={
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            {/* Back Button */}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ArrowLeft size={15} />}
-              onClick={() => navigate(`/factory/sawing?tab=${tab}`)}
-              sx={{
-                textTransform: "none",
-                fontWeight: 600,
-                borderRadius: "8px",
-                height: 34,
-                px: 1.75,
-              }}
-            >
-              Back
-            </Button>
-          </Stack>
-        }
       >
         <Stack spacing={2.5}>
           {/* 1. SUMMARY STRIP */}

@@ -52,6 +52,7 @@ export type ErpSelectFieldProps = BaseFieldProps & {
   dropdownWidth?: number | string | undefined;
   maxVisibleOptions?: number | undefined;
   onChange: (value: string) => void;
+  onOpen?: (() => void) | undefined;
   options: ReadonlyArray<string>;
   renderBottomAction?: ((helpers: { close: () => void }) => ReactNode) | undefined;
   searchable?: boolean;
@@ -617,6 +618,7 @@ export function ErpSelectField({
   helperText,
   maxVisibleOptions = defaultVisibleOptionLimit,
   onChange,
+  onOpen,
   options,
   placeholder,
   renderBottomAction,
@@ -658,6 +660,7 @@ export function ErpSelectField({
 
     if (!open) {
       setSearchText(value);
+      onOpen?.();
     }
 
     setAnchorEl(anchor);

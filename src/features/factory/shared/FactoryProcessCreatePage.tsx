@@ -44,6 +44,7 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../shared/listingTableStyles";
+import { canMutateFactorySawing } from "../../permissions";
 import { FactoryPageShell } from "./FactoryPageShell";
 import { FactorySourceOverviewPanel } from "./FactorySourceOverviewPanel";
 import {
@@ -2459,6 +2460,23 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       >
         <Alert severity="warning">
           The selected Grouping record was not found.
+        </Alert>
+      </FactoryPageShell>
+    );
+  }
+
+  if (definition.slug === "sawing" && !canMutateFactorySawing()) {
+    return (
+      <FactoryPageShell
+        breadcrumbs={[
+          { label: "Factory", to: "/factory" },
+          { label: definition.title, to: listPath },
+          { label: pageLabel },
+        ]}
+        title={pageLabel}
+      >
+        <Alert severity="error">
+          You do not have permission to create or edit Sawing.
         </Alert>
       </FactoryPageShell>
     );

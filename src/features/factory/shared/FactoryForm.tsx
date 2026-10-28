@@ -13,7 +13,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import { ChevronLeft, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -26,12 +26,13 @@ import {
   type MasterFieldValue,
 } from "../../masters/shared";
 import {
+  canAccessFactorySawing,
   canAccessPermission,
+  canMutateFactorySawing,
   getFactoryPermissionKey,
 } from "../../permissions";
 import {
   recordFormActionButtonSx,
-  recordViewActionButtonSx,
 } from "../../shared/buttonStyles";
 import {
   formSectionCardSx,
@@ -128,9 +129,18 @@ export function FactoryForm<Row extends FactoryRecord>({
   const params = useParams<{ id: string }>();
   const paths = getFactoryPaths(definition.slug);
   const permissionKey = getFactoryPermissionKey(definition.slug);
-  const canCreate = canAccessPermission(permissionKey, "create");
-  const canEdit = canAccessPermission(permissionKey, "edit");
-  const canView = canAccessPermission(permissionKey, "view");
+  const canCreate =
+    definition.slug === "sawing"
+      ? canMutateFactorySawing()
+      : canAccessPermission(permissionKey, "create");
+  const canEdit =
+    definition.slug === "sawing"
+      ? canMutateFactorySawing()
+      : canAccessPermission(permissionKey, "edit");
+  const canView =
+    definition.slug === "sawing"
+      ? canAccessFactorySawing()
+      : canAccessPermission(permissionKey, "view");
   const canUseMode =
     (mode === "add" && canCreate) ||
     (mode === "edit" && canEdit) ||
@@ -294,7 +304,7 @@ export function FactoryForm<Row extends FactoryRecord>({
       >
         <MasterSectionCard>
           <Typography variant="body2" color="text.secondary">
-            The requested factory process record could not be found in the mock dataset.
+            The requested factory process record could not be found.
           </Typography>
         </MasterSectionCard>
       </FactoryPageShell>
@@ -348,9 +358,9 @@ export function FactoryForm<Row extends FactoryRecord>({
       {mode === "view" ? (
         row ? (
           usesStandardFactoryRecordView(definition.slug) ? (
-            <StandardFactoryRecordView definition={definition} onBack={leaveView} row={row} />
+            <StandardFactoryRecordView definition={definition} row={row} />
           ) : (
-            <FactoryRecordView definition={definition} onBack={leaveView} row={row} />
+            <FactoryRecordView definition={definition} row={row} />
           )
         ) : null
       ) : (
@@ -771,11 +781,9 @@ const viewSkippedKeys = new Set([
 
 function FactoryRecordView<Row extends FactoryRecord>({
   definition,
-  onBack,
   row,
 }: {
   definition: FactoryDefinition<Row>;
-  onBack: () => void;
   row: Row;
 }) {
   const groups = buildFactoryViewGroups(definition, row);
@@ -796,16 +804,6 @@ function FactoryRecordView<Row extends FactoryRecord>({
           title="Remark"
         />
       ) : null}
-      <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-        <Button
-          onClick={onBack}
-          startIcon={<ChevronLeft size={16} />}
-          sx={recordViewActionButtonSx}
-          variant="outlined"
-        >
-          Back
-        </Button>
-      </Box>
     </Stack>
   );
 }

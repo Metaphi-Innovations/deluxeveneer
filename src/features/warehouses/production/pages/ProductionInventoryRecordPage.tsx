@@ -19,7 +19,6 @@ import type { Theme } from "@mui/material/styles";
 import {
   Building2,
   Calendar,
-  ChevronLeft,
   FileSpreadsheet,
   Layers,
   MessageSquare,
@@ -34,10 +33,7 @@ import { useNavigate } from "react-router";
 import { ContentLoader } from "../../../../components/feedback/ContentLoader";
 import { InventoryPageShell } from "../../../inventory/shared/InventoryPageShell";
 import { MasterSectionCard } from "../../../masters/shared";
-import {
-  recordFormActionButtonSx,
-  recordViewActionButtonSx,
-} from "../../../shared/buttonStyles";
+import { recordFormActionButtonSx } from "../../../shared/buttonStyles";
 import {
   formSectionCardSx,
   FormSectionHeader,
@@ -249,33 +245,27 @@ export function ProductionInventoryRecordPage({
     navigate(listPath, { replace: true, flushSync: true });
   };
 
-  const headerActions = (
-    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+  const headerActions =
+    mode === "edit" ? (
       <Button
-        variant="outlined"
-        startIcon={<ChevronLeft size={16} />}
-        onClick={closeForm}
-        sx={recordViewActionButtonSx}
+        variant="contained"
+        startIcon={<Save size={16} />}
+        disabled={isSaving}
+        onClick={() => void handleSave()}
+        sx={recordFormActionButtonSx}
       >
-        Back
+        {isSaving ? "Saving..." : "Save"}
       </Button>
-      {mode === "edit" ? (
-        <Button
-          variant="contained"
-          startIcon={<Save size={16} />}
-          disabled={isSaving}
-          onClick={() => void handleSave()}
-          sx={recordFormActionButtonSx}
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </Button>
-      ) : null}
-    </Stack>
-  );
+    ) : null;
 
   if (isLoading) {
     return (
       <InventoryPageShell
+        backNav={{
+          label: `Back to ${resolvedWarehouseName}`,
+          to: listPath,
+          onBack: closeForm,
+        }}
         breadcrumbs={[
           { label: "Warehouses" },
           { label: resolvedWarehouseName, to: resolvedWarehouseRootPath },
@@ -294,6 +284,11 @@ export function ProductionInventoryRecordPage({
   if (!detail) {
     return (
       <InventoryPageShell
+        backNav={{
+          label: `Back to ${resolvedWarehouseName}`,
+          to: listPath,
+          onBack: closeForm,
+        }}
         breadcrumbs={[
           { label: "Warehouses" },
           { label: resolvedWarehouseName, to: resolvedWarehouseRootPath },
@@ -306,11 +301,6 @@ export function ProductionInventoryRecordPage({
             {errorMessage ||
               "The requested production inventory record could not be found."}
           </Alert>
-          <Box sx={{ mt: 2 }}>
-            <Button variant="outlined" onClick={closeForm}>
-              Back
-            </Button>
-          </Box>
         </MasterSectionCard>
       </InventoryPageShell>
     );
@@ -318,6 +308,11 @@ export function ProductionInventoryRecordPage({
 
   return (
     <InventoryPageShell
+      backNav={{
+        label: `Back to ${resolvedWarehouseName}`,
+        to: listPath,
+        onBack: closeForm,
+      }}
       breadcrumbs={[
         { label: "Warehouses" },
         { label: resolvedWarehouseName, to: resolvedWarehouseRootPath },

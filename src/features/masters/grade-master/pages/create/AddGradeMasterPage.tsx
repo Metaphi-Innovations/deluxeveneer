@@ -21,15 +21,16 @@ export function AddGradeMasterPage() {
         remark: context.values.remark || context.values.remarks || null,
         status: context.values.status ?? true,
       });
-      if (created) {
-        const allRecords = await fetchGradesApi();
-        if (allRecords.length > 0) {
-          syncGradeMasterToStorage(allRecords);
-        }
+      if (!created) {
+        throw new Error("Unable to save grade.");
+      }
+      const allRecords = await fetchGradesApi();
+      if (allRecords.length > 0) {
+        syncGradeMasterToStorage(allRecords);
       }
       void invalidateMaster("grade");
     } catch (error) {
-      console.warn("Failed to create grade via API, fallback will persist locally:", error);
+      throw error;
     }
   };
 

@@ -19,7 +19,6 @@ import type { Theme } from "@mui/material/styles";
 import {
   Calendar,
   CheckCircle2,
-  ChevronLeft,
   Clock,
   Layers,
   MessageSquare,
@@ -100,10 +99,6 @@ export function ViewPackingPage() {
     return "PK";
   }, [record?.packingId, record?.orderNo]);
 
-  const handleBack = () => {
-    navigate(paths.list);
-  };
-
   const handleEdit = () => {
     if (!record) return;
     navigate(paths.edit(record.id));
@@ -159,28 +154,15 @@ export function ViewPackingPage() {
           >
             The requested packing record could not be found.
           </Typography>
-          <Button
-            onClick={handleBack}
-            sx={{
-              ...recordViewActionButtonSx,
-              mt: 2,
-              minHeight: 32,
-              height: 32,
-              borderRadius: "8px",
-              fontSize: "0.8125rem",
-              backgroundColor: theme.customTokens.brand.primary,
-              color: "#FFFFFF",
-            }}
-            variant="contained"
-          >
-            Back to Packing
-          </Button>
         </MasterSectionCard>
       </MasterPageShell>
     );
   }
 
-  const isPackingDone = record.packingState === "done" || record.packingState === "dispatched";
+  const isPackingDone =
+    record.packingState === "done" ||
+    record.packingState === "dispatchIssued" ||
+    record.packingState === "dispatched";
   const isDispatched = record.packingState === "dispatched";
 
   return (
@@ -193,23 +175,6 @@ export function ViewPackingPage() {
       contentGap={1.5}
       actions={
         <Stack direction="row" spacing={1} alignItems="center">
-          <Button
-            onClick={handleBack}
-            startIcon={<ChevronLeft size={16} />}
-            sx={{
-              ...actionButtonSx,
-              border: `1px solid ${theme.customTokens.borders.default}`,
-              color: theme.customTokens.text.primary,
-              backgroundColor: "transparent",
-              "&:hover": {
-                backgroundColor: theme.customTokens.surfaces.paper,
-                borderColor: theme.customTokens.borders.default,
-              },
-            }}
-            variant="outlined"
-          >
-            Back
-          </Button>
 
           {canEdit && record.packingState !== "dispatched" && (
             <Button
@@ -722,6 +687,11 @@ function PackingStateChip({ state }: { state: string }) {
     bg = "rgba(46, 125, 50, 0.12)";
     color = "#2E7D32";
     border = "rgba(46, 125, 50, 0.3)";
+  } else if (normalized === "dispatchissued") {
+    label = "Issued for Dispatch";
+    bg = "rgba(25, 118, 210, 0.12)";
+    color = "#1976D2";
+    border = "rgba(25, 118, 210, 0.3)";
   } else if (normalized === "dispatched") {
     label = "Dispatched";
     bg = "rgba(25, 118, 210, 0.12)";

@@ -258,6 +258,16 @@ export function getMasterPaths(slug: string) {
   };
 }
 
+/**
+ * Gmail compose with the address in To.
+ * `view=cm&to=` is the only Gmail URL that auto-fills the recipient.
+ * `#inbox?compose=new` opens the overlay but Gmail ignores `to` there.
+ */
+export function getGmailComposeUrl(email: string) {
+  const trimmed = email.trim();
+  return `https://mail.google.com/mail/u/0/?view=cm&fs=1&tf=1&to=${encodeURIComponent(trimmed)}`;
+}
+
 export function getMasterPageTitle(
   definition: MasterDefinition,
   mode: "list" | "add" | "edit" | "view",

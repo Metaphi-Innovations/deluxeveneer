@@ -24,6 +24,13 @@ export type MasterFieldValue =
 export interface MasterColumn {
   key: string;
   label: string;
+  /** Master data columns are filterable by default; set false only for UI-only columns. */
+  filterable?: boolean;
+  /**
+   * Listing cell link. `gmail` opens Gmail compose with the cell value as To.
+   * `none` disables automatic tel: linking (e.g. phone columns).
+   */
+  cellLink?: "gmail" | "none";
 }
 
 export interface MasterFilterDefinition {
@@ -47,6 +54,7 @@ export interface MasterFieldDefinition {
   options?: string[];
   placeholder?: string;
   readOnly?: boolean;
+  onOpenDropdown?: () => void;
   renderDropdownAction?: (helpers: { close: () => void }) => React.ReactNode;
   required?: boolean;
   rows?: number;
