@@ -103,6 +103,7 @@ function mapDetailItemToLineValues(
 ): Record<string, string> {
   const shared = {
     inwardItemCode: item.inwardItemCode ?? "",
+    itemId: item.itemId ?? "",
     itemName: item.itemName ?? "",
     factoryCode: item.factoryCode ?? "",
     hsn: item.hsnCode ?? "",
@@ -144,6 +145,7 @@ function mapDetailItemToLineValues(
   if (slug === "consumables") {
     return {
       inwardItemCode: item.inwardItemCode ?? "",
+      itemId: item.itemId ?? "",
       itemName: item.itemName ?? "",
       factoryCode: item.factoryCode ?? "",
       itemSubCategory: item.itemSubCategoryName ?? "",

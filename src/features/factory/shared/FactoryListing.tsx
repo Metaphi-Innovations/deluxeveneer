@@ -209,8 +209,8 @@ import {
   type GroupingSampleIssueState,
   type SplicingOrderIssueState,
 } from "./listing/factoryListingParts";
-import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseCTransferStore";
-import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseBTransferStore";
+import { moveFactoryRowToWarehouseC } from "../../warehouses/shared/warehouseTransferLegacy";
+import { moveFactoryRowToWarehouseB } from "../../warehouses/shared/warehouseTransferLegacy";
 import { orderFactoryListingMeasureColumns } from "./factoryListingColumnOrder";
 
 type ListingTab = FactoryProcessTab;

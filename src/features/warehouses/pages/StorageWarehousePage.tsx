@@ -53,7 +53,7 @@ import {
   fetchStorageProductionWarehouses,
   issueVeneerBlocksToSawingApi,
   issueVeneerBlocksToSlicingApi,
-  moveStorageItemToProductionApi,
+  batchMoveStorageItemsToProductionApi,
   revertStorageItemApi,
   type StorageProductionWarehouseOption,
 } from "../storage/api/storageApi";
@@ -401,17 +401,15 @@ export function StorageWarehousePage({
 
     setIsMoving(true);
     try {
-      for (const row of moveTargetRows) {
-        const quantityToMove = Number(moveQuantities[row.id]);
-        const gradeId = moveGrades[row.id];
-        if (!gradeId) continue;
-        await moveStorageItemToProductionApi(activeInventory, row.id, {
-          productionWarehouseId: selectedProductionWarehouseId,
-          gradeId,
-          remark: moveRemark || null,
-          quantity: quantityToMove,
-        });
-      }
+      await batchMoveStorageItemsToProductionApi(activeInventory, {
+        productionWarehouseId: selectedProductionWarehouseId,
+        remark: moveRemark || null,
+        items: moveTargetRows.map((row) => ({
+          storageItemId: row.id,
+          gradeId: moveGrades[row.id]!,
+          quantity: Number(moveQuantities[row.id]),
+        })),
+      });
       setMoveDialogOpen(false);
       setSelectedRows([]);
       setSelectionResetKey((c) => c + 1);

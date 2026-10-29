@@ -31,7 +31,7 @@ import {
 } from "../../../shared/numberFormat";
 import { InspectionDecisionDialog } from "../../shared/listing/factoryListingParts";
 import { MoveToWarehouseBDialog } from "../../inspection/MoveToWarehouseBDialog";
-import { moveFactoryRowToWarehouseB } from "../../../warehouses/shared/warehouseBTransferStore";
+import { moveFactoryRowToWarehouseB } from "../../../warehouses/shared/warehouseTransferLegacy";
 
 /** Format clean display measurement without floating precision errors. (e.g. 1.70 mm, 2.66 m) */
 function formatDisplayDimension(value: unknown, unit?: string): string {

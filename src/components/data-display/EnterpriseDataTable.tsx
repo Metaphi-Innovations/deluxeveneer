@@ -265,13 +265,17 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const [goToPageError, setGoToPageError] = useState("");
   const [internalSelectedRowIds, setInternalSelectedRowIds] = useState<string[]>([]);
   const selectedRowIds = controlledSelectedRowIds ?? internalSelectedRowIds;
-  const commitSelectedRowIds = (nextIds: readonly string[]) => {
+  const commitSelectedRowIds = (updater: readonly string[] | ((prev: readonly string[]) => readonly string[])) => {
     if (controlledSelectedRowIds === undefined) {
-      setInternalSelectedRowIds([...nextIds]);
+      setInternalSelectedRowIds((prev) => {
+        const resolved = typeof updater === 'function' ? updater(prev) : updater;
+        return [...resolved];
+      });
       return;
     }
 
-    onSelectionChange?.(rows.filter((row) => nextIds.includes(row.id)));
+    const resolved = typeof updater === 'function' ? updater(controlledSelectedRowIds) : updater;
+    onSelectionChange?.(rows.filter((row) => resolved.includes(row.id)));
   };
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<HTMLElement | null>(
     null,
@@ -734,25 +738,35 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   };
 
   const handleToggleRowSelection = (rowId: string) => {
-    commitSelectedRowIds(
-      selectedRowIds.includes(rowId)
-        ? selectedRowIds.filter((selectedRowId) => selectedRowId !== rowId)
-        : [...selectedRowIds, rowId],
+    commitSelectedRowIds((prev) =>
+      prev.includes(rowId)
+        ? prev.filter((selectedRowId) => selectedRowId !== rowId)
+        : [...prev, rowId],
     );
   };
 
+  const handleRowCheckboxChange = (rowId: string, checked: boolean) => {
+    commitSelectedRowIds((prev) => {
+      if (checked) {
+        return prev.includes(rowId) ? prev : [...prev, rowId];
+      }
+      return prev.filter((selectedRowId) => selectedRowId !== rowId);
+    });
+  };
+
   const handleTogglePageSelection = () => {
-    if (!selectable) {
+    if (!selectable || selectableRowIds.length === 0) {
       return;
     }
 
-    if (allRowsSelected) {
-      const listedIds = new Set(selectableRowIds);
-      commitSelectedRowIds(selectedRowIds.filter((rowId) => !listedIds.has(rowId)));
-      return;
-    }
-
-    commitSelectedRowIds(Array.from(new Set([...selectedRowIds, ...selectableRowIds])));
+    commitSelectedRowIds((prev) => {
+      const areAllSelected = selectableRowIds.every((rowId) => prev.includes(rowId));
+      if (areAllSelected) {
+        const listedIds = new Set(selectableRowIds);
+        return prev.filter((rowId) => !listedIds.has(rowId));
+      }
+      return Array.from(new Set([...prev, ...selectableRowIds]));
+    });
   };
 
   const handleOpenActionMenu = (
@@ -898,7 +912,11 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                       <Checkbox
                         checked={Boolean(allRowsSelected)}
                         indeterminate={Boolean(someRowsSelected)}
-                        onChange={handleTogglePageSelection}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleTogglePageSelection();
+                        }}
                         size="small"
                         sx={headerCheckboxSx(theme)}
                       />
@@ -1125,22 +1143,19 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     >
                       {selectable ? (
                         <TableCell
-                          onClick={
-                            selectOnRowClick
-                              ? undefined
-                              : () => handleToggleRowSelection(row.id)
-                          }
+                          onClick={(event) => event.stopPropagation()}
                           sx={[
                             listingTableBodyCellSx(theme),
                             compactCheckboxCellSx,
                             denseCellSx,
-                            selectOnRowClick ? {} : { cursor: "pointer" },
                           ]}
                         >
                           <Checkbox
                             checked={isSelected}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={() => handleToggleRowSelection(row.id)}
+                            onChange={(event, checked) => {
+                              event.stopPropagation();
+                              handleRowCheckboxChange(row.id, checked);
+                            }}
                             size="small"
                             sx={compactCheckboxSx}
                           />

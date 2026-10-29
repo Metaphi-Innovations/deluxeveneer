@@ -13,8 +13,8 @@ import { StorageWarehousePage } from "./StorageWarehousePage";
 import { ProductionWarehousePage } from "../production/ProductionWarehousePage";
 
 export function DynamicWarehousePage() {
-  const params = useParams<{ warehouseSlug: string }>();
-  const warehouseId = params.warehouseSlug ?? "";
+  const params = useParams<{ warehouseId?: string; warehouseSlug?: string }>();
+  const warehouseId = params.warehouseId ?? params.warehouseSlug ?? "";
   const [warehouseName, setWarehouseName] = useState("Warehouse");
   const [warehouseType, setWarehouseType] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -76,7 +76,47 @@ export function DynamicWarehousePage() {
 
   const normalizedType = warehouseType.trim().toLowerCase();
 
-  if (!isLoading && !errorMessage && normalizedType === "inward") {
+  if (isLoading) {
+    return (
+      <MasterPageShell
+        breadcrumbs={[
+          { label: "Warehouses" },
+          { label: "Loading..." },
+        ]}
+        subtitle="Warehouse workspace"
+        title="Warehouse"
+      >
+        <MasterSectionCard>
+          <ContentLoader label="Loading warehouse..." minHeight={200} />
+        </MasterSectionCard>
+      </MasterPageShell>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <MasterPageShell
+        breadcrumbs={[
+          { label: "Warehouses" },
+          { label: warehouseName },
+        ]}
+        subtitle={
+          warehouseType
+            ? `${warehouseType} warehouse`
+            : "Warehouse workspace"
+        }
+        title={warehouseName}
+      >
+        <MasterSectionCard>
+          <Typography variant="body2" color="text.secondary">
+            {errorMessage}
+          </Typography>
+        </MasterSectionCard>
+      </MasterPageShell>
+    );
+  }
+
+  if (normalizedType === "inward") {
     return (
       <InwardWarehousePage
         warehouseId={warehouseId}
@@ -86,7 +126,7 @@ export function DynamicWarehousePage() {
     );
   }
 
-  if (!isLoading && !errorMessage && normalizedType === "storage") {
+  if (normalizedType === "storage") {
     return (
       <StorageWarehousePage
         warehouseId={warehouseId}
@@ -96,7 +136,7 @@ export function DynamicWarehousePage() {
     );
   }
 
-  if (!isLoading && !errorMessage && normalizedType === "production") {
+  if (normalizedType === "production") {
     return (
       <ProductionWarehousePage
         warehouseId={warehouseId}

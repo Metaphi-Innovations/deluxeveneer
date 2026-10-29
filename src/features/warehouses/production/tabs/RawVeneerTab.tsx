@@ -25,8 +25,6 @@ import {
   useFactoryIssuedWorkItems,
 } from "../../../factory/shared/factoryIssuedWorkStore";
 import type { FactoryRecord } from "../../../factory/shared/types";
-import { useWarehouseCMovedRows } from "../../shared/warehouseCTransferStore";
-import type { WarehouseInventoryRow } from "../../shared/warehouseTableData";
 import {
   fetchProductionColumnDropdown,
   fetchProductionWarehouseInventory,
@@ -80,34 +78,6 @@ function toApiColumnFilters(
   return filters;
 }
 
-function mapWarehouseCRawVeneerRow(row: WarehouseInventoryRow): RawVeneerRow {
-  return {
-    id: row.id,
-    productionSrNo: "",
-    storageSrNo: row.storageSrNo ?? row.veneerSrNo ?? "",
-    inwardDate: row.inwardDate,
-    inwardItemCode: row.inwardItemCode ?? "",
-    itemName: row.itemName,
-    factoryCode: row.factoryCode ?? "",
-    subCategory: row.subCategory,
-    length: row.length,
-    width: row.width,
-    thickness: row.thickness,
-    noOfLeaves: row.noOfLeaves || row.totalUnits,
-    sqm: row.totalSqm,
-    sqf: row.totalSqf,
-    grade: row.grade,
-    currency: row.currency,
-    amount: row.amount,
-    totalAmount: row.totalAmount ?? row.amount,
-    remark: row.remark,
-    createdBy: row.createdBy ?? "",
-    updatedBy: row.updatedBy ?? "",
-    inventorySlug: "raw-veneer",
-    inventoryRecordId: row.inventoryRecordId,
-  };
-}
-
 function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
   return {
     id: String(item.id),
@@ -156,8 +126,6 @@ export function RawVeneerTab({
   const [groupingIssueRow, setGroupingIssueRow] = useState<RawVeneerRow | null>(
     null,
   );
-  const isWarehouseC = warehouseName.trim().toLowerCase() === "warehouse c";
-  const warehouseCMovedRows = useWarehouseCMovedRows();
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -229,34 +197,22 @@ export function RawVeneerTab({
   const isLoading = Boolean(warehouseId) && listQuery.isLoading;
 
   const visibleRows = useMemo(
-    () => {
-      const localRows =
-        isWarehouseC && !warehouseId
-          ? warehouseCMovedRows
-            .filter((row) => row.inventorySlug === "raw-veneer")
-            .map(mapWarehouseCRawVeneerRow)
-          : [];
-      return [...localRows, ...rows]
+    () =>
+      rows
         .filter(
           (row) =>
             !marquetryIssuedRowIds.includes(String(row.id)) &&
             !movedWarehouseRowIds.has(String(row.id)),
         )
-        .map((row) => withGroupingAvailability(row, groupingIssuedLeavesByRowId));
-    },
+        .map((row) => withGroupingAvailability(row, groupingIssuedLeavesByRowId)),
     [
       groupingIssuedLeavesByRowId,
-      isWarehouseC,
       marquetryIssuedRowIds,
       movedWarehouseRowIds,
       rows,
-      warehouseCMovedRows,
-      warehouseId,
     ],
   );
-  const totalCount = warehouseId
-    ? (listQuery.data?.total ?? 0)
-    : visibleRows.length;
+  const totalCount = listQuery.data?.total ?? 0;
 
   useEffect(() => {
     onListQueryChange?.({

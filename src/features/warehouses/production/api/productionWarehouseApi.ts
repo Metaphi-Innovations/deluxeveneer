@@ -37,7 +37,7 @@ export interface ProductionInventoryItem {
 
 export interface ProductionWarehouseFetchParams {
   warehouseId?: string | undefined;
-  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets" | "sawing";
   search?: string | undefined;
   page?: number | undefined;
   limit?: number | undefined;
@@ -86,7 +86,7 @@ export async function fetchProductionWarehouseInventory(
 
 export async function fetchProductionColumnDropdown(params: {
   warehouseId: string;
-  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sample-sheets" | "sawing";
   column: string;
 }): Promise<{ options: Array<{ value: string; label: string }> }> {
   const query = new URLSearchParams();
@@ -161,6 +161,135 @@ export async function issueOrderToProduction(payload: {
     method: "POST",
     body: payload,
   });
+}
+
+export type BoardMaterialType = "PLYWOOD" | "MDF";
+
+export interface BoardIssueEligibleInventoryItem {
+  id: string;
+  productionSrNo: string | null;
+  storageSrNo: string | null;
+  palletNo: string | null;
+  itemName: string;
+  subCategory: string;
+  color?: string;
+  mdfType?: string;
+  length: string;
+  width: string;
+  thickness: string;
+  availableSheets: number;
+  availableSqm: number;
+  availableSqf: number;
+  grade?: string | null;
+  factoryCode?: string | null;
+  inwardItemCode?: string | null;
+}
+
+export interface BoardIssueOrderContext {
+  orderId: string;
+  orderNo: string;
+  orderItemId: string;
+  orderItemNo: string;
+  productCategory: string;
+  itemName: string;
+  orderedSheets: number;
+  previouslyIssuedSheets: number;
+  remainingRequirementSheets: number | null;
+  length: string;
+  width: string;
+  thickness: string;
+  sqm: number;
+  totalSqf: number;
+}
+
+export interface BoardIssueOrderResult {
+  id: string;
+  orderNo: string;
+  orderItemNo: string;
+  orderId: string;
+  orderItemId: string;
+  inventoryId: string;
+  materialType: BoardMaterialType;
+  issuedSheets: number;
+  issuedSqm: number;
+  issuedSqf: number;
+  remainingInventorySheets: number;
+  issuedDate: string;
+}
+
+export async function fetchBoardIssueEligibleInventory(params: {
+  warehouseId: string;
+  materialType: BoardMaterialType;
+  search?: string;
+}): Promise<BoardIssueEligibleInventoryItem[]> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("materialType", params.materialType);
+  if (params.search?.trim()) {
+    query.set("search", params.search.trim());
+  }
+  const res = await apiRequest<
+    ApiResponse<{ items: BoardIssueEligibleInventoryItem[] }>
+  >(`/warehouse/production/issue-order/board/inventory?${query.toString()}`, {
+    method: "GET",
+  });
+  return res.data?.items ?? [];
+}
+
+export async function fetchBoardIssueOrderContext(params: {
+  warehouseId: string;
+  materialType: BoardMaterialType;
+  orderId: string;
+  orderItemId: string;
+}): Promise<BoardIssueOrderContext> {
+  const query = new URLSearchParams();
+  query.set("warehouseId", params.warehouseId);
+  query.set("materialType", params.materialType);
+  query.set("orderId", params.orderId);
+  query.set("orderItemId", params.orderItemId);
+  const res = await apiRequest<ApiResponse<BoardIssueOrderContext>>(
+    `/warehouse/production/issue-order/board/context?${query.toString()}`,
+    { method: "GET" },
+  );
+  if (!res.data) {
+    throw new Error(res.message || "Failed to load order issue context.");
+  }
+  return res.data;
+}
+
+export async function issueBoardOrderToProduction(payload: {
+  warehouseId: string;
+  materialType: BoardMaterialType;
+  orderId: string;
+  orderItemId: string;
+  inventoryId: string;
+  issueSheets: number;
+  remarks?: string | null;
+}): Promise<BoardIssueOrderResult> {
+  const res = await apiRequest<ApiResponse<BoardIssueOrderResult>>(
+    `/warehouse/production/issue-order/board`,
+    { method: "POST", body: payload },
+  );
+  if (!res.data) {
+    throw new Error(res.message || "Failed to issue stock to order.");
+  }
+  return res.data;
+}
+
+export function getBoardIssueToOrderPath(input: {
+  warehouseId: string;
+  materialType: "plywood" | "mdf";
+}): string {
+  return `/warehouses/${input.warehouseId}/issue-order/${input.materialType}`;
+}
+
+export function boardMaterialTypeFromSlug(
+  slug: string,
+): BoardMaterialType | null {
+  const normalized = slug.trim().toLowerCase();
+  if (normalized === "plywood") return "PLYWOOD";
+  if (normalized === "mdf") return "MDF";
+  return null;
 }
 
 export interface ProductionKpiData {

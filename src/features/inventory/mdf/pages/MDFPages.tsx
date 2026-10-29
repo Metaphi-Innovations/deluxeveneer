@@ -12,9 +12,7 @@ import { mdfDefinition } from "../mdfDefinition";
 import { getInventoryPaths } from "../../shared/inventoryUtils";
 
 export function MDFListPage() {
-  return (
-    <Navigate replace to="/warehouse-b?section=inventory&inventory=mdf" />
-  );
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function AddMDFPage() {
@@ -109,5 +107,5 @@ function MDFRecordPage({ mode }: { mode: "view" | "edit" }) {
     );
   }
 
-  return <InventoryForm definition={mdfDefinition} mode={mode} />;
+  return <Navigate replace to="/dashboard" />;
 }

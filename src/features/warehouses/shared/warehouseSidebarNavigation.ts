@@ -43,6 +43,11 @@ function buildWarehouseNavigationItem(
         return true;
       }
 
+      const issueOrderPrefix = `/warehouses/${warehouse.id}/issue-order/`;
+      if (location.pathname.startsWith(issueOrderPrefix)) {
+        return true;
+      }
+
       if (!location.pathname.startsWith("/inventory/")) {
         return false;
       }

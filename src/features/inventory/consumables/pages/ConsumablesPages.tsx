@@ -4,12 +4,7 @@ import { InventoryForm } from "../../shared";
 import { consumablesDefinition } from "../consumablesDefinition";
 
 export function ConsumablesListPage() {
-  return (
-    <Navigate
-      replace
-      to="/warehouse-a?inventory=consumables"
-    />
-  );
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function AddConsumablesPage() {
@@ -17,9 +12,9 @@ export function AddConsumablesPage() {
 }
 
 export function EditConsumablesPage() {
-  return <InventoryForm definition={consumablesDefinition} mode="edit" />;
+  return <Navigate replace to="/dashboard" />;
 }
 
 export function ViewConsumablesPage() {
-  return <InventoryForm definition={consumablesDefinition} mode="view" />;
+  return <Navigate replace to="/dashboard" />;
 }

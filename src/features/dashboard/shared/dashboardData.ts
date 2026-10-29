@@ -41,7 +41,6 @@ import {
   type WarehouseInventoryRow,
   type WarehousePageId,
 } from "../../warehouses/shared/warehouseTableData";
-import { getWarehouseQcStatus } from "../../warehouses/shared/warehouseQcStore";
 import type {
   AttentionItem,
   DashboardActivityItem,
@@ -137,8 +136,10 @@ function isQcPendingRow(row: WarehouseInventoryRow) {
   if (statusText.includes("inspection pending")) {
     return true;
   }
-
-  return getWarehouseQcStatus(row) === "pending";
+  if (statusText.includes("pending")) {
+    return true;
+  }
+  return false;
 }
 
 function collectWarehouseRows(warehouseId: WarehousePageId): WarehouseInventoryRow[] {

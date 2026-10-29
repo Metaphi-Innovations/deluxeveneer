@@ -354,7 +354,7 @@ const processedItemsPayload = lineItems.map((item) => {
   const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
   const amtVal = Number.parseFloat(vals.amount || "0");
   return {
-    batchNo: vals.logNo || vals.batchNo || sawingSource?.batchNo || sawingSource?.logNo || "",
+    batchNo: vals.batchNoCode || vals.batchNo || "",
     length: sourceMeasures.sourceLength,
     width,
     thickness: t,
@@ -431,7 +431,7 @@ const newDoneItems = processedItemsPayload.map((p, idx) => ({
   subCategory,
   itemSubCategory: subCategory,
   batchNo: sawingSource?.batchNo || "-",
-  batchNoCode: p.batchNo || sawingSource?.batchNo || "-",
+  batchNoCode: p.batchNo || "-",
   length: p.length,
   width: p.width,
   thickness: p.thickness,

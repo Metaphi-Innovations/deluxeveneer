@@ -369,15 +369,25 @@ export function InwardQcUpdateDialog({
           continue;
         }
 
+        const inventoryType = (detail?.inventoryType ?? "").toUpperCase();
+        const isVeneerBlock =
+          inventoryType.includes("VENEER_BLOCK") ||
+          inventoryType.includes("VENEER BLOCK");
+
         const itemQty = getLineQty(item, detail?.inventoryType);
         const passQuantity =
-          itemQty !== null && itemQty !== undefined && !Number.isNaN(Number(itemQty))
+          !isVeneerBlock &&
+          itemQty !== null &&
+          itemQty !== undefined &&
+          !Number.isNaN(Number(itemQty))
             ? Number(itemQty)
-            : item.quantity ?? null;
+            : !isVeneerBlock
+              ? item.quantity ?? null
+              : undefined;
 
         await updateInwardQcStatusApi(item.id, {
           qcStatus: "PASS",
-          passQuantity,
+          ...(passQuantity !== undefined ? { passQuantity } : {}),
           qcRemark: item.qcRemark?.trim() || "QC Passed",
           qcAttachmentUrl: item.qcAttachmentUrl ?? null,
           storageWarehouseId: selectedStorageWarehouseId,
