@@ -19,6 +19,10 @@ export interface ProductionInventoryItem {
   totalNoOfSheets?: string | number | undefined;
   receivedQuantity?: string | number | undefined;
   availableQuantity?: string | number | undefined;
+  receivedSqm?: string | number | undefined;
+  availableSqm?: string | number | undefined;
+  receivedSqf?: string | number | undefined;
+  availableSqf?: string | number | undefined;
   sqm: string | number;
   totalSqm?: string | number | undefined;
   sqf: string | number;
@@ -177,8 +181,11 @@ export interface BoardIssueEligibleInventoryItem {
   length: string;
   width: string;
   thickness: string;
+  receivedSheets: number;
   availableSheets: number;
+  receivedSqm: number;
   availableSqm: number;
+  receivedSqf: number;
   availableSqf: number;
   grade?: string | null;
   factoryCode?: string | null;
@@ -253,6 +260,26 @@ export async function fetchBoardIssueOrderContext(params: {
   );
   if (!res.data) {
     throw new Error(res.message || "Failed to load order issue context.");
+  }
+  return res.data;
+}
+
+export async function batchIssueBoardOrderToProduction(payload: {
+  warehouseId: string;
+  materialType: BoardMaterialType;
+  orderId: string;
+  orderItemId: string;
+  remarks?: string | null;
+  items: Array<{ inventoryId: string; issueSheets: number }>;
+}): Promise<{ items: BoardIssueOrderResult[]; totalIssuedSheets: number }> {
+  const res = await apiRequest<
+    ApiResponse<{ items: BoardIssueOrderResult[]; totalIssuedSheets: number }>
+  >(`/warehouse/production/issue-order/board/batch`, {
+    method: "POST",
+    body: payload,
+  });
+  if (!res.data) {
+    throw new Error(res.message || "Failed to issue stock to order.");
   }
   return res.data;
 }
