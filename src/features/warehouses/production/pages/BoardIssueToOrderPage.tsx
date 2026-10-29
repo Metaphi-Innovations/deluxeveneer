@@ -28,39 +28,19 @@ import {
 import { canAccessPermission } from "../../../permissions";
 import { getDynamicWarehousePermissionKey } from "../../../shared/warehousePermission";
 import { invalidateWarehouseProduction } from "../../../../query/queryClient";
-import { BoardIssuePalletSelectionTable } from "../components/BoardIssuePalletSelectionTable";
+import {
+  BoardIssuePalletSelectionTable,
+  type BoardIssuePalletLine,
+} from "../components/BoardIssuePalletSelectionTable";
 import {
   boardMaterialTypeFromSlug,
+  batchIssueBoardOrderToProduction,
   fetchBoardIssueEligibleInventory,
   fetchBoardIssueOrderContext,
-  issueBoardOrderToProduction,
   type BoardIssueEligibleInventoryItem,
   type BoardIssueOrderContext,
   type BoardMaterialType,
 } from "../api/productionWarehouseApi";
-
-function roundArea(value: number) {
-  return Math.round(value * 1000) / 1000;
-}
-
-function splitIssueQuantities(input: {
-  availableSheets: number;
-  issueSheets: number;
-  totalSqm: number;
-  totalSqf: number;
-}) {
-  const ratio =
-    input.availableSheets > 0 ? input.issueSheets / input.availableSheets : 0;
-  const issuedSqm = roundArea(input.totalSqm * ratio);
-  const issuedSqf = roundArea(input.totalSqf * ratio);
-  return {
-    remainingSheets: input.availableSheets - input.issueSheets,
-    issuedSqm,
-    issuedSqf,
-    remainingSqm: roundArea(input.totalSqm - issuedSqm),
-    remainingSqf: roundArea(input.totalSqf - issuedSqf),
-  };
-}
 
 function orderItemMatchesMaterial(
   productCategory: string,
@@ -167,21 +147,7 @@ export function BoardIssueToOrderPage() {
 
   const [pallets, setPallets] = useState<BoardIssueEligibleInventoryItem[]>([]);
   const [palletsLoading, setPalletsLoading] = useState(false);
-  const [selectedInventoryId, setSelectedInventoryId] = useState<string | null>(
-    null,
-  );
-
-  const selectedPallet = useMemo(() => {
-    if (!selectedInventoryId) {
-      return null;
-    }
-    return (
-      pallets.find((item) => String(item.id) === String(selectedInventoryId)) ??
-      null
-    );
-  }, [pallets, selectedInventoryId]);
-
-  const [issueSheetsInput, setIssueSheetsInput] = useState("");
+  const [palletLines, setPalletLines] = useState<BoardIssuePalletLine[]>([]);
   const [remarks, setRemarks] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -287,6 +253,10 @@ export function BoardIssueToOrderPage() {
     };
   }, [materialType, selectedOrder, selectedOrderItem, warehouseId]);
 
+  useEffect(() => {
+    setPalletLines([]);
+  }, [selectedOrder?.id, selectedOrderItem?.id, materialType]);
+
   const loadPallets = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!warehouseId || !materialType) {
@@ -316,81 +286,59 @@ export function BoardIssueToOrderPage() {
     void loadPallets();
   }, [loadPallets]);
 
-  const issueSheets = useMemo(() => {
-    const parsed = Number(issueSheetsInput);
-    if (!Number.isFinite(parsed)) {
-      return null;
+  const palletById = useMemo(() => {
+    const map = new Map<string, BoardIssueEligibleInventoryItem>();
+    for (const pallet of pallets) {
+      map.set(String(pallet.id), pallet);
     }
-    return parsed;
-  }, [issueSheetsInput]);
+    return map;
+  }, [pallets]);
 
-  const issuePreview = useMemo(() => {
-    if (!selectedPallet || issueSheets === null) {
-      return null;
-    }
-    return splitIssueQuantities({
-      availableSheets: selectedPallet.availableSheets,
-      issueSheets,
-      totalSqm: selectedPallet.availableSqm,
-      totalSqf: selectedPallet.availableSqf,
-    });
-  }, [issueSheets, selectedPallet]);
+  const totalIssueSheets = useMemo(
+    () =>
+      palletLines.reduce((sum, line) => {
+        const parsed = Number(line.issueSheets);
+        return sum + (Number.isInteger(parsed) ? parsed : 0);
+      }, 0),
+    [palletLines],
+  );
 
   const issueValidationError = useMemo(() => {
     if (!selectedOrder || !selectedOrderItem) {
       return "Select an order and order item.";
     }
-    if (!selectedPallet) {
-      return "Select a pallet with available stock.";
+    if (palletLines.length === 0) {
+      return "Add at least one pallet to issue.";
     }
-    if (issueSheetsInput.trim() === "") {
-      return "Issue sheets is required.";
-    }
-    if (issueSheets === null || !Number.isInteger(issueSheets)) {
-      return "Issue sheets must be a whole number.";
-    }
-    if (issueSheets <= 0) {
-      return "Issue sheets must be greater than zero.";
-    }
-    if (issueSheets > selectedPallet.availableSheets) {
-      return "Issue sheets cannot exceed available sheets on the selected pallet.";
+    for (const line of palletLines) {
+      const pallet = palletById.get(line.inventoryId);
+      if (!pallet) {
+        return "One or more selected pallets are no longer available.";
+      }
+      const sheets = Number(line.issueSheets);
+      if (line.issueSheets.trim() === "" || !Number.isInteger(sheets)) {
+        return "Each pallet line must have a valid whole number of issue sheets.";
+      }
+      if (sheets <= 0) {
+        return "Issue sheets must be greater than zero.";
+      }
+      if (sheets > pallet.availableSheets) {
+        return `Issue sheets cannot exceed available sheets for pallet ${pallet.palletNo ?? pallet.productionSrNo ?? "line"}.`;
+      }
     }
     return "";
-  }, [
-    issueSheets,
-    issueSheetsInput,
-    selectedOrder,
-    selectedOrderItem,
-    selectedPallet,
-  ]);
+  }, [palletById, palletLines, selectedOrder, selectedOrderItem]);
 
   const palletSelectionError = useMemo(() => {
     if (!hasSubmitted || !selectedOrder || !selectedOrderItem) {
       return "";
     }
-    if (!selectedPallet) {
-      return "Select a pallet with available stock.";
-    }
-    if (issueSheetsInput.trim() === "") {
-      return "Issue sheets is required.";
-    }
-    if (issueSheets === null || !Number.isInteger(issueSheets)) {
-      return "Issue sheets must be a whole number.";
-    }
-    if (issueSheets <= 0) {
-      return "Issue sheets must be greater than zero.";
-    }
-    if (issueSheets > selectedPallet.availableSheets) {
-      return "Issue sheets cannot exceed available sheets on the selected pallet.";
-    }
-    return "";
+    return issueValidationError;
   }, [
     hasSubmitted,
-    issueSheets,
-    issueSheetsInput,
+    issueValidationError,
     selectedOrder,
     selectedOrderItem,
-    selectedPallet,
   ]);
 
   const closeForm = () => {
@@ -407,27 +355,25 @@ export function BoardIssueToOrderPage() {
       !materialType ||
       !selectedOrder ||
       !selectedOrderItem ||
-      !selectedPallet ||
       issueValidationError
     ) {
       setErrorMessage(issueValidationError || "Complete all required fields.");
-      return;
-    }
-    if (issueSheets === null) {
       return;
     }
 
     setSubmitting(true);
     setErrorMessage("");
     try {
-      await issueBoardOrderToProduction({
+      await batchIssueBoardOrderToProduction({
         warehouseId,
         materialType,
         orderId: selectedOrder.id,
         orderItemId: selectedOrderItem.id,
-        inventoryId: selectedPallet.id,
-        issueSheets,
         remarks: remarks.trim() || null,
+        items: palletLines.map((line) => ({
+          inventoryId: line.inventoryId,
+          issueSheets: Number(line.issueSheets),
+        })),
       });
       void invalidateWarehouseProduction();
       navigate(returnTo, { replace: true });
@@ -578,29 +524,17 @@ export function BoardIssueToOrderPage() {
         </FormSection>
 
         <BoardIssuePalletSelectionTable
-          issueSheetsInput={issueSheetsInput}
-          issueSqf={
-            issuePreview ? String(issuePreview.issuedSqf) : ""
-          }
-          issueSqm={
-            issuePreview ? String(issuePreview.issuedSqm) : ""
-          }
+          lines={palletLines}
           materialLabel={materialLabel}
-          onIssueSheetsChange={(value) => {
-            setIssueSheetsInput(value);
+          onLinesChange={(nextLines) => {
+            setPalletLines(nextLines);
             setErrorMessage("");
           }}
           onRefreshPallets={() => {
             void loadPallets({ silent: true });
           }}
-          onSelectPallet={(nextPallet) => {
-            setSelectedInventoryId(nextPallet ? String(nextPallet.id) : null);
-            setIssueSheetsInput("");
-            setErrorMessage("");
-          }}
           pallets={pallets}
           palletsLoading={palletsLoading}
-          selectedPallet={selectedPallet}
           selectionError={palletSelectionError}
           showErrors={hasSubmitted}
           warehouseName={warehouseName}
@@ -635,39 +569,28 @@ export function BoardIssueToOrderPage() {
             />
             <ReadOnlyField label="Material Type" value={materialLabel} />
             <ReadOnlyField
-              label="Pallet No"
-              value={selectedPallet?.palletNo ?? "—"}
+              label="Pallets Selected"
+              value={palletLines.length ? String(palletLines.length) : "—"}
             />
             <ReadOnlyField
-              label="Item Details"
+              label="Total Issue Sheets"
+              value={totalIssueSheets > 0 ? String(totalIssueSheets) : "—"}
+            />
+            <ReadOnlyField
+              label="Pallet Lines"
               value={
-                selectedPallet
-                  ? `${selectedPallet.itemName} · ${selectedPallet.length} × ${selectedPallet.width} × ${selectedPallet.thickness}`
+                palletLines.length
+                  ? palletLines
+                      .map((line) => {
+                        const pallet = palletById.get(line.inventoryId);
+                        const label =
+                          pallet?.palletNo ??
+                          pallet?.productionSrNo ??
+                          "Pallet";
+                        return `${label}: ${line.issueSheets}`;
+                      })
+                      .join(" · ")
                   : "—"
-              }
-            />
-            <ReadOnlyField
-              label="Available Quantity"
-              value={
-                selectedPallet ? String(selectedPallet.availableSheets) : "—"
-              }
-            />
-            <ReadOnlyField
-              label="Issue Quantity"
-              value={
-                issueSheets !== null && Number.isInteger(issueSheets)
-                  ? String(issueSheets)
-                  : "—"
-              }
-            />
-            <ReadOnlyField
-              label="Remaining Warehouse Quantity"
-              value={
-                issuePreview
-                  ? String(issuePreview.remainingSheets)
-                  : selectedPallet
-                    ? String(selectedPallet.availableSheets)
-                    : "—"
               }
             />
           </Box>
