@@ -293,8 +293,23 @@ export async function fetchSawingHistory(
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
   if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.sortBy) query.set("sortBy", params.sortBy);
+  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+  if (params.warehouseId) query.set("warehouseId", params.warehouseId);
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    query.set("filters", JSON.stringify(params.filters));
+  }
 
-  const endpoint = `${BASE_PATH}/history?${query.toString()}`;
+  let subPath = "/history";
+  if (params.sortOrder === "asc") {
+    subPath = "/history/ascending";
+  } else if (params.sortOrder === "desc" && params.sortBy && params.sortBy !== "createdAt") {
+    subPath = "/history/descending";
+  } else if (!params.sortBy || params.sortBy === "createdAt") {
+    subPath = "/history/latest";
+  }
+
+  const endpoint = `?` + query.toString();
   const response = await apiRequest<ApiResponse<SawingListResponse<SawingHistoryItem>>>(
     endpoint,
     { method: "GET" }
@@ -309,8 +324,23 @@ export async function fetchSawingRejected(
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
   if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.sortBy) query.set("sortBy", params.sortBy);
+  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+  if (params.warehouseId) query.set("warehouseId", params.warehouseId);
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    query.set("filters", JSON.stringify(params.filters));
+  }
 
-  const endpoint = `${BASE_PATH}/rejected?${query.toString()}`;
+  let subPath = "/rejected";
+  if (params.sortOrder === "asc") {
+    subPath = "/rejected/ascending";
+  } else if (params.sortOrder === "desc" && params.sortBy && params.sortBy !== "createdAt") {
+    subPath = "/rejected/descending";
+  } else if (!params.sortBy || params.sortBy === "createdAt") {
+    subPath = "/rejected/latest";
+  }
+
+  const endpoint = `?` + query.toString();
   const response = await apiRequest<ApiResponse<SawingListResponse<SawingRejectedItem>>>(
     endpoint,
     { method: "GET" }
@@ -334,36 +364,58 @@ export async function fetchSawingAvailable(
   return response.data;
 }
 
-export async function fetchSawingIssuedById(id: string): Promise<SawingIssueItem> {
-  const endpoint = `${BASE_PATH}/issued/${id}`;
-  const response = await apiRequest<ApiResponse<SawingIssueItem>>(endpoint, {
-    method: "GET",
+const inFlightSawingById = new Map<string, Promise<any>>();
+
+function fetchSawingWithDedupe<T>(cacheKey: string, fetchFn: () => Promise<T>): Promise<T> {
+  const existing = inFlightSawingById.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+  const promise = fetchFn().finally(() => {
+    inFlightSawingById.delete(cacheKey);
   });
-  return response.data;
+  inFlightSawingById.set(cacheKey, promise);
+  return promise;
+}
+
+export async function fetchSawingIssuedById(id: string): Promise<SawingIssueItem> {
+  return fetchSawingWithDedupe(`issued:${id}`, async () => {
+    const endpoint = `${BASE_PATH}/issued/${id}`;
+    const response = await apiRequest<ApiResponse<SawingIssueItem>>(endpoint, {
+      method: "GET",
+    });
+    return response.data;
+  });
 }
 
 export async function fetchSawingDoneById(id: string): Promise<SawingDoneItem> {
-  const endpoint = `${BASE_PATH}/done/${id}`;
-  const response = await apiRequest<ApiResponse<SawingDoneItem>>(endpoint, {
-    method: "GET",
+  return fetchSawingWithDedupe(`done:${id}`, async () => {
+    const endpoint = `${BASE_PATH}/done/${id}`;
+    const response = await apiRequest<ApiResponse<SawingDoneItem>>(endpoint, {
+      method: "GET",
+    });
+    return response.data;
   });
-  return response.data;
 }
 
 export async function fetchSawingHistoryById(id: string): Promise<SawingHistoryItem> {
-  const endpoint = `${BASE_PATH}/history/${id}`;
-  const response = await apiRequest<ApiResponse<SawingHistoryItem>>(endpoint, {
-    method: "GET",
+  return fetchSawingWithDedupe(`history:${id}`, async () => {
+    const endpoint = `${BASE_PATH}/history/${id}`;
+    const response = await apiRequest<ApiResponse<SawingHistoryItem>>(endpoint, {
+      method: "GET",
+    });
+    return response.data;
   });
-  return response.data;
 }
 
 export async function fetchSawingRejectedById(id: string): Promise<SawingRejectedItem> {
-  const endpoint = `${BASE_PATH}/rejected/${id}`;
-  const response = await apiRequest<ApiResponse<SawingRejectedItem>>(endpoint, {
-    method: "GET",
+  return fetchSawingWithDedupe(`rejected:${id}`, async () => {
+    const endpoint = `${BASE_PATH}/rejected/${id}`;
+    const response = await apiRequest<ApiResponse<SawingRejectedItem>>(endpoint, {
+      method: "GET",
+    });
+    return response.data;
   });
-  return response.data;
 }
 
 export async function editSawingDoneApi(
@@ -421,3 +473,21 @@ export async function fetchSawingDropdownsApi(
   return response.data;
 }
 
+
+export async function exportSawingDataApi(
+  tab: 'issued' | 'done' | 'history' | 'rejected' = 'done',
+  params: SawingQueryParams = {}
+): Promise<any[]> {
+  const query = new URLSearchParams();
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.sortBy) query.set('sortBy', params.sortBy);
+  if (params.sortOrder) query.set('sortOrder', params.sortOrder);
+  if (params.warehouseId) query.set('warehouseId', params.warehouseId);
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    query.set('filters', JSON.stringify(params.filters));
+  }
+
+  const endpoint = BASE_PATH + '/' + tab + '/export?' + query.toString();
+  const response = await apiRequest<ApiResponse<any[]>>(endpoint, { method: 'GET' });
+  return response.data || [];
+}

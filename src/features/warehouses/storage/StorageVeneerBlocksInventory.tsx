@@ -64,8 +64,7 @@ export function StorageVeneerBlocksInventory({
     sortBy,
     sortOrder,
     filters: apiFilters,
-    refresh: onRefreshTrigger,
-  };
+    };
   const listQuery = useQuery({
     queryKey: queryKeys.warehouse.storage.list("veneer-blocks", listParams),
     enabled: Boolean(warehouseId),
