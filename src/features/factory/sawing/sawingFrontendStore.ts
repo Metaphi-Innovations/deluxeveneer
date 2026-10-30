@@ -181,12 +181,19 @@ function sameSawingCreation(
   candidate: SawingFlowRow,
   selected: SawingFlowRow,
 ) {
-  const groupingKeys = ["processRunId", "sourceIssueId", "issueId", "storageSrNo"];
-  const groupKey = groupingKeys.find((key) => text(selected[key]));
+  const selectedDoneId = text(selected.doneId || selected.sawingDoneId);
+  const candidateDoneId = text(candidate.doneId || candidate.sawingDoneId);
+  if (selectedDoneId && candidateDoneId) {
+    return selectedDoneId === candidateDoneId;
+  }
 
-  return groupKey
-    ? text(candidate[groupKey]) === text(selected[groupKey])
-    : String(candidate.id) === String(selected.id);
+  const selectedRunId = text(selected.processRunId);
+  const candidateRunId = text(candidate.processRunId);
+  if (selectedRunId && candidateRunId) {
+    return selectedRunId === candidateRunId;
+  }
+
+  return String(candidate.id) === String(selected.id);
 }
 
 export function getSawingEditContext(

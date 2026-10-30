@@ -8,10 +8,11 @@ export interface ApiResponse<T = any> {
   error?: any;
 }
 
-interface ApiRequestOptions {
+export interface ApiRequestOptions {
   body?: unknown;
   headers?: HeadersInit;
   method?: string;
+  cache?: RequestCache;
 }
 
 export async function apiRequest<TResponse>(
@@ -28,7 +29,7 @@ export async function apiRequest<TResponse>(
     const parsedPath = new URL(normalizedPath, 'http://local');
     const serializedFilters = parsedPath.searchParams.get('filters');
 
-    if ((parsedPath.pathname.startsWith('/masters/') || parsedPath.pathname.startsWith('/orders')) && serializedFilters) {
+    if ((parsedPath.pathname.startsWith('/masters/') || parsedPath.pathname.startsWith('/orders') || parsedPath.pathname.startsWith('/factory/sawing')) && serializedFilters) {
       let filters: Record<string, string[]> | undefined;
       try {
         filters = JSON.parse(serializedFilters) as Record<string, string[]>;
@@ -76,6 +77,7 @@ export async function apiRequest<TResponse>(
     method: resolvedOptions.method || 'GET',
     headers,
     credentials: 'include',
+    cache: resolvedOptions.cache ?? 'no-store',
   };
 
   if (resolvedOptions.body !== undefined) {

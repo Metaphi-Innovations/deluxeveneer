@@ -1984,13 +1984,14 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setSplicingSubmitError("");
     setFlutingSubmitError("");
     setEmbossingSubmitError("");
+    setDraftSubmitAttempted(false);
 
     if (definition.slug === "sawing" && sawingSource) {
       const clearedValues = lockSawingProcessDetailValues(
         {
           ...createEmptyLineItemValues(lineItemFields),
           logNo: valuesToAdd.logNo || "",
-          batchNoCode: valuesToAdd.batchNoCode || "",
+          batchNoCode: "",
           thickness: "",
         },
         sourceRow as Record<string, unknown> | undefined,
@@ -2828,6 +2829,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                                 column,
                                                 draftValues,
                                               )
+                                            : definition.slug === "sawing"
+                                            ? lineItems.length === 0
+                                              ? getFieldValidationError(
+                                                  column,
+                                                  draftValues,
+                                                )
+                                              : ""
                                             : getFieldValidationError(
                                                 column,
                                                 draftValues,
@@ -3619,14 +3627,19 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     )
                   : definition.slug === "pressing"
                     ? selectedPressingRows.length === 0
-                    : lineItems.length === 0 ||
-                      ((definition.slug === "slicing"
-                        ? slicingDraftHasValues
-                        : draftHasValues) &&
-                        hasValidationErrors(draftErrors)) ||
-                      Boolean(
-                        editingRowId && hasValidationErrors(editingErrors),
-                      );
+                    : definition.slug === "sawing"
+                      ? lineItems.length === 0 ||
+                        Boolean(
+                          editingRowId && hasValidationErrors(editingErrors),
+                        )
+                      : lineItems.length === 0 ||
+                        ((definition.slug === "slicing"
+                          ? slicingDraftHasValues
+                          : draftHasValues) &&
+                          hasValidationErrors(draftErrors)) ||
+                        Boolean(
+                          editingRowId && hasValidationErrors(editingErrors),
+                        );
               const quantityInvalid =
                 definition.slug !== "splicing" &&
                 definition.slug !== "cnc-fluting" &&
@@ -3770,10 +3783,12 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 embossingValidationError
               ) {
                 setDraftSubmitAttempted(
-                  lineItems.length === 0 ||
-                    draftHasValues ||
-                    Boolean(sawingValidationError) ||
-                    Boolean(slicingValidationError),
+                  definition.slug === "sawing"
+                    ? lineItems.length === 0
+                    : lineItems.length === 0 ||
+                      draftHasValues ||
+                      Boolean(sawingValidationError) ||
+                      Boolean(slicingValidationError),
                 );
                 setEditingSubmitAttempted(Boolean(editingRowId));
                 if (sawingValidationError) {
@@ -4839,13 +4854,16 @@ function getFieldValidationError(
   return "";
 }
 
-function isLineItemColumnRequired(_column: LineItemColumnDefinition) {
+function isLineItemColumnRequired(column: LineItemColumnDefinition) {
+  if (column.key === "batchNoCode" || column.key === "thickness" || column.key === "width") {
+    return true;
+  }
   return false;
 }
 
 function ColumnLabel({
   label,
-  required: _required,
+  required,
 }: {
   label: string;
   required: boolean;
@@ -4853,6 +4871,7 @@ function ColumnLabel({
   return (
     <Stack component="span" direction="row" spacing={0.25}>
       <span>{label}</span>
+      {required ? <Box component="span" sx={{ color: "error.main" }}>*</Box> : null}
     </Stack>
   );
 }
