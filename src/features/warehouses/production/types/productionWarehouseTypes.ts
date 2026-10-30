@@ -85,8 +85,14 @@ export interface PlywoodRow extends EnterpriseTableRow {
   width: string;
   thickness: string;
   noOfSheets: string;
+  receivedNoOfSheets?: string;
+  availableNoOfSheets?: string;
   sqm: string;
+  receivedSqm?: string;
+  availableSqm?: string;
   sqf: string;
+  receivedSqf?: string;
+  availableSqf?: string;
   grade: string;
   currency: string;
   amount: string;
@@ -107,9 +113,16 @@ export const plywoodColumns: readonly EnterpriseTableColumn<PlywoodRow>[] = [
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
-  { key: "noOfSheets", label: "No of Sheets" },
-  { key: "sqm", label: "SQM" },
-  { key: "sqf", label: "SQF" },
+  { key: "receivedNoOfSheets", label: "Received No of Sheets" },
+  {
+    key: "availableNoOfSheets",
+    label: "Available No of Sheets",
+    filterable: false,
+  },
+  { key: "receivedSqm", label: "Received SQM" },
+  { key: "availableSqm", label: "Available SQM", filterable: false },
+  { key: "receivedSqf", label: "Received SQF" },
+  { key: "availableSqf", label: "Available SQF", filterable: false },
   { key: "grade", label: "Grade" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
@@ -128,8 +141,14 @@ export interface MdfRow extends EnterpriseTableRow {
   width: string;
   thickness: string;
   noOfSheets: string;
+  receivedNoOfSheets?: string;
+  availableNoOfSheets?: string;
   sqm: string;
+  receivedSqm?: string;
+  availableSqm?: string;
   sqf: string;
+  receivedSqf?: string;
+  availableSqf?: string;
   grade: string;
   currency: string;
   amount: string;
@@ -149,9 +168,16 @@ export const mdfColumns: readonly EnterpriseTableColumn<MdfRow>[] = [
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
-  { key: "noOfSheets", label: "No of Sheets" },
-  { key: "sqm", label: "SQM" },
-  { key: "sqf", label: "SQF" },
+  { key: "receivedNoOfSheets", label: "Received No of Sheets" },
+  {
+    key: "availableNoOfSheets",
+    label: "Available No of Sheets",
+    filterable: false,
+  },
+  { key: "receivedSqm", label: "Received SQM" },
+  { key: "availableSqm", label: "Available SQM", filterable: false },
+  { key: "receivedSqf", label: "Received SQF" },
+  { key: "availableSqf", label: "Available SQF", filterable: false },
   { key: "grade", label: "Grade" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },

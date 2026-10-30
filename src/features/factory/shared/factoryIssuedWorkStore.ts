@@ -90,8 +90,18 @@ function readStore(): FactoryIssuedWorkStore {
 
   try {
     const parsed = JSON.parse(raw) as FactoryIssuedWorkStore;
-    memoryStore =
-      parsed && Array.isArray(parsed.items) ? { items: parsed.items } : { items: [] };
+    const rawItems = parsed && Array.isArray(parsed.items) ? parsed.items : [];
+    const sanitizedItems = rawItems.filter((item: any) => {
+      if (item?.destinationSlug === "sawing-inspection") {
+        const srNo = item?.sourceSnapshot?.storageSrNo || "";
+        const itemName = item?.sourceSnapshot?.itemName || "";
+        if (srNo.startsWith("STR-VB-") || itemName === "Ash Veneer") {
+          return false;
+        }
+      }
+      return true;
+    });
+    memoryStore = { items: sanitizedItems };
   } catch {
     memoryStore = { items: [] };
   }

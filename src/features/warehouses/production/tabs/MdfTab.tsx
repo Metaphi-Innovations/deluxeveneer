@@ -25,6 +25,7 @@ import { queryKeys } from "../../../../query/queryKeys";
 import { useDebouncedValue } from "../../../../query/useDebouncedValue";
 import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
 import type { ProductionListQueryState } from "../productionListQuery";
+import { mapProductionBoardQuantities } from "../utils/productionBoardListRow";
 
 export interface MdfTabProps {
   warehouseName: string;
@@ -48,9 +49,7 @@ function mapApiItem(item: ProductionInventoryItem): MdfRow {
     length: String(item.length ?? ""),
     width: String(item.width ?? ""),
     thickness: String(item.thickness ?? ""),
-    noOfSheets: String(item.noOfSheets ?? item.totalNoOfSheets ?? ""),
-    sqm: String(item.sqm ?? item.totalSqm ?? ""),
-    sqf: String(item.sqf ?? item.totalSqf ?? ""),
+    ...mapProductionBoardQuantities(item),
     grade: String(item.grade ?? ""),
     currency: String(item.currency ?? ""),
     amount: String(item.amount ?? ""),

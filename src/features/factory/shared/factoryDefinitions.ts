@@ -1092,8 +1092,8 @@ export const sawingInspectionDefinition: FactoryDefinition = {
   slug: "sawing-inspection",
   title: "Sawing Inspection",
   listColumns: sawingInspectionListingColumns,
-  formSections: buildSawingFormSections(sawingRows),
-  rows: expandFactoryRowsForTabs("sawing-inspection", sawingRows),
+  formSections: buildSawingFormSections([]),
+  rows: [],
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 

@@ -1,9 +1,10 @@
+import { formatInspectionDateDDMMYY } from "../inspection/inspectionListingColumns";
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 
 export const SAWING_INSPECTION_PENDING_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "issuedDate", label: "Issued Date" },
-  { key: "sawingDate", label: "Sawing Date" },
+  { key: "issuedDate", label: "Issued Date", renderCell: (row) => formatInspectionDateDDMMYY(row.issuedDate ?? row.issueDate) },
+  { key: "sawingDate", label: "Sawing Date", renderCell: (row) => formatInspectionDateDDMMYY(row.sawingDate ?? row.processDate) },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
   { key: "batchNo", label: "Log No." },
@@ -21,7 +22,7 @@ export const SAWING_INSPECTION_PENDING_COLUMNS: readonly EnterpriseTableColumn<a
 
 export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "inspectionDate", label: "Inspection Date" },
+  { key: "inspectionDate", label: "Inspection Date", renderCell: (row) => formatInspectionDateDDMMYY(row.inspectionDate ?? row.processDate ?? row.issuedDate) },
   { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },

@@ -6,6 +6,43 @@ function isDryingInspectionSlug(slug: string) {
   return slug === "drying-inspection" || slug === "inspection";
 }
 
+
+export function formatInspectionDateDDMMYY(value: unknown): string {
+  if (!value) return "-";
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "-";
+    const dd = String(value.getDate()).padStart(2, "0");
+    const mm = String(value.getMonth() + 1).padStart(2, "0");
+    const yy = String(value.getFullYear()).slice(-2);
+    return `${dd}-${mm}-${yy}`;
+  }
+  const str = String(value).trim();
+  if (!str || str === "-" || str === "null" || str === "undefined") return "-";
+
+  const ddmmyyMatch = str.match(/^(\d{2})-(\d{2})-(\d{2,4})$/);
+  if (ddmmyyMatch && ddmmyyMatch[1] && ddmmyyMatch[2] && ddmmyyMatch[3]) {
+    const dd = ddmmyyMatch[1];
+    const mm = ddmmyyMatch[2];
+    const y = ddmmyyMatch[3];
+    return `${dd}-${mm}-${y.slice(-2)}`;
+  }
+
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch && isoMatch[1] && isoMatch[2] && isoMatch[3]) {
+    const yyyy = isoMatch[1];
+    const mm = isoMatch[2];
+    const dd = isoMatch[3];
+    return `${dd}-${mm}-${yyyy.slice(-2)}`;
+  }
+
+  const d = new Date(str);
+  if (Number.isNaN(d.getTime())) return str;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}-${mm}-${yy}`;
+}
+
 function formatIssuedDate(value: unknown) {
   const date =
     value instanceof Date

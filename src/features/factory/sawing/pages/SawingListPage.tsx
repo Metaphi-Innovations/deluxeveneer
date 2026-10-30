@@ -21,7 +21,7 @@ import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import type { ColumnFilterValue } from "../../../../components/shared/columnFilters";
+import { toApiColumnFilters, type ColumnFilterValue } from "../../../../components/shared/columnFilters";
 import { ModuleProcessTabs } from "../../../../components/navigation/ModuleProcessTabs";
 import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
@@ -43,6 +43,8 @@ import {
 import {
   getSawingDoneEditBlockReason,
   readSawingFlowState,
+  revertSawingFlowRow,
+  recordSawingRejection,
 } from "../sawingFrontendStore";
 import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 import {
@@ -148,15 +150,22 @@ export function SawingListPage() {
   // ── Load Dropdown Options for Filter Menus ────────────────────────
   const handleColumnFilterOpen = useCallback((columnKey: string) => {
     const tabName = activeTab === "done" || activeTab === "history" || activeTab === "rejected" ? activeTab : "issued";
-    void fetchSawingDropdownsApi(tabName).then((data) => {
+    void fetchSawingDropdownsApi(tabName).then((data: any) => {
       if (!data) return;
       const opts: Array<{ value: string; label: string }> = [];
       if (columnKey === "itemName" && data.itemNames) {
-        opts.push(...data.itemNames.map((n) => ({ value: n, label: n })));
+        opts.push(...data.itemNames.map((n: string) => ({ value: n, label: n })));
       } else if ((columnKey === "batchNo" || columnKey === "batchNoCode") && data.batchNos) {
-        opts.push(...data.batchNos.map((b) => ({ value: b, label: b })));
+        opts.push(...data.batchNos.map((b: string) => ({ value: b, label: b })));
+      } else if (columnKey === "logNo" && (data.logNos || data.batchNos)) {
+        const arr = data.logNos || data.batchNos;
+        opts.push(...arr.map((b: string) => ({ value: b, label: b })));
       } else if (columnKey === "subCategory" && data.subCategories) {
-        opts.push(...data.subCategories.map((s) => ({ value: s, label: s })));
+        opts.push(...data.subCategories.map((s: string) => ({ value: s, label: s })));
+      } else if (columnKey === "storageSrNo" && data.storageSrNos) {
+        opts.push(...data.storageSrNos.map((s: string) => ({ value: s, label: s })));
+      } else if (columnKey === "remark" && data.remarks) {
+        opts.push(...data.remarks.map((r: string) => ({ value: r, label: r })));
       }
       if (opts.length > 0) {
         setFilterOptionsByColumn((prev) => ({
@@ -179,7 +188,10 @@ export function SawingListPage() {
         search: searchValue.trim() || undefined,
         sortBy: sortConfig.sortBy || undefined,
         sortOrder: sortConfig.sortOrder || undefined,
-        filters: Object.keys(columnFilters).length > 0 ? columnFilters : undefined,
+        filters: (() => {
+          const apiFilters = toApiColumnFilters(columnFilters);
+          return Object.keys(apiFilters).length > 0 ? apiFilters : undefined;
+        })(),
       };
 
       let result: { items: any[]; pagination: { total: number } };
@@ -230,6 +242,7 @@ export function SawingListPage() {
       } else {
         await revertSawingDoneApi(revertTargetRow.id || revertTargetRow.doneId, revertRemark);
       }
+      revertSawingFlowRow(activeTab as any, revertTargetRow);
       setRevertDialogOpen(false);
       setRevertTargetRow(null);
       setRefreshTrigger((c) => c + 1);
@@ -258,6 +271,7 @@ export function SawingListPage() {
     setIsRejecting(true);
     try {
       await rejectSawingDoneApi(rejectTargetRow.id, rejectRemark);
+      recordSawingRejection(rejectTargetRow, rejectRemark);
       setRows((current) => current.filter((r) => r.id !== rejectTargetRow.id));
       setTotalCount((c) => Math.max(0, c - 1));
       setRejectDialogOpen(false);

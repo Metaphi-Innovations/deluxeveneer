@@ -109,6 +109,11 @@ export function getSawingProcessDetailError({
     return "No CBM is available for Sawing.";
   }
 
+  const batchNoText = (values.batchNoCode ?? values.batchNo ?? "").trim();
+  if (!batchNoText) {
+    return committing ? "Batch No is required." : "";
+  }
+
   const thicknessText = (values.thickness ?? "").trim();
   if (!thicknessText) {
     return committing ? "Thickness is required and must be greater than 0." : "";

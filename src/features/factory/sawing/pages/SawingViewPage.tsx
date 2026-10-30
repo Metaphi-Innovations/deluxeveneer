@@ -1269,11 +1269,13 @@ export const SawingViewPage: React.FC = () => {
                   },
                   {
                     label: "Source Log No / Batch No",
-                    value:
-                      record?.batchNo ||
-                      record?.logNo ||
-                      sourceItem?.batchNo ||
-                      "-",
+                    value: (() => {
+                      const log = record?.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || record?.batchNo || "";
+                      const batch = record?.batchNoCode || (sourceItem as any)?.batchNoCode || (record?.batchNo && record.batchNo !== log ? record.batchNo : "");
+                      if (log && batch && log !== batch) return `${log} / ${batch}`;
+                      if (log && batch && log === batch) return log;
+                      return log || batch || "-";
+                    })(),
                   },
                   
                   {
@@ -1822,7 +1824,7 @@ export const SawingViewPage: React.FC = () => {
                   <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} spacing={1}>
                     <Typography variant="body2" sx={{ color: theme.customTokens.brand.primary, fontWeight: 600, fontSize: "13px" }}>
                       ✓ This item has been issued to Sawing Inspection.
-                      {inspectionRecord?.inspectionNo ? ` (Inspection ID: ${inspectionRecord.inspectionNo})` : ""}
+                      ""
                     </Typography>
                     <Button
                       variant="text"
@@ -1860,23 +1862,7 @@ export const SawingViewPage: React.FC = () => {
                     gap: 2,
                   }}
                 >
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: "text.secondary",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.02em",
-                      }}
-                    >
-                      Inspection No.
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {inspectionRecord.inspectionNo || "-"}
-                    </Typography>
-                  </Stack>
+                  {/* Inspection No omitted per requirement */}
 
                   <Stack spacing={0.5}>
                     <Typography
@@ -2174,8 +2160,8 @@ export const SawingViewPage: React.FC = () => {
                   },
                   { label: "Item Name", value: record.itemName || sourceItem?.itemName || "-" },
                   { label: "Sub Category", value: record.subCategory || record.itemSubCategory || sourceItem?.subCategory || "-" },
-                  { label: "Log No.", value: record.batchNo || "-" },
-                  { label: "Batch No", value: record.batchNoCode || "-" },
+                  { label: "Log No.", value: record.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || "-" },
+                  { label: "Batch No", value: record.batchNoCode || record.batchNo || "-" },
                   { label: "Length (mm)", value: record.length ?? "-" },
                   { label: "Width (mm)", value: record.width ?? "-" },
                   { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },

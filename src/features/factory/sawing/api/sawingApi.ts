@@ -148,6 +148,29 @@ export interface SawingQueryParams {
 export async function fetchSawingIssued(
   params: SawingQueryParams = {}
 ): Promise<SawingListResponse<SawingIssueItem>> {
+  const hasFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  if (hasFilters) {
+    const body: Record<string, unknown> = {
+      page: String(params.page ?? 1),
+      limit: String(params.limit ?? 10),
+      filters: params.filters,
+    };
+    if (params.search?.trim()) body.search = params.search.trim();
+    if (params.sortBy) body.sortBy = params.sortBy;
+    if (params.sortOrder) body.sortOrder = params.sortOrder;
+    if (params.warehouseId) body.warehouseId = params.warehouseId;
+
+    const response = await apiRequest<ApiResponse<SawingListResponse<SawingIssueItem>>>(
+      `${BASE_PATH}/issued/filter`,
+      {
+        method: "POST",
+        body,
+        cache: "no-store",
+      }
+    );
+    return response.data;
+  }
+
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
@@ -155,14 +178,11 @@ export async function fetchSawingIssued(
   if (params.sortBy) query.set("sortBy", params.sortBy);
   if (params.sortOrder) query.set("sortOrder", params.sortOrder);
   if (params.warehouseId) query.set("warehouseId", params.warehouseId);
-  if (params.filters && Object.keys(params.filters).length > 0) {
-    query.set("filters", JSON.stringify(params.filters));
-  }
 
   const endpoint = `${BASE_PATH}/issued?${query.toString()}`;
   const response = await apiRequest<ApiResponse<SawingListResponse<SawingIssueItem>>>(
     endpoint,
-    { method: "GET" }
+    { method: "GET", cache: "no-store" }
   );
   return response.data;
 }
@@ -234,6 +254,29 @@ export async function createSawingProcessApi(data: {
 export async function fetchSawingDone(
   params: SawingQueryParams = {}
 ): Promise<SawingListResponse<SawingDoneItem>> {
+  const hasFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  if (hasFilters) {
+    const body: Record<string, unknown> = {
+      page: String(params.page ?? 1),
+      limit: String(params.limit ?? 10),
+      filters: params.filters,
+    };
+    if (params.search?.trim()) body.search = params.search.trim();
+    if (params.sortBy) body.sortBy = params.sortBy;
+    if (params.sortOrder) body.sortOrder = params.sortOrder;
+    if (params.warehouseId) body.warehouseId = params.warehouseId;
+
+    const response = await apiRequest<ApiResponse<SawingListResponse<SawingDoneItem>>>(
+      `${BASE_PATH}/done/filter`,
+      {
+        method: "POST",
+        body,
+        cache: "no-store",
+      }
+    );
+    return response.data;
+  }
+
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
@@ -241,14 +284,11 @@ export async function fetchSawingDone(
   if (params.sortBy) query.set("sortBy", params.sortBy);
   if (params.sortOrder) query.set("sortOrder", params.sortOrder);
   if (params.warehouseId) query.set("warehouseId", params.warehouseId);
-  if (params.filters && Object.keys(params.filters).length > 0) {
-    query.set("filters", JSON.stringify(params.filters));
-  }
 
   const endpoint = `${BASE_PATH}/done?${query.toString()}`;
   const response = await apiRequest<ApiResponse<SawingListResponse<SawingDoneItem>>>(
     endpoint,
-    { method: "GET" }
+    { method: "GET", cache: "no-store" }
   );
   return response.data;
 }
@@ -289,17 +329,6 @@ export async function issueSawingForInspectionApi(
 export async function fetchSawingHistory(
   params: SawingQueryParams = {}
 ): Promise<SawingListResponse<SawingHistoryItem>> {
-  const query = new URLSearchParams();
-  if (params.page) query.set("page", String(params.page));
-  if (params.limit) query.set("limit", String(params.limit));
-  if (params.search?.trim()) query.set("search", params.search.trim());
-  if (params.sortBy) query.set("sortBy", params.sortBy);
-  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
-  if (params.warehouseId) query.set("warehouseId", params.warehouseId);
-  if (params.filters && Object.keys(params.filters).length > 0) {
-    query.set("filters", JSON.stringify(params.filters));
-  }
-
   let subPath = "/history";
   if (params.sortOrder === "asc") {
     subPath = "/history/ascending";
@@ -309,17 +338,29 @@ export async function fetchSawingHistory(
     subPath = "/history/latest";
   }
 
-  const endpoint = `?` + query.toString();
-  const response = await apiRequest<ApiResponse<SawingListResponse<SawingHistoryItem>>>(
-    endpoint,
-    { method: "GET" }
-  );
-  return response.data;
-}
+  const hasFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  if (hasFilters) {
+    const body: Record<string, unknown> = {
+      page: String(params.page ?? 1),
+      limit: String(params.limit ?? 10),
+      filters: params.filters,
+    };
+    if (params.search?.trim()) body.search = params.search.trim();
+    if (params.sortBy) body.sortBy = params.sortBy;
+    if (params.sortOrder) body.sortOrder = params.sortOrder;
+    if (params.warehouseId) body.warehouseId = params.warehouseId;
 
-export async function fetchSawingRejected(
-  params: SawingQueryParams = {}
-): Promise<SawingListResponse<SawingRejectedItem>> {
+    const response = await apiRequest<ApiResponse<SawingListResponse<SawingHistoryItem>>>(
+      `${BASE_PATH}/history/filter`,
+      {
+        method: "POST",
+        body,
+        cache: "no-store",
+      }
+    );
+    return response.data;
+  }
+
   const query = new URLSearchParams();
   if (params.page) query.set("page", String(params.page));
   if (params.limit) query.set("limit", String(params.limit));
@@ -327,10 +368,18 @@ export async function fetchSawingRejected(
   if (params.sortBy) query.set("sortBy", params.sortBy);
   if (params.sortOrder) query.set("sortOrder", params.sortOrder);
   if (params.warehouseId) query.set("warehouseId", params.warehouseId);
-  if (params.filters && Object.keys(params.filters).length > 0) {
-    query.set("filters", JSON.stringify(params.filters));
-  }
 
+  const endpoint = `${BASE_PATH}${subPath}?` + query.toString();
+  const response = await apiRequest<ApiResponse<SawingListResponse<SawingHistoryItem>>>(
+    endpoint,
+    { method: "GET", cache: "no-store" }
+  );
+  return response.data;
+}
+
+export async function fetchSawingRejected(
+  params: SawingQueryParams = {}
+): Promise<SawingListResponse<SawingRejectedItem>> {
   let subPath = "/rejected";
   if (params.sortOrder === "asc") {
     subPath = "/rejected/ascending";
@@ -340,10 +389,41 @@ export async function fetchSawingRejected(
     subPath = "/rejected/latest";
   }
 
-  const endpoint = `?` + query.toString();
+  const hasFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  if (hasFilters) {
+    const body: Record<string, unknown> = {
+      page: String(params.page ?? 1),
+      limit: String(params.limit ?? 10),
+      filters: params.filters,
+    };
+    if (params.search?.trim()) body.search = params.search.trim();
+    if (params.sortBy) body.sortBy = params.sortBy;
+    if (params.sortOrder) body.sortOrder = params.sortOrder;
+    if (params.warehouseId) body.warehouseId = params.warehouseId;
+
+    const response = await apiRequest<ApiResponse<SawingListResponse<SawingRejectedItem>>>(
+      `${BASE_PATH}/rejected/filter`,
+      {
+        method: "POST",
+        body,
+        cache: "no-store",
+      }
+    );
+    return response.data;
+  }
+
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.search?.trim()) query.set("search", params.search.trim());
+  if (params.sortBy) query.set("sortBy", params.sortBy);
+  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+  if (params.warehouseId) query.set("warehouseId", params.warehouseId);
+
+  const endpoint = `${BASE_PATH}${subPath}?` + query.toString();
   const response = await apiRequest<ApiResponse<SawingListResponse<SawingRejectedItem>>>(
     endpoint,
-    { method: "GET" }
+    { method: "GET", cache: "no-store" }
   );
   return response.data;
 }
