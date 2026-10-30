@@ -13,7 +13,7 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import { CheckCircle2, Eye, Pencil, RotateCcw } from "lucide-react";
+import { CheckCircle2, Eye, Pencil, RotateCcw, AlertCircle, Upload } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
@@ -27,6 +27,17 @@ import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactoryActionConfirmDialog, type ProductionWarehouseOption } from "../../shared/FactoryActionConfirmDialog";
 import {
+  formSectionCardSx,
+  FormSectionHeader,
+} from "../../../shared/formSectionStyles";
+import { recordFormActionButtonSx } from "../../../shared/buttonStyles";
+import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { ErpDatePickerField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import {
+  isoDateToLocalDate,
+  localDateToIso,
+} from "../../shared/listing/factoryListingParts";
+import {
   fetchSawingInspectionPending,
   fetchSawingInspectionDone,
   fetchSawingInspectionFail,
@@ -36,7 +47,13 @@ import {
   revertSawingInspectionFailApi,
   issueSawingInspectionToWarehouseApi,
   editSawingInspectionDoneApi,
+  recordSawingInspectionDecisionApi,
 } from "../api/sawingInspectionApi";
+import {
+  completeFactoryIssuedWork,
+  failFactoryIssuedWork,
+} from "../../shared/factoryIssuedWorkStore";
+import { sawingInspectionDefinition } from "../../shared/factoryDefinitions";
 import {
   SAWING_INSPECTION_PENDING_COLUMNS,
   SAWING_INSPECTION_DONE_COLUMNS,
@@ -83,6 +100,15 @@ export function SawingInspectionListPage() {
   const [revertTargetRow, setRevertTargetRow] = useState<any | null>(null);
   const [revertRemark, setRevertRemark] = useState("");
   const [isReverting, setIsReverting] = useState(false);
+
+  // Inspect Decision Dialog state
+  const [inspectDialogOpen, setInspectDialogOpen] = useState(false);
+  const [inspectTargetRow, setInspectTargetRow] = useState<any | null>(null);
+  const [inspectDate, setInspectDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [inspectRemark, setInspectRemark] = useState("");
+  const [inspectAttachmentName, setInspectAttachmentName] = useState("");
+  const [inspectAttachmentPreview, setInspectAttachmentPreview] = useState<string | null>(null);
+  const [isSubmittingInspect, setIsSubmittingInspect] = useState(false);
 
   // Issue to Warehouse Dialog state (Done tab)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
@@ -259,6 +285,123 @@ export function SawingInspectionListPage() {
     }
   };
 
+  const handleOpenInspect = (r: any) => {
+    setInspectTargetRow(r);
+    setInspectDate(new Date().toISOString().slice(0, 10));
+    setInspectRemark("");
+    setInspectAttachmentName("");
+    setInspectAttachmentPreview(null);
+    setInspectDialogOpen(true);
+  };
+
+  const handleCloseInspect = () => {
+    if (isSubmittingInspect) return;
+    setInspectDialogOpen(false);
+    setInspectTargetRow(null);
+    setInspectAttachmentName("");
+    setInspectAttachmentPreview(null);
+    setInspectRemark("");
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setInspectAttachmentName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setInspectAttachmentPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleConfirmInspectDecision = async (decision: "pass" | "fail") => {
+    if (!inspectTargetRow) return;
+    setIsSubmittingInspect(true);
+
+    try {
+      const mode = decision;
+      const workItemId =
+        inspectTargetRow.workItemId ||
+        (String(inspectTargetRow.id).startsWith("factory-work-") ? inspectTargetRow.id : null);
+
+      const patch = {
+        inspectionDate: inspectDate,
+        remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+        qcStatus: mode === "pass" ? "Pass" : "Fail",
+        listingState: mode === "pass" ? "done" : "failed",
+        status: mode === "pass" ? "Pass" : "Fail",
+        passQty: mode === "pass" ? 1 : 0,
+        failQty: mode === "pass" ? 0 : 1,
+        ...(inspectAttachmentPreview
+          ? {
+              inspectionImage: inspectAttachmentPreview,
+              inspectionImageName: inspectAttachmentName,
+            }
+          : {}),
+      };
+
+      // Call backend API if real ID exists
+      if (inspectTargetRow.id && !String(inspectTargetRow.id).startsWith("factory-work-")) {
+        try {
+          await recordSawingInspectionDecisionApi(inspectTargetRow.id, mode === "pass" ? "PASS" : "FAIL", {
+            inspectionDate: inspectDate,
+            remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+            attachmentUrl: inspectAttachmentPreview || undefined,
+            attachmentName: inspectAttachmentName || undefined,
+          });
+        } catch (apiErr) {
+          console.error("Failed to submit inspection decision to backend:", apiErr);
+        }
+      }
+
+      if (workItemId) {
+        if (mode === "pass") {
+          completeFactoryIssuedWork(workItemId, patch);
+        } else {
+          failFactoryIssuedWork(workItemId, patch);
+        }
+      }
+
+      // Update in-memory sawingInspectionDefinition rows
+      const matchIndex = (sawingInspectionDefinition.rows as any[]).findIndex(
+        (r) => String(r.id) === String(inspectTargetRow.id),
+      );
+      if (matchIndex >= 0) {
+        (sawingInspectionDefinition.rows as any)[matchIndex] = {
+          ...sawingInspectionDefinition.rows[matchIndex],
+          ...patch,
+        };
+      }
+
+      if (inspectTargetRow.id && inspectAttachmentPreview) {
+        try {
+          localStorage.setItem(`sawing_inspection_photo_${inspectTargetRow.id}`, inspectAttachmentPreview);
+          if (inspectAttachmentName) {
+            localStorage.setItem(`sawing_inspection_photo_name_${inspectTargetRow.id}`, inspectAttachmentName);
+          }
+        } catch (e) {
+          // ignore localStorage limits
+        }
+      }
+
+      setToastNotification({
+        message: `Sawing Inspection marked as ${mode === "pass" ? "PASS" : "FAIL"} successfully.`,
+        severity: "success",
+      });
+      setInspectDialogOpen(false);
+      setInspectTargetRow(null);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err: any) {
+      setToastNotification({
+        message: err.message || "Failed to record inspection decision",
+        severity: "error",
+      });
+    } finally {
+      setIsSubmittingInspect(false);
+    }
+  };
+
   const handleOpenEdit = (row: any) => {
     setEditTargetRow(row);
     setEditRemark(row.remark || "");
@@ -293,7 +436,14 @@ export function SawingInspectionListPage() {
       const actions: EnterpriseTableAction<any>[] = [];
 
       if (activeTab === "issued") {
-        // Pending: View, Revert
+        // Pending: Inspect Item, View, Revert
+        actions.push({
+          id: "inspect-item",
+          label: "Inspect Item",
+          icon: CheckCircle2,
+          tone: "primary",
+          onSelect: (r: any) => handleOpenInspect(r),
+        });
         actions.push({
           id: "view",
           label: "View",
@@ -310,7 +460,7 @@ export function SawingInspectionListPage() {
           onSelect: (r: any) => handleOpenRevert(r),
         });
       } else if (activeTab === "done") {
-        // Done: View, Edit, Issue to Warehouse, Revert
+        // Done: View, Issue to Warehouse, Revert
         actions.push({
           id: "view",
           label: "View",
@@ -318,12 +468,6 @@ export function SawingInspectionListPage() {
           onSelect: (r: any) => {
             navigate(`/factory/sawing-inspection/view/${r.id}`, { state: { record: r, tab: "done" } });
           },
-        });
-        actions.push({
-          id: "edit",
-          label: "Edit",
-          icon: Pencil,
-          onSelect: (r: any) => handleOpenEdit(r),
         });
         if (!row.isTransferred) {
           actions.push({
@@ -446,6 +590,245 @@ export function SawingInspectionListPage() {
           emptyStateLabel={`No records found in ${SAWING_INSPECTION_TABS.find((t: { value: string }) => t.value === activeTab)?.label}.`}
         />
       </Stack>
+
+      {/* ── Record Inspection Decision Dialog ── */}
+      <Dialog
+        fullWidth
+        maxWidth="sm"
+        onClose={handleCloseInspect}
+        open={inspectDialogOpen}
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: "12px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+            },
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            borderBottom: `1px solid ${theme.customTokens.borders.default}`,
+            fontSize: "18px",
+            fontWeight: 700,
+            px: 2.5,
+            py: 2,
+          }}
+        >
+          Record Inspection Decision
+        </DialogTitle>
+        <DialogContent sx={{ px: 2.5, py: `${theme.spacing(2.5)} !important` }}>
+          <Stack spacing={2.5}>
+            {/* Read-only Source details */}
+            {inspectTargetRow && (
+              <Box sx={(t) => formSectionCardSx(t)}>
+                <Stack spacing={1.5}>
+                  <FormSectionHeader title="Output Item Details" />
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                      gap: 1.5,
+                    }}
+                  >
+                    {[
+                      {
+                        label: "Item Name",
+                        value:
+                          inspectTargetRow.itemName ||
+                          inspectTargetRow.item_name ||
+                          inspectTargetRow.item ||
+                          "-",
+                      },
+                      {
+                        label: "Log No.",
+                        value:
+                          inspectTargetRow.logNo ||
+                          inspectTargetRow.log_no ||
+                          inspectTargetRow.logNumber ||
+                          "-",
+                      },
+                      {
+                        label: "Batch No",
+                        value:
+                          inspectTargetRow.batchNo ||
+                          inspectTargetRow.batch_no ||
+                          inspectTargetRow.batchNumber ||
+                          "-",
+                      },
+                      {
+                        label: "Length",
+                        value:
+                          inspectTargetRow.length != null
+                            ? `${Number(inspectTargetRow.length).toFixed(3)} m`
+                            : "-",
+                      },
+                      {
+                        label: "Width",
+                        value:
+                          inspectTargetRow.width != null
+                            ? `${Number(inspectTargetRow.width).toFixed(3)} m`
+                            : "-",
+                      },
+                      {
+                        label: "Thickness",
+                        value:
+                          inspectTargetRow.thickness != null
+                            ? `${Number(inspectTargetRow.thickness).toFixed(3)} m`
+                            : "-",
+                      },
+                      {
+                        label: "CBM",
+                        value:
+                          inspectTargetRow.cbm != null
+                            ? Number(inspectTargetRow.cbm).toFixed(3)
+                            : "-",
+                      },
+                    ].map((field) => (
+                      <Stack key={field.label} spacing={0.25}>
+                        <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 600 }}>
+                          {field.label}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {field.value}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Box>
+                </Stack>
+              </Box>
+            )}
+
+            {/* Editable fields */}
+            <Stack spacing={2}>
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Inspection Date
+                </Typography>
+                <ErpDatePickerField
+                  onChange={(val) => setInspectDate(localDateToIso(val))}
+                  size="dense"
+                  value={isoDateToLocalDate(inspectDate)}
+                />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Attachment (Upload Photo)
+                </Typography>
+                <Stack direction="row" spacing={1.5} alignItems="center">
+                  <Button
+                    component="label"
+                    startIcon={<Upload size={15} />}
+                    sx={{
+                      ...recordFormActionButtonSx,
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                    variant="outlined"
+                  >
+                    Choose Photo
+                    <input accept="image/*" hidden onChange={handleFileChange} type="file" />
+                  </Button>
+                  <Typography
+                    variant="body2"
+                    color={inspectAttachmentName ? "text.primary" : "text.secondary"}
+                    sx={{ fontSize: "13px" }}
+                  >
+                    {inspectAttachmentName || "No file chosen"}
+                  </Typography>
+                </Stack>
+                {inspectAttachmentPreview ? (
+                  <Box
+                    sx={{
+                      mt: 1,
+                      maxHeight: 140,
+                      maxWidth: 220,
+                      overflow: "hidden",
+                      borderRadius: "6px",
+                      border: `1px solid ${theme.customTokens.borders.default}`,
+                    }}
+                  >
+                    <img
+                      alt="Preview"
+                      src={inspectAttachmentPreview}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  </Box>
+                ) : null}
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Inspection Remark
+                </Typography>
+                <TextField
+                  fullWidth
+                  minRows={2}
+                  multiline
+                  onChange={(e) => setInspectRemark(e.target.value)}
+                  placeholder="Enter inspection remark or reason"
+                  size="small"
+                  value={inspectRemark}
+                  sx={getCompactFieldSx(theme, "default")}
+                />
+              </Stack>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions
+          sx={{
+            borderTop: `1px solid ${theme.customTokens.borders.default}`,
+            gap: 1,
+            px: 2.5,
+            py: 1.75,
+          }}
+        >
+          <Button
+            disabled={isSubmittingInspect}
+            onClick={handleCloseInspect}
+            sx={{
+              ...recordFormActionButtonSx,
+              textTransform: "none",
+              fontWeight: 600,
+            }}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            color="error"
+            disabled={isSubmittingInspect}
+            onClick={() => handleConfirmInspectDecision("fail")}
+            startIcon={<AlertCircle size={16} />}
+            sx={{
+              ...recordFormActionButtonSx,
+              textTransform: "none",
+              fontWeight: 600,
+              px: 2.5,
+            }}
+            variant="outlined"
+          >
+            Confirm Fail
+          </Button>
+          <Button
+            color="success"
+            disabled={isSubmittingInspect}
+            onClick={() => handleConfirmInspectDecision("pass")}
+            startIcon={<CheckCircle2 size={16} />}
+            sx={{
+              ...recordFormActionButtonSx,
+              textTransform: "none",
+              fontWeight: 600,
+              px: 2.5,
+            }}
+            variant="contained"
+          >
+            Confirm Pass
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* ── Revert Confirmation Dialog ── */}
       <ConfirmationDialog

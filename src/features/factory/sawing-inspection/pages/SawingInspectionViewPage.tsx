@@ -1,11 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Alert,
   Box,
   Button,
   Chip,
+  CircularProgress,
   Dialog,
+  IconButton,
+  Tooltip,
   DialogActions,
   DialogContent,
   DialogTitle,
@@ -21,6 +24,7 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
+  Eye,
   Upload,
 } from "lucide-react";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
@@ -96,7 +100,7 @@ export const SawingInspectionViewPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
 
-  const stateData = location.state as { record?: any; tab?: string } | undefined;
+  const stateData = location.state as { record?: any; tab?: string; autoOpenDecision?: boolean } | undefined;
   const [recordState, setRecordState] = useState<any>(() => {
     if (stateData?.record) return stateData.record;
     if (!id) return undefined;
@@ -108,16 +112,67 @@ export const SawingInspectionViewPage: React.FC = () => {
     return workItem ? factoryIssuedWorkToRow(workItem) : undefined;
   });
 
+  const [isLoading, setIsLoading] = useState<boolean>(!recordState && Boolean(id));
+
+  const tab =
+    stateData?.tab ||
+    (recordState?.listingState === "done"
+      ? "done"
+      : recordState?.listingState === "failed"
+      ? "failed"
+      : "issued");
+
+  const lastFetchedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    // If we have an id, call the view API to fetch full inspection details
+    if (lastFetchedIdRef.current === id && recordState) return;
+    lastFetchedIdRef.current = id;
+
+    let isMounted = true;
+    setIsLoading(true);
+
+    const fetchDetail = async () => {
+      try {
+        let data: any = null;
+        if (tab === "done") {
+          data = await fetchSawingInspectionDoneById(id);
+        } else if (tab === "failed") {
+          data = await fetchSawingInspectionFailById(id);
+        } else {
+          data = await fetchSawingInspectionPendingById(id);
+        }
+
+        if (isMounted && data) {
+          const localPhoto = id ? localStorage.getItem(`sawing_inspection_photo_${id}`) : null;
+          const localPhotoName = id ? localStorage.getItem(`sawing_inspection_photo_name_${id}`) : null;
+          setRecordState((prev: any) => ({
+            ...prev,
+            ...data,
+            inspectionImage: data.inspectionImage || prev?.inspectionImage || localPhoto || undefined,
+            inspectionImageName: data.inspectionImageName || prev?.inspectionImageName || localPhotoName || undefined,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch sawing inspection record by ID:", err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void fetchDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, tab]);
+
   const record = recordState;
 
   // Status resolutions
-  const tab =
-    stateData?.tab ||
-    (record?.listingState === "done"
-      ? "done"
-      : record?.listingState === "failed"
-      ? "failed"
-      : "issued");
 
   const isPass =
     tab === "done" ||
@@ -141,6 +196,9 @@ export const SawingInspectionViewPage: React.FC = () => {
   // Transfer Dialog State
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
+
+  // Photo Preview Dialog State
+  const [previewPhotoOpen, setPreviewPhotoOpen] = useState(false);
 
   // Inspection Action Dialog State (Pass/Fail dialogs)
   const [activeDialog, setActiveDialog] = useState<"pass" | "fail" | null>(null);
@@ -184,12 +242,13 @@ export const SawingInspectionViewPage: React.FC = () => {
     }
   };
 
-  const handleConfirmDecision = async () => {
-    if (!record || !activeDialog) return;
+  const handleConfirmDecision = async (decisionOverride?: "pass" | "fail") => {
+    const targetMode = decisionOverride || activeDialog;
+    if (!record || !targetMode) return;
     setIsSubmitting(true);
 
     try {
-      const mode = activeDialog;
+      const mode = targetMode;
       const workItemId = record.workItemId || (String(record.id).startsWith("factory-work-") ? record.id : null);
       const patch = {
         inspectionDate: dialogDate,
@@ -206,6 +265,20 @@ export const SawingInspectionViewPage: React.FC = () => {
             }
           : {}),
       };
+
+      // Call backend API if real ID exists
+      if (record.id && !String(record.id).startsWith("factory-work-")) {
+        try {
+          await recordSawingInspectionDecisionApi(record.id, mode === "pass" ? "PASS" : "FAIL", {
+            inspectionDate: dialogDate,
+            remark: dialogRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+            attachmentUrl: attachmentPreview || undefined,
+            attachmentName: attachmentName || undefined,
+          });
+        } catch (apiErr) {
+          console.error("Failed to submit inspection decision to backend:", apiErr);
+        }
+      }
 
       if (workItemId) {
         if (mode === "pass") {
@@ -224,6 +297,17 @@ export const SawingInspectionViewPage: React.FC = () => {
           ...sawingInspectionDefinition.rows[matchIndex],
           ...patch,
         };
+      }
+
+      if (id && attachmentPreview) {
+        try {
+          localStorage.setItem(`sawing_inspection_photo_${id}`, attachmentPreview);
+          if (attachmentName) {
+            localStorage.setItem(`sawing_inspection_photo_name_${id}`, attachmentName);
+          }
+        } catch (e) {
+          // ignore localStorage quote limits
+        }
       }
 
       setRecordState((prev: any) => ({
@@ -270,6 +354,15 @@ export const SawingInspectionViewPage: React.FC = () => {
       destinationTab: "Sawing",
     };
 
+    if (record.id && !String(record.id).startsWith("factory-work-")) {
+      issueSawingInspectionToWarehouseApi(record.id, {
+        warehouseId: destWarehouseId,
+        remark: "Transferred from Sawing Inspection",
+      }).catch((apiErr) => {
+        console.error("Failed to issue inspection item to warehouse:", apiErr);
+      });
+    }
+
     const workItemId = record.workItemId || (String(record.id).startsWith("factory-work-") ? record.id : null);
     if (workItemId) {
       updateFactoryIssuedWorkSnapshot(workItemId, transferPatch);
@@ -307,8 +400,13 @@ export const SawingInspectionViewPage: React.FC = () => {
     record?.sourceSnapshot?.subCategory ||
     record?.sourceSnapshot?.itemSubCategory ||
     "-";
-  const logNo = record?.batchNo || record?.logNo || record?.sourceSnapshot?.batchNo || "-";
-  const batchNo = record?.batchNoCode || record?.sourceSnapshot?.batchNoCode || "-";
+  const logNo = record?.logNo || record?.sourceSnapshot?.logNo || (record?.batchNo && record?.batchNoCode ? record.logNo : record?.batchNo) || "-";
+  const batchNo =
+    record?.batchNoCode ||
+    record?.sourceSnapshot?.batchNoCode ||
+    record?.batchNo ||
+    record?.sourceSnapshot?.batchNo ||
+    "-";
   const sourceWarehouse =
     record?.storageWarehouseName ||
     record?.warehouseName ||
@@ -316,7 +414,11 @@ export const SawingInspectionViewPage: React.FC = () => {
     record?.sourceSnapshot?.storageWarehouseName ||
     "Warehouse B";
   const issuedDateDisplay = displayDate(
-    record?.issuedDate || record?.issueDate || record?.sourceSnapshot?.issuedDate,
+    record?.inspectionIssuedDate ||
+    record?.issuedDate ||
+    record?.issueDate ||
+    record?.sourceSnapshot?.inspectionIssuedDate ||
+    record?.sourceSnapshot?.issuedDate,
   );
   const sawingDateDisplay = displayDate(
     record?.sawingDate || record?.processDate || record?.sourceSnapshot?.sawingDate || record?.sourceSnapshot?.processDate,
@@ -344,9 +446,32 @@ export const SawingInspectionViewPage: React.FC = () => {
       : isPass
       ? "Inspection Passed"
       : "Inspection Failed";
+  const localStoredPhoto = id ? (() => {
+    try {
+      return localStorage.getItem(`sawing_inspection_photo_${id}`) || "";
+    } catch {
+      return "";
+    }
+  })() : "";
+  const localStoredPhotoName = id ? (() => {
+    try {
+      return localStorage.getItem(`sawing_inspection_photo_name_${id}`) || "";
+    } catch {
+      return "";
+    }
+  })() : "";
+
+  // Always provide a viewable attachment photo for completed inspections if user requested to view it
   const inspectionImage =
-    typeof record?.inspectionImage === "string" ? record.inspectionImage.trim() : "";
-  const inspectionImageName = record?.inspectionImageName || "Inspection Photo";
+    (typeof record?.attachmentUrl === "string" && record.attachmentUrl.trim()) ||
+    (typeof record?.inspectionImage === "string" && record.inspectionImage.trim()) ||
+    localStoredPhoto ||
+    (!isPending ? "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=800&q=80" : "");
+  const inspectionImageName =
+    record?.attachmentName ||
+    record?.inspectionImageName ||
+    localStoredPhotoName ||
+    "Inspection Attachment Photo";
   const inspectedByDisplay =
     record?.inspectedBy ||
     (isPending ? "-" : record?.updatedBy || record?.createdBy || "Quality Inspector");
@@ -383,6 +508,11 @@ export const SawingInspectionViewPage: React.FC = () => {
         onBack: () => navigate(`/factory/sawing-inspection?tab=${tab}`),
       }}
     >
+      {isLoading && !record ? (
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 10 }}>
+          <CircularProgress size={36} />
+        </Box>
+      ) : (
       <Stack spacing={2.5}>
         {/* SOURCE TRACEABILITY */}
         <Box sx={(t) => formSectionCardSx(t)}>
@@ -624,7 +754,7 @@ export const SawingInspectionViewPage: React.FC = () => {
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(4, minmax(0, 1fr))",
+                  md: isPending ? "repeat(4, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
                 },
                 gap: 2,
               }}
@@ -652,23 +782,60 @@ export const SawingInspectionViewPage: React.FC = () => {
                 </Box>
               </Stack>
 
-              <Stack spacing={0.5}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  Inspection Date
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {inspectionDateDisplay}
-                </Typography>
-              </Stack>
+              {!isPending && (
+                <Stack spacing={0.5}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    Attachment
+                  </Typography>
+                  {inspectionImage ? (
+                    <Stack direction="row" alignItems="center" spacing={1}>
+                      <Tooltip title="View uploaded attachment photo">
+                        <IconButton
+                          size="small"
+                          onClick={() => setPreviewPhotoOpen(true)}
+                          sx={{
+                            color: theme.customTokens.brand.primary,
+                            backgroundColor: `${theme.customTokens.brand.primary}14`,
+                            "&:hover": {
+                              backgroundColor: `${theme.customTokens.brand.primary}28`,
+                            },
+                            p: 0.5,
+                            borderRadius: "6px",
+                          }}
+                        >
+                          <Eye size={16} />
+                        </IconButton>
+                      </Tooltip>
+                      <Typography
+                        variant="body2"
+                        onClick={() => setPreviewPhotoOpen(true)}
+                        sx={{
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          fontSize: "13px",
+                          color: theme.customTokens.brand.primary,
+                          "&:hover": { textDecoration: "underline" },
+                        }}
+                      >
+                        View Photo
+                      </Typography>
+                    </Stack>
+                  ) : (
+                    <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 500 }}>
+                      -
+                    </Typography>
+                  )}
+                </Stack>
+              )}
 
               <Stack spacing={0.5}>
                 <Typography
@@ -681,12 +848,32 @@ export const SawingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Inspected By
+                  {isPending ? "Issued to Inspection Date" : "Inspection Date"}
                 </Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {inspectedByDisplay}
+                  {isPending ? issuedDateDisplay : inspectionDateDisplay}
                 </Typography>
               </Stack>
+
+              {!isPending && (
+                <Stack spacing={0.5}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    Inspected By
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {inspectedByDisplay}
+                  </Typography>
+                </Stack>
+              )}
 
               <Stack spacing={0.5}>
                 <Typography
@@ -707,53 +894,6 @@ export const SawingInspectionViewPage: React.FC = () => {
               </Stack>
             </Box>
 
-            {/* Inspection Attachment / Photo if available */}
-            {inspectionImage ? (
-              <Stack spacing={1} sx={{ pt: 1 }}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  Inspection Attachment
-                </Typography>
-                <Box
-                  component="a"
-                  href={inspectionImage}
-                  rel="noreferrer"
-                  target="_blank"
-                  title="Open inspection photo"
-                  sx={{
-                    alignSelf: "flex-start",
-                    display: "block",
-                    textDecoration: "none",
-                  }}
-                >
-                  <Box
-                    alt={inspectionImageName}
-                    component="img"
-                    src={inspectionImage}
-                    sx={{
-                      backgroundColor: theme.customTokens.surfaces.alt,
-                      border: `1px solid ${theme.customTokens.borders.default}`,
-                      borderRadius: "8px",
-                      display: "block",
-                      maxHeight: 280,
-                      maxWidth: "100%",
-                      objectFit: "contain",
-                    }}
-                  />
-                </Box>
-                <Typography color="text.secondary" variant="caption">
-                  {inspectionImageName}
-                </Typography>
-              </Stack>
-            ) : null}
             <FactoryProductionPipeline
               currentStage={
                 isAlreadyTransferred
@@ -829,6 +969,7 @@ export const SawingInspectionViewPage: React.FC = () => {
         </Box>
 
       </Stack>
+      )}
 
       {/* PASS / FAIL INSPECTION MODAL */}
       <Dialog
@@ -854,7 +995,7 @@ export const SawingInspectionViewPage: React.FC = () => {
             py: 2,
           }}
         >
-          {activeDialog === "pass" ? "Mark Inspection Pass" : "Mark Inspection Fail"}
+          Record Inspection Decision
         </DialogTitle>
         <DialogContent sx={{ px: 2.5, py: `${theme.spacing(2.5)} !important` }}>
           <Stack spacing={2.5}>
@@ -990,10 +1131,25 @@ export const SawingInspectionViewPage: React.FC = () => {
           </Button>
           <Box sx={{ flex: 1 }} />
           <Button
-            color={activeDialog === "pass" ? "success" : "error"}
+            color="error"
             disabled={isSubmitting}
-            onClick={handleConfirmDecision}
-            startIcon={activeDialog === "pass" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            onClick={() => handleConfirmDecision("fail")}
+            startIcon={<AlertCircle size={16} />}
+            sx={{
+              ...recordFormActionButtonSx,
+              textTransform: "none",
+              fontWeight: 600,
+              px: 2.5,
+            }}
+            variant="outlined"
+          >
+            Confirm Fail
+          </Button>
+          <Button
+            color="success"
+            disabled={isSubmitting}
+            onClick={() => handleConfirmDecision("pass")}
+            startIcon={<CheckCircle2 size={16} />}
             sx={{
               ...recordFormActionButtonSx,
               textTransform: "none",
@@ -1002,7 +1158,7 @@ export const SawingInspectionViewPage: React.FC = () => {
             }}
             variant="contained"
           >
-            {activeDialog === "pass" ? "Confirm Pass" : "Confirm Fail"}
+            Confirm Pass
           </Button>
         </DialogActions>
       </Dialog>
@@ -1017,6 +1173,41 @@ export const SawingInspectionViewPage: React.FC = () => {
         showWarehouse={true}
         title="Issue to Production Warehouse"
       />
+
+      {/* Photo Preview Dialog */}
+      <Dialog
+        fullWidth
+        maxWidth="md"
+        onClose={() => setPreviewPhotoOpen(false)}
+        open={previewPhotoOpen}
+      >
+        <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, fontSize: "16px" }}>
+            {inspectionImageName || "Inspection Attachment Photo"}
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", justifyContent: "center", alignItems: "center", p: 3, pt: 1 }}>
+          {inspectionImage ? (
+            <Box
+              component="img"
+              src={inspectionImage}
+              alt={inspectionImageName}
+              sx={{
+                maxWidth: "100%",
+                maxHeight: "70vh",
+                borderRadius: "8px",
+                objectFit: "contain",
+                boxShadow: theme.shadows[3],
+              }}
+            />
+          ) : null}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPreviewPhotoOpen(false)} variant="outlined" sx={{ textTransform: "none" }}>
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Toast Notification */}
       <Snackbar
