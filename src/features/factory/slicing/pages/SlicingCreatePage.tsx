@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
   Button,
   IconButton,
-  MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -18,12 +16,12 @@ import {
 } from "@mui/material";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
+import type { Theme } from "@mui/material/styles";
 
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
   formInlineActionButtonSx,
-  formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
 import {
@@ -34,9 +32,7 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
-import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { ErpDatePickerField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
-import { slicingDefinition } from "../../shared/factoryDefinitions";
 import { createSlicingProcessApi, fetchSlicingIssuedById } from "../api/slicingApi";
 
 interface SlicingProcessItemRow {
@@ -57,16 +53,121 @@ interface SlicingProcessItemRow {
   remark: string;
 }
 
-interface SlicingRejectAvailableRow {
-  id: string;
-  type: "Reject" | "Available";
-  length: number;
-  width: number;
-  thickness: number;
-  sqm: number;
-  sqf: number;
-  amount: number;
-  remark: string;
+function formatDisplayDate(value: unknown) {
+  if (!value) return "-";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  const text = String(value).trim();
+  if (!text) return "-";
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  return text.slice(0, 10);
+}
+
+function stripUnit(value: unknown) {
+  return value ? String(value).replace(/\s*(m|mm|mtr)$/i, "") : "-";
+}
+
+function headerCellSx(theme: Theme, minWidth: number) {
+  return {
+    ...transactionTableHeaderCellSx(theme, minWidth),
+    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+    fontSize: "11px",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap" as const,
+  };
+}
+
+function bodyCellSx(theme: Theme) {
+  return {
+    ...transactionTableBodyCellSx(theme),
+    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+    py: 0.75,
+    px: 1,
+    verticalAlign: "middle" as const,
+  };
+}
+
+function tableScrollSx(theme: Theme) {
+  return {
+    overflowX: "auto" as const,
+    overflowY: "hidden" as const,
+    scrollbarWidth: "thin" as const,
+    scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
+    "&::-webkit-scrollbar": { height: 8 },
+    "&::-webkit-scrollbar-track": {
+      backgroundColor: theme.customTokens.surfaces.alt,
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: theme.customTokens.brand.primary,
+      borderRadius: theme.customTokens.radius.pill,
+    },
+  };
+}
+
+function CompactTableInput({
+  error,
+  onChange,
+  placeholder,
+  readOnly,
+  required,
+  value,
+  width = 120,
+}: {
+  error?: boolean;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  readOnly?: boolean;
+  required?: boolean;
+  value: string;
+  width?: number;
+}) {
+  const theme = useTheme();
+  return (
+    <TextField
+      error={error}
+      onChange={(event) => onChange?.(event.target.value)}
+      placeholder={placeholder}
+      required={required}
+      size="small"
+      slotProps={{
+        input: { readOnly },
+      }}
+      sx={{
+        width,
+        minWidth: width,
+        "& .MuiInputBase-root": { height: 32, fontSize: "12px" },
+        "& .MuiInputBase-input": { py: "4px", px: "8px", fontSize: "12px" },
+        backgroundColor: readOnly
+          ? theme.customTokens.surfaces.alt
+          : theme.customTokens.surfaces.surface,
+      }}
+      value={value}
+    />
+  );
+}
+
+function RequiredHeader({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {children}
+      <Box component="span" sx={{ color: "error.main" }}>
+        {" "}
+        *
+      </Box>
+    </>
+  );
 }
 
 export function SlicingCreatePage() {
@@ -84,16 +185,14 @@ export function SlicingCreatePage() {
       }
     | undefined;
 
-  const defaultSource = slicingDefinition.rows[0];
   const [loadedSourceItem, setLoadedSourceItem] = useState<any | null>(null);
-  const sourceItem = loadedSourceItem || state?.sourceItem || state?.sourceRow || defaultSource;
+  const sourceItem = loadedSourceItem || state?.sourceItem || state?.sourceRow;
 
   // Slicing Date
   const [slicingDate, setSlicingDate] = useState<Date | null>(new Date());
 
   // Master Dropdown state
 
-  // Process details input form state - blank by default per user request
   const [bundleNo, setBundleNo] = useState("");
   const [palletNo, setPalletNo] = useState("");
   const [length, setLength] = useState("");
@@ -102,10 +201,11 @@ export function SlicingCreatePage() {
   const [noOfLeaves, setNoOfLeaves] = useState("");
   const [ratePerSqf, setRatePerSqf] = useState("");
   const [remark, setRemark] = useState("");
+  const [sourcePrefillDone, setSourcePrefillDone] = useState(false);
 
   // Create Fetch API: fetch live issue data by ID if state not fully populated
   useEffect(() => {
-    const idToFetch = state?.issueId || state?.issueItemId || sourceItem?.id;
+    const idToFetch = state?.issueId || state?.issueItemId;
     if (idToFetch && !loadedSourceItem) {
       void fetchSlicingIssuedById(idToFetch)
         .then((data) => {
@@ -115,21 +215,24 @@ export function SlicingCreatePage() {
         })
         .catch(() => {});
     }
-  }, [state?.issueId, state?.issueItemId, sourceItem?.id, loadedSourceItem]);
+  }, [state?.issueId, state?.issueItemId, loadedSourceItem]);
+
+  useEffect(() => {
+    if (!sourceItem || sourcePrefillDone) {
+      return;
+    }
+    setBundleNo((current) => current || String(sourceItem.bundleNumber || sourceItem.bundleNo || ""));
+    setPalletNo((current) => current || String(sourceItem.palletNo || ""));
+    setLength((current) => current || stripUnit(sourceItem.length).replace(/^-/, ""));
+    setWidth((current) => current || stripUnit(sourceItem.width).replace(/^-/, ""));
+    setRemark((current) => current || String(sourceItem.remark || ""));
+    setSourcePrefillDone(true);
+  }, [sourceItem, sourcePrefillDone]);
 
   // Processed Items List
   const [processedItems, setProcessedItems] = useState<SlicingProcessItemRow[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  // Reject / Available Details List
-  const [rejectAvailableItems, setRejectAvailableItems] = useState<SlicingRejectAvailableRow[]>([]);
-
-  // Reject / Available row input state for adding - blank by default
-  const [raType, setRaType] = useState<"Reject" | "Available">("Available");
-  const [raLength, setRaLength] = useState("");
-  const [raWidth, setRaWidth] = useState("");
-  const [raThickness, setRaThickness] = useState("");
-  const [raAmount, setRaAmount] = useState("");
   const [raRemark, setRaRemark] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -157,42 +260,68 @@ export function SlicingCreatePage() {
     return Number((calculatedSqf * rate).toFixed(2));
   }, [calculatedSqf, ratePerSqf]);
 
-  // Calculate Reject / Available row SQM and SQF
-  const calculatedRaSqm = useMemo(() => {
-    const l = Number(raLength) || 0;
-    const w = Number(raWidth) || 0;
-    if (!l || !w) return 0;
-    const lM = l > 50 ? l / 1000 : l;
-    const wM = w > 50 ? w / 1000 : w;
-    return Number((lM * wM).toFixed(3));
-  }, [raLength, raWidth]);
+  const sourceAvailableCbm = useMemo(() => {
+    const raw =
+      sourceItem?.availableCbm ??
+      sourceItem?.receivedCbm ??
+      sourceItem?.cbm ??
+      0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [sourceItem]);
 
-  const calculatedRaSqf = useMemo(() => {
-    if (!calculatedRaSqm) return 0;
-    return Number((calculatedRaSqm * 10.7639).toFixed(3));
-  }, [calculatedRaSqm]);
+  const sourceReceivedCbm = useMemo(() => {
+    const raw = sourceItem?.receivedCbm ?? sourceItem?.cbm ?? 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [sourceItem]);
 
-  // Source Overview items (without Bundle Number, Pallet No, No of Leaves, Total Sq Meter)
+  const sourceColor = String(
+    sourceItem?.colorName || sourceItem?.color || "",
+  );
+
   const sourceOverviewItems = useMemo(() => {
     if (!sourceItem) return [];
-    const formatDate = (val: any) => {
-      if (!val) return "-";
-      if (val instanceof Date) return val.toISOString().slice(0, 10);
-      return String(val).slice(0, 10);
-    };
 
     return [
-      { label: "Storage Sr No.", value: String(sourceItem.storageSrNo || sourceItem.bundleNumber || "-") },
-      { label: "Issue Date", value: formatDate(sourceItem.issueDate || sourceItem.issuedDate) },
+      { label: "Storage Sr No.", value: String(sourceItem.storageSrNo || "-") },
+      {
+        label: "Issue Date",
+        value: formatDisplayDate(sourceItem.issueDate || sourceItem.issuedDate),
+      },
       { label: "Item Name", value: String(sourceItem.itemName || "-") },
-      { label: "Sub Category", value: String(sourceItem.itemSubCategory || sourceItem.subCategory || "-") },
-      { label: "Log Code", value: String(sourceItem.logCode || sourceItem.batchNoCode || sourceItem.batchNo || "-") },
-      { label: "Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Thickness", value: sourceItem.thickness || sourceItem.height ? String(sourceItem.thickness || sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Remark", value: String(sourceItem.remark || "-") },
+      { label: "Length", value: stripUnit(sourceItem.length) },
+      { label: "Width", value: stripUnit(sourceItem.width) },
+      {
+        label: "Height",
+        value: stripUnit(sourceItem.height ?? sourceItem.thickness),
+      },
+      {
+        label: "Received CBM",
+        value: sourceReceivedCbm ? Number(sourceReceivedCbm).toFixed(3) : "-",
+      },
+      {
+        label: "Available CBM",
+        value: sourceAvailableCbm ? Number(sourceAvailableCbm).toFixed(3) : "-",
+      },
     ];
-  }, [sourceItem]);
+  }, [sourceItem, sourceAvailableCbm, sourceReceivedCbm]);
+
+  const remainingCbmPreview = useMemo(() => {
+    const processedCbm = processedItems.reduce((sum, item) => {
+      const lM = item.length > 50 ? item.length / 1000 : item.length;
+      const wM = item.width > 50 ? item.width / 1000 : item.width;
+      const tM = item.thickness > 50 ? item.thickness / 1000 : item.thickness;
+      const leaves = item.noOfLeaves || 1;
+      return sum + lM * wM * (tM || 0) * leaves;
+    }, 0);
+    return Math.max(0, sourceAvailableCbm - processedCbm);
+  }, [processedItems, sourceAvailableCbm]);
+
+  const remainingCbfPreview = useMemo(
+    () => Number((remainingCbmPreview * 35.3147).toFixed(4)),
+    [remainingCbmPreview],
+  );
 
   // Add Item to Process Items
   const handleAddProcessItem = () => {
@@ -299,36 +428,6 @@ export function SlicingCreatePage() {
     }
   };
 
-  // Add Item to Reject / Available Details
-  const handleAddRejectAvailableItem = () => {
-    const l = Number(raLength) || 0;
-    const w = Number(raWidth) || 0;
-    const th = Number(raThickness) || 0;
-
-    const newRa: SlicingRejectAvailableRow = {
-      id: `ra-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: raType,
-      length: l,
-      width: w,
-      thickness: th,
-      sqm: calculatedRaSqm,
-      sqf: calculatedRaSqf,
-      amount: Number(raAmount) || 0,
-      remark: raRemark,
-    };
-
-    setRejectAvailableItems((prev) => [...prev, newRa]);
-    setRaLength("");
-    setRaWidth("");
-    setRaThickness("");
-    setRaAmount("");
-    setRaRemark("");
-  };
-
-  const handleDeleteRejectAvailableItem = (id: string) => {
-    setRejectAvailableItems((prev) => prev.filter((it) => it.id !== id));
-  };
-
   // Submit process creation
   const handleSubmit = async () => {
     if (processedItems.length === 0) {
@@ -346,13 +445,17 @@ export function SlicingCreatePage() {
     setErrorMessage("");
 
     try {
-      const remainingRow = rejectAvailableItems.find((ra) => ra.type === "Available");
-      const rejectRow = rejectAvailableItems.find((ra) => ra.type === "Reject");
+      const remainingLength = Number(stripUnit(sourceItem?.length).replace(/^-/, "")) || 0;
+      const remainingWidth = Number(stripUnit(sourceItem?.width).replace(/^-/, "")) || 0;
+      const remainingHeight =
+        remainingLength > 0 && remainingWidth > 0
+          ? remainingCbmPreview / (remainingLength * remainingWidth)
+          : 0;
 
       await createSlicingProcessApi({
         issueId: targetIssueId,
         slicingDate: slicingDate ? slicingDate.toISOString().slice(0, 10) : undefined,
-        remark: remark || undefined,
+        remark: remark || raRemark || undefined,
         processedItems: processedItems.map((item) => ({
           logCode: item.logNo,
           batchNo: item.logNo,
@@ -370,28 +473,13 @@ export function SlicingCreatePage() {
           amount: item.amount,
           remark: item.remark,
         })),
-        rejected: rejectRow
-          ? {
-              length: rejectRow.length,
-              width: rejectRow.width,
-              thickness: rejectRow.thickness,
-              height: rejectRow.thickness,
-              cbm: 0,
-              sqm: rejectRow.sqm,
-              sqf: rejectRow.sqf,
-              totalSqMeter: rejectRow.sqm,
-              remark: rejectRow.remark,
-            }
-          : undefined,
-        remaining: remainingRow
-          ? {
-              length: remainingRow.length,
-              width: remainingRow.width,
-              thickness: remainingRow.thickness,
-              height: remainingRow.thickness,
-              cbm: 0,
-            }
-          : undefined,
+        remaining: {
+          length: remainingLength,
+          width: remainingWidth,
+          thickness: remainingHeight,
+          height: remainingHeight,
+          cbm: remainingCbmPreview,
+        },
       });
 
       // Navigate to Slicing Done tab
@@ -403,6 +491,14 @@ export function SlicingCreatePage() {
     }
   };
 
+  const remainingHeightPreview =
+    Number(stripUnit(sourceItem?.length).replace(/^-/, "")) > 0 &&
+    Number(stripUnit(sourceItem?.width).replace(/^-/, "")) > 0
+      ? remainingCbmPreview /
+        (Number(stripUnit(sourceItem?.length).replace(/^-/, "")) *
+          Number(stripUnit(sourceItem?.width).replace(/^-/, "")))
+      : 0;
+
   return (
     <FactoryPageShell
       breadcrumbs={[
@@ -411,6 +507,7 @@ export function SlicingCreatePage() {
         { label: "Create Slicing" },
       ]}
       title="Create Slicing Process"
+      subtitle="Slice veneer block into bundles for drying."
     >
       <Stack spacing={3}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -420,8 +517,7 @@ export function SlicingCreatePage() {
           <FactorySourceOverviewPanel items={sourceOverviewItems} />
         ) : null}
 
-        {/* Slicing Date Box */}
-        <Box sx={{ width: 220 }}>
+        <Box sx={{ maxWidth: 220 }}>
           <Typography
             sx={{
               mb: 0.5,
@@ -433,473 +529,231 @@ export function SlicingCreatePage() {
           >
             Slicing Date
           </Typography>
-          <ErpDatePickerField
-            onChange={setSlicingDate}
-            value={slicingDate}
+          <ErpDatePickerField onChange={setSlicingDate} value={slicingDate} />
+        </Box>
+
+        <Stack spacing={1.5}>
+          <FormSectionHeader
+            title={editingItemId ? "Edit Output Item" : "Output Details"}
           />
-        </Box>
-
-        {/* Process Details Input Form */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader
-              title={editingItemId ? "Edit Process Detail" : "PROCESS DETAILS"}
-            />
-
-            {/* Horizontal Scrollable Container */}
-            <Box
-              sx={{
-                width: "100%",
-                overflowX: "auto",
-                pb: 1,
-                "&::-webkit-scrollbar": {
-                  height: 6,
-                },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: theme.palette.divider,
-                  borderRadius: 3,
-                },
-              }}
-            >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  minWidth: "max-content",
-                  py: 0.5,
-                }}
-              >
-                {/* BUNDLE NO */}
-                <TextField
-                  label="BUNDLE NO *"
-                  required
-                  value={bundleNo}
-                  onChange={(e) => setBundleNo(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 140 }}
-                />
-
-                {/* PALLET NO */}
-                <TextField
-                  label="PALLET NO"
-                  value={palletNo}
-                  onChange={(e) => setPalletNo(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 140 }}
-                />
-
-                {/* LENGTH (M) */}
-                <TextField
-                  label="LENGTH (M) *"
-                  type="number"
-                  value={length}
-                  onChange={(e) => setLength(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                  required
-                />
-
-                {/* WIDTH (M) */}
-                <TextField
-                  label="WIDTH (M) *"
-                  type="number"
-                  value={width}
-                  onChange={(e) => setWidth(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                  required
-                />
-
-                {/* THICKNESS (M) */}
-                <TextField
-                  label="THICKNESS (M)"
-                  type="number"
-                  value={thickness}
-                  onChange={(e) => setThickness(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 140 }}
-                />
-
-                {/* NO. OF LEAVES */}
-                <TextField
-                  label="NO. OF LEAVES *"
-                  type="number"
-                  required
-                  value={noOfLeaves}
-                  onChange={(e) => setNoOfLeaves(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                />
-
-                {/* SQM */}
-                <TextField
-                  label="SQM"
-                  value={calculatedSqm ? calculatedSqm.toFixed(3) : ""}
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* SQF */}
-                <TextField
-                  label="SQF"
-                  value={calculatedSqf ? calculatedSqf.toFixed(3) : ""}
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* RATE PER SQF */}
-                <TextField
-                  label="RATE PER SQF"
-                  type="number"
-                  value={ratePerSqf}
-                  onChange={(e) => setRatePerSqf(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                />
-
-                {/* AMOUNT */}
-                <TextField
-                  label="AMOUNT"
-                  value={calculatedAmount ? calculatedAmount.toFixed(2) : ""}
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                />
-
-                {/* REMARK */}
-                <TextField
-                  label="REMARK"
-                  value={remark}
-                  onChange={(e) => setRemark(e.target.value)}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 160 }}
-                />
-              </Box>
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 1280, tableLayout: "auto" }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={headerCellSx(theme, 140)}>Bundle No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Pallet No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Color</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>
+                      <RequiredHeader>Width</RequiredHeader>
+                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>
+                      <RequiredHeader>Thickness</RequiredHeader>
+                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 130)}>
+                      <RequiredHeader>No. of Leaves</RequiredHeader>
+                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setBundleNo} value={bundleNo} width={132} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setPalletNo} value={palletNo} width={132} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={sourceColor || "-"} width={112} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setLength} value={length} width={100} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setWidth} required value={width} width={100} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setThickness} required value={thickness} width={110} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setNoOfLeaves} required value={noOfLeaves} width={120} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={calculatedSqm ? calculatedSqm.toFixed(3) : "-"} width={90} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={calculatedSqf ? calculatedSqf.toFixed(3) : "-"} width={90} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setRemark} value={remark} width={170} />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </Box>
-
-            <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
-              {editingItemId ? (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setEditingItemId(null);
-                    setBundleNo("");
-                    setPalletNo("");
-                    setLength("");
-                    setWidth("");
-                    setThickness("");
-                    setNoOfLeaves("");
-                    setRatePerSqf("");
-                    setRemark("");
-                  }}
-                  sx={recordFormActionButtonSx}
-                >
-                  Cancel Edit
-                </Button>
-              ) : null}
-              <Button
-                variant="contained"
-                startIcon={<Plus size={16} />}
-                onClick={handleAddProcessItem}
-                size="small"
-                sx={{
-                  ...formInlineActionButtonSx(theme),
-                  backgroundColor: (t) => t.palette.primary.main,
-                  color: "#FFFFFF",
-                  fontWeight: 600,
-                  "&:hover": {
-                    backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
-                  },
-                }}
-              >
-                {editingItemId ? "Update Item" : "+ Add Item"}
-              </Button>
-            </Stack>
-          </Stack>
-        </Box>
-
-        {/* Processed Items Table (shown when items are added as seen in img 2) */}
-        {processedItems.length > 0 && (
-          <Box sx={(t) => formSectionCardSx(t)}>
-            <Stack spacing={2}>
-              <FormSectionHeader
-                title={`PROCESSED ITEMS`}
-              />
-
-              <Box
-                sx={{
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  borderRadius: "8px",
-                  overflowX: "auto",
-                  backgroundColor: theme.customTokens.surfaces.surface,
-                }}
-              >
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>ITEM NAME</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>ITEM SUB-CATEGORY</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>LOG NO.</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>BUNDLE NO</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>PALLET NO</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>LENGTH (M)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>WIDTH (M)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>THICKNESS (M)</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>NO. OF LEAVES</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>SQM</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>SQF</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>RATE PER SQF</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>AMOUNT</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>REMARK</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
-                        ACTION
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {processedItems.map((item) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.itemName}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.itemSubCategory}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.logNo}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.bundleNo || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.palletNo || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length} m</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width} m</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.thickness ? `${item.thickness} m` : "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.noOfLeaves}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqm.toFixed(3)}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqf.toFixed(3)}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.ratePerSqf.toFixed(2)}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
-                          <Stack direction="row" spacing={0.5} justifyContent="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditProcessItem(item)}
-                              color="primary"
-                              title="Edit"
-                            >
-                              <Pencil size={15} />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteProcessItem(item.id)}
-                              color="error"
-                              title="Delete"
-                            >
-                              <Trash2 size={15} />
-                            </IconButton>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            </Stack>
           </Box>
-        )}
-
-        {/* Reject / Available Details Table */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader title="REJECT / AVAILABLE DETAILS" />
-
-            <Box
-              sx={{
-                width: "100%",
-                overflowX: "auto",
-                pb: 1,
-                "&::-webkit-scrollbar": {
-                  height: 6,
-                },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: theme.palette.divider,
-                  borderRadius: 3,
-                },
-              }}
+          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1.5 }}>
+            {editingItemId ? (
+              <Button
+                onClick={() => {
+                  setEditingItemId(null);
+                  setThickness("");
+                  setNoOfLeaves("");
+                }}
+                size="small"
+                sx={recordFormActionButtonSx}
+                variant="outlined"
+              >
+                Cancel Edit
+              </Button>
+            ) : null}
+            <Button
+              onClick={handleAddProcessItem}
+              size="small"
+              startIcon={<Plus size={15} />}
+              sx={(t) => formInlineActionButtonSx(t)}
+              variant="contained"
             >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  minWidth: "max-content",
-                  py: 0.5,
-                }}
-              >
-                {/* TYPE */}
-                <Select
-                  size="small"
-                  value={raType}
-                  onChange={(e) => setRaType(e.target.value as "Reject" | "Available")}
-                  sx={{ ...getCompactFieldSx(theme), width: 130 }}
-                >
-                  <MenuItem value="Available">Available</MenuItem>
-                  <MenuItem value="Reject">Reject</MenuItem>
-                </Select>
+              {editingItemId ? "Update Item" : "Add Item"}
+            </Button>
+          </Box>
+        </Stack>
 
-                {/* LENGTH */}
-                <TextField
-                  label="LENGTH"
-                  type="number"
-                  size="small"
-                  value={raLength}
-                  onChange={(e) => setRaLength(e.target.value)}
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* WIDTH */}
-                <TextField
-                  label="WIDTH"
-                  type="number"
-                  size="small"
-                  value={raWidth}
-                  onChange={(e) => setRaWidth(e.target.value)}
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* THICKNESS */}
-                <TextField
-                  label="THICKNESS"
-                  type="number"
-                  size="small"
-                  value={raThickness}
-                  onChange={(e) => setRaThickness(e.target.value)}
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* SQM */}
-                <TextField
-                  label="SQM"
-                  value={calculatedRaSqm ? calculatedRaSqm.toFixed(3) : ""}
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 110 }}
-                />
-
-                {/* SQF */}
-                <TextField
-                  label="SQF"
-                  value={calculatedRaSqf ? calculatedRaSqf.toFixed(3) : ""}
-                  slotProps={{ input: { readOnly: true } }}
-                  size="small"
-                  sx={{ ...getCompactFieldSx(theme), width: 110 }}
-                />
-
-                {/* AMOUNT */}
-                <TextField
-                  label="AMOUNT"
-                  type="number"
-                  size="small"
-                  value={raAmount}
-                  onChange={(e) => setRaAmount(e.target.value)}
-                  sx={{ ...getCompactFieldSx(theme), width: 120 }}
-                />
-
-                {/* REMARK */}
-                <TextField
-                  label="REMARK"
-                  size="small"
-                  value={raRemark}
-                  onChange={(e) => setRaRemark(e.target.value)}
-                  sx={{ ...getCompactFieldSx(theme), width: 150 }}
-                />
-
-                <Button
-                  variant="contained"
-                  startIcon={<Plus size={16} />}
-                  onClick={handleAddRejectAvailableItem}
-                  size="small"
-                  sx={{
-                    ...formInlineActionButtonSx(theme),
-                    backgroundColor: (t) => t.palette.primary.main,
-                    color: "#FFFFFF",
-                    fontWeight: 600,
-                    "&:hover": {
-                      backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
-                    },
-                  }}
-                >
-                  + Add
-                </Button>
-              </Box>
-            </Box>
-
-            {rejectAvailableItems.length > 0 && (
-              <Box
-                sx={{
-                  border: `1px solid ${theme.customTokens.borders.default}`,
-                  borderRadius: "8px",
-                  overflowX: "auto",
-                  backgroundColor: theme.customTokens.surfaces.surface,
-                }}
-              >
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>#</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>TYPE</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>LENGTH</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>WIDTH</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>THICKNESS</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>SQM</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>SQF</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>AMOUNT</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)}>REMARK</TableCell>
-                      <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
-                        ACTION
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rejectAvailableItems.map((item, index) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{index + 1}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 600,
-                              color: item.type === "Reject" ? "error.main" : "primary.main",
-                            }}
-                          >
-                            {item.type}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.thickness || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqm || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.sqf || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.amount || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteRejectAvailableItem(item.id)}
-                            color="error"
-                            title="Delete"
-                          >
+        {processedItems.length > 0 ? (
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 1280 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={headerCellSx(theme, 48)}>#</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Bundle No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Pallet No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Color</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Width</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Thickness</TableCell>
+                    <TableCell sx={headerCellSx(theme, 130)}>No. of Leaves</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
+                    <TableCell align="center" sx={headerCellSx(theme, 88)}>Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {processedItems.map((item, index) => (
+                    <TableRow hover key={item.id}>
+                      <TableCell sx={bodyCellSx(theme)}>{index + 1}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.bundleNo || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.palletNo || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{sourceColor || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.length}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.width}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.thickness || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.noOfLeaves}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.sqm.toFixed(3)}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.sqf.toFixed(3)}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.remark || "-"}</TableCell>
+                      <TableCell align="center" sx={bodyCellSx(theme)}>
+                        <Stack direction="row" justifyContent="center" spacing={0.5}>
+                          <IconButton color="primary" onClick={() => handleEditProcessItem(item)} size="small" title="Edit">
+                            <Pencil size={15} />
+                          </IconButton>
+                          <IconButton color="error" onClick={() => handleDeleteProcessItem(item.id)} size="small" title="Delete">
                             <Trash2 size={15} />
                           </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Box>
-            )}
-          </Stack>
-        </Box>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        ) : null}
 
-        {/* Bottom Action Bar (Cancel & Save Process) */}
+        <Stack spacing={1.5}>
+          <FormSectionHeader title="Available Details" />
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 900 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={headerCellSx(theme, 130)}>Type</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Width</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Height</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>CBM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>CBF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value="Available" width={118} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        readOnly
+                        value={stripUnit(sourceItem?.length).replace(/^-/, "") || "-"}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        readOnly
+                        value={stripUnit(sourceItem?.width).replace(/^-/, "") || "-"}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        readOnly
+                        value={remainingHeightPreview ? remainingHeightPreview.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") : "0"}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={remainingCbmPreview.toFixed(3)} width={110} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={remainingCbfPreview.toFixed(4)} width={110} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setRaRemark} value={raRemark} width={170} />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        </Stack>
+
         <Box
           sx={{
             display: "flex",
@@ -910,20 +764,18 @@ export function SlicingCreatePage() {
           }}
         >
           <Button
+            disabled={isSubmitting}
+            onClick={() => navigate("/factory/slicing")}
+            sx={recordFormActionButtonSx}
             type="button"
             variant="outlined"
-            onClick={() => navigate("/factory/slicing")}
-            disabled={isSubmitting}
-            sx={recordFormActionButtonSx}
           >
             Cancel
           </Button>
           <Button
-            type="button"
-            variant="contained"
+            disabled={isSubmitting}
             disableElevation
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting}
             sx={{
               ...highlightedRecordFormPrimaryButtonSx,
               backgroundColor: (t) => t.palette.primary.main,
@@ -934,6 +786,8 @@ export function SlicingCreatePage() {
                 backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
               },
             }}
+            type="button"
+            variant="contained"
           >
             {isSubmitting ? "Saving..." : "Save Process"}
           </Button>
