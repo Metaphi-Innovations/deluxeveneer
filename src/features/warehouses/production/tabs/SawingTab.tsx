@@ -56,6 +56,8 @@ function mapApiItem(item: ProductionInventoryItem): SawingRow {
     remark: String(item.remark ?? ""),
     createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
+    createdAt: item.createdAt ? (item.createdAt as string | Date) : undefined,
+    updatedAt: item.updatedAt ? (item.updatedAt as string | Date) : undefined,
     inventorySlug: "sawing",
     inventoryRecordId: item.inventoryRecordId
       ? String(item.inventoryRecordId)

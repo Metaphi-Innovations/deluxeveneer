@@ -1074,8 +1074,8 @@ export const slicingDefinition: FactoryDefinition = {
   slug: "slicing",
   title: "Slicing",
   listColumns: slicingListingColumns,
-  formSections: buildSlicingFormSections(slicingRows),
-  rows: expandFactoryRowsForTabs("slicing", slicingRows),
+  formSections: buildSlicingFormSections([]),
+  rows: [],
   initialSort: { key: "issueDate", direction: "desc" },
 };
 

@@ -5,6 +5,7 @@ import {
   Box,
   Button,
   Chip,
+  CircularProgress,
   Divider,
   Stack,
   Table,
@@ -30,6 +31,7 @@ import {
   Truck,
   UserCheck,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
 
 import { MasterPageShell, MasterSectionCard } from "../../masters/shared";
@@ -48,8 +50,10 @@ import {
 import {
   getPackingPaths,
   type PackingRecord,
-  usePackingRecords,
 } from "../shared/packingStore";
+import { fetchPackingById } from "../api/packingApi";
+import { mapApiItemToPackingRecord } from "../hooks/usePackingList";
+import { queryKeys } from "../../../query/queryKeys";
 
 export function ViewPackingPage() {
   const theme = useTheme();
@@ -57,13 +61,16 @@ export function ViewPackingPage() {
   const { id } = useParams<{ id: string }>();
   const paths = getPackingPaths();
 
-  // Sync with store updates
-  const packingRecords = usePackingRecords();
+  const { data: apiItem, isLoading, isError } = useQuery({
+    queryKey: queryKeys.packing.detail(id ?? ""),
+    queryFn: () => fetchPackingById(id!),
+    enabled: !!id,
+  });
 
   const record: PackingRecord | undefined = useMemo(() => {
-    if (!id) return undefined;
-    return packingRecords.find((entry) => entry.id === id);
-  }, [id, packingRecords]);
+    if (!apiItem) return undefined;
+    return mapApiItemToPackingRecord(apiItem);
+  }, [apiItem]);
 
   const canEdit = canAccessPermission("packing", "edit");
   const canView = canAccessPermission("packing", "view");
@@ -117,6 +124,38 @@ export function ViewPackingPage() {
       boxShadow: "none",
     },
   };
+
+  if (isLoading) {
+    return (
+      <MasterPageShell
+        breadcrumbs={[
+          { label: "Packing", to: paths.list },
+          { label: "View Packing" },
+        ]}
+        title="View Packing"
+        contentGap={1.5}
+      >
+        <MasterSectionCard>
+          <CircularProgress size={24} />
+        </MasterSectionCard>
+      </MasterPageShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <MasterPageShell
+        breadcrumbs={[
+          { label: "Packing", to: paths.list },
+          { label: "Error" },
+        ]}
+        title="View Packing"
+        contentGap={1.5}
+      >
+        <Alert severity="error">Failed to load packing record. Please try again.</Alert>
+      </MasterPageShell>
+    );
+  }
 
   if (!canView) {
     return (

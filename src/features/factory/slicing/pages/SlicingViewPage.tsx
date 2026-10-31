@@ -1,5 +1,11 @@
-import React, { useMemo } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import {
+  fetchSlicingIssuedById,
+  fetchSlicingDoneById,
+  fetchSlicingHistoryById,
+  fetchSlicingRejectedById,
+} from "../api/slicingApi";
 import {
   Box,
   Chip,
@@ -104,11 +110,42 @@ export const SlicingViewPage: React.FC = () => {
   // Subscribe to live slicing flow state
   useSlicingFlowState();
 
+  const [searchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+
+  const [apiRecord, setApiRecord] = useState<Record<string, unknown> | null>(null);
+
   const stateData = location.state as { record?: Record<string, unknown>; tab?: string } | undefined;
   const passedRecord = stateData?.record;
 
+  const tab =
+    stateData?.tab ||
+    queryTab ||
+    "issued";
+
+  useEffect(() => {
+    if (passedRecord || !id) return;
+    const fetcher =
+      tab === "done"
+        ? fetchSlicingDoneById
+        : tab === "history"
+        ? fetchSlicingHistoryById
+        : tab === "rejected"
+        ? fetchSlicingRejectedById
+        : fetchSlicingIssuedById;
+
+    fetcher(id)
+      .then((data) => {
+        if (data) setApiRecord(data as unknown as Record<string, unknown>);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch slicing record for view", err);
+      });
+  }, [id, tab, passedRecord]);
+
   const record = useMemo(() => {
     if (passedRecord) return passedRecord;
+    if (apiRecord) return apiRecord;
     if (!id) return undefined;
 
     // 1. Check in definition rows
@@ -127,18 +164,7 @@ export const SlicingViewPage: React.FC = () => {
     }
 
     return undefined;
-  }, [id, passedRecord]);
-
-  const rawListingState = String(record?.listingState || "");
-  const tab =
-    stateData?.tab ||
-    (rawListingState === "done"
-      ? "done"
-      : rawListingState === "history"
-        ? "history"
-        : rawListingState === "rejected"
-          ? "rejected"
-          : "issued");
+  }, [id, passedRecord, apiRecord]);
 
   const listPath = `/factory/slicing?tab=${tab}`;
 
