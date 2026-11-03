@@ -99,29 +99,29 @@ export function SearchableMultiSelectColumnFilter({
     !allVisibleSelected;
 
   const toggleValue = (value: string) => {
-    setDraftValues((current) =>
-      current.includes(value)
-        ? current.filter((item) => item !== value)
-        : [...current, value],
-    );
+    const next = draftValues.includes(value)
+      ? draftValues.filter((item) => item !== value)
+      : [...draftValues, value];
+    setDraftValues(next);
+    if (!dateRange) {
+      onApply(next);
+    }
   };
 
   const handleSelectAllVisible = () => {
-    // If all or some (indeterminate) options are selected, uncheck/clear them.
+    let next: string[] = [];
     if (allVisibleSelected || someVisibleSelected) {
       const visibleSet = new Set(filteredOptions.map((option) => option.value));
-      setDraftValues((current) =>
-        current.filter((value) => !visibleSet.has(value)),
-      );
-      return;
+      next = draftValues.filter((value) => !visibleSet.has(value));
+    } else {
+      const set = new Set(draftValues);
+      filteredOptions.forEach((option) => set.add(option.value));
+      next = Array.from(set);
     }
-
-    // If none are selected, select all visible options.
-    setDraftValues((current) => {
-      const next = new Set(current);
-      filteredOptions.forEach((option) => next.add(option.value));
-      return Array.from(next);
-    });
+    setDraftValues(next);
+    if (!dateRange) {
+      onApply(next);
+    }
   };
 
   const handleApply = () => {

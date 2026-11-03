@@ -135,9 +135,7 @@ export function SlicingEditPage() {
     const th = Number(editThickness) || 0;
     const leaves = Number(editLeaves) || 0;
 
-    const lMeters = l > 50 ? l / 1000 : l;
-    const wMeters = w > 50 ? w / 1000 : w;
-    const sqm = +(lMeters * wMeters * leaves).toFixed(4);
+    const sqm = +(l * w * leaves).toFixed(4);
     const sqf = +(sqm * 10.7639).toFixed(4);
 
     setOutputs((prev) =>

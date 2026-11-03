@@ -156,25 +156,52 @@ export function SawingInspectionListPage() {
     setPage(1);
   };
 
-  const handleColumnFilterOpen = useCallback((columnKey: string) => {
-    const tabName = activeTab === "done" ? "done" : activeTab === "failed" ? "failed" : "pending";
-    fetchSawingInspectionDropdownsApi(tabName).then((dropdowns) => {
-      let rawOpts: string[] = [];
-      if (columnKey === "storageSrNo") rawOpts = dropdowns.storageSrNos;
-      else if (columnKey === "itemName") rawOpts = dropdowns.itemNames;
-      else if (columnKey === "subCategory") rawOpts = dropdowns.subCategories;
-      else if (columnKey === "batchNo" || columnKey === "logNo") rawOpts = dropdowns.logNos;
-      else if (columnKey === "batchNoCode") rawOpts = dropdowns.batchNos;
-      else if (columnKey === "remark") rawOpts = dropdowns.remarks;
+  const handleColumnFilterOpen = useCallback(
+    async (columnKey: string) => {
+      try {
+        const tabName = activeTab === "done" ? "done" : activeTab === "failed" ? "failed" : "pending";
+        const dropdowns = await fetchSawingInspectionDropdownsApi(tabName);
+        let rawOpts: string[] = [];
+        if (columnKey === "storageSrNo") rawOpts = dropdowns.storageSrNos || [];
+        else if (columnKey === "itemName") rawOpts = dropdowns.itemNames || [];
+        else if (columnKey === "subCategory") rawOpts = dropdowns.subCategories || [];
+        else if (columnKey === "batchNo" || columnKey === "logNo") rawOpts = dropdowns.logNos || [];
+        else if (columnKey === "batchNoCode") rawOpts = dropdowns.batchNos || [];
+        else if (columnKey === "remark") rawOpts = dropdowns.remarks || [];
 
-      if (rawOpts.length > 0) {
+        const presentInListing = new Set(
+          rows
+            .map((r: any) => {
+              if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
+              if (columnKey === "logNo" || columnKey === "batchNo") return String(r.logNo ?? r.batchNo ?? "").trim();
+              if (columnKey === "batchNoCode") return String(r.batchNoCode ?? r.batchNo ?? "").trim();
+              if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
+              return String(r[columnKey] ?? "").trim();
+            })
+            .filter(Boolean)
+        );
+
+        const filteredList =
+          presentInListing.size > 0
+            ? rawOpts.filter((opt) => presentInListing.has(String(opt).trim()))
+            : rawOpts;
+
+        const finalSet = new Set([...filteredList]);
+        if (presentInListing.size > 0 && finalSet.size === 0) {
+          presentInListing.forEach((v) => finalSet.add(v));
+        }
+
+        const opts = Array.from(finalSet).map((opt) => ({ value: opt, label: opt }));
         setFilterOptionsByColumn((prev) => ({
           ...prev,
-          [columnKey]: rawOpts.map((s) => ({ value: s, label: s })),
+          [columnKey]: opts,
         }));
+      } catch (err) {
+        console.error("Failed to load sawing inspection filter dropdowns", err);
       }
-    }).catch(() => {});
-  }, [activeTab]);
+    },
+    [activeTab, rows]
+  );
 
   // ── Load Data ─────────────────────────────────────────────────────
   const loadData = useCallback(async () => {

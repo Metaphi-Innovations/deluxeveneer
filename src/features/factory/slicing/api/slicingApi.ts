@@ -239,6 +239,8 @@ export async function createSlicingProcessApi(payload: {
     batchNo?: string | undefined;
     bundleNumber?: string | undefined;
     palletNo?: string | undefined;
+    colorName?: string | undefined;
+    colorId?: string | undefined;
     length?: number | undefined;
     width?: number | undefined;
     height?: number | undefined;
@@ -557,7 +559,8 @@ export async function exportSlicingDataApi(
     query.set("filters", JSON.stringify(params.filters));
   }
 
-  const endpoint = `${BASE_PATH}/${tab}/export?${query.toString()}`;
+  const qs = query.toString();
+  const endpoint = qs ? `${BASE_PATH}/${tab}/export?${qs}` : `${BASE_PATH}/${tab}/export`;
   const response = await apiRequest<ApiResponse<any[]>>(endpoint, { method: "GET" });
   return response.data || [];
 }

@@ -60,16 +60,36 @@ import {
   updateFactoryIssuedWorkSnapshot,
 } from "../../shared/factoryIssuedWorkStore";
 
-function displayDate(value: unknown): string {
+function displayDate(value: unknown, withTime = false): string {
   if (!value) return "-";
+  let date: Date | null = null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value.toISOString().slice(0, 10);
+    date = value;
+  } else if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
   }
-  const str = String(value).trim();
-  if (str.includes("T")) {
-    return str.slice(0, 10);
+
+  if (!date) return String(value);
+
+  if (withTime) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
   }
-  return str.length >= 10 ? str.slice(0, 10) : str || "-";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function formatCbmDisplay(value: unknown): string {
@@ -931,12 +951,12 @@ export const SawingInspectionViewPage: React.FC = () => {
                 { label: "Created By", value: record?.createdBy || "-" },
                 {
                   label: "Created At",
-                  value: displayDate(record?.createdAt || record?.issuedDate),
+                  value: displayDate(record?.createdAt || record?.issuedDate, true),
                 },
                 { label: "Updated By", value: record?.updatedBy || "-" },
                 {
                   label: "Updated At",
-                  value: displayDate(record?.updatedAt || record?.inspectionDate),
+                  value: displayDate(record?.updatedAt || record?.inspectionDate, true),
                 },
               ].map((field) => (
                 <Stack key={field.label} spacing={0.5}>

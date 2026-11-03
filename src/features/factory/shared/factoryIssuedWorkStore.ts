@@ -99,6 +99,20 @@ function readStore(): FactoryIssuedWorkStore {
           return false;
         }
       }
+      if (item?.destinationSlug === "drying" || item?.destinationSlug === "drying-inspection") {
+        const bundle = String(item?.sourceSnapshot?.bundleNumber || item?.sourceSnapshot?.bundleNo || "");
+        const pallet = String(item?.sourceSnapshot?.palletNo || "");
+        const itemId = String(item?.id || "");
+        // Filter out legacy dummy/mock generated data
+        if (
+          bundle.startsWith("BDL-WB-") ||
+          pallet.startsWith("PAL-WB-") ||
+          itemId.startsWith("drying-") ||
+          itemId.startsWith("slicing-line-")
+        ) {
+          return false;
+        }
+      }
       return true;
     });
     memoryStore = { items: sanitizedItems };

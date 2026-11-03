@@ -15,9 +15,7 @@ import {
 
 import { DryingCreatePage } from "./DryingCreatePage";
 
-export function DryingListPage() {
-  return <FactoryListing definition={dryingDefinition} />;
-}
+export { DryingListPage } from "./DryingListPage";
 
 export function AddDryingPage() {
   return <FactoryProcessCreatePage definition={dryingDefinition} />;

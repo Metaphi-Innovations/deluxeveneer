@@ -1101,8 +1101,8 @@ export const dryingDefinition: FactoryDefinition = {
   slug: "drying",
   title: "Drying",
   listColumns: dryingListingColumns,
-  formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
-  rows: expandFactoryRowsForTabs("drying", dryingRows),
+  formSections: sectionSet([], dryingCreateFields, dryingAddItemFields),
+  rows: [],
   initialSort: { key: "issueDate", direction: "desc" },
 };
 
@@ -1110,8 +1110,8 @@ export const dryingInspectionDefinition: FactoryDefinition = {
   slug: "drying-inspection",
   title: "Drying Inspection",
   listColumns: dryingListingColumns,
-  formSections: sectionSet(dryingRows, dryingCreateFields, dryingAddItemFields),
-  rows: expandFactoryRowsForTabs("drying-inspection", dryingRows),
+  formSections: sectionSet([], dryingCreateFields, dryingAddItemFields),
+  rows: [],
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 

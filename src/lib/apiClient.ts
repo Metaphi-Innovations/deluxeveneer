@@ -29,7 +29,15 @@ export async function apiRequest<TResponse>(
     const parsedPath = new URL(normalizedPath, 'http://local');
     const serializedFilters = parsedPath.searchParams.get('filters');
 
-    if ((parsedPath.pathname.startsWith('/masters/') || parsedPath.pathname.startsWith('/orders') || parsedPath.pathname.startsWith('/factory/sawing')) && serializedFilters) {
+    if (
+      (parsedPath.pathname.startsWith('/masters/') ||
+        parsedPath.pathname.startsWith('/orders') ||
+        parsedPath.pathname.startsWith('/factory/sawing') ||
+        parsedPath.pathname.startsWith('/factory/slicing') ||
+        parsedPath.pathname.startsWith('/factory/drying') ||
+        parsedPath.pathname.startsWith('/factory/sawing-inspection')) &&
+      serializedFilters
+    ) {
       let filters: Record<string, string[]> | undefined;
       try {
         filters = JSON.parse(serializedFilters) as Record<string, string[]>;

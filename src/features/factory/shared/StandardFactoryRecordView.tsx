@@ -202,13 +202,13 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
 
   const recordFields = compactFields([
     field("Created By", row, ["createdBy"]),
-    field("Created Date", row, ["createdAt", "createdDate"]),
+    dateTimeField("Created At", row, ["createdAt", "createdDate"]),
     field("Updated By", row, ["updatedBy"]),
-    field("Updated Date", row, ["updatedAt", "updatedDate"]),
+    dateTimeField("Updated At", row, ["updatedAt", "updatedDate"]),
     ...(listingState === "rejected"
       ? [
           field("Rejected By", row, ["rejectedBy"]),
-          field("Rejected Date", row, ["rejectedDate"]),
+          dateTimeField("Rejected At", row, ["rejectedDate", "rejectedAt"]),
         ]
       : []),
   ]);
@@ -1232,6 +1232,39 @@ function orderValueField(label: string, ...values: unknown[]): ViewField {
 
 function field(label: string, row: FactoryRecord, keys: readonly string[]): ViewField {
   return { label, value: readValue(row, keys) };
+}
+
+function formatDateTime(value: unknown): string {
+  if (!value) return "";
+  let date: Date | null = null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    date = value;
+  } else if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  }
+  if (!date) return String(value);
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function dateTimeField(label: string, row: FactoryRecord, keys: readonly string[]): ViewField {
+  for (const key of keys) {
+    const val = row[key];
+    if (val) {
+      const formatted = formatDateTime(val);
+      if (formatted) return { label, value: formatted };
+    }
+  }
+  return { label, value: "-" };
 }
 
 function compactFields(fields: readonly ViewField[]) {

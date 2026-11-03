@@ -25,6 +25,7 @@ import { ClearableSearchField } from "../../../shared/ClearableSearchField";
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactoryToolbar } from "../../shared/FactoryToolbar";
 import { exportRowsToCsv, type CsvColumn } from "../../../shared/exportToCsv";
+import { useDebouncedValue } from "../../../../query/useDebouncedValue";
 import {
   fetchSlicingIssued,
   fetchSlicingDone,
@@ -46,6 +47,7 @@ import {
   SLICING_REJECTED_COLUMNS,
   type SlicingProcessTab,
 } from "../slicingColumns";
+import { issueFactoryWork } from "../../shared/factoryIssuedWorkStore";
 
 export function SlicingListPage() {
   const navigate = useNavigate();
@@ -57,6 +59,7 @@ export function SlicingListPage() {
     : "issued";
 
   const [searchValue, setSearchValue] = useState("");
+  const debouncedSearchValue = useDebouncedValue(searchValue, 350);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
@@ -86,12 +89,13 @@ export function SlicingListPage() {
   const [dryingTargetRows, setDryingTargetRows] = useState<any[]>([]);
   const [dryingRemark, setDryingRemark] = useState("");
   const [isIssuingForDrying, setIsIssuingForDrying] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Column Sorting & Filtering
   const [sortConfig, setSortConfig] = useState<{
     sortBy: string | null;
     sortOrder: "asc" | "desc" | null;
-  }>({ sortBy: null, sortOrder: "desc" });
+  }>({ sortBy: null, sortOrder: null });
 
   const [columnFilters, setColumnFilters] = useState<Partial<Record<string, ColumnFilterValue>>>({});
   const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<Record<string, Array<{ value: string; label: string }>>>({});
@@ -117,16 +121,40 @@ export function SlicingListPage() {
     async (columnKey: string) => {
       try {
         const res = await fetchSlicingDropdownsApi(activeTab, columnKey);
-        const optionsList = Array.isArray(res) ? res : res?.options || [];
+        const optionsList: string[] = Array.isArray(res) ? res : res?.options || [];
+
+        // Dynamic filtering: keep options dynamic to what is present in this listing
+        const presentInListing = new Set(
+          rows
+            .map((r: any) => {
+              if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
+              if (columnKey === "logCode" || columnKey === "logNo") return String(r.logCode ?? r.logNo ?? r.batchNo ?? "").trim();
+              if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
+              return String(r[columnKey] ?? "").trim();
+            })
+            .filter(Boolean)
+        );
+
+        const filteredList =
+          presentInListing.size > 0
+            ? optionsList.filter((opt) => presentInListing.has(String(opt).trim()))
+            : optionsList;
+
+        const finalSet = new Set([...filteredList]);
+        if (presentInListing.size > 0 && finalSet.size === 0) {
+          presentInListing.forEach((v) => finalSet.add(v));
+        }
+
+        const opts = Array.from(finalSet).map((opt) => ({ value: opt, label: opt }));
         setFilterOptionsByColumn((prev) => ({
           ...prev,
-          [columnKey]: optionsList.map((opt: string) => ({ value: opt, label: opt })),
+          [columnKey]: opts,
         }));
       } catch (err) {
         console.error("Failed to load filter dropdowns", err);
       }
     },
-    [activeTab]
+    [activeTab, rows]
   );
 
   // Fetch data from backend API
@@ -139,9 +167,9 @@ export function SlicingListPage() {
     const params = {
       page,
       limit: rowsPerPage,
-      search: searchValue.trim() || undefined,
+      search: debouncedSearchValue.trim() || undefined,
       sortBy: sortConfig.sortBy || undefined,
-      sortOrder: (sortConfig.sortOrder || "desc") as any,
+      sortOrder: sortConfig.sortOrder || undefined,
       filters: apiFilters,
     };
 
@@ -173,18 +201,29 @@ export function SlicingListPage() {
     return () => {
       isMounted = false;
     };
-  }, [activeTab, page, rowsPerPage, searchValue, sortConfig, columnFilters, refreshTrigger]);
+  }, [activeTab, page, rowsPerPage, debouncedSearchValue, sortConfig, columnFilters, refreshTrigger]);
 
   // Handle Export CSV
   const handleExport = useCallback(async () => {
+    setIsExporting(true);
     try {
       const apiFilters = toApiColumnFilters(columnFilters);
-      const data = await exportSlicingDataApi(activeTab, {
-        search: searchValue.trim() || undefined,
+      let data = await exportSlicingDataApi(activeTab, {
+        search: (debouncedSearchValue || searchValue).trim() || undefined,
         sortBy: sortConfig.sortBy || undefined,
-        sortOrder: (sortConfig.sortOrder || "desc") as any,
+        sortOrder: sortConfig.sortOrder || undefined,
         filters: apiFilters,
       });
+
+      if ((!data || data.length === 0) && rows.length > 0) {
+        data = rows;
+      }
+
+      if (!data || data.length === 0) {
+        setSnackbarMessage("No records available to export.");
+        setSnackbarOpen(true);
+        return;
+      }
 
       const currentColumns =
         activeTab === "issued"
@@ -201,10 +240,14 @@ export function SlicingListPage() {
       }));
 
       exportRowsToCsv(data, csvCols, `slicing-${activeTab}`);
+      setSnackbarMessage(`Successfully exported ${data.length} slicing record(s).`);
+      setSnackbarOpen(true);
     } catch (err: any) {
       setErrorMessage(err.message || "Failed to export data");
+    } finally {
+      setIsExporting(false);
     }
-  }, [activeTab, columnFilters, searchValue, sortConfig]);
+  }, [activeTab, columnFilters, searchValue, sortConfig, rows]);
 
   // Actions for table rows
   const getRowActions = useCallback(
@@ -238,17 +281,27 @@ export function SlicingListPage() {
           },
         });
 
-        actions.push({
-          id: "revert",
-          label: "Revert Issue",
-          icon: RotateCcw,
-          tone: "danger",
-          onSelect: () => {
-            setRevertTargetRow(row);
-            setRevertRemark("");
-            setRevertDialogOpen(true);
-          },
-        });
+        const recCbm = Number(row.receivedCbm ?? row.cbm);
+        const availCbm = Number(row.availableCbm);
+        const isFullyUnprocessed =
+          !isNaN(recCbm) &&
+          !isNaN(availCbm) &&
+          recCbm > 0 &&
+          Math.abs(recCbm - availCbm) < 0.0001;
+
+        if (isFullyUnprocessed) {
+          actions.push({
+            id: "revert",
+            label: "Revert Issue",
+            icon: RotateCcw,
+            tone: "danger",
+            onSelect: () => {
+              setRevertTargetRow(row);
+              setRevertRemark("");
+              setRevertDialogOpen(true);
+            },
+          });
+        }
       } else if (activeTab === "done") {
         actions.push({
           id: "edit",
@@ -366,6 +419,28 @@ export function SlicingListPage() {
         outputDetailIds: ids,
         remark: dryingRemark,
       });
+
+      // Synchronize with Factory Listing for Drying
+      for (const row of dryingTargetRows) {
+        issueFactoryWork({
+          destinationProcess: "Drying",
+          sourceSlug: "slicing",
+          sourceProcess: "Slicing",
+          sourceWarehouseName: row.storageWarehouseName || row.warehouseName || "Warehouse B",
+          sourceRow: {
+            ...row,
+            issueDate: new Date().toISOString().slice(0, 10),
+            issuedDate: new Date(),
+            remark: dryingRemark || row.remark || "",
+            noOfLeaves: String(row.noOfLeaves ?? row.availableLeaves ?? row.receivedLeaves ?? "0"),
+            availableLeaves: String(row.availableLeaves ?? row.noOfLeaves ?? "0"),
+            receivedLeaves: String(row.receivedLeaves ?? row.noOfLeaves ?? "0"),
+            totalLeaves: String(row.noOfLeaves ?? row.availableLeaves ?? "0"),
+            totalSqMeter: row.totalSqMeter ?? row.sqm ?? "0",
+          },
+        });
+      }
+
       setSnackbarMessage(
         `${ids.length} output item${ids.length > 1 ? "s" : ""} issued to Drying successfully`
       );
@@ -418,7 +493,10 @@ export function SlicingListPage() {
           <ClearableSearchField
             placeholder={`Search ${SLICING_PROCESS_TABS.find((t) => t.value === activeTab)?.label}...`}
             value={searchValue}
-            onChange={setSearchValue}
+            onChange={(val) => {
+              setSearchValue(val);
+              setPage(1);
+            }}
             sx={{ width: { xs: "100%", sm: 320 } }}
           />
 
@@ -447,7 +525,7 @@ export function SlicingListPage() {
               </>
             ) : null}
             <FactoryToolbar
-              disabled={isLoading || totalCount === 0}
+              disabled={isLoading || isExporting}
               onExport={handleExport}
             />
           </Stack>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   IconButton,
   Stack,
   Table,
@@ -32,8 +33,15 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
-import { ErpDatePickerField } from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import {
+  ErpDatePickerField,
+  ErpSelectField,
+} from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { createSlicingProcessApi, fetchSlicingIssuedById } from "../api/slicingApi";
+import {
+  fetchColorsApi,
+  getColorByIdApi,
+} from "../../../masters/color-master/api/colorMasterApi";
 
 interface SlicingProcessItemRow {
   id: string;
@@ -42,6 +50,8 @@ interface SlicingProcessItemRow {
   logNo: string;
   bundleNo: string;
   palletNo: string;
+  color: string;
+  colorId: string;
   length: number;
   width: number;
   thickness: number;
@@ -124,6 +134,7 @@ function CompactTableInput({
   required,
   value,
   width = 120,
+  type = "text",
 }: {
   error?: boolean;
   onChange?: (value: string) => void;
@@ -132,12 +143,25 @@ function CompactTableInput({
   required?: boolean;
   value: string;
   width?: number;
+  type?: "text" | "decimal" | "integer";
 }) {
   const theme = useTheme();
   return (
     <TextField
       error={error}
-      onChange={(event) => onChange?.(event.target.value)}
+      onChange={(event) => {
+        let val = event.target.value;
+        if (type === "integer") {
+          val = val.replace(/[^0-9]/g, "");
+        } else if (type === "decimal") {
+          val = val.replace(/[^0-9.]/g, "");
+          const parts = val.split(".");
+          if (parts.length > 2) {
+            val = parts[0] + "." + parts.slice(1).join("");
+          }
+        }
+        onChange?.(val);
+      }}
       placeholder={placeholder}
       required={required}
       size="small"
@@ -195,6 +219,11 @@ export function SlicingCreatePage() {
 
   const [bundleNo, setBundleNo] = useState("");
   const [palletNo, setPalletNo] = useState("");
+  const [color, setColor] = useState("");
+  const [colorId, setColorId] = useState("");
+  const [colorOptions, setColorOptions] = useState<string[]>([]);
+  const [colorMap, setColorMap] = useState<Record<string, string>>({});
+  const [colorLoading, setColorLoading] = useState(false);
   const [length, setLength] = useState("");
   const [width, setWidth] = useState("");
   const [thickness, setThickness] = useState("");
@@ -202,6 +231,34 @@ export function SlicingCreatePage() {
   const [ratePerSqf, setRatePerSqf] = useState("");
   const [remark, setRemark] = useState("");
   const [sourcePrefillDone, setSourcePrefillDone] = useState(false);
+
+  // Preload colors on component mount
+  const loadColors = useCallback(async () => {
+    try {
+      setColorLoading(true);
+      const records = await fetchColorsApi({ status: true, limit: 500 });
+      const map: Record<string, string> = {};
+      const names: string[] = [];
+      for (const rec of records) {
+        const name = String(rec.colorName || rec.name || "").trim();
+        const id = String(rec.id || "").trim();
+        if (name) {
+          names.push(name);
+          if (id) map[name] = id;
+        }
+      }
+      setColorOptions(names);
+      setColorMap(map);
+    } catch {
+      // ignore
+    } finally {
+      setColorLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadColors();
+  }, [loadColors]);
 
   // Create Fetch API: fetch live issue data by ID if state not fully populated
   useEffect(() => {
@@ -229,24 +286,66 @@ export function SlicingCreatePage() {
     setSourcePrefillDone(true);
   }, [sourceItem, sourcePrefillDone]);
 
+  // Dropdown API: refresh colors when dropdown opened
+  const handleColorDropdownOpen = useCallback(() => {
+    void loadColors();
+  }, [loadColors]);
+
+  // On-Select API: called each time a colour is chosen
+  const handleColorSelect = useCallback(
+    (selectedName: string) => {
+      setColor(selectedName);
+      const resolvedId = colorMap[selectedName] ?? "";
+      setColorId(resolvedId);
+
+      if (resolvedId) {
+        getColorByIdApi(resolvedId)
+          .then((record) => {
+            if (record) {
+              const canonicalName = String(record.colorName || record.name || selectedName).trim();
+              setColor(canonicalName);
+              setColorId(String(record.id || resolvedId));
+            }
+          })
+          .catch(() => {});
+      } else {
+        fetchColorsApi({ search: selectedName, limit: 1 })
+          .then((records) => {
+            const first = records?.[0];
+            if (first) {
+              setColor(String(first.colorName || first.name || selectedName).trim());
+              setColorId(String(first.id || ""));
+            }
+          })
+          .catch(() => {});
+      }
+    },
+    [colorMap],
+  );
+
   // Processed Items List
   const [processedItems, setProcessedItems] = useState<SlicingProcessItemRow[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const [raRemark, setRaRemark] = useState("");
 
+  // Available Details editable state
+  const [availLength, setAvailLength] = useState<string>("");
+  const [availWidth, setAvailWidth] = useState<string>("");
+  const [availHeight, setAvailHeight] = useState<string>("");
+  const [availCbm, setAvailCbm] = useState<string>("");
+  const [availCbf, setAvailCbf] = useState<string>("");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Calculate Process Details SQM and SQF
+  // Calculate Process Details SQM and SQF (all dimensions in metres)
   const calculatedSqm = useMemo(() => {
     const l = Number(length) || 0;
     const w = Number(width) || 0;
     const leaves = Number(noOfLeaves) || 0;
     if (!l || !w || !leaves) return 0;
-    const lM = l > 50 ? l / 1000 : l;
-    const wM = w > 50 ? w / 1000 : w;
-    return Number((lM * wM * leaves).toFixed(3));
+    return Number((l * w * leaves).toFixed(4));
   }, [length, width, noOfLeaves]);
 
   const calculatedSqf = useMemo(() => {
@@ -274,6 +373,16 @@ export function SlicingCreatePage() {
     const raw = sourceItem?.receivedCbm ?? sourceItem?.cbm ?? 0;
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : 0;
+  }, [sourceItem]);
+
+  const sourceLength = useMemo(() => {
+    const val = Number(stripUnit(sourceItem?.length).replace(/^-/, ""));
+    return Number.isFinite(val) ? val : 0;
+  }, [sourceItem]);
+
+  const sourceWidth = useMemo(() => {
+    const val = Number(stripUnit(sourceItem?.width).replace(/^-/, ""));
+    return Number.isFinite(val) ? val : 0;
   }, [sourceItem]);
 
   const sourceColor = String(
@@ -307,47 +416,103 @@ export function SlicingCreatePage() {
     ];
   }, [sourceItem, sourceAvailableCbm, sourceReceivedCbm]);
 
-  const remainingCbmPreview = useMemo(() => {
-    const processedCbm = processedItems.reduce((sum, item) => {
-      const lM = item.length > 50 ? item.length / 1000 : item.length;
-      const wM = item.width > 50 ? item.width / 1000 : item.width;
-      const tM = item.thickness > 50 ? item.thickness / 1000 : item.thickness;
-      const leaves = item.noOfLeaves || 1;
-      return sum + lM * wM * (tM || 0) * leaves;
+  // Output CBM = Output SQM * Thickness (all dimensions in metres)
+  const totalProcessedCbm = useMemo(() => {
+    return processedItems.reduce((sum, item) => {
+      const leaves = item.noOfLeaves || 0;
+      const itemSqm = item.sqm || item.length * item.width * leaves;
+      const th = item.thickness || 0;
+      return sum + itemSqm * th;
     }, 0);
-    return Math.max(0, sourceAvailableCbm - processedCbm);
-  }, [processedItems, sourceAvailableCbm]);
+  }, [processedItems]);
 
-  const remainingCbfPreview = useMemo(
-    () => Number((remainingCbmPreview * 35.3147).toFixed(4)),
-    [remainingCbmPreview],
+  const calculatedRemainingCbm = useMemo(() => {
+    return sourceAvailableCbm - totalProcessedCbm;
+  }, [sourceAvailableCbm, totalProcessedCbm]);
+
+  const calculatedRemainingCbf = useMemo(
+    () => Number((calculatedRemainingCbm * 35.3147).toFixed(4)),
+    [calculatedRemainingCbm],
   );
+
+  const calculatedRemainingHeight = useMemo(() => {
+    if (sourceLength > 0 && sourceWidth > 0) {
+      return calculatedRemainingCbm / (sourceLength * sourceWidth);
+    }
+    const hRaw = Number(stripUnit(sourceItem?.height ?? sourceItem?.thickness).replace(/^-/, ""));
+    return Number.isFinite(hRaw) ? hRaw : 0;
+  }, [calculatedRemainingCbm, sourceLength, sourceWidth, sourceItem]);
+
+  // Auto-populate Available Details directly when Process Details or Source change
+  useEffect(() => {
+    const lStr = stripUnit(sourceItem?.length).replace(/^-/, "") || "";
+    const wStr = stripUnit(sourceItem?.width).replace(/^-/, "") || "";
+    setAvailLength(lStr);
+    setAvailWidth(wStr);
+    setAvailCbm(calculatedRemainingCbm.toFixed(3));
+    setAvailCbf(calculatedRemainingCbf.toFixed(4));
+    setAvailHeight(
+      calculatedRemainingHeight
+        ? calculatedRemainingHeight.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+        : "0"
+    );
+  }, [
+    processedItems,
+    sourceItem,
+    calculatedRemainingCbm,
+    calculatedRemainingCbf,
+    calculatedRemainingHeight,
+  ]);
 
   // Add Item to Process Items
   const handleAddProcessItem = () => {
     const bNo = bundleNo.trim();
     const l = Number(length);
     const w = Number(width);
+    const th = Number(thickness);
     const leaves = Number(noOfLeaves);
 
     if (!bNo) {
-      alert("Please enter Bundle No");
+      setErrorMessage("Please enter Bundle No.");
       return;
     }
-    if (!l) {
-      alert("Please enter Length (M)");
+    if (!l || l <= 0 || isNaN(l)) {
+      setErrorMessage("Please enter a valid positive Length (m).");
       return;
     }
-    if (!w) {
-      alert("Please enter Width (M)");
+    if (!w || w <= 0 || isNaN(w)) {
+      setErrorMessage("Please enter a valid positive Width (m).");
       return;
     }
-    if (!leaves || leaves <= 0) {
-      alert("Please enter a valid No. of Leaves");
+    if (!th || th <= 0 || isNaN(th)) {
+      setErrorMessage("Please enter a valid positive Thickness (m).");
+      return;
+    }
+    if (!leaves || leaves <= 0 || !Number.isInteger(leaves)) {
+      setErrorMessage("Please enter a valid positive integer for No. of Leaves.");
       return;
     }
 
-    const th = Number(thickness) || 0;
+    const itemSqm = Number((l * w * leaves).toFixed(4));
+    const newItemCbm = itemSqm * th;
+    const otherItemsCbm = processedItems
+      .filter((item) => (editingItemId ? item.id !== editingItemId : true))
+      .reduce((sum, item) => {
+        const iLeaves = item.noOfLeaves || 0;
+        const iSqm = item.sqm || item.length * item.width * iLeaves;
+        return sum + iSqm * (item.thickness || 0);
+      }, 0);
+
+    const proposedTotalCbm = otherItemsCbm + newItemCbm;
+    if (proposedTotalCbm > sourceAvailableCbm) {
+      setErrorMessage(
+        `Insufficient available CBM. Required: ${proposedTotalCbm.toFixed(3)} CBM. Available: ${sourceAvailableCbm.toFixed(3)} CBM.`
+      );
+      return;
+    }
+
+    setErrorMessage("");
+
     const parentItemName = String(sourceItem?.itemName || "");
     const parentSubCategory = String(sourceItem?.itemSubCategory || sourceItem?.subCategory || "");
     const parentLogNo = String(sourceItem?.logCode || sourceItem?.batchNo || "");
@@ -363,6 +528,8 @@ export function SlicingCreatePage() {
                 logNo: item.logNo || parentLogNo,
                 bundleNo: bNo,
                 palletNo: palletNo.trim(),
+                color: color.trim(),
+                colorId: colorId.trim(),
                 length: l,
                 width: w,
                 thickness: th,
@@ -385,6 +552,8 @@ export function SlicingCreatePage() {
         logNo: parentLogNo,
         bundleNo: bNo,
         palletNo: palletNo.trim(),
+        color: color.trim(),
+        colorId: colorId.trim(),
         length: l,
         width: w,
         thickness: th,
@@ -398,11 +567,11 @@ export function SlicingCreatePage() {
       setProcessedItems((prev) => [...prev, newItem]);
     }
 
-    // Reset fields for next entry
+    // Reset fields for next entry - KEEP hold of length and width always
     setBundleNo("");
     setPalletNo("");
-    setLength("");
-    setWidth("");
+    setColor("");
+    setColorId("");
     setThickness("");
     setNoOfLeaves("");
     setRatePerSqf("");
@@ -413,6 +582,8 @@ export function SlicingCreatePage() {
     setEditingItemId(item.id);
     setBundleNo(item.bundleNo);
     setPalletNo(item.palletNo);
+    setColor(item.color || "");
+    setColorId(item.colorId || "");
     setLength(String(item.length));
     setWidth(String(item.width));
     setThickness(item.thickness ? String(item.thickness) : "");
@@ -441,17 +612,28 @@ export function SlicingCreatePage() {
       return;
     }
 
+    const finalRemLength = Number(availLength) || sourceLength || 0;
+    const finalRemWidth = Number(availWidth) || sourceWidth || 0;
+    const finalRemCbm = availCbm !== "" && !isNaN(Number(availCbm)) ? Number(availCbm) : calculatedRemainingCbm;
+    const finalRemCbf = availCbf !== "" && !isNaN(Number(availCbf)) ? Number(availCbf) : calculatedRemainingCbf;
+    const finalRemHeight =
+      availHeight !== "" && !isNaN(Number(availHeight))
+        ? Number(availHeight)
+        : finalRemLength > 0 && finalRemWidth > 0
+          ? finalRemCbm / (finalRemLength * finalRemWidth)
+          : 0;
+
+    if (totalProcessedCbm > sourceAvailableCbm || finalRemCbm < 0) {
+      setErrorMessage(
+        `Insufficient available CBM. Required: ${totalProcessedCbm.toFixed(3)} CBM. Available: ${sourceAvailableCbm.toFixed(3)} CBM.`
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage("");
 
     try {
-      const remainingLength = Number(stripUnit(sourceItem?.length).replace(/^-/, "")) || 0;
-      const remainingWidth = Number(stripUnit(sourceItem?.width).replace(/^-/, "")) || 0;
-      const remainingHeight =
-        remainingLength > 0 && remainingWidth > 0
-          ? remainingCbmPreview / (remainingLength * remainingWidth)
-          : 0;
-
       await createSlicingProcessApi({
         issueId: targetIssueId,
         slicingDate: slicingDate ? slicingDate.toISOString().slice(0, 10) : undefined,
@@ -461,6 +643,8 @@ export function SlicingCreatePage() {
           batchNo: item.logNo,
           bundleNumber: item.bundleNo,
           palletNo: item.palletNo,
+          colorName: item.color || undefined,
+          colorId: item.colorId || undefined,
           length: item.length,
           width: item.width,
           thickness: item.thickness,
@@ -474,11 +658,12 @@ export function SlicingCreatePage() {
           remark: item.remark,
         })),
         remaining: {
-          length: remainingLength,
-          width: remainingWidth,
-          thickness: remainingHeight,
-          height: remainingHeight,
-          cbm: remainingCbmPreview,
+          length: finalRemLength,
+          width: finalRemWidth,
+          thickness: finalRemHeight,
+          height: finalRemHeight,
+          cbm: finalRemCbm,
+          cbf: finalRemCbf,
         },
       });
 
@@ -490,14 +675,6 @@ export function SlicingCreatePage() {
       setIsSubmitting(false);
     }
   };
-
-  const remainingHeightPreview =
-    Number(stripUnit(sourceItem?.length).replace(/^-/, "")) > 0 &&
-    Number(stripUnit(sourceItem?.width).replace(/^-/, "")) > 0
-      ? remainingCbmPreview /
-        (Number(stripUnit(sourceItem?.length).replace(/^-/, "")) *
-          Number(stripUnit(sourceItem?.width).replace(/^-/, "")))
-      : 0;
 
   return (
     <FactoryPageShell
@@ -569,25 +746,35 @@ export function SlicingCreatePage() {
                 <TableBody>
                   <TableRow>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setBundleNo} value={bundleNo} width={132} />
+                      <CompactTableInput onChange={setBundleNo} required value={bundleNo} width={132} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput onChange={setPalletNo} value={palletNo} width={132} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput readOnly value={sourceColor || "-"} width={112} />
+                      <Box sx={{ width: 136, minWidth: 136 }}>
+                        <ErpSelectField
+                          onChange={handleColorSelect}
+                          onOpen={handleColorDropdownOpen}
+                          options={colorOptions}
+                          placeholder={colorLoading && colorOptions.length === 0 ? "Loading…" : "Select color"}
+                          searchable={colorOptions.length > 5}
+                          size="dense"
+                          value={color}
+                        />
+                      </Box>
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setLength} value={length} width={100} />
+                      <CompactTableInput onChange={setLength} required type="decimal" value={length} width={100} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setWidth} required value={width} width={100} />
+                      <CompactTableInput onChange={setWidth} required type="decimal" value={width} width={100} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setThickness} required value={thickness} width={110} />
+                      <CompactTableInput onChange={setThickness} required type="decimal" value={thickness} width={110} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setNoOfLeaves} required value={noOfLeaves} width={120} />
+                      <CompactTableInput onChange={setNoOfLeaves} required type="integer" value={noOfLeaves} width={120} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput readOnly value={calculatedSqm ? calculatedSqm.toFixed(3) : "-"} width={90} />
@@ -603,11 +790,29 @@ export function SlicingCreatePage() {
               </Table>
             </Box>
           </Box>
+
+          {/* Inline API error — small red text below the table row, above Add Item */}
+          {errorMessage ? (
+            <Typography
+              sx={{
+                color: "error.main",
+                fontSize: "12px",
+                fontStyle: "italic",
+                px: 0.5,
+                mt: -0.5,
+              }}
+            >
+              {errorMessage}
+            </Typography>
+          ) : null}
+
           <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1.5 }}>
             {editingItemId ? (
               <Button
                 onClick={() => {
                   setEditingItemId(null);
+                  setColor("");
+                  setColorId("");
                   setThickness("");
                   setNoOfLeaves("");
                 }}
@@ -663,7 +868,7 @@ export function SlicingCreatePage() {
                       <TableCell sx={bodyCellSx(theme)}>{index + 1}</TableCell>
                       <TableCell sx={bodyCellSx(theme)}>{item.bundleNo || "-"}</TableCell>
                       <TableCell sx={bodyCellSx(theme)}>{item.palletNo || "-"}</TableCell>
-                      <TableCell sx={bodyCellSx(theme)}>{sourceColor || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.color || sourceColor || "-"}</TableCell>
                       <TableCell sx={bodyCellSx(theme)}>{item.length}</TableCell>
                       <TableCell sx={bodyCellSx(theme)}>{item.width}</TableCell>
                       <TableCell sx={bodyCellSx(theme)}>{item.thickness || "-"}</TableCell>
@@ -719,30 +924,56 @@ export function SlicingCreatePage() {
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput
-                        readOnly
-                        value={stripUnit(sourceItem?.length).replace(/^-/, "") || "-"}
+                        onChange={setAvailLength}
+                        type="decimal"
+                        value={availLength}
                         width={110}
                       />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput
-                        readOnly
-                        value={stripUnit(sourceItem?.width).replace(/^-/, "") || "-"}
+                        onChange={setAvailWidth}
+                        type="decimal"
+                        value={availWidth}
                         width={110}
                       />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput
-                        readOnly
-                        value={remainingHeightPreview ? remainingHeightPreview.toFixed(6).replace(/0+$/, "").replace(/\.$/, "") : "0"}
+                        onChange={setAvailHeight}
+                        type="decimal"
+                        value={availHeight}
                         width={110}
                       />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput readOnly value={remainingCbmPreview.toFixed(3)} width={110} />
+                      <CompactTableInput
+                        onChange={(v) => {
+                          setAvailCbm(v);
+                          const valNum = Number(v);
+                          if (!isNaN(valNum) && valNum >= 0) {
+                            setAvailCbf((valNum * 35.3147).toFixed(4));
+                            const l = Number(availLength) || sourceLength;
+                            const w = Number(availWidth) || sourceWidth;
+                            if (l > 0 && w > 0) {
+                              setAvailHeight(
+                                (valNum / (l * w)).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+                              );
+                            }
+                          }
+                        }}
+                        type="decimal"
+                        value={availCbm}
+                        width={110}
+                      />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput readOnly value={remainingCbfPreview.toFixed(4)} width={110} />
+                      <CompactTableInput
+                        onChange={setAvailCbf}
+                        type="decimal"
+                        value={availCbf}
+                        width={110}
+                      />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput onChange={setRaRemark} value={raRemark} width={170} />
