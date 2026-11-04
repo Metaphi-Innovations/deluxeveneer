@@ -231,6 +231,8 @@ export interface SawingRow extends EnterpriseTableRow {
   remark: string;
   createdBy: string;
   updatedBy: string;
+  createdAt?: string | Date | undefined;
+  updatedAt?: string | Date | undefined;
   inventorySlug?: string;
   inventoryRecordId?: string;
 }

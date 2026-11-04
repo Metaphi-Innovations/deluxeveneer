@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Snackbar, Stack } from "@mui/material";
-import { Eye, PackageOpen, RotateCcw, Truck } from "lucide-react";
+import { Download, Eye, PackageOpen, RotateCcw, Truck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { ConfirmationDialog } from "../../../components/feedback/ConfirmationDialog";
@@ -13,11 +13,11 @@ import { MasterPageShell } from "../../masters/shared";
 import { canAccessPermission } from "../../permissions";
 import { listingToolbarButtonSx } from "../../shared/buttonStyles";
 import { ClearableSearchField } from "../../shared/ClearableSearchField";
-import { usePackingList } from "../hooks/usePackingList";
+import { exportRowsToCsv, type CsvColumn } from "../../shared/exportToCsv";
+import { usePackingList, mapApiItemToPackingRecord } from "../hooks/usePackingList";
+import { exportPackingApi, updatePackingApi } from "../api/packingApi";
 import {
   getPackingPaths,
-  issuePackingForDispatch,
-  revertPackingRecord,
   type PackingRecord,
   type PackingTabValue,
 } from "../shared/packingStore";
@@ -38,10 +38,27 @@ export function PackingListingPage() {
     searchValue,
     setActiveTab,
     setSearchValue,
+    page,
+    setPage,
+    rowsPerPage,
+    setRowsPerPage,
+    totalCount,
+    isLoading,
+    sortConfig,
+    setSortConfig,
+    columnFilters,
+    setColumnFilters,
+    filterOptionsByColumn,
+    onColumnFilterOpen,
+    refresh,
+    apiFilters,
   } = usePackingList();
+
   const [issueDispatchRecord, setIssueDispatchRecord] =
     useState<PackingRecord | null>(null);
   const [revertRecord, setRevertRecord] = useState<PackingRecord | null>(null);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error" | "info" | "warning";
@@ -62,6 +79,7 @@ export function PackingListingPage() {
       });
     }
   }, [location.pathname, location.search, location.state, navigate]);
+
   const canCreatePacking = canAccessPermission("packing", "create");
   const canEditPacking = canAccessPermission("packing", "edit");
   const canViewPacking = canAccessPermission("packing", "view");
@@ -121,6 +139,104 @@ export function PackingListingPage() {
     [canCreateDispatch, canEditPacking, canViewPacking, navigate, paths],
   );
 
+  const handleIssueForDispatch = async () => {
+    if (!issueDispatchRecord) return;
+    setIsActionLoading(true);
+    try {
+      await updatePackingApi(issueDispatchRecord.id, {
+        packingState: "dispatchIssued",
+      });
+      const orderInfo = `${issueDispatchRecord.orderNo} (Item ${issueDispatchRecord.orderItemNo})`;
+      setIssueDispatchRecord(null);
+      refresh();
+      navigate("/dispatch", {
+        state: {
+          dispatchFlashMessage: `Order ${orderInfo} issued for dispatch.`,
+        },
+      });
+    } catch {
+      setToastNotification({
+        message: "Failed to issue for dispatch. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleRevert = async () => {
+    if (!revertRecord) return;
+    setIsActionLoading(true);
+    try {
+      await updatePackingApi(revertRecord.id, {
+        packingState: "issued",
+      });
+      const orderInfo = `${revertRecord.orderNo} (Item ${revertRecord.orderItemNo})`;
+      setRevertRecord(null);
+      refresh();
+      setToastNotification({
+        message: `Packing for order ${orderInfo} reverted to Issued queue.`,
+        severity: "success",
+      });
+    } catch {
+      setToastNotification({
+        message: "Failed to revert packing record. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const items = await exportPackingApi({
+        tab: activeTab,
+        search: searchValue.trim() || undefined,
+        sortBy: sortConfig.sortBy ?? undefined,
+        sortOrder: (sortConfig.sortOrder ?? "desc") as "asc" | "desc",
+        filters: Object.keys(apiFilters).length > 0 ? apiFilters : undefined,
+      });
+
+      const exportColumns: CsvColumn<Record<string, unknown>>[] = columns.map((col) => ({
+        key: String(col.key),
+        label: col.label,
+      }));
+
+      const exportRows = items.map((item) => {
+        const record = mapApiItemToPackingRecord(item);
+        const mappedRow: Record<string, unknown> = {};
+        for (const col of exportColumns) {
+          const val = record[col.key as keyof PackingRecord];
+          if (val instanceof Date) {
+            mappedRow[col.key] = val.toLocaleDateString("en-IN", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            });
+          } else {
+            mappedRow[col.key] = val ?? "";
+          }
+        }
+        return mappedRow;
+      });
+
+      exportRowsToCsv(exportRows, exportColumns, `packing-${activeTab}`);
+      setToastNotification({
+        message: `Successfully exported ${items.length} packing record(s).`,
+        severity: "success",
+      });
+    } catch {
+      setToastNotification({
+        message: "Export failed. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <MasterPageShell
       breadcrumbs={[{ label: "Packing" }]}
@@ -155,16 +271,33 @@ export function PackingListingPage() {
             }}
           />
 
-          {activeTab === "issued" && canCreatePacking ? (
+          <Stack
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            sx={{ flexWrap: "wrap" }}
+          >
             <Button
-              onClick={() => navigate(paths.add())}
+              disabled={isLoading || isExporting || totalCount === 0}
+              onClick={handleExport}
               sx={listingToolbarButtonSx}
-              startIcon={<PackageOpen size={14} />}
-              variant="contained"
+              startIcon={<Download size={14} />}
+              variant="outlined"
             >
-              Create Packing
+              Export
             </Button>
-          ) : null}
+
+            {activeTab === "issued" && canCreatePacking ? (
+              <Button
+                onClick={() => navigate(paths.add())}
+                sx={listingToolbarButtonSx}
+                startIcon={<PackageOpen size={14} />}
+                variant="contained"
+              >
+                Create Packing
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
 
         <EnterpriseDataTable
@@ -178,6 +311,27 @@ export function PackingListingPage() {
           }
           initialSort={{ key: "updatedDate", direction: "desc" }}
           rows={canViewPacking ? rows : []}
+          loading={isLoading}
+          pagination={{
+            page,
+            rowsPerPage,
+            totalCount,
+            onPageChange: setPage,
+            onRowsPerPageChange: (newRows) => {
+              setRowsPerPage(newRows);
+              setPage(1);
+            },
+          }}
+          sorting={{
+            sortBy: sortConfig.sortBy,
+            sortOrder: sortConfig.sortOrder,
+            onSortChange: (key, direction) =>
+              setSortConfig({ sortBy: key, sortOrder: direction }),
+          }}
+          columnFilters={columnFilters}
+          onColumnFiltersChange={setColumnFilters}
+          onColumnFilterOpen={onColumnFilterOpen}
+          filterOptionsByColumn={filterOptionsByColumn}
         />
       </Stack>
 
@@ -190,20 +344,10 @@ export function PackingListingPage() {
             : undefined
         }
         onClose={() => setIssueDispatchRecord(null)}
-        onConfirm={() => {
-          if (issueDispatchRecord) {
-            const orderInfo = `${issueDispatchRecord.orderNo} (Item ${issueDispatchRecord.orderItemNo})`;
-            issuePackingForDispatch(issueDispatchRecord.id);
-            setIssueDispatchRecord(null);
-            navigate("/dispatch", {
-              state: {
-                dispatchFlashMessage: `Order ${orderInfo} issued for dispatch.`,
-              },
-            });
-          }
-        }}
+        onConfirm={() => { void handleIssueForDispatch(); }}
         open={Boolean(issueDispatchRecord)}
         title="Issue for Dispatch"
+        loading={isActionLoading}
       />
 
       <ConfirmationDialog
@@ -215,20 +359,11 @@ export function PackingListingPage() {
             : undefined
         }
         onClose={() => setRevertRecord(null)}
-        onConfirm={() => {
-          if (revertRecord) {
-            const orderInfo = `${revertRecord.orderNo} (Item ${revertRecord.orderItemNo})`;
-            revertPackingRecord(revertRecord.id);
-            setRevertRecord(null);
-            setToastNotification({
-              message: `Packing for order ${orderInfo} reverted to Issued queue.`,
-              severity: "success",
-            });
-          }
-        }}
+        onConfirm={() => { void handleRevert(); }}
         open={Boolean(revertRecord)}
         title="Revert Packing"
         tone="danger"
+        loading={isActionLoading}
       />
 
       <Snackbar

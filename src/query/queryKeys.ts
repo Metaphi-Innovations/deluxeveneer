@@ -45,4 +45,11 @@ export const queryKeys = {
         ["warehouse", "production", "options", storageWarehouseId] as const,
     },
   },
+  packing: {
+    all: ["packing"] as const,
+    list: (tab: string, params: unknown) => ["packing", "list", tab, params] as const,
+    detail: (id: string) => ["packing", "detail", id] as const,
+    columnDropdown: (tab: string, column: string) => ["packing", "columnDropdown", tab, column] as const,
+    orderNumbers: (params: unknown) => ["packing", "orderNumbers", params] as const,
+  },
 };

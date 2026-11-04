@@ -148,33 +148,55 @@ export function SawingListPage() {
   };
 
   // ── Load Dropdown Options for Filter Menus ────────────────────────
-  const handleColumnFilterOpen = useCallback((columnKey: string) => {
-    const tabName = activeTab === "done" || activeTab === "history" || activeTab === "rejected" ? activeTab : "issued";
-    void fetchSawingDropdownsApi(tabName).then((data: any) => {
-      if (!data) return;
-      const opts: Array<{ value: string; label: string }> = [];
-      if (columnKey === "itemName" && data.itemNames) {
-        opts.push(...data.itemNames.map((n: string) => ({ value: n, label: n })));
-      } else if ((columnKey === "batchNo" || columnKey === "batchNoCode") && data.batchNos) {
-        opts.push(...data.batchNos.map((b: string) => ({ value: b, label: b })));
-      } else if (columnKey === "logNo" && (data.logNos || data.batchNos)) {
-        const arr = data.logNos || data.batchNos;
-        opts.push(...arr.map((b: string) => ({ value: b, label: b })));
-      } else if (columnKey === "subCategory" && data.subCategories) {
-        opts.push(...data.subCategories.map((s: string) => ({ value: s, label: s })));
-      } else if (columnKey === "storageSrNo" && data.storageSrNos) {
-        opts.push(...data.storageSrNos.map((s: string) => ({ value: s, label: s })));
-      } else if (columnKey === "remark" && data.remarks) {
-        opts.push(...data.remarks.map((r: string) => ({ value: r, label: r })));
-      }
-      if (opts.length > 0) {
+  const handleColumnFilterOpen = useCallback(
+    async (columnKey: string) => {
+      try {
+        const tabName = activeTab === "done" || activeTab === "history" || activeTab === "rejected" ? activeTab : "issued";
+        const data = await fetchSawingDropdownsApi(tabName);
+        if (!data) return;
+
+        let rawOpts: string[] = [];
+        const anyData = data as any;
+        if (columnKey === "itemName" && anyData.itemNames) rawOpts = anyData.itemNames;
+        else if ((columnKey === "batchNo" || columnKey === "batchNoCode") && anyData.batchNos) rawOpts = anyData.batchNos;
+        else if (columnKey === "logNo" && (anyData.logNos || anyData.batchNos)) rawOpts = anyData.logNos || anyData.batchNos;
+        else if (columnKey === "subCategory" && anyData.subCategories) rawOpts = anyData.subCategories;
+        else if (columnKey === "storageSrNo" && anyData.storageSrNos) rawOpts = anyData.storageSrNos;
+        else if (columnKey === "remark" && anyData.remarks) rawOpts = anyData.remarks;
+
+        const presentInListing = new Set(
+          rows
+            .map((r: any) => {
+              if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
+              if (columnKey === "logNo" || columnKey === "batchNo") return String(r.logNo ?? r.batchNo ?? "").trim();
+              if (columnKey === "batchNoCode") return String(r.batchNoCode ?? r.batchNo ?? "").trim();
+              if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
+              return String(r[columnKey] ?? "").trim();
+            })
+            .filter(Boolean)
+        );
+
+        const filteredList =
+          presentInListing.size > 0
+            ? rawOpts.filter((opt) => presentInListing.has(String(opt).trim()))
+            : rawOpts;
+
+        const finalSet = new Set([...filteredList]);
+        if (presentInListing.size > 0 && finalSet.size === 0) {
+          presentInListing.forEach((v) => finalSet.add(v));
+        }
+
+        const opts = Array.from(finalSet).map((opt) => ({ value: opt, label: opt }));
         setFilterOptionsByColumn((prev) => ({
           ...prev,
           [columnKey]: opts,
         }));
+      } catch (err) {
+        console.error("Failed to load sawing filter dropdowns", err);
       }
-    }).catch(() => {});
-  }, [activeTab]);
+    },
+    [activeTab, rows]
+  );
 
   // ── Load Data ─────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -386,13 +408,25 @@ export function SawingListPage() {
             navigate(`/factory/sawing/view/${r.id}`, { state: { record: r, tab: "issued" } });
           },
         });
-        actions.push({
-          id: "revert",
-          label: "Revert",
-          icon: RotateCcw,
-          tone: "danger",
-          onSelect: (r: any) => handleOpenRevert(r),
-        });
+        const recCbm = Number(row.receivedCbm ?? row.cbm);
+        const availCbm = Number(row.availableCbm);
+        const isFullyUnprocessed =
+          !isNaN(recCbm) &&
+          !isNaN(availCbm) &&
+          recCbm > 0 &&
+          Math.abs(recCbm - availCbm) < 0.0001;
+
+        if (isFullyUnprocessed) {
+          actions.push({
+            id: "revert",
+            label: "Revert",
+            icon: RotateCcw,
+            tone: "danger",
+            onSelect: (r: any) => {
+              handleOpenRevert(r);
+            },
+          });
+        }
       } else if (activeTab === "done") {
         const editBlockReason = getSawingDoneEditBlockReason(row);
         // View, Edit, Reject Sawing, Revert, Issue for Inspection
@@ -427,7 +461,12 @@ export function SawingListPage() {
           label: "Revert",
           icon: RotateCcw,
           tone: "danger",
-          onSelect: (r: any) => handleOpenRevert(r),
+          disabled: Boolean(editBlockReason),
+          ...(editBlockReason ? { disabledReason: editBlockReason } : {}),
+          onSelect: (r: any) => {
+            if (getSawingDoneEditBlockReason(r)) return;
+            handleOpenRevert(r);
+          },
         });
         actions.push({
           id: "issue-inspection",

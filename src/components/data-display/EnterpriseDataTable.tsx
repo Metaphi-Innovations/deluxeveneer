@@ -1997,13 +1997,40 @@ function findAuditColumnKey<Row extends EnterpriseTableRow>(
   return columns.find((column) => keys.has(column.key))?.key;
 }
 
+function formatAuditDateDisplay(value: EnterpriseTableCellValue): string {
+  if (!value) return "-";
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "-";
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(value);
+  }
+  const str = String(value).trim();
+  if (!str || str === "-" || str === "null" || str === "undefined") return "-";
+
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).format(parsed);
+  }
+
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/) || str.match(/^(\d{2}-\d{2}-\d{4})/);
+  if (match && match[1]) return match[1];
+  return str;
+}
+
 function renderAuditCell(
   nameValue: EnterpriseTableCellValue,
   dateValue: EnterpriseTableCellValue,
   theme: Theme,
 ) {
   const name = formatEnterpriseValue(nameValue) || "-";
-  const date = formatEnterpriseValue(dateValue) || "-";
+  const date = formatAuditDateDisplay(dateValue);
   const initials = getAuditInitials(name);
 
   return (

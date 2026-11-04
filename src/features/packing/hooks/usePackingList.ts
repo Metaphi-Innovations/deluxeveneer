@@ -1,69 +1,154 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import type { EnterpriseTableCellValue } from "../../../components/data-display/EnterpriseDataTable";
+import {
+  toApiColumnFilters,
+  type ColumnFilterValue,
+} from "../../../components/shared/columnFilters";
 import {
   packingDoneListingColumns,
   packingIssuedListingColumns,
+  type PackingRecord,
   type PackingTabValue,
-  usePackingRecords,
 } from "../shared/packingStore";
+import {
+  fetchPackingList,
+  fetchPackingColumnDropdown,
+  type PackingApiItem,
+} from "../api/packingApi";
 
-export function usePackingList() {
-  const records = usePackingRecords();
-  const [activeTab, setActiveTab] = useState<PackingTabValue>("issued");
-  const [searchValue, setSearchValue] = useState("");
-
-  const columns = useMemo(
-    () =>
-      activeTab === "issued"
-        ? packingIssuedListingColumns
-        : packingDoneListingColumns,
-    [activeTab],
-  );
-
-  const rows = useMemo(() => {
-    const tabRows = records.filter((record) =>
-      activeTab === "issued"
-        ? record.packingState === "issued"
-        : record.packingState === "done",
-    );
-    const normalizedSearch = searchValue.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return tabRows;
-    }
-
-    return tabRows.filter((row) =>
-      Object.values(row).some((value) =>
-        formatPackingSearchValue(value).includes(normalizedSearch),
-      ),
-    );
-  }, [activeTab, records, searchValue]);
-
+export function mapApiItemToPackingRecord(item: PackingApiItem): PackingRecord {
   return {
-    activeTab,
-    columns,
-    rows,
-    searchValue,
-    setActiveTab,
-    setSearchValue,
+    id: item.id,
+    packingId: item.packingId ?? "",
+    issuedFrom: item.issuedFrom ?? "",
+    orderNo: item.orderNo,
+    orderItemNo: item.orderItemNo,
+    customerName: item.customerName,
+    orderType: item.orderType,
+    productCategory: item.productCategory,
+    preparedBy: item.preparedBy ?? "",
+    checkedBy: item.checkedBy ?? "",
+    itemName: item.itemName,
+    length: String(item.length ?? ""),
+    width: String(item.width ?? ""),
+    thickness: String(item.thickness ?? ""),
+    noOfSheets: String(item.noOfSheets ?? ""),
+    sqm: String(item.sqm ?? ""),
+    sqf: String(item.sqf ?? ""),
+    series: item.series ?? "",
+    grade: item.grade ?? "",
+    amount: String(item.amount ?? ""),
+    remark: item.remark ?? "",
+    sourceRef: item.sourceRef ?? "",
+    packingDate: item.packingDate ? new Date(item.packingDate) : null,
+    dispatchDate: item.dispatchDate ? new Date(item.dispatchDate) : null,
+    createdBy: item.createdBy ?? "",
+    updatedBy: item.updatedBy ?? "",
+    createdDate: new Date(item.createdAt),
+    updatedDate: new Date(item.updatedAt),
+    packingState: item.packingState,
   };
 }
 
-function formatPackingSearchValue(value: EnterpriseTableCellValue) {
-  if (value instanceof Date) {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    })
-      .format(value)
-      .toLowerCase();
-  }
+export function usePackingList() {
+  const [activeTab, setActiveTabState] = useState<PackingTabValue>("issued");
+  const [searchValue, setSearchValueState] = useState("");
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [rows, setRows] = useState<PackingRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{
+    sortBy: string | null;
+    sortOrder: "asc" | "desc" | null;
+  }>({ sortBy: null, sortOrder: null });
+  const [columnFilters, setColumnFilters] = useState<
+    Partial<Record<string, ColumnFilterValue>>
+  >({});
+  const [filterOptionsByColumn, setFilterOptionsByColumn] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  if (value === null || typeof value === "undefined") {
-    return "";
-  }
+  const columns =
+    activeTab === "issued"
+      ? packingIssuedListingColumns
+      : packingDoneListingColumns;
 
-  return String(value).toLowerCase();
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const apiFilters = toApiColumnFilters(columnFilters);
+      const hasFilters = Object.keys(apiFilters).length > 0;
+      const result = await fetchPackingList({
+        tab: activeTab,
+        page,
+        limit: rowsPerPage,
+        search: searchValue.trim() || undefined,
+        sortBy: sortConfig.sortBy ?? undefined,
+        sortOrder: (sortConfig.sortOrder ?? "desc") as "asc" | "desc",
+        filters: hasFilters ? apiFilters : undefined,
+      });
+      setRows(result.items.map(mapApiItemToPackingRecord));
+      setTotalCount(result.total);
+    } catch (err) {
+      console.error("Failed to load packing list:", err);
+    } finally {
+      setIsLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, page, rowsPerPage, searchValue, sortConfig, columnFilters, refreshTrigger]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const setActiveTab = (tab: PackingTabValue) => {
+    setActiveTabState(tab);
+    setPage(1);
+    setColumnFilters({});
+  };
+
+  const setSearchValue = (v: string) => {
+    setSearchValueState(v);
+    setPage(1);
+  };
+
+  const onColumnFilterOpen = async (columnKey: string) => {
+    if (filterOptionsByColumn[columnKey]) return;
+    try {
+      const values = await fetchPackingColumnDropdown(columnKey, activeTab);
+      setFilterOptionsByColumn((prev) => ({
+        ...prev,
+        [columnKey]: values.map((v) => ({ value: v, label: v })),
+      }));
+    } catch (err) {
+      console.error("Failed to load column filter options:", err);
+    }
+  };
+
+  const refresh = () => setRefreshTrigger((n) => n + 1);
+
+  return {
+    activeTab,
+    setActiveTab,
+    columns,
+    rows,
+    searchValue,
+    setSearchValue,
+    page,
+    setPage,
+    rowsPerPage,
+    setRowsPerPage,
+    totalCount,
+    isLoading,
+    sortConfig,
+    setSortConfig,
+    columnFilters,
+    setColumnFilters,
+    filterOptionsByColumn,
+    onColumnFilterOpen,
+    refresh,
+    apiFilters: toApiColumnFilters(columnFilters),
+  };
 }

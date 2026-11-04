@@ -1,5 +1,11 @@
-import React, { useMemo } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
+import {
+  fetchSlicingIssuedById,
+  fetchSlicingDoneById,
+  fetchSlicingHistoryById,
+  fetchSlicingRejectedById,
+} from "../api/slicingApi";
 import {
   Box,
   Chip,
@@ -104,11 +110,42 @@ export const SlicingViewPage: React.FC = () => {
   // Subscribe to live slicing flow state
   useSlicingFlowState();
 
+  const [searchParams] = useSearchParams();
+  const queryTab = searchParams.get("tab");
+
+  const [apiRecord, setApiRecord] = useState<Record<string, unknown> | null>(null);
+
   const stateData = location.state as { record?: Record<string, unknown>; tab?: string } | undefined;
   const passedRecord = stateData?.record;
 
+  const tab =
+    stateData?.tab ||
+    queryTab ||
+    "issued";
+
+  useEffect(() => {
+    if (passedRecord || !id) return;
+    const fetcher =
+      tab === "done"
+        ? fetchSlicingDoneById
+        : tab === "history"
+        ? fetchSlicingHistoryById
+        : tab === "rejected"
+        ? fetchSlicingRejectedById
+        : fetchSlicingIssuedById;
+
+    fetcher(id)
+      .then((data) => {
+        if (data) setApiRecord(data as unknown as Record<string, unknown>);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch slicing record for view", err);
+      });
+  }, [id, tab, passedRecord]);
+
   const record = useMemo(() => {
     if (passedRecord) return passedRecord;
+    if (apiRecord) return apiRecord;
     if (!id) return undefined;
 
     // 1. Check in definition rows
@@ -127,18 +164,7 @@ export const SlicingViewPage: React.FC = () => {
     }
 
     return undefined;
-  }, [id, passedRecord]);
-
-  const rawListingState = String(record?.listingState || "");
-  const tab =
-    stateData?.tab ||
-    (rawListingState === "done"
-      ? "done"
-      : rawListingState === "history"
-        ? "history"
-        : rawListingState === "rejected"
-          ? "rejected"
-          : "issued");
+  }, [id, passedRecord, apiRecord]);
 
   const listPath = `/factory/slicing?tab=${tab}`;
 
@@ -366,15 +392,17 @@ export const SlicingViewPage: React.FC = () => {
         {/* MATERIAL SPECIFICATIONS & OUTPUT */}
         <Box sx={(t) => formSectionCardSx(t)}>
           <Stack spacing={2}>
-            <FormSectionHeader title="MATERIAL SPECIFICATIONS & OUTPUT" />
+            <FormSectionHeader
+              title={tab === "issued" ? "MATERIAL SPECIFICATIONS" : "MATERIAL SPECIFICATIONS & OUTPUT"}
+            />
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(3, minmax(0, 1fr))",
-                  lg: "repeat(6, minmax(0, 1fr))",
+                  md: tab === "issued" ? "repeat(3, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))",
+                  lg: tab === "issued" ? "repeat(3, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))",
                 },
                 gap: 1.75,
               }}
@@ -383,9 +411,13 @@ export const SlicingViewPage: React.FC = () => {
                 { label: "Length", value: lengthDisplay, highlight: false },
                 { label: "Width", value: widthDisplay, highlight: false },
                 { label: "Thickness", value: thicknessDisplay, highlight: false },
-                { label: "No. of Leaves", value: leavesDisplay, highlight: true },
-                { label: "SQM", value: sqmDisplay, highlight: false },
-                { label: "SQF", value: sqfDisplay, highlight: false },
+                ...(tab !== "issued"
+                  ? [
+                      { label: "No. of Leaves", value: leavesDisplay, highlight: true },
+                      { label: "SQM", value: sqmDisplay, highlight: false },
+                      { label: "SQF", value: sqfDisplay, highlight: false },
+                    ]
+                  : []),
               ].map((item) => (
                 <Paper
                   key={item.label}
@@ -575,13 +607,13 @@ export const SlicingViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Slicing Date
+                  {tab === "issued" ? "Issued Slicing Date" : "Slicing Date"}
                 </Typography>
                 <Typography
                   variant="body2"
                   sx={{ color: "text.primary", fontSize: "0.875rem", fontWeight: 500 }}
                 >
-                  {slicingDateDisplay}
+                  {tab === "issued" ? issueDate : slicingDateDisplay}
                 </Typography>
               </Stack>
 

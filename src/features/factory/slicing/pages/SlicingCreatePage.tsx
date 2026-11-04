@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Box,
   Button,
+  CircularProgress,
   IconButton,
-  MenuItem,
-  Select,
   Stack,
   Table,
   TableBody,
@@ -18,12 +17,12 @@ import {
 } from "@mui/material";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
+import type { Theme } from "@mui/material/styles";
 
 import { FactoryPageShell } from "../../shared/FactoryPageShell";
 import { FactorySourceOverviewPanel } from "../../shared/FactorySourceOverviewPanel";
 import {
   formInlineActionButtonSx,
-  formSectionCardSx,
   FormSectionHeader,
 } from "../../../shared/formSectionStyles";
 import {
@@ -34,33 +33,165 @@ import {
   transactionTableBodyCellSx,
   transactionTableHeaderCellSx,
 } from "../../../shared/listingTableStyles";
-import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
-import { slicingDefinition } from "../../shared/factoryDefinitions";
+import {
+  ErpDatePickerField,
+  ErpSelectField,
+} from "../../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { createSlicingProcessApi, fetchSlicingIssuedById } from "../api/slicingApi";
+import {
+  fetchColorsApi,
+  getColorByIdApi,
+} from "../../../masters/color-master/api/colorMasterApi";
 
 interface SlicingProcessItemRow {
   id: string;
-  batchNo: string;
+  itemName: string;
+  itemSubCategory: string;
+  logNo: string;
+  bundleNo: string;
+  palletNo: string;
+  color: string;
+  colorId: string;
   length: number;
   width: number;
-  height: number;
-  cbm: number;
-  cbf: number;
-  receivedCbm: number;
-  availableCbm: number;
-  ratePerCbf: number;
+  thickness: number;
+  noOfLeaves: number;
+  sqm: number;
+  sqf: number;
+  ratePerSqf: number;
   amount: number;
-  remark?: string;
+  remark: string;
 }
 
-interface SlicingRejectAvailableRow {
-  id: string;
-  type: "Available";
-  length: number;
-  width: number;
-  height: number;
-  cbm: number;
-  cbf: number;
-  remark: string;
+function formatDisplayDate(value: unknown) {
+  if (!value) return "-";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  const text = String(value).trim();
+  if (!text) return "-";
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  return text.slice(0, 10);
+}
+
+function stripUnit(value: unknown) {
+  return value ? String(value).replace(/\s*(m|mm|mtr)$/i, "") : "-";
+}
+
+function headerCellSx(theme: Theme, minWidth: number) {
+  return {
+    ...transactionTableHeaderCellSx(theme, minWidth),
+    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+    fontSize: "11px",
+    lineHeight: 1.2,
+    whiteSpace: "nowrap" as const,
+  };
+}
+
+function bodyCellSx(theme: Theme) {
+  return {
+    ...transactionTableBodyCellSx(theme),
+    borderRight: `1px solid ${theme.customTokens.borders.divider}`,
+    py: 0.75,
+    px: 1,
+    verticalAlign: "middle" as const,
+  };
+}
+
+function tableScrollSx(theme: Theme) {
+  return {
+    overflowX: "auto" as const,
+    overflowY: "hidden" as const,
+    scrollbarWidth: "thin" as const,
+    scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
+    "&::-webkit-scrollbar": { height: 8 },
+    "&::-webkit-scrollbar-track": {
+      backgroundColor: theme.customTokens.surfaces.alt,
+    },
+    "&::-webkit-scrollbar-thumb": {
+      backgroundColor: theme.customTokens.brand.primary,
+      borderRadius: theme.customTokens.radius.pill,
+    },
+  };
+}
+
+function CompactTableInput({
+  error,
+  onChange,
+  placeholder,
+  readOnly,
+  required,
+  value,
+  width = 120,
+  type = "text",
+}: {
+  error?: boolean;
+  onChange?: (value: string) => void;
+  placeholder?: string;
+  readOnly?: boolean;
+  required?: boolean;
+  value: string;
+  width?: number;
+  type?: "text" | "decimal" | "integer";
+}) {
+  const theme = useTheme();
+  return (
+    <TextField
+      error={error}
+      onChange={(event) => {
+        let val = event.target.value;
+        if (type === "integer") {
+          val = val.replace(/[^0-9]/g, "");
+        } else if (type === "decimal") {
+          val = val.replace(/[^0-9.]/g, "");
+          const parts = val.split(".");
+          if (parts.length > 2) {
+            val = parts[0] + "." + parts.slice(1).join("");
+          }
+        }
+        onChange?.(val);
+      }}
+      placeholder={placeholder}
+      required={required}
+      size="small"
+      slotProps={{
+        input: { readOnly },
+      }}
+      sx={{
+        width,
+        minWidth: width,
+        "& .MuiInputBase-root": { height: 32, fontSize: "12px" },
+        "& .MuiInputBase-input": { py: "4px", px: "8px", fontSize: "12px" },
+        backgroundColor: readOnly
+          ? theme.customTokens.surfaces.alt
+          : theme.customTokens.surfaces.surface,
+      }}
+      value={value}
+    />
+  );
+}
+
+function RequiredHeader({ children }: { children: ReactNode }) {
+  return (
+    <>
+      {children}
+      <Box component="span" sx={{ color: "error.main" }}>
+        {" "}
+        *
+      </Box>
+    </>
+  );
 }
 
 export function SlicingCreatePage() {
@@ -78,146 +209,313 @@ export function SlicingCreatePage() {
       }
     | undefined;
 
-  const defaultSource = slicingDefinition.rows[0];
-  const sourceItem = state?.sourceItem || state?.sourceRow || defaultSource;
+  const [loadedSourceItem, setLoadedSourceItem] = useState<any | null>(null);
+  const sourceItem = loadedSourceItem || state?.sourceItem || state?.sourceRow;
 
-  // Process details input state
-  const [batchNo, setBatchNo] = useState(sourceItem?.batchNo || sourceItem?.logNo || "");
-  const [length, setLength] = useState(
-    sourceItem?.length ? String(sourceItem.length).replace(/[^0-9.]/g, "") : "2440",
-  );
-  const [width, setWidth] = useState(
-    sourceItem?.width ? String(sourceItem.width).replace(/[^0-9.]/g, "") : "1220",
-  );
-  const [height, setHeight] = useState(
-    sourceItem?.height || sourceItem?.thickness
-      ? String(sourceItem.height || sourceItem.thickness).replace(/[^0-9.]/g, "")
-      : "150",
-  );
-  const [ratePerCbf, setRatePerCbf] = useState(
-    sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf).replace(/[^0-9.]/g, "") : "450",
-  );
+  // Slicing Date
+  const [slicingDate, setSlicingDate] = useState<Date | null>(new Date());
+
+  // Master Dropdown state
+
+  const [bundleNo, setBundleNo] = useState("");
+  const [palletNo, setPalletNo] = useState("");
+  const [color, setColor] = useState("");
+  const [colorId, setColorId] = useState("");
+  const [colorOptions, setColorOptions] = useState<string[]>([]);
+  const [colorMap, setColorMap] = useState<Record<string, string>>({});
+  const [colorLoading, setColorLoading] = useState(false);
+  const [length, setLength] = useState("");
+  const [width, setWidth] = useState("");
+  const [thickness, setThickness] = useState("");
+  const [noOfLeaves, setNoOfLeaves] = useState("");
+  const [ratePerSqf, setRatePerSqf] = useState("");
   const [remark, setRemark] = useState("");
+  const [sourcePrefillDone, setSourcePrefillDone] = useState(false);
+
+  // Preload colors on component mount
+  const loadColors = useCallback(async () => {
+    try {
+      setColorLoading(true);
+      const records = await fetchColorsApi({ status: true, limit: 500 });
+      const map: Record<string, string> = {};
+      const names: string[] = [];
+      for (const rec of records) {
+        const name = String(rec.colorName || rec.name || "").trim();
+        const id = String(rec.id || "").trim();
+        if (name) {
+          names.push(name);
+          if (id) map[name] = id;
+        }
+      }
+      setColorOptions(names);
+      setColorMap(map);
+    } catch {
+      // ignore
+    } finally {
+      setColorLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadColors();
+  }, [loadColors]);
+
+  // Create Fetch API: fetch live issue data by ID if state not fully populated
+  useEffect(() => {
+    const idToFetch = state?.issueId || state?.issueItemId;
+    if (idToFetch && !loadedSourceItem) {
+      void fetchSlicingIssuedById(idToFetch)
+        .then((data) => {
+          if (data) {
+            setLoadedSourceItem(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [state?.issueId, state?.issueItemId, loadedSourceItem]);
+
+  useEffect(() => {
+    if (!sourceItem || sourcePrefillDone) {
+      return;
+    }
+    setBundleNo((current) => current || String(sourceItem.bundleNumber || sourceItem.bundleNo || ""));
+    setPalletNo((current) => current || String(sourceItem.palletNo || ""));
+    setLength((current) => current || stripUnit(sourceItem.length).replace(/^-/, ""));
+    setWidth((current) => current || stripUnit(sourceItem.width).replace(/^-/, ""));
+    setRemark((current) => current || String(sourceItem.remark || ""));
+    setSourcePrefillDone(true);
+  }, [sourceItem, sourcePrefillDone]);
+
+  // Dropdown API: refresh colors when dropdown opened
+  const handleColorDropdownOpen = useCallback(() => {
+    void loadColors();
+  }, [loadColors]);
+
+  // On-Select API: called each time a colour is chosen
+  const handleColorSelect = useCallback(
+    (selectedName: string) => {
+      setColor(selectedName);
+      const resolvedId = colorMap[selectedName] ?? "";
+      setColorId(resolvedId);
+
+      if (resolvedId) {
+        getColorByIdApi(resolvedId)
+          .then((record) => {
+            if (record) {
+              const canonicalName = String(record.colorName || record.name || selectedName).trim();
+              setColor(canonicalName);
+              setColorId(String(record.id || resolvedId));
+            }
+          })
+          .catch(() => {});
+      } else {
+        fetchColorsApi({ search: selectedName, limit: 1 })
+          .then((records) => {
+            const first = records?.[0];
+            if (first) {
+              setColor(String(first.colorName || first.name || selectedName).trim());
+              setColorId(String(first.id || ""));
+            }
+          })
+          .catch(() => {});
+      }
+    },
+    [colorMap],
+  );
 
   // Processed Items List
   const [processedItems, setProcessedItems] = useState<SlicingProcessItemRow[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
-  // Reject / Available Details List
-  const [rejectAvailableItems, setRejectAvailableItems] = useState<SlicingRejectAvailableRow[]>([]);
-
-  // Reject / Available row input state for adding
-  const [raType, setRaType] = useState<"Reject" | "Available">("Reject");
-  const [raLength, setRaLength] = useState("");
-  const [raWidth, setRaWidth] = useState("");
-  const [raHeight, setRaHeight] = useState("");
-  const [raRate, setRaRate] = useState("");
   const [raRemark, setRaRemark] = useState("");
+
+  // Available Details editable state
+  const [availLength, setAvailLength] = useState<string>("");
+  const [availWidth, setAvailWidth] = useState<string>("");
+  const [availHeight, setAvailHeight] = useState<string>("");
+  const [availCbm, setAvailCbm] = useState<string>("");
+  const [availCbf, setAvailCbf] = useState<string>("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Auto-calculated fields for Process Details
-  const calculatedCbm = useMemo(() => {
+  // Calculate Process Details SQM and SQF (all dimensions in metres)
+  const calculatedSqm = useMemo(() => {
     const l = Number(length) || 0;
     const w = Number(width) || 0;
-    const h = Number(height) || 0;
-    if (!l || !w || !h) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * h) / divisor).toFixed(6));
-  }, [length, width, height]);
+    const leaves = Number(noOfLeaves) || 0;
+    if (!l || !w || !leaves) return 0;
+    return Number((l * w * leaves).toFixed(4));
+  }, [length, width, noOfLeaves]);
 
-  const calculatedCbf = useMemo(() => {
-    if (!calculatedCbm) return 0;
-    return Number((calculatedCbm * 35.3147).toFixed(4));
-  }, [calculatedCbm]);
-
-  const sourceCbm = useMemo(() => {
-    const srcCbmVal = Number(sourceItem?.cbm) || 0;
-    if (srcCbmVal) return srcCbmVal;
-    const l = Number(sourceItem?.length) || 0;
-    const w = Number(sourceItem?.width) || 0;
-    const h = Number(sourceItem?.height || sourceItem?.thickness) || 0;
-    if (!l || !w || !h) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * h) / divisor).toFixed(6));
-  }, [sourceItem]);
-
-  const receivedCbm = sourceCbm || calculatedCbm;
-
-  const totalUsedCbm = useMemo(() => {
-    return processedItems.reduce((acc, curr) => {
-      if (editingItemId && curr.id === editingItemId) return acc;
-      return acc + (Number(curr.cbm) || 0);
-    }, 0);
-  }, [processedItems, editingItemId]);
-
-  const availableCbm = useMemo(() => {
-    const avail = (receivedCbm || 0) - totalUsedCbm - (editingItemId ? 0 : calculatedCbm);
-    return Number((avail > 0 ? avail : 0).toFixed(6));
-  }, [receivedCbm, totalUsedCbm, editingItemId, calculatedCbm]);
+  const calculatedSqf = useMemo(() => {
+    if (!calculatedSqm) return 0;
+    return Number((calculatedSqm * 10.7639).toFixed(3));
+  }, [calculatedSqm]);
 
   const calculatedAmount = useMemo(() => {
-    const rate = Number(ratePerCbf) || 0;
-    if (!calculatedCbf || !rate) return 0;
-    return Number((calculatedCbf * rate).toFixed(2));
-  }, [calculatedCbf, ratePerCbf]);
+    const rate = Number(ratePerSqf) || 0;
+    if (!calculatedSqf || !rate) return 0;
+    return Number((calculatedSqf * rate).toFixed(2));
+  }, [calculatedSqf, ratePerSqf]);
 
-  // Auto-calculated fields for Available add
-  const calculatedRaCbm = useMemo(() => {
-    const l = Number(raLength) || 0;
-    const w = Number(raWidth) || 0;
-    const h = Number(raHeight) || 0;
-    if (!l || !w || !h) return 0;
-    const isMm = l > 50 || w > 50;
-    const divisor = isMm ? 1_000_000_000 : 1_000_000;
-    return Number(((l * w * h) / divisor).toFixed(6));
-  }, [raLength, raWidth, raHeight]);
+  const sourceAvailableCbm = useMemo(() => {
+    const raw =
+      sourceItem?.availableCbm ??
+      sourceItem?.receivedCbm ??
+      sourceItem?.cbm ??
+      0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [sourceItem]);
 
-  const calculatedRaCbf = useMemo(() => {
-    if (!calculatedRaCbm) return 0;
-    return Number((calculatedRaCbm * 35.3147).toFixed(4));
-  }, [calculatedRaCbm]);
+  const sourceReceivedCbm = useMemo(() => {
+    const raw = sourceItem?.receivedCbm ?? sourceItem?.cbm ?? 0;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [sourceItem]);
 
-  // Source Overview items
+  const sourceLength = useMemo(() => {
+    const val = Number(stripUnit(sourceItem?.length).replace(/^-/, ""));
+    return Number.isFinite(val) ? val : 0;
+  }, [sourceItem]);
+
+  const sourceWidth = useMemo(() => {
+    const val = Number(stripUnit(sourceItem?.width).replace(/^-/, ""));
+    return Number.isFinite(val) ? val : 0;
+  }, [sourceItem]);
+
+  const sourceColor = String(
+    sourceItem?.colorName || sourceItem?.color || "",
+  );
+
   const sourceOverviewItems = useMemo(() => {
     if (!sourceItem) return [];
-    const formatDate = (val: any) => {
-      if (!val) return "-";
-      if (val instanceof Date) return val.toISOString().slice(0, 10);
-      return String(val).slice(0, 10);
-    };
 
     return [
-      { label: "Storage Sr No.", value: String(sourceItem.storageSrNo || sourceItem.bundleNumber || "-") },
-      { label: "Issue Date", value: formatDate(sourceItem.issueDate || sourceItem.issuedDate) },
+      { label: "Storage Sr No.", value: String(sourceItem.storageSrNo || "-") },
+      {
+        label: "Issue Date",
+        value: formatDisplayDate(sourceItem.issueDate || sourceItem.issuedDate),
+      },
       { label: "Item Name", value: String(sourceItem.itemName || "-") },
-      { label: "Sub Category", value: String(sourceItem.itemSubCategory || sourceItem.subCategory || "-") },
-      { label: "Log Code", value: String(sourceItem.logCode || sourceItem.batchNoCode || sourceItem.batchNo || "-") },
-      { label: "Bundle Number", value: String(sourceItem.bundleNumber || "-") },
-      { label: "Pallet No", value: String(sourceItem.palletNo || "-") },
-      { label: "Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "Thickness", value: sourceItem.thickness || sourceItem.height ? String(sourceItem.thickness || sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
-      { label: "No of Leaves", value: sourceItem.noOfLeaves != null ? String(sourceItem.noOfLeaves) : "-" },
-      { label: "Total Sq Meter", value: sourceItem.totalSqMeter || sourceItem.sqm ? String(sourceItem.totalSqMeter || sourceItem.sqm) : "-" },
-      
-      { label: "Remark", value: String(sourceItem.remark || "-") },
+      { label: "Length", value: stripUnit(sourceItem.length) },
+      { label: "Width", value: stripUnit(sourceItem.width) },
+      {
+        label: "Height",
+        value: stripUnit(sourceItem.height ?? sourceItem.thickness),
+      },
+      {
+        label: "Received CBM",
+        value: sourceReceivedCbm ? Number(sourceReceivedCbm).toFixed(3) : "-",
+      },
+      {
+        label: "Available CBM",
+        value: sourceAvailableCbm ? Number(sourceAvailableCbm).toFixed(3) : "-",
+      },
     ];
-  }, [sourceItem]);
+  }, [sourceItem, sourceAvailableCbm, sourceReceivedCbm]);
+
+  // Output CBM = Output SQM * Thickness (all dimensions in metres)
+  const totalProcessedCbm = useMemo(() => {
+    return processedItems.reduce((sum, item) => {
+      const leaves = item.noOfLeaves || 0;
+      const itemSqm = item.sqm || item.length * item.width * leaves;
+      const th = item.thickness || 0;
+      return sum + itemSqm * th;
+    }, 0);
+  }, [processedItems]);
+
+  const calculatedRemainingCbm = useMemo(() => {
+    return sourceAvailableCbm - totalProcessedCbm;
+  }, [sourceAvailableCbm, totalProcessedCbm]);
+
+  const calculatedRemainingCbf = useMemo(
+    () => Number((calculatedRemainingCbm * 35.3147).toFixed(4)),
+    [calculatedRemainingCbm],
+  );
+
+  const calculatedRemainingHeight = useMemo(() => {
+    if (sourceLength > 0 && sourceWidth > 0) {
+      return calculatedRemainingCbm / (sourceLength * sourceWidth);
+    }
+    const hRaw = Number(stripUnit(sourceItem?.height ?? sourceItem?.thickness).replace(/^-/, ""));
+    return Number.isFinite(hRaw) ? hRaw : 0;
+  }, [calculatedRemainingCbm, sourceLength, sourceWidth, sourceItem]);
+
+  // Auto-populate Available Details directly when Process Details or Source change
+  useEffect(() => {
+    const lStr = stripUnit(sourceItem?.length).replace(/^-/, "") || "";
+    const wStr = stripUnit(sourceItem?.width).replace(/^-/, "") || "";
+    setAvailLength(lStr);
+    setAvailWidth(wStr);
+    setAvailCbm(calculatedRemainingCbm.toFixed(3));
+    setAvailCbf(calculatedRemainingCbf.toFixed(4));
+    setAvailHeight(
+      calculatedRemainingHeight
+        ? calculatedRemainingHeight.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+        : "0"
+    );
+  }, [
+    processedItems,
+    sourceItem,
+    calculatedRemainingCbm,
+    calculatedRemainingCbf,
+    calculatedRemainingHeight,
+  ]);
 
   // Add Item to Process Items
   const handleAddProcessItem = () => {
+    const bNo = bundleNo.trim();
     const l = Number(length);
     const w = Number(width);
-    const h = Number(height);
+    const th = Number(thickness);
+    const leaves = Number(noOfLeaves);
 
-    if (!l || !w || !h) {
-      alert("Please enter Length, Width, and Height");
+    if (!bNo) {
+      setErrorMessage("Please enter Bundle No.");
       return;
     }
+    if (!l || l <= 0 || isNaN(l)) {
+      setErrorMessage("Please enter a valid positive Length (m).");
+      return;
+    }
+    if (!w || w <= 0 || isNaN(w)) {
+      setErrorMessage("Please enter a valid positive Width (m).");
+      return;
+    }
+    if (!th || th <= 0 || isNaN(th)) {
+      setErrorMessage("Please enter a valid positive Thickness (m).");
+      return;
+    }
+    if (!leaves || leaves <= 0 || !Number.isInteger(leaves)) {
+      setErrorMessage("Please enter a valid positive integer for No. of Leaves.");
+      return;
+    }
+
+    const itemSqm = Number((l * w * leaves).toFixed(4));
+    const newItemCbm = itemSqm * th;
+    const otherItemsCbm = processedItems
+      .filter((item) => (editingItemId ? item.id !== editingItemId : true))
+      .reduce((sum, item) => {
+        const iLeaves = item.noOfLeaves || 0;
+        const iSqm = item.sqm || item.length * item.width * iLeaves;
+        return sum + iSqm * (item.thickness || 0);
+      }, 0);
+
+    const proposedTotalCbm = otherItemsCbm + newItemCbm;
+    if (proposedTotalCbm > sourceAvailableCbm) {
+      setErrorMessage(
+        `Insufficient available CBM. Required: ${proposedTotalCbm.toFixed(3)} CBM. Available: ${sourceAvailableCbm.toFixed(3)} CBM.`
+      );
+      return;
+    }
+
+    setErrorMessage("");
+
+    const parentItemName = String(sourceItem?.itemName || "");
+    const parentSubCategory = String(sourceItem?.itemSubCategory || sourceItem?.subCategory || "");
+    const parentLogNo = String(sourceItem?.logCode || sourceItem?.batchNo || "");
 
     if (editingItemId) {
       setProcessedItems((prev) =>
@@ -225,55 +523,72 @@ export function SlicingCreatePage() {
           item.id === editingItemId
             ? {
                 ...item,
-                batchNo: batchNo.trim() || sourceItem?.batchNo || "",
+                itemName: item.itemName || parentItemName,
+                itemSubCategory: item.itemSubCategory || parentSubCategory,
+                logNo: item.logNo || parentLogNo,
+                bundleNo: bNo,
+                palletNo: palletNo.trim(),
+                color: color.trim(),
+                colorId: colorId.trim(),
                 length: l,
                 width: w,
-                height: h,
-                cbm: calculatedCbm,
-                cbf: calculatedCbf,
-                receivedCbm: Number(receivedCbm.toFixed(6)),
-                availableCbm: Number(availableCbm.toFixed(6)),
-                ratePerCbf: Number(ratePerCbf) || 0,
+                thickness: th,
+                noOfLeaves: leaves,
+                sqm: calculatedSqm,
+                sqf: calculatedSqf,
+                ratePerSqf: Number(ratePerSqf) || 0,
                 amount: calculatedAmount,
                 remark,
               }
-            : item,
-        ),
+            : item
+        )
       );
       setEditingItemId(null);
     } else {
       const newItem: SlicingProcessItemRow = {
         id: `slicing-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        batchNo: batchNo.trim() || sourceItem?.batchNo || sourceItem?.logNo || "",
+        itemName: parentItemName,
+        itemSubCategory: parentSubCategory,
+        logNo: parentLogNo,
+        bundleNo: bNo,
+        palletNo: palletNo.trim(),
+        color: color.trim(),
+        colorId: colorId.trim(),
         length: l,
         width: w,
-        height: h,
-        cbm: calculatedCbm,
-        cbf: calculatedCbf,
-        receivedCbm: Number(receivedCbm.toFixed(6)),
-        availableCbm: Number(availableCbm.toFixed(6)),
-        ratePerCbf: Number(ratePerCbf) || 0,
+        thickness: th,
+        noOfLeaves: leaves,
+        sqm: calculatedSqm,
+        sqf: calculatedSqf,
+        ratePerSqf: Number(ratePerSqf) || 0,
         amount: calculatedAmount,
         remark,
       };
       setProcessedItems((prev) => [...prev, newItem]);
     }
 
-    setBatchNo(sourceItem?.batchNo || sourceItem?.logNo || "");
-    setLength(sourceItem?.length ? String(sourceItem.length).replace(/[^0-9.]/g, "") : "2440");
-    setWidth(sourceItem?.width ? String(sourceItem.width).replace(/[^0-9.]/g, "") : "1220");
-    setHeight(sourceItem?.height || sourceItem?.thickness ? String(sourceItem.height || sourceItem.thickness).replace(/[^0-9.]/g, "") : "150");
-    setRatePerCbf(sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf).replace(/[^0-9.]/g, "") : "450");
+    // Reset fields for next entry - KEEP hold of length and width always
+    setBundleNo("");
+    setPalletNo("");
+    setColor("");
+    setColorId("");
+    setThickness("");
+    setNoOfLeaves("");
+    setRatePerSqf("");
     setRemark("");
   };
 
   const handleEditProcessItem = (item: SlicingProcessItemRow) => {
     setEditingItemId(item.id);
-    setBatchNo(item.batchNo);
+    setBundleNo(item.bundleNo);
+    setPalletNo(item.palletNo);
+    setColor(item.color || "");
+    setColorId(item.colorId || "");
     setLength(String(item.length));
     setWidth(String(item.width));
-    setHeight(String(item.height));
-    setRatePerCbf(item.ratePerCbf ? String(item.ratePerCbf) : "");
+    setThickness(item.thickness ? String(item.thickness) : "");
+    setNoOfLeaves(String(item.noOfLeaves));
+    setRatePerSqf(item.ratePerSqf ? String(item.ratePerSqf) : "");
     setRemark(item.remark || "");
   };
 
@@ -284,39 +599,34 @@ export function SlicingCreatePage() {
     }
   };
 
-  // Add Item to Available Details
-  const handleAddRejectAvailableItem = () => {
-    const l = Number(raLength) || 0;
-    const w = Number(raWidth) || 0;
-    const h = Number(raHeight) || 0;
-
-    const newRa: SlicingRejectAvailableRow = {
-      id: `ra-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      type: "Available",
-      length: l,
-      width: w,
-      height: h,
-      cbm: calculatedRaCbm,
-      cbf: calculatedRaCbf,
-      remark: raRemark,
-    };
-
-    setRejectAvailableItems((prev) => [...prev, newRa]);
-    setRaLength("");
-    setRaWidth("");
-    setRaHeight("");
-    setRaRate("");
-    setRaRemark("");
-  };
-
-  const handleDeleteRejectAvailableItem = (id: string) => {
-    setRejectAvailableItems((prev) => prev.filter((it) => it.id !== id));
-  };
-
-  // Save / Submit Slicing Process
+  // Submit process creation
   const handleSubmit = async () => {
     if (processedItems.length === 0) {
       setErrorMessage("Please add at least one processed item before saving.");
+      return;
+    }
+
+    const targetIssueId = state?.issueId || state?.issueItemId || sourceItem?.id;
+    if (!targetIssueId) {
+      setErrorMessage("No source Issued Slicing record found.");
+      return;
+    }
+
+    const finalRemLength = Number(availLength) || sourceLength || 0;
+    const finalRemWidth = Number(availWidth) || sourceWidth || 0;
+    const finalRemCbm = availCbm !== "" && !isNaN(Number(availCbm)) ? Number(availCbm) : calculatedRemainingCbm;
+    const finalRemCbf = availCbf !== "" && !isNaN(Number(availCbf)) ? Number(availCbf) : calculatedRemainingCbf;
+    const finalRemHeight =
+      availHeight !== "" && !isNaN(Number(availHeight))
+        ? Number(availHeight)
+        : finalRemLength > 0 && finalRemWidth > 0
+          ? finalRemCbm / (finalRemLength * finalRemWidth)
+          : 0;
+
+    if (totalProcessedCbm > sourceAvailableCbm || finalRemCbm < 0) {
+      setErrorMessage(
+        `Insufficient available CBM. Required: ${totalProcessedCbm.toFixed(3)} CBM. Available: ${sourceAvailableCbm.toFixed(3)} CBM.`
+      );
       return;
     }
 
@@ -324,6 +634,39 @@ export function SlicingCreatePage() {
     setErrorMessage("");
 
     try {
+      await createSlicingProcessApi({
+        issueId: targetIssueId,
+        slicingDate: slicingDate ? slicingDate.toISOString().slice(0, 10) : undefined,
+        remark: remark || raRemark || undefined,
+        processedItems: processedItems.map((item) => ({
+          logCode: item.logNo,
+          batchNo: item.logNo,
+          bundleNumber: item.bundleNo,
+          palletNo: item.palletNo,
+          colorName: item.color || undefined,
+          colorId: item.colorId || undefined,
+          length: item.length,
+          width: item.width,
+          thickness: item.thickness,
+          height: item.thickness,
+          noOfLeaves: item.noOfLeaves,
+          sqm: item.sqm,
+          sqf: item.sqf,
+          totalSqMeter: item.sqm,
+          ratePerCbf: item.ratePerSqf,
+          amount: item.amount,
+          remark: item.remark,
+        })),
+        remaining: {
+          length: finalRemLength,
+          width: finalRemWidth,
+          thickness: finalRemHeight,
+          height: finalRemHeight,
+          cbm: finalRemCbm,
+          cbf: finalRemCbf,
+        },
+      });
+
       // Navigate to Slicing Done tab
       navigate("/factory/slicing?tab=done");
     } catch (err: any) {
@@ -340,8 +683,8 @@ export function SlicingCreatePage() {
         { label: "Slicing", to: "/factory/slicing" },
         { label: "Create Slicing" },
       ]}
-      subtitle="Process wood flitches into sliced veneer sheets."
       title="Create Slicing Process"
+      subtitle="Slice veneer block into bundles for drying."
     >
       <Stack spacing={3}>
         {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -351,366 +694,297 @@ export function SlicingCreatePage() {
           <FactorySourceOverviewPanel items={sourceOverviewItems} />
         ) : null}
 
-        {/* Process Details Input Form */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader
-              title={editingItemId ? "Edit Output Item" : "Output Details"}
-            />
-
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, 1fr)",
-                  md: "repeat(5, 1fr)",
-                },
-              }}
-            >
-              <TextField
-                label="Batch No"
-                value={batchNo}
-                onChange={(e) => setBatchNo(e.target.value)}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Length (mm)"
-                type="number"
-                value={length}
-                onChange={(e) => setLength(e.target.value)}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-                required
-              />
-
-              <TextField
-                label="Width (mm)"
-                type="number"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-                required
-              />
-
-              <TextField
-                label="Height (mm)"
-                type="number"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-                required
-              />
-
-              <TextField
-                label="CBM"
-                value={calculatedCbm ? calculatedCbm.toFixed(6) : "0"}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="CBF"
-                value={calculatedCbf ? calculatedCbf.toFixed(4) : "0"}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Received CBM"
-                value={receivedCbm ? receivedCbm.toFixed(6) : "0"}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Available CBM"
-                value={availableCbm ? availableCbm.toFixed(6) : "0"}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Rate per CBF"
-                type="number"
-                value={ratePerCbf}
-                onChange={(e) => setRatePerCbf(e.target.value)}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Amount"
-                value={calculatedAmount ? calculatedAmount.toFixed(2) : "0"}
-                slotProps={{ input: { readOnly: true } }}
-                size="small"
-                sx={getCompactFieldSx(theme)}
-              />
-            </Box>
-
-            <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
-              {editingItemId ? (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => {
-                    setEditingItemId(null);
-                  }}
-                  sx={recordFormActionButtonSx}
-                >
-                  Cancel Edit
-                </Button>
-              ) : null}
-              <Button
-                variant="contained"
-                startIcon={<Plus size={16} />}
-                onClick={handleAddProcessItem}
-                size="small"
-                sx={(t) => formInlineActionButtonSx(t)}
-              >
-                {editingItemId ? "Update Item" : "Add Item"}
-              </Button>
-            </Stack>
-          </Stack>
+        <Box sx={{ maxWidth: 220 }}>
+          <Typography
+            sx={{
+              mb: 0.5,
+              fontSize: 12,
+              fontWeight: 600,
+              color: theme.palette.text.secondary,
+            }}
+            variant="caption"
+          >
+            Slicing Date
+          </Typography>
+          <ErpDatePickerField onChange={setSlicingDate} value={slicingDate} />
         </Box>
 
-        {/* Process Items Table */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader
-              title={`Processed Items (${processedItems.length})`}
-            />
-
-            <Box
-              sx={{
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: "8px",
-                overflowX: "auto",
-                backgroundColor: theme.customTokens.surfaces.surface,
-              }}
-            >
-              <Table size="small">
+        <Stack spacing={1.5}>
+          <FormSectionHeader
+            title={editingItemId ? "Edit Output Item" : "Output Details"}
+          />
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 1280, tableLayout: "auto" }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>#</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Batch No</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Length</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Received CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Available CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Rate per CBF</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Amount</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
-                      Action
+                    <TableCell sx={headerCellSx(theme, 140)}>Bundle No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Pallet No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Color</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>
+                      <RequiredHeader>Width</RequiredHeader>
                     </TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>
+                      <RequiredHeader>Thickness</RequiredHeader>
+                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 130)}>
+                      <RequiredHeader>No. of Leaves</RequiredHeader>
+                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {processedItems.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={12} align="center" sx={{ py: 3, color: "text.secondary" }}>
-                        No items added yet. Enter details above and click "Add Item".
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    processedItems.map((item, index) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{index + 1}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.batchNo || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.receivedCbm}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.availableCbm}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>₹{item.ratePerCbf}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>₹{item.amount}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
-                          <Stack direction="row" spacing={1} justifyContent="center">
-                            <IconButton
-                              size="small"
-                              onClick={() => handleEditProcessItem(item)}
-                              color="primary"
-                              title="Edit"
-                            >
-                              <Pencil size={15} />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleDeleteProcessItem(item.id)}
-                              color="error"
-                              title="Delete"
-                            >
-                              <Trash2 size={15} />
-                            </IconButton>
-                          </Stack>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  <TableRow>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setBundleNo} required value={bundleNo} width={132} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setPalletNo} value={palletNo} width={132} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <Box sx={{ width: 136, minWidth: 136 }}>
+                        <ErpSelectField
+                          onChange={handleColorSelect}
+                          onOpen={handleColorDropdownOpen}
+                          options={colorOptions}
+                          placeholder={colorLoading && colorOptions.length === 0 ? "Loading…" : "Select color"}
+                          searchable={colorOptions.length > 5}
+                          size="dense"
+                          value={color}
+                        />
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setLength} required type="decimal" value={length} width={100} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setWidth} required type="decimal" value={width} width={100} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setThickness} required type="decimal" value={thickness} width={110} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setNoOfLeaves} required type="integer" value={noOfLeaves} width={120} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={calculatedSqm ? calculatedSqm.toFixed(3) : "-"} width={90} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value={calculatedSqf ? calculatedSqf.toFixed(3) : "-"} width={90} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setRemark} value={remark} width={170} />
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </Box>
-          </Stack>
-        </Box>
+          </Box>
 
-        {/* Reject / Available Details Table */}
-        <Box sx={(t) => formSectionCardSx(t)}>
-          <Stack spacing={2}>
-            <FormSectionHeader title="Available Details" />
-
-            <Box
+          {/* Inline API error — small red text below the table row, above Add Item */}
+          {errorMessage ? (
+            <Typography
               sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, 1fr)",
-                  md: "repeat(5, 1fr) auto",
-                },
-                alignItems: "center",
+                color: "error.main",
+                fontSize: "12px",
+                fontStyle: "italic",
+                px: 0.5,
+                mt: -0.5,
               }}
             >
-              <Select
-                size="small"
-                value="Available"
-                disabled
-                sx={getCompactFieldSx(theme)}
-              >
-                <MenuItem value="Available">Available</MenuItem>
-              </Select>
+              {errorMessage}
+            </Typography>
+          ) : null}
 
-              <TextField
-                label="Length (mm)"
-                type="number"
-                size="small"
-                value={raLength}
-                onChange={(e) => setRaLength(e.target.value)}
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Width (mm)"
-                type="number"
-                size="small"
-                value={raWidth}
-                onChange={(e) => setRaWidth(e.target.value)}
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Thickness/Height (mm)"
-                type="number"
-                size="small"
-                value={raHeight}
-                onChange={(e) => setRaHeight(e.target.value)}
-                sx={getCompactFieldSx(theme)}
-              />
-
-              <TextField
-                label="Remark"
-                size="small"
-                value={raRemark}
-                onChange={(e) => setRaRemark(e.target.value)}
-                sx={getCompactFieldSx(theme)}
-              />
-
+          <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1.5 }}>
+            {editingItemId ? (
               <Button
-                variant="contained"
-                startIcon={<Plus size={16} />}
-                onClick={handleAddRejectAvailableItem}
+                onClick={() => {
+                  setEditingItemId(null);
+                  setColor("");
+                  setColorId("");
+                  setThickness("");
+                  setNoOfLeaves("");
+                }}
                 size="small"
-                sx={(t) => formInlineActionButtonSx(t)}
+                sx={recordFormActionButtonSx}
+                variant="outlined"
               >
-                Add
+                Cancel Edit
               </Button>
-            </Box>
-
-            <Box
-              sx={{
-                border: `1px solid ${theme.customTokens.borders.default}`,
-                borderRadius: "8px",
-                overflowX: "auto",
-                backgroundColor: theme.customTokens.surfaces.surface,
-              }}
+            ) : null}
+            <Button
+              onClick={handleAddProcessItem}
+              size="small"
+              startIcon={<Plus size={15} />}
+              sx={(t) => formInlineActionButtonSx(t)}
+              variant="contained"
             >
-              <Table size="small">
+              {editingItemId ? "Update Item" : "Add Item"}
+            </Button>
+          </Box>
+        </Stack>
+
+        {processedItems.length > 0 ? (
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 1280 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>#</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Type</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Length</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Thickness/Height</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>Remark</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
-                      Action
-                    </TableCell>
+                    <TableCell sx={headerCellSx(theme, 48)}>#</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Bundle No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 140)}>Pallet No</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Color</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 110)}>Width</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Thickness</TableCell>
+                    <TableCell sx={headerCellSx(theme, 130)}>No. of Leaves</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 100)}>SQF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
+                    <TableCell align="center" sx={headerCellSx(theme, 88)}>Action</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {rejectAvailableItems.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} align="center" sx={{ py: 3, color: "text.secondary" }}>
-                        No Available disposition items entered.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    rejectAvailableItems.map((item, index) => (
-                      <TableRow key={item.id} hover>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{index + 1}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 600,
-                              color: "primary.main",
-                            }}
-                          >
-                            {item.type}
-                          </Typography>
-                        </TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.length || "-"} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height || "-"} mm</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteRejectAvailableItem(item.id)}
-                            color="error"
-                            title="Delete"
-                          >
+                  {processedItems.map((item, index) => (
+                    <TableRow hover key={item.id}>
+                      <TableCell sx={bodyCellSx(theme)}>{index + 1}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.bundleNo || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.palletNo || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.color || sourceColor || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.length}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.width}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.thickness || "-"}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.noOfLeaves}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.sqm.toFixed(3)}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.sqf.toFixed(3)}</TableCell>
+                      <TableCell sx={bodyCellSx(theme)}>{item.remark || "-"}</TableCell>
+                      <TableCell align="center" sx={bodyCellSx(theme)}>
+                        <Stack direction="row" justifyContent="center" spacing={0.5}>
+                          <IconButton color="primary" onClick={() => handleEditProcessItem(item)} size="small" title="Edit">
+                            <Pencil size={15} />
+                          </IconButton>
+                          <IconButton color="error" onClick={() => handleDeleteProcessItem(item.id)} size="small" title="Delete">
                             <Trash2 size={15} />
                           </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </Box>
-          </Stack>
-        </Box>
+          </Box>
+        ) : null}
 
-        {/* ── Bottom Action Bar (Cancel & Save Slicing) ── */}
+        <Stack spacing={1.5}>
+          <FormSectionHeader title="Available Details" />
+          <Box
+            sx={{
+              border: `1px solid ${theme.customTokens.borders.default}`,
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: theme.customTokens.surfaces.surface,
+            }}
+          >
+            <Box sx={tableScrollSx(theme)}>
+              <Table size="small" sx={{ minWidth: 900 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={headerCellSx(theme, 130)}>Type</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Length</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Width</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Height</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>CBM</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>CBF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput readOnly value="Available" width={118} />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        onChange={setAvailLength}
+                        type="decimal"
+                        value={availLength}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        onChange={setAvailWidth}
+                        type="decimal"
+                        value={availWidth}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        onChange={setAvailHeight}
+                        type="decimal"
+                        value={availHeight}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        onChange={(v) => {
+                          setAvailCbm(v);
+                          const valNum = Number(v);
+                          if (!isNaN(valNum) && valNum >= 0) {
+                            setAvailCbf((valNum * 35.3147).toFixed(4));
+                            const l = Number(availLength) || sourceLength;
+                            const w = Number(availWidth) || sourceWidth;
+                            if (l > 0 && w > 0) {
+                              setAvailHeight(
+                                (valNum / (l * w)).toFixed(6).replace(/0+$/, "").replace(/\.$/, "")
+                              );
+                            }
+                          }
+                        }}
+                        type="decimal"
+                        value={availCbm}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput
+                        onChange={setAvailCbf}
+                        type="decimal"
+                        value={availCbf}
+                        width={110}
+                      />
+                    </TableCell>
+                    <TableCell sx={bodyCellSx(theme)}>
+                      <CompactTableInput onChange={setRaRemark} value={raRemark} width={170} />
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Box>
+          </Box>
+        </Stack>
+
         <Box
           sx={{
             display: "flex",
@@ -721,20 +995,18 @@ export function SlicingCreatePage() {
           }}
         >
           <Button
+            disabled={isSubmitting}
+            onClick={() => navigate("/factory/slicing")}
+            sx={recordFormActionButtonSx}
             type="button"
             variant="outlined"
-            onClick={() => navigate("/factory/slicing")}
-            disabled={isSubmitting}
-            sx={recordFormActionButtonSx}
           >
             Cancel
           </Button>
           <Button
-            type="button"
-            variant="contained"
+            disabled={isSubmitting}
             disableElevation
             onClick={() => void handleSubmit()}
-            disabled={isSubmitting}
             sx={{
               ...highlightedRecordFormPrimaryButtonSx,
               backgroundColor: (t) => t.palette.primary.main,
@@ -745,8 +1017,10 @@ export function SlicingCreatePage() {
                 backgroundColor: (t) => t.customTokens.brand.primaryScale[800],
               },
             }}
+            type="button"
+            variant="contained"
           >
-            {isSubmitting ? "Saving..." : "Save Slicing"}
+            {isSubmitting ? "Saving..." : "Save Process"}
           </Button>
         </Box>
       </Stack>

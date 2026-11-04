@@ -8,8 +8,8 @@ import {
 
 export type ActionMenuTone = "primary" | "default" | "danger";
 
-export const ACTION_MENU_MIN_WIDTH = 168;
-export const ACTION_MENU_MAX_WIDTH = 200;
+export const ACTION_MENU_MIN_WIDTH = 180;
+export const ACTION_MENU_MAX_WIDTH = 280;
 
 /** Infer visual hierarchy from label/tone without changing business logic. */
 export function resolveActionMenuTone(
@@ -104,6 +104,7 @@ export function actionMenuItemSx(
     fontWeight: isPrimary || isDanger ? 600 : 500,
     lineHeight: 1.2,
     alignItems: "center",
+    whiteSpace: "nowrap",
     "&:hover": {
       backgroundColor: isDanger
         ? theme.customTokens.semanticScale.error[50]

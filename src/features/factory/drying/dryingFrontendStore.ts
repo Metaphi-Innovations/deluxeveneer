@@ -7,7 +7,7 @@ import {
   formatSlicingDecimal,
 } from "../shared/slicingAreaCalculation";
 
-const STORAGE_KEY = "deluxe-drying-frontend-flow";
+const STORAGE_KEY = "deluxe-drying-frontend-flow-v2";
 
 export type DryingFlowRow = Record<string, unknown>;
 

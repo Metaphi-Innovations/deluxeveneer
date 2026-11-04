@@ -36,6 +36,7 @@ import {
 } from "../../../shared/listingTableStyles";
 import { getCompactFieldSx } from "../../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { dryingDefinition } from "../../shared/factoryDefinitions";
+import { createDryingProcessApi } from "../api/dryingApi";
 
 interface ProcessItemRow {
   id: string;
@@ -277,6 +278,15 @@ export function DryingCreatePage() {
     setErrorMessage("");
 
     try {
+      const issueId = state?.issueId || state?.sourceItem?.id;
+      if (issueId) {
+        await createDryingProcessApi({
+          issueId,
+          dryingDate: new Date().toISOString().slice(0, 10),
+          leavesToIssue: processedItems.length || 1,
+          remark: remark || "Processed from Create Drying page",
+        });
+      }
       // Redirect to Drying Done tab
       navigate("/factory/drying?tab=done");
     } catch (err: any) {

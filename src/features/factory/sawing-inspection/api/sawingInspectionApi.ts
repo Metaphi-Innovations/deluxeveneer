@@ -23,6 +23,8 @@ export interface SawingInspectionPendingItem {
   cbf: number;
   qcStatus: string;
   remark: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   sourceRemark: string | null;
   createdBy: string | null;
   updatedBy: string | null;
@@ -56,6 +58,8 @@ export interface SawingInspectionDoneItem {
   transferDate: string | null;
   isTransferred: boolean;
   remark: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   sourceRemark: string | null;
   inspectedBy: string | null;
   createdBy: string | null;
@@ -84,6 +88,8 @@ export interface SawingInspectionFailItem {
   cbf: number;
   qcStatus: string;
   remark: string | null;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
   sourceRemark: string | null;
   inspectedBy: string | null;
   createdBy: string | null;
@@ -129,38 +135,50 @@ export interface SawingInspectionQueryParams {
 export async function fetchSawingInspectionPending(
   params: SawingInspectionQueryParams = {}
 ): Promise<SawingInspectionListResponse<SawingInspectionPendingItem>> {
-  const hasFilterOrSort = Boolean(
-    (params.filters && Object.keys(params.filters).length > 0) ||
-      params.sortBy ||
-      params.sortOrder ||
-      params.search
-  );
+  const hasColumnFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  const searchTrimmed = params.search?.trim();
 
   let response: ApiResponse<SawingInspectionListResponse<SawingInspectionPendingItem>>;
-  if (hasFilterOrSort) {
-    let endpoint = `${BASE_PATH}/pending/filter`;
-    if (params.sortOrder === "asc") endpoint = `${BASE_PATH}/pending/ascending`;
-    else if (params.sortOrder === "desc" && !params.sortBy) endpoint = `${BASE_PATH}/pending/latest`;
-    else if (params.sortOrder === "desc") endpoint = `${BASE_PATH}/pending/descending`;
 
+  if (hasColumnFilters) {
+    // Column Filtering API endpoint
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionPendingItem>>>(
-      endpoint,
+      `${BASE_PATH}/pending/filter`,
       {
         method: "POST",
         body: {
           page: params.page ?? 1,
           limit: params.limit ?? 10,
-          search: params.search,
+          search: searchTrimmed || undefined,
           sortBy: params.sortBy,
           sortOrder: params.sortOrder ?? "desc",
           filters: params.filters,
         },
       }
     );
+  } else if (searchTrimmed) {
+    // Dedicated Search API endpoint
+    response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionPendingItem>>>(
+      `${BASE_PATH}/pending/search`,
+      {
+        method: "POST",
+        body: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 10,
+          search: searchTrimmed,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder ?? "desc",
+        },
+      }
+    );
   } else {
+    // Plain Listing API (GET)
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
+    if (params.sortBy) qs.set("sortBy", params.sortBy);
+    if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
+    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
     const url = `${BASE_PATH}/pending?${qs.toString()}`;
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionPendingItem>>>(url, {
       method: "GET",
@@ -180,9 +198,14 @@ export async function fetchSawingInspectionPendingById(id: string): Promise<Sawi
 export async function recordSawingInspectionDecisionApi(
   id: string,
   decision: "PASS" | "FAIL",
-  body: { inspectionDate: string; remark?: string | undefined }
+  body: {
+    inspectionDate: string;
+    remark?: string | undefined;
+    attachmentUrl?: string | undefined;
+    attachmentName?: string | undefined;
+  }
 ): Promise<any> {
-  const endpoint = `${BASE_PATH}/pending/${id}/${decision.toLowerCase()}`;
+  const endpoint = decision === "PASS" ? `${BASE_PATH}/pending/${id}/pass` : `${BASE_PATH}/pending/${id}/fail`;
   const response = await apiRequest<ApiResponse<any>>(endpoint, {
     method: "POST",
     body,
@@ -202,21 +225,19 @@ export async function revertSawingInspectionPendingApi(
 }
 
 // ---------------------------------------------------------------------------
-// B. Inspection Done (PASS) APIs
+// B. Inspection Done APIs
 // ---------------------------------------------------------------------------
 
 export async function fetchSawingInspectionDone(
   params: SawingInspectionQueryParams = {}
 ): Promise<SawingInspectionListResponse<SawingInspectionDoneItem>> {
-  const hasFilterOrSort = Boolean(
-    (params.filters && Object.keys(params.filters).length > 0) ||
-      params.sortBy ||
-      params.sortOrder ||
-      params.search
-  );
+  const hasColumnFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  const searchTrimmed = params.search?.trim();
 
   let response: ApiResponse<SawingInspectionListResponse<SawingInspectionDoneItem>>;
-  if (hasFilterOrSort) {
+
+  if (hasColumnFilters) {
+    // Column Filtering API endpoint
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionDoneItem>>>(
       `${BASE_PATH}/done/filter`,
       {
@@ -224,17 +245,36 @@ export async function fetchSawingInspectionDone(
         body: {
           page: params.page ?? 1,
           limit: params.limit ?? 10,
-          search: params.search,
+          search: searchTrimmed || undefined,
           sortBy: params.sortBy,
           sortOrder: params.sortOrder ?? "desc",
           filters: params.filters,
         },
       }
     );
+  } else if (searchTrimmed) {
+    // Dedicated Search API endpoint
+    response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionDoneItem>>>(
+      `${BASE_PATH}/done/search`,
+      {
+        method: "POST",
+        body: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 10,
+          search: searchTrimmed,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder ?? "desc",
+        },
+      }
+    );
   } else {
+    // Plain Listing API (GET)
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
+    if (params.sortBy) qs.set("sortBy", params.sortBy);
+    if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
+    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
     const url = `${BASE_PATH}/done?${qs.toString()}`;
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionDoneItem>>>(url, {
       method: "GET",
@@ -291,15 +331,13 @@ export async function issueSawingInspectionToWarehouseApi(
 export async function fetchSawingInspectionFail(
   params: SawingInspectionQueryParams = {}
 ): Promise<SawingInspectionListResponse<SawingInspectionFailItem>> {
-  const hasFilterOrSort = Boolean(
-    (params.filters && Object.keys(params.filters).length > 0) ||
-      params.sortBy ||
-      params.sortOrder ||
-      params.search
-  );
+  const hasColumnFilters = Boolean(params.filters && Object.keys(params.filters).length > 0);
+  const searchTrimmed = params.search?.trim();
 
   let response: ApiResponse<SawingInspectionListResponse<SawingInspectionFailItem>>;
-  if (hasFilterOrSort) {
+
+  if (hasColumnFilters) {
+    // Column Filtering API endpoint
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionFailItem>>>(
       `${BASE_PATH}/fail/filter`,
       {
@@ -307,17 +345,36 @@ export async function fetchSawingInspectionFail(
         body: {
           page: params.page ?? 1,
           limit: params.limit ?? 10,
-          search: params.search,
+          search: searchTrimmed || undefined,
           sortBy: params.sortBy,
           sortOrder: params.sortOrder ?? "desc",
           filters: params.filters,
         },
       }
     );
+  } else if (searchTrimmed) {
+    // Dedicated Search API endpoint
+    response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionFailItem>>>(
+      `${BASE_PATH}/fail/search`,
+      {
+        method: "POST",
+        body: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 10,
+          search: searchTrimmed,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder ?? "desc",
+        },
+      }
+    );
   } else {
+    // Plain Listing API (GET)
     const qs = new URLSearchParams();
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
+    if (params.sortBy) qs.set("sortBy", params.sortBy);
+    if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
+    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
     const url = `${BASE_PATH}/fail?${qs.toString()}`;
     response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionFailItem>>>(url, {
       method: "GET",

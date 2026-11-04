@@ -47,7 +47,6 @@ import {
 } from "../../shared/formSectionStyles";
 import { transactionTableHeaderCellSx } from "../../shared/listingTableStyles";
 import {
-  createPackingEntry,
   getPackingPaths,
   isFinishedOrderPackingEligible,
   isRawOrderPackingEligible,
@@ -55,6 +54,8 @@ import {
   updatePackingRecord,
   usePackingRecords,
 } from "../shared/packingStore";
+import { createPackingApi, updatePackingApi, fetchPackingById } from "../api/packingApi";
+import { mapApiItemToPackingRecord } from "../hooks/usePackingList";
 
 const packingDetailFields: readonly MasterFieldDefinition[] = [
   { key: "packingId", label: "Packing ID", type: "text" },
@@ -268,9 +269,23 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const paths = getPackingPaths();
+  const [apiRecord, setApiRecord] = useState<PackingRecord | null>(null);
+
+  useEffect(() => {
+    if (mode === "edit" && id) {
+      void fetchPackingById(id)
+        .then((item) => {
+          setApiRecord(mapApiItemToPackingRecord(item));
+        })
+        .catch((err) => {
+          console.error("Failed to fetch packing for edit:", err);
+        });
+    }
+  }, [id, mode]);
+
   const record = useMemo(
-    () => packingRecords.find((entry) => entry.id === id),
-    [id, packingRecords],
+    () => apiRecord ?? packingRecords.find((entry) => entry.id === id),
+    [apiRecord, id, packingRecords],
   );
   const packingSourceRows = useMemo(
     () => buildPackingSourceRows(orderRecords, packingRecords),
@@ -483,7 +498,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
 
   const packingSummary = buildPackingSelectionSummary(selectedSourceRows);
 
-  const handleCreatePacking = () => {
+  const handleCreatePacking = async () => {
     if (!canUseMode || isSubmitting) {
       return;
     }
@@ -502,41 +517,44 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
     }
 
     setIsSubmitting(true);
-
     try {
-      const packingDate = values.packingDate instanceof Date ? values.packingDate : null;
+      const packingDateStr =
+        values.packingDate instanceof Date
+          ? values.packingDate.toISOString().slice(0, 10)
+          : undefined;
 
-      selectedSourceRows.forEach((row) => {
-        const isRaw = normalizePackingOrderType(row.orderType) === "Raw";
-        createPackingEntry(undefined, {
-          completeImmediately: true,
-          amount: row.amount,
-          customerName: selectedCustomerName || row.customerName,
-          issuedFrom: isRaw ? "Warehouse C" : "Factory",
-          itemName: row.itemName,
-          length: row.length,
-          noOfSheets: row.noOfSheets,
-          orderNo: row.orderNo,
-          orderItemNo: row.orderItemNo,
-          orderType: normalizePackingOrderType(row.orderType),
-          packingDate,
-          productCategory: row.productCategory,
-          remark: isRaw
-            ? `Stock eligible · ${row.orderNo}`
-            : `Factory completed · ${row.orderNo}`,
-          sourceOrderId: row.sourceOrderId,
-          sourceOrderItemId: row.id,
-          sqf: row.sqf,
-          sqm: row.sqm,
-          thickness: row.thickness,
-          width: row.width,
-          ...(typeof values.preparedBy === "string"
-            ? { preparedBy: values.preparedBy }
-            : {}),
-          ...(typeof values.checkedBy === "string"
-            ? { checkedBy: values.checkedBy }
-            : {}),
-        });
+      await createPackingApi({
+        completeImmediately: true,
+        packingDate: packingDateStr,
+        preparedBy:
+          typeof values.preparedBy === "string" ? values.preparedBy : undefined,
+        checkedBy:
+          typeof values.checkedBy === "string" ? values.checkedBy : undefined,
+        items: selectedSourceRows.map((row) => {
+          const isRaw = normalizePackingOrderType(row.orderType) === "Raw";
+          return {
+            orderId: row.sourceOrderId,
+            orderNo: row.orderNo,
+            orderItemId: row.id,
+            orderItemNo: row.orderItemNo,
+            customerName: selectedCustomerName || row.customerName,
+            orderType: normalizePackingOrderType(row.orderType),
+            productCategory: row.productCategory,
+            issuedFrom: isRaw ? "Warehouse C" : "Factory",
+            itemName: row.itemName,
+            length: Number(row.length) || 0,
+            width: Number(row.width) || 0,
+            thickness: Number(row.thickness) || 0,
+            noOfSheets: Number(row.noOfSheets) || 0,
+            sqm: Number(row.sqm) || undefined,
+            sqf: Number(row.sqf) || undefined,
+            ratePerSqf: Number(row.ratePerSqf) || undefined,
+            amount: Number(row.amount) || undefined,
+            remark: isRaw
+              ? `Stock eligible Â· ${row.orderNo}`
+              : `Factory completed Â· ${row.orderNo}`,
+          };
+        }),
       });
 
       navigate("/packing?tab=done", {
@@ -602,7 +620,7 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
                   fontWeight: 600,
                 })}
               >
-                {filteredSourceRows.length} total · {selectedSourceRows.length} selected
+                {filteredSourceRows.length} total Ã‚Â· {selectedSourceRows.length} selected
               </Typography>
             }
             title="Select Order Items"
@@ -806,8 +824,25 @@ export function PackingRecordPage({ mode }: PackingRecordPageProps) {
 
                 <Button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (canUseMode && record) {
+                      const packingDateStr =
+                        values.packingDate instanceof Date
+                          ? values.packingDate.toISOString().slice(0, 10)
+                          : undefined;
+                      try {
+                        await updatePackingApi(record.id, {
+                          packingDate: packingDateStr,
+                          preparedBy:
+                            typeof values.preparedBy === "string" ? values.preparedBy : undefined,
+                          checkedBy:
+                            typeof values.checkedBy === "string" ? values.checkedBy : undefined,
+                          remark:
+                            typeof values.remark === "string" ? values.remark : undefined,
+                        });
+                      } catch (err) {
+                        console.error("Failed to update packing record:", err);
+                      }
                       updatePackingRecord(
                         record.id,
                         buildPackingUpdatePayload(values),

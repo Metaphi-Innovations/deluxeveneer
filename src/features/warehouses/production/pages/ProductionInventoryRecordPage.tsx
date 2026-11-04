@@ -904,12 +904,10 @@ function formatDisplayDateTime(dateVal?: unknown): string {
   try {
     const d = new Date(dateVal as string | number | Date);
     if (Number.isNaN(d.getTime())) return String(dateVal);
-    return d.toLocaleString("en-IN", {
+    return d.toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
       year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   } catch {
     return String(dateVal);

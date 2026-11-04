@@ -68,6 +68,38 @@ function formatDate(value: unknown): string {
   return str.length >= 10 ? str.slice(0, 10) : str;
 }
 
+function formatDisplayDate(value: unknown, withTime = false): string {
+  if (!value) return "-";
+  let date: Date | null = null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    date = value;
+  } else if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      date = parsed;
+    }
+  }
+
+  if (!date) return String(value);
+
+  if (withTime) {
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
 export const SawingViewPage: React.FC = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -1018,9 +1050,9 @@ export const SawingViewPage: React.FC = () => {
               >
                 {[
                   { label: "Created By", value: sourceItem?.createdBy || "-" },
-                  { label: "Created At", value: formatDate(sourceItem?.createdAt) },
+                  { label: "Created At", value: formatDisplayDate(sourceItem?.createdAt, true) },
                   { label: "Updated By", value: sourceItem?.updatedBy || "-" },
-                  { label: "Updated At", value: formatDate(sourceItem?.updatedAt) },
+                  { label: "Updated At", value: formatDisplayDate(sourceItem?.updatedAt, true) },
                 ].map((field) => (
                   <Stack key={field.label} spacing={0.5} sx={{ minWidth: 0 }}>
                     <Typography
@@ -2007,9 +2039,9 @@ export const SawingViewPage: React.FC = () => {
               >
                 {[
                   { label: "Created By", value: record?.createdBy || sourceItem?.createdBy || "-" },
-                  { label: "Created At", value: formatDate(record?.createdAt || sourceItem?.createdAt) },
+                  { label: "Created At", value: formatDisplayDate(record?.createdAt || sourceItem?.createdAt, true) },
                   { label: "Updated By", value: record?.updatedBy || sourceItem?.updatedBy || "-" },
-                  { label: "Updated At", value: formatDate(record?.updatedAt || sourceItem?.updatedAt) },
+                  { label: "Updated At", value: formatDisplayDate(record?.updatedAt || sourceItem?.updatedAt, true) },
                 ].map((field) => (
                   <Stack key={field.label} spacing={0.5} sx={{ minWidth: 0 }}>
                     <Typography
@@ -2169,7 +2201,9 @@ export const SawingViewPage: React.FC = () => {
                   { label: "CBF", value: record.cbf ?? "-" },
                   { label: "Status", value: "Rejected" },
                   { label: "Created By", value: record.createdBy || "-" },
+                  { label: "Created At", value: formatDisplayDate(record.createdAt, true) },
                   { label: "Updated By", value: record.updatedBy || "-" },
+                  { label: "Updated At", value: formatDisplayDate(record.updatedAt, true) },
                   { label: "Remark", value: record.remark || "Rejected", fullWidth: true },
                 ].map((field) => (
                   <Stack
