@@ -4,7 +4,6 @@ export type ProductionWarehouseTabSlug =
   | "raw-veneer"
   | "plywood"
   | "mdf"
-  | "consumables"
   | "sawing"
   | "sample-sheets";
 
@@ -12,7 +11,6 @@ export const productionWarehouseTabs = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
-  { label: "Consumables", value: "consumables" },
   { label: "Sawing", value: "sawing" },
   { label: "Sample Sheets", value: "sample-sheets" },
 ] as const;
@@ -243,8 +241,7 @@ export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
   { key: "sawingDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "batchNo", label: "Log No." },
-  { key: "batchNoCode", label: "Batch No" },
+  { key: "batchNo", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },

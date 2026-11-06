@@ -72,7 +72,7 @@ type EditLineItem = {
 };
 
 const itemFields = [
-  { key: "batchNoCode", label: "Batch No", readOnly: false },
+  { key: "batchNoCode", label: "Batch No", readOnly: true },
   { key: "length", label: "Length", readOnly: true },
   { key: "width", label: "Width", readOnly: false },
   { key: "thickness", label: "Thickness", readOnly: false },
@@ -252,8 +252,8 @@ export function SawingEditPage() {
       value: text(sourceRow.subCategory || sourceRow.itemSubCategory) || "-",
     },
     {
-      label: "Log No.",
-      value: text(sourceRow.batchNo || sourceRow.logNo) || "-",
+      label: "Batch No",
+      value: text(sourceRow.batchNo) || "-",
     },
     { label: "Source Length", value: decimal(sourceRow.length) },
     { label: "Source Width", value: decimal(sourceRow.width) },
@@ -346,7 +346,7 @@ export function SawingEditPage() {
         remark: text(selectedRow.remark),
         outputs: rowsForSave.map((item) => ({
           id: item.id,
-          batchNo: item.values.batchNoCode || item.values.logNo,
+          batchNo: item.values.batchNoCode || item.values.batchNo || text(sourceRow.batchNo),
           length: Number(item.values.length) || undefined,
           width: Number(item.values.width) || undefined,
           thickness: Number(item.values.thickness) || undefined,

@@ -609,8 +609,7 @@ export const sawingInspectionListingColumns = columns([
   ["sawingDate", "Sawing Date"],
   ["itemName", "Item Name"],
   ["subCategory", "Sub Category"],
-  ["batchNo", "Log No."],
-  ["batchNoCode", "Batch No"],
+  ["batchNo", "Batch No."],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -905,6 +904,8 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Output Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
+        fieldDefinition.key === "batchNoCode" ||
+        fieldDefinition.key === "batchNo" ||
         fieldDefinition.key === "length" ||
         fieldDefinition.key === "cbm" ||
         fieldDefinition.key === "cbf"

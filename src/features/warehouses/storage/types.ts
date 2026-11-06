@@ -5,8 +5,7 @@ export type StorageInventoryTab =
   | "veneer-blocks"
   | "raw-veneer"
   | "plywood"
-  | "mdf"
-  | "consumables";
+  | "mdf";
 
 export type StorageSectionTab = "inventory" | "history";
 
@@ -26,7 +25,7 @@ export const STORAGE_LISTING_COLUMNS: readonly EnterpriseTableColumn<WarehouseIn
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
-    { key: "logCode", label: "Log No" },
+    { key: "batchNo", label: "Batch No" },
     { key: "cbm", label: "CBM" },
     { key: "currency", label: "Currency" },
     { key: "rate", label: "Rate" },
@@ -45,7 +44,7 @@ export const STORAGE_VENEER_BLOCKS_HISTORY_COLUMNS: readonly EnterpriseTableColu
     { key: "invoiceNo", label: "Invoice No" },
     { key: "supplierName", label: "Supplier Name" },
     { key: "issueTo", label: "Issue To" },
-    { key: "logCode", label: "Log No" },
+    { key: "batchNo", label: "Batch No" },
     { key: "cbm", label: "CBM" },
     { key: "currency", label: "Currency" },
     { key: "rate", label: "Rate" },
@@ -66,7 +65,7 @@ export const STORAGE_RAW_VENEER_COLUMNS: readonly EnterpriseTableColumn<Warehous
     { key: "supplierName", label: "Supplier Name" },
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "hsnCode", label: "HSN Code" },
-    { key: "logCode", label: "Log Code" },
+    { key: "batchNo", label: "Batch No" },
     { key: "bundleNumber", label: "Bundle Number" },
     { key: "palletNo", label: "Pallet No" },
     { key: "length", label: "Length" },
@@ -114,6 +113,7 @@ export const STORAGE_SHEET_GOODS_COLUMNS: readonly EnterpriseTableColumn<Warehou
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "hsnCode", label: "HSN Code" },
     { key: "palletNo", label: "Pallet No" },
+    { key: "gradeName", label: "Grade" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
@@ -139,6 +139,7 @@ export const STORAGE_SHEET_GOODS_HISTORY_COLUMNS: readonly EnterpriseTableColumn
     ...STORAGE_ITEM_IDENTITY_COLUMNS,
     { key: "hsnCode", label: "HSN Code" },
     { key: "palletNo", label: "Pallet No" },
+    { key: "gradeName", label: "Grade" },
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
@@ -208,6 +209,7 @@ export const STORAGE_EXPORT_COLUMNS = [
   { key: "inwardItemCode", label: "Inward Item Code" },
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
+  { key: "batchNo", label: "Batch No" },
   { key: "currency", label: "Currency" },
   { key: "rate", label: "Rate" },
   { key: "totalAmount", label: "Total Amount" },
@@ -221,7 +223,6 @@ export const STORAGE_INVENTORY_TABS = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
-  { label: "Consumables", value: "consumables" },
 ] as const satisfies readonly {
   label: string;
   value: StorageInventoryTab;
@@ -240,7 +241,6 @@ export const STORAGE_INVENTORY_TITLES: Record<StorageInventoryTab, string> = {
   "raw-veneer": "Raw Veneer",
   plywood: "Plywood",
   mdf: "MDF",
-  consumables: "Consumables",
 };
 
 export type StorageRawVeneerSourceTab = "all" | "purchase" | "production";
@@ -264,8 +264,7 @@ export function isStorageInventoryTab(
     value === "veneer-blocks" ||
     value === "raw-veneer" ||
     value === "plywood" ||
-    value === "mdf" ||
-    value === "consumables"
+    value === "mdf"
   );
 }
 

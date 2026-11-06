@@ -26,13 +26,13 @@ const storageSerialColumn: EnterpriseTableColumn<any> = {
 };
 
 // ── Issued Tab Columns ──────────────────────────────────────────────
-// storage sr no., Item Name, Log No., Length, Width, Height, Received CBM, Available CBM, remark, created by, updated by, action
+// storage sr no., Item Name, Batch No, Length, Width, Height, Received CBM, Available CBM, remark, created by, updated by, action
 export const SAWING_ISSUED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   storageSerialColumn,
   { key: "issueDate", label: "Issue Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "batchNo", label: "Log No." },
+  { key: "batchNo", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "height", label: "Height" },
@@ -50,8 +50,11 @@ export const SAWING_DONE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "processDate", label: "Sawing Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "logNo", label: "Log No." },
-  { key: "batchNoCode", label: "Batch No" },
+  {
+    key: "batchNo",
+    label: "Batch No",
+    renderCell: (row) => row.batchNo || row.batchNoCode || "-",
+  },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "height", label: "Thickness" },
@@ -77,8 +80,11 @@ export const SAWING_HISTORY_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "processDate", label: "Issued Inspection Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "logNo", label: "Log No." },
-  { key: "batchNoCode", label: "Batch No" },
+  {
+    key: "batchNo",
+    label: "Batch No",
+    renderCell: (row) => row.batchNo || row.batchNoCode || "-",
+  },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   {
@@ -99,8 +105,11 @@ export const SAWING_REJECTED_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   { key: "processDate", label: "Rejected Date" },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "logNo", label: "Log No." },
-  { key: "batchNoCode", label: "Batch No" },
+  {
+    key: "batchNo",
+    label: "Batch No",
+    renderCell: (row) => row.batchNo || row.batchNoCode || "-",
+  },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   {
@@ -120,7 +129,7 @@ export const SAWING_AVAILABLE_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
   storageSerialColumn,
   { key: "processDate", label: "Date" },
   { key: "itemName", label: "Item Name" },
-  { key: "batchNo", label: "Log No." },
+  { key: "batchNo", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "height", label: "Height" },

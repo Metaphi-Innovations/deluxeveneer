@@ -11,6 +11,7 @@ import { fetchWarehouseMasterDetail } from "../../masters/warehouse-location-mas
 import { InwardWarehousePage } from "./InwardWarehousePage";
 import { StorageWarehousePage } from "./StorageWarehousePage";
 import { ProductionWarehousePage } from "../production/ProductionWarehousePage";
+import { ConsumablesWarehousePage } from "./ConsumablesWarehousePage";
 
 export function DynamicWarehousePage() {
   const params = useParams<{ warehouseId?: string; warehouseSlug?: string }>();
@@ -141,6 +142,20 @@ export function DynamicWarehousePage() {
       <ProductionWarehousePage
         warehouseId={warehouseId}
         warehouseName={warehouseName}
+        warehouseRootPath={`/warehouses/${warehouseId}`}
+      />
+    );
+  }
+
+  if (
+    warehouseId === "consumables" ||
+    normalizedType === "consumables" ||
+    normalizedType === "consumable"
+  ) {
+    return (
+      <ConsumablesWarehousePage
+        warehouseId={warehouseId}
+        warehouseName={warehouseName === "Warehouse" ? "Consumables Warehouse" : warehouseName}
         warehouseRootPath={`/warehouses/${warehouseId}`}
       />
     );

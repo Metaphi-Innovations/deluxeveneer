@@ -12,7 +12,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
   Paper,
+  Select,
   Snackbar,
   Stack,
   TextField,
@@ -59,6 +61,9 @@ import {
   getFactoryIssuedWorkById,
   updateFactoryIssuedWorkSnapshot,
 } from "../../shared/factoryIssuedWorkStore";
+import { renderGradeBadge } from "../sawingInspectionColumns";
+import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
 
 function displayDate(value: unknown, withTime = false): string {
   if (!value) return "-";
@@ -228,18 +233,71 @@ export const SawingInspectionViewPage: React.FC = () => {
   const [dialogRemark, setDialogRemark] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [dialogGradeId, setDialogGradeId] = useState("");
+  const [dialogGradeName, setDialogGradeName] = useState("");
+  const [gradeOptions, setGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error";
   } | null>(null);
 
-  const handleOpenDialog = (mode: "pass" | "fail") => {
+  const handleOpenGradeDropdown = async () => {
+    setIsLoadingGrades(true);
+    try {
+      const res = await fetchGradesApi({ status: true, limit: 100 });
+      if (Array.isArray(res) && res.length > 0) {
+        setGradeOptions(res.map((g: any) => ({ id: String(g.id), name: String(g.name || g.gradeName || "") })));
+      } else {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      }
+    } catch {
+      try {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      } catch {
+        // fallback
+      }
+    } finally {
+      setIsLoadingGrades(false);
+    }
+  };
+
+  const handleGradeChange = async (selectedId: string) => {
+    setDialogGradeId(selectedId);
+    const found = gradeOptions.find((o) => o.id === selectedId);
+    if (found) {
+      setDialogGradeName(found.name);
+    }
+    if (selectedId) {
+      try {
+        const gradeDetail = await getGradeByIdApi(selectedId);
+        if (gradeDetail && gradeDetail.name) {
+          setDialogGradeName(String(gradeDetail.name));
+        }
+      } catch {
+        try {
+          const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
+          if (inwardDetail?.name) {
+            setDialogGradeName(String(inwardDetail.name));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+
+  const handleOpenDialog = (mode: "pass" | "fail" = "pass") => {
     setActiveDialog(mode);
     setDialogDate(new Date().toISOString().slice(0, 10));
     setDialogRemark(mode === "pass" ? "Passed inspection" : "Failed inspection");
     setAttachmentName("");
     setAttachmentPreview(null);
+    setDialogGradeId(record?.gradeId || "");
+    setDialogGradeName(record?.grade || record?.gradeName || "");
   };
 
   const handleCloseDialog = () => {
@@ -247,6 +305,8 @@ export const SawingInspectionViewPage: React.FC = () => {
     setActiveDialog(null);
     setAttachmentName("");
     setAttachmentPreview(null);
+    setDialogGradeId("");
+    setDialogGradeName("");
     setDialogRemark("");
   };
 
@@ -262,22 +322,29 @@ export const SawingInspectionViewPage: React.FC = () => {
     }
   };
 
-  const handleConfirmDecision = async (decisionOverride?: "pass" | "fail") => {
-    const targetMode = decisionOverride || activeDialog;
-    if (!record || !targetMode) return;
+  const handleConfirmDecision = async () => {
+    if (!record) return;
+    if (!dialogGradeId && !dialogGradeName) {
+      setToastNotification({
+        message: "Please select a Grade before submitting the inspection.",
+        severity: "error",
+      });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
-      const mode = targetMode;
       const workItemId = record.workItemId || (String(record.id).startsWith("factory-work-") ? record.id : null);
       const patch = {
         inspectionDate: dialogDate,
-        remark: dialogRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
-        qcStatus: mode === "pass" ? "Pass" : "Fail",
-        listingState: mode === "pass" ? "done" : "failed",
-        status: mode === "pass" ? "Pass" : "Fail",
-        passQty: mode === "pass" ? 1 : 0,
-        failQty: mode === "pass" ? 0 : 1,
+        grade: dialogGradeName,
+        gradeName: dialogGradeName,
+        gradeId: dialogGradeId,
+        remark: dialogRemark.trim() || "Inspection completed",
+        listingState: "done",
+        status: "Done",
+        passQty: 1,
+        failQty: 0,
         ...(attachmentPreview
           ? {
               inspectionImage: attachmentPreview,
@@ -289,23 +356,22 @@ export const SawingInspectionViewPage: React.FC = () => {
       // Call backend API if real ID exists
       if (record.id && !String(record.id).startsWith("factory-work-")) {
         try {
-          await recordSawingInspectionDecisionApi(record.id, mode === "pass" ? "PASS" : "FAIL", {
+          await recordSawingInspectionDecisionApi(record.id, "PASS", {
             inspectionDate: dialogDate,
-            remark: dialogRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+            remark: dialogRemark.trim() || "Inspection completed",
             attachmentUrl: attachmentPreview || undefined,
             attachmentName: attachmentName || undefined,
+            gradeId: dialogGradeId || undefined,
+            grade: dialogGradeName || undefined,
+            gradeName: dialogGradeName || undefined,
           });
         } catch (apiErr) {
-          console.error("Failed to submit inspection decision to backend:", apiErr);
+          console.error("Failed to submit inspection to backend:", apiErr);
         }
       }
 
       if (workItemId) {
-        if (mode === "pass") {
-          completeFactoryIssuedWork(workItemId, patch);
-        } else {
-          failFactoryIssuedWork(workItemId, patch);
-        }
+        completeFactoryIssuedWork(workItemId, patch);
       }
 
       // Also update in-memory sawingInspectionDefinition rows if present
@@ -337,12 +403,12 @@ export const SawingInspectionViewPage: React.FC = () => {
 
       setActiveDialog(null);
       setToastNotification({
-        message: `Sawing Inspection marked as ${mode === "pass" ? "PASS" : "FAIL"} successfully.`,
+        message: "Sawing Inspection completed successfully.",
         severity: "success",
       });
 
       setTimeout(() => {
-        navigate(`/factory/sawing-inspection?tab=${mode === "pass" ? "done" : "failed"}`);
+        navigate(`/factory/sawing-inspection?tab=done`);
       }, 1200);
     } catch (err: any) {
       setToastNotification({
@@ -499,24 +565,18 @@ export const SawingInspectionViewPage: React.FC = () => {
   // Dynamic Page Shell Header Texts
   const pageTitle = isPass
     ? "Inspection Done Item"
-    : isFail
-    ? "Inspection Failed Item"
     : "View Sawing Inspection";
 
   const pageSubtitle = isPass
-    ? "View passed Sawing inspection details and warehouse transfer status."
-    : isFail
-    ? "View failed Sawing inspection details."
+    ? "View completed Sawing inspection details and warehouse transfer status."
     : "Review the Sawing output and its inspection status.";
 
   const backNavLabel = isPass
     ? "Back to Inspection Done"
-    : isFail
-    ? "Back to Inspection Failed"
     : "Back to Sawing Inspection";
 
-  const headerBadgeLabel = isPass ? "Passed" : isFail ? "Failed" : "Pending";
-  const headerBadgeColor = isPass ? ("success" as const) : isFail ? ("error" as const) : ("warning" as const);
+  const headerBadgeLabel = isPass ? "Completed" : "Pending";
+  const headerBadgeColor = isPass ? ("success" as const) : ("warning" as const);
 
   return (
     <FactoryPageShell
@@ -554,8 +614,7 @@ export const SawingInspectionViewPage: React.FC = () => {
                 { label: "Source Warehouse", value: sourceWarehouse },
                 { label: "Item Name", value: itemName },
                 { label: "Sub Category", value: subCategory },
-                { label: "Log No.", value: logNo },
-                { label: "Batch No", value: batchNo },
+                { label: "Batch No", value: batchNo || logNo },
                 { label: "Sawing Date", value: sawingDateDisplay },
                 { label: "Issued to Inspection Date", value: issuedDateDisplay },
               ].map((field) => (
@@ -794,11 +853,29 @@ export const SawingInspectionViewPage: React.FC = () => {
                 </Typography>
                 <Box>
                   <Chip
-                    label={isPass ? "PASS" : isFail ? "FAIL" : "PENDING"}
+                    label={isPass ? "COMPLETED" : "PENDING"}
                     size="small"
                     color={headerBadgeColor}
                     sx={{ fontWeight: 700, height: 26, fontSize: "12px" }}
                   />
+                </Box>
+              </Stack>
+
+              <Stack spacing={0.5}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  Grade
+                </Typography>
+                <Box>
+                  {renderGradeBadge(record?.grade ?? record?.gradeName)}
                 </Box>
               </Stack>
 
@@ -1032,8 +1109,7 @@ export const SawingInspectionViewPage: React.FC = () => {
                 >
                   {[
                     { label: "Item Name", value: itemName },
-                    { label: "Log No.", value: logNo },
-                    { label: "Batch No", value: batchNo },
+                    { label: "Batch No", value: batchNo || logNo },
                     { label: "Length", value: lengthDisplay },
                     { label: "Width", value: widthDisplay },
                     { label: "Thickness", value: thicknessDisplay },
@@ -1063,6 +1139,30 @@ export const SawingInspectionViewPage: React.FC = () => {
                   size="dense"
                   value={isoDateToLocalDate(dialogDate)}
                 />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Grade
+                </Typography>
+                <Select
+                  displayEmpty
+                  fullWidth
+                  onOpen={() => void handleOpenGradeDropdown()}
+                  onChange={(e) => void handleGradeChange(e.target.value as string)}
+                  size="small"
+                  value={dialogGradeId}
+                  sx={getCompactFieldSx(theme, "default")}
+                >
+                  <MenuItem value="" disabled>
+                    <em>{isLoadingGrades ? "Loading grades..." : "Select Grade"}</em>
+                  </MenuItem>
+                  {gradeOptions.map((g) => (
+                    <MenuItem key={g.id} value={g.id}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                </Select>
               </Stack>
 
               <Stack spacing={0.75}>
@@ -1151,24 +1251,9 @@ export const SawingInspectionViewPage: React.FC = () => {
           </Button>
           <Box sx={{ flex: 1 }} />
           <Button
-            color="error"
+            color="primary"
             disabled={isSubmitting}
-            onClick={() => handleConfirmDecision("fail")}
-            startIcon={<AlertCircle size={16} />}
-            sx={{
-              ...recordFormActionButtonSx,
-              textTransform: "none",
-              fontWeight: 600,
-              px: 2.5,
-            }}
-            variant="outlined"
-          >
-            Confirm Fail
-          </Button>
-          <Button
-            color="success"
-            disabled={isSubmitting}
-            onClick={() => handleConfirmDecision("pass")}
+            onClick={() => void handleConfirmDecision()}
             startIcon={<CheckCircle2 size={16} />}
             sx={{
               ...recordFormActionButtonSx,
@@ -1178,7 +1263,7 @@ export const SawingInspectionViewPage: React.FC = () => {
             }}
             variant="contained"
           >
-            Confirm Pass
+            Submit Inspection
           </Button>
         </DialogActions>
       </Dialog>
@@ -1186,7 +1271,7 @@ export const SawingInspectionViewPage: React.FC = () => {
       {/* MOVE TO PRODUCTION WAREHOUSE DIALOG */}
       <FactoryActionConfirmDialog
         confirmLabel="Issue"
-        description="This passed Sawing item will be moved to Production Warehouse under the Sawing tab."
+        description="This inspected Sawing item will be moved to Production Warehouse under the Sawing tab."
         onClose={() => setTransferDialogOpen(false)}
         onConfirm={handleConfirmWarehouseTransfer}
         open={transferDialogOpen}

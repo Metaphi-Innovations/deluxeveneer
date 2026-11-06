@@ -121,13 +121,19 @@ export function SawingCreatePage() {
       void fetchSawingIssuedById(idToFetch).then((data) => {
         if (data) {
           setLoadedSourceItem(data);
-          if (!batchNo) setBatchNo(data.batchNo || "");
+          setBatchNo(data.batchNo || "");
           if (!length) setLength(data.length ? String(data.length) : "");
           if (!width) setWidth(data.width ? String(data.width) : "");
         }
       }).catch(() => {});
     }
   }, [issueId, issueItemId, loadedSourceItem]);
+
+  useEffect(() => {
+    if (sourceItem?.batchNo) {
+      setBatchNo(sourceItem.batchNo);
+    }
+  }, [sourceItem?.batchNo]);
 
   // Auto-calculated fields for Process Details
   const calculatedCbm = useMemo(() => {
@@ -213,7 +219,7 @@ export function SawingCreatePage() {
       { label: "Sawing Sr No.", value: sourceItem.sawingSrNo || "-" },
       { label: "Item Name", value: sourceItem.itemName || "-" },
       { label: "Sub Category", value: sourceItem.subCategory || sourceItem.itemSubCategoryName || "-" },
-      { label: "Log No.", value: sourceItem.batchNo || sourceItem.logNo || "-" },
+      { label: "Batch No.", value: sourceItem.batchNo || "-" },
       { label: "Source Length", value: sourceItem.length ? String(sourceItem.length).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Width", value: sourceItem.width ? String(sourceItem.width).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
       { label: "Source Height", value: sourceItem.height ? String(sourceItem.height).replace(/\s*(m|mm|mtr)$/i, "") : "-" },
@@ -458,10 +464,11 @@ export function SawingCreatePage() {
             >
               <TextField
                 label="Batch No"
-                value={batchNo}
-                onChange={(e) => setBatchNo(e.target.value)}
+                value={batchNo || sourceItem?.batchNo || ""}
+                disabled
+                slotProps={{ input: { readOnly: true } }}
                 size="small"
-                sx={getCompactFieldSx(theme)}
+                sx={getCompactFieldSx(theme, "readOnly")}
               />
 
               <TextField

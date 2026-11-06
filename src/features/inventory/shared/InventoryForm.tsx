@@ -95,8 +95,14 @@ export function InventoryForm<Row extends InventoryRecord>({
   const activeWarehouse = getInventoryWarehouseContext(
     searchParams.get("warehouse"),
   );
-  const apiWarehouseId = searchParams.get("warehouseId")?.trim() || "";
-  const apiWarehouseName = searchParams.get("warehouseName")?.trim() || "";
+  const apiWarehouseId =
+    searchParams.get("warehouseId")?.trim() ||
+    (definition.slug === "consumables"
+      ? "d5c832f8-11d6-408d-a5fa-e3b185b52d7e"
+      : "");
+  const apiWarehouseName =
+    searchParams.get("warehouseName")?.trim() ||
+    (definition.slug === "consumables" ? "Consumables Warehouse" : "");
   const activeProcessTab = getInventoryProcessTab(searchParams.get("tab"));
   const paths = getInventoryPaths(
     definition.slug,
@@ -191,8 +197,14 @@ function InventoryFormContent<Row extends InventoryRecord>({
   const activeWarehouse = getInventoryWarehouseContext(
     searchParams.get("warehouse"),
   );
-  const apiWarehouseId = searchParams.get("warehouseId")?.trim() || "";
-  const apiWarehouseName = searchParams.get("warehouseName")?.trim() || "";
+  const apiWarehouseId =
+    searchParams.get("warehouseId")?.trim() ||
+    (definition.slug === "consumables"
+      ? "d5c832f8-11d6-408d-a5fa-e3b185b52d7e"
+      : "");
+  const apiWarehouseName =
+    searchParams.get("warehouseName")?.trim() ||
+    (definition.slug === "consumables" ? "Consumables Warehouse" : "");
   const isApiInward = Boolean(apiWarehouseId);
   const isApiInwardAdd = isApiInward && mode === "add";
   const permissionKey = apiWarehouseId

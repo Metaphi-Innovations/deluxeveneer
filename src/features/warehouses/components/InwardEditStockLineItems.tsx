@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -46,6 +47,10 @@ import {
   fetchUnitsApi,
   syncUnitMasterToStorage,
 } from "../../masters/unit-master/api/unitMasterApi";
+import {
+  fetchInwardGradeOptions,
+  fetchInwardGradeByIdApi,
+} from "../api/inwardApi";
 import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import {
@@ -112,7 +117,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
-    { key: "logCode", label: "Log No", minWidth: 110, placeholder: "Enter log no", type: "text" },
+    { key: "batchNo", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
     { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
     { key: "thickness", label: "Height (m)", minWidth: 100, placeholder: "Enter height", type: "text", required: true },
@@ -154,6 +159,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
+    { key: "grade", label: "Grade", minWidth: 140, placeholder: "Select grade", type: "select" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
     { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
     { key: "thickness", label: "Thickness (m)", minWidth: 110, placeholder: "Enter thickness", type: "text", required: true },
@@ -174,6 +180,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
+    { key: "grade", label: "Grade", minWidth: 140, placeholder: "Select grade", type: "select" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
     { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
     { key: "thickness", label: "Thickness (m)", minWidth: 110, placeholder: "Enter thickness", type: "text", required: true },
@@ -291,6 +298,29 @@ export const InwardEditStockLineItems = forwardRef<
     () => getLiveUnitOptions(),
     [masterOptionsRevision],
   );
+  const [gradeOptions, setGradeOptions] = useState<string[]>([]);
+  const [gradeMap, setGradeMap] = useState<Record<string, string>>({});
+
+  const loadGradeOptions = useCallback(async () => {
+    try {
+      const grades = await fetchInwardGradeOptions();
+      if (grades.length > 0) {
+        const names: string[] = [];
+        const map: Record<string, string> = {};
+        for (const g of grades) {
+          const name = String(g.name || g.label || "").trim();
+          if (name) {
+            names.push(name);
+            if (g.id) map[name] = g.id;
+          }
+        }
+        setGradeOptions(names);
+        setGradeMap(map);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -302,6 +332,7 @@ export const InwardEditStockLineItems = forwardRef<
           syncUnitMasterToStorage(rows);
         }
       }),
+      loadGradeOptions(),
     ])
       .then(() => {
         if (!ignore) {
@@ -312,7 +343,7 @@ export const InwardEditStockLineItems = forwardRef<
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [loadGradeOptions]);
 
   useEffect(() => {
     nextRowId.current = 1;
@@ -393,6 +424,17 @@ export const InwardEditStockLineItems = forwardRef<
           [key]: value,
         };
 
+        if (key === "sheets") {
+          nextValues.noOfSheets = value;
+        } else if (key === "noOfSheets") {
+          nextValues.sheets = value;
+        }
+        if (key === "totalSqMeter") {
+          nextValues.totalSqm = value;
+        } else if (key === "totalSqm") {
+          nextValues.totalSqMeter = value;
+        }
+
         if (key === "itemName") {
           nextValues = applyItemMasterDefaults(nextValues, value);
         }
@@ -450,6 +492,38 @@ export const InwardEditStockLineItems = forwardRef<
 
         nextValues = applyTaxCalculations(nextValues, gstMode);
 
+        // Plywood / MDF: Grade selection -> on-selection API call to retrieve Grade record
+        if (key === "grade" || key === "gradeName") {
+          const selectedName = value.trim();
+          const resolvedId = gradeMap[selectedName] || "";
+          nextValues.grade = selectedName;
+          nextValues.gradeName = selectedName;
+          if (resolvedId) {
+            nextValues.gradeId = resolvedId;
+          }
+          if (selectedName) {
+            void fetchInwardGradeByIdApi(resolvedId || selectedName).then((record) => {
+              if (record) {
+                setLineItems((currentItems) =>
+                  currentItems.map((item) =>
+                    item.id === rowId
+                      ? {
+                          ...item,
+                          values: {
+                            ...item.values,
+                            grade: record.name || selectedName,
+                            gradeName: record.name || selectedName,
+                            gradeId: record.id || resolvedId || item.values.gradeId || "",
+                          },
+                        }
+                      : item,
+                  ),
+                );
+              }
+            });
+          }
+        }
+
         return {
           ...row,
           values: nextValues,
@@ -465,6 +539,17 @@ export const InwardEditStockLineItems = forwardRef<
           ...(row?.values ?? {}),
           [key]: value,
         };
+
+        if (key === "sheets") {
+          nextValues.noOfSheets = value;
+        } else if (key === "noOfSheets") {
+          nextValues.sheets = value;
+        }
+        if (key === "totalSqMeter") {
+          nextValues.totalSqm = value;
+        } else if (key === "totalSqm") {
+          nextValues.totalSqMeter = value;
+        }
 
         if (key === "itemName") {
           nextValues = applyItemMasterDefaults(nextValues, value);
@@ -710,6 +795,8 @@ export const InwardEditStockLineItems = forwardRef<
                           itemSubCategoryOptions,
                           itemNameOptions,
                           unitNameOptions,
+                          gradeOptions,
+                          onGradeDropdownOpen: loadGradeOptions,
                         })}
                       </TableCell>
                       );
@@ -1108,7 +1195,7 @@ function buildLineItemAutofillTextValues(
         length: "2.5",
         width: "1.2",
         thickness: "0.8",
-        logCode: `LOG-${stamp}`,
+        batchNo: `BATCH-${stamp}`,
       };
     case "raw-veneer":
       return {
@@ -1130,6 +1217,7 @@ function buildLineItemAutofillTextValues(
         thickness: "0.018",
         sheets: "5",
         palletNo: `P-${stamp}`,
+        grade: "",
       };
     case "consumables":
       return {
@@ -1468,6 +1556,8 @@ function renderEditableField({
   itemSubCategoryOptions,
   itemNameOptions,
   unitNameOptions,
+  gradeOptions,
+  onGradeDropdownOpen,
 }: {
   column: DynamicFieldConfig;
   errorText?: string;
@@ -1479,6 +1569,8 @@ function renderEditableField({
   itemSubCategoryOptions?: readonly string[];
   itemNameOptions?: readonly string[];
   unitNameOptions?: readonly string[];
+  gradeOptions?: readonly string[];
+  onGradeDropdownOpen?: () => void;
 }): ReactNode {
   if (column.type === "computed" || readOnly || fieldReadOnly) {
     const isEmpty = !String(value ?? "").trim();
@@ -1639,12 +1731,19 @@ function renderEditableField({
         ? [...(itemSubCategoryOptions ?? getLiveItemSubCategoryOptions())]
         : column.key === "unitName"
           ? [...(unitNameOptions ?? getLiveUnitOptions())]
-          : column.options ?? [];
+          : column.key === "grade" || column.key === "gradeName"
+            ? [...(gradeOptions ?? column.options ?? [])]
+            : column.options ?? [];
 
     return (
       <ErpSelectField
         helperText={errorText || undefined}
         onChange={onChange}
+        onOpen={
+          column.key === "grade" || column.key === "gradeName"
+            ? onGradeDropdownOpen
+            : undefined
+        }
         options={selectOptions}
         placeholder={column.placeholder}
         size="dense"

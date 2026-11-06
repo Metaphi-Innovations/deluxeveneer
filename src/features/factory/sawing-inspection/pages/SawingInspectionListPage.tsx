@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Snackbar,
   Stack,
   TextField,
@@ -39,7 +41,9 @@ import {
 } from "../../shared/listing/factoryListingParts";
 import {
   fetchSawingInspectionPending,
+  fetchSawingInspectionPendingById,
   fetchSawingInspectionDone,
+  fetchSawingInspectionDoneById,
   fetchSawingInspectionFail,
   fetchSawingInspectionDropdownsApi,
   revertSawingInspectionPendingApi,
@@ -49,6 +53,8 @@ import {
   editSawingInspectionDoneApi,
   recordSawingInspectionDecisionApi,
 } from "../api/sawingInspectionApi";
+import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
 import {
   completeFactoryIssuedWork,
   failFactoryIssuedWork,
@@ -108,6 +114,10 @@ export function SawingInspectionListPage() {
   const [inspectRemark, setInspectRemark] = useState("");
   const [inspectAttachmentName, setInspectAttachmentName] = useState("");
   const [inspectAttachmentPreview, setInspectAttachmentPreview] = useState<string | null>(null);
+  const [inspectGradeId, setInspectGradeId] = useState("");
+  const [inspectGradeName, setInspectGradeName] = useState("");
+  const [gradeOptions, setGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
   const [isSubmittingInspect, setIsSubmittingInspect] = useState(false);
 
   // Issue to Warehouse Dialog state (Done tab)
@@ -159,7 +169,7 @@ export function SawingInspectionListPage() {
   const handleColumnFilterOpen = useCallback(
     async (columnKey: string) => {
       try {
-        const tabName = activeTab === "done" ? "done" : activeTab === "failed" ? "failed" : "pending";
+        const tabName = activeTab === "done" ? "done" : "pending";
         const dropdowns = await fetchSawingInspectionDropdownsApi(tabName);
         let rawOpts: string[] = [];
         if (columnKey === "storageSrNo") rawOpts = dropdowns.storageSrNos || [];
@@ -224,8 +234,6 @@ export function SawingInspectionListPage() {
       let result: { items: any[]; pagination: { total: number } };
       if (activeTab === "done") {
         result = await fetchSawingInspectionDone(queryParams);
-      } else if (activeTab === "failed") {
-        result = await fetchSawingInspectionFail(queryParams);
       } else {
         result = await fetchSawingInspectionPending(queryParams);
       }
@@ -264,8 +272,6 @@ export function SawingInspectionListPage() {
       const rem = revertRemark.trim() || undefined;
       if (activeTab === "done") {
         await revertSawingInspectionDoneApi(revertTargetRow.id, rem);
-      } else if (activeTab === "failed") {
-        await revertSawingInspectionFailApi(revertTargetRow.id, rem);
       } else {
         await revertSawingInspectionPendingApi(revertTargetRow.id, rem);
       }
@@ -312,13 +318,78 @@ export function SawingInspectionListPage() {
     }
   };
 
+  const handleOpenGradeDropdown = async () => {
+    setIsLoadingGrades(true);
+    try {
+      const res = await fetchGradesApi({ status: true, limit: 100 });
+      if (Array.isArray(res) && res.length > 0) {
+        setGradeOptions(res.map((g: any) => ({ id: String(g.id), name: String(g.name || g.gradeName || "") })));
+      } else {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      }
+    } catch {
+      try {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      } catch {
+        // fallback
+      }
+    } finally {
+      setIsLoadingGrades(false);
+    }
+  };
+
+  const handleGradeChange = async (selectedId: string) => {
+    setInspectGradeId(selectedId);
+    const found = gradeOptions.find((o) => o.id === selectedId);
+    if (found) {
+      setInspectGradeName(found.name);
+    }
+    // Call on-selection API
+    if (selectedId) {
+      try {
+        const gradeDetail = await getGradeByIdApi(selectedId);
+        if (gradeDetail && gradeDetail.name) {
+          setInspectGradeName(String(gradeDetail.name));
+        }
+      } catch {
+        try {
+          const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
+          if (inwardDetail?.name) {
+            setInspectGradeName(String(inwardDetail.name));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+
   const handleOpenInspect = (r: any) => {
     setInspectTargetRow(r);
     setInspectDate(new Date().toISOString().slice(0, 10));
     setInspectRemark("");
     setInspectAttachmentName("");
     setInspectAttachmentPreview(null);
+    setInspectGradeId(r?.gradeId || "");
+    setInspectGradeName(r?.grade || r?.gradeName || "");
     setInspectDialogOpen(true);
+
+    // Call inspection API to load latest details
+    if (r?.id && !String(r.id).startsWith("factory-work-")) {
+      void fetchSawingInspectionPendingById(r.id)
+        .then((detail) => {
+          if (detail) {
+            setInspectTargetRow((prev: any) => ({ ...prev, ...detail }));
+            if (detail.gradeId) setInspectGradeId(detail.gradeId);
+            if (detail.grade || detail.gradeName) setInspectGradeName(detail.grade || detail.gradeName || "");
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch inspection pending detail:", err);
+        });
+    }
   };
 
   const handleCloseInspect = () => {
@@ -327,6 +398,8 @@ export function SawingInspectionListPage() {
     setInspectTargetRow(null);
     setInspectAttachmentName("");
     setInspectAttachmentPreview(null);
+    setInspectGradeId("");
+    setInspectGradeName("");
     setInspectRemark("");
   };
 
@@ -342,24 +415,32 @@ export function SawingInspectionListPage() {
     }
   };
 
-  const handleConfirmInspectDecision = async (decision: "pass" | "fail") => {
+  const handleConfirmInspectDecision = async () => {
     if (!inspectTargetRow) return;
+    if (!inspectGradeId && !inspectGradeName) {
+      setToastNotification({
+        message: "Please select a Grade before confirming the inspection.",
+        severity: "error",
+      });
+      return;
+    }
     setIsSubmittingInspect(true);
 
     try {
-      const mode = decision;
       const workItemId =
         inspectTargetRow.workItemId ||
         (String(inspectTargetRow.id).startsWith("factory-work-") ? inspectTargetRow.id : null);
 
       const patch = {
         inspectionDate: inspectDate,
-        remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
-        qcStatus: mode === "pass" ? "Pass" : "Fail",
-        listingState: mode === "pass" ? "done" : "failed",
-        status: mode === "pass" ? "Pass" : "Fail",
-        passQty: mode === "pass" ? 1 : 0,
-        failQty: mode === "pass" ? 0 : 1,
+        grade: inspectGradeName,
+        gradeName: inspectGradeName,
+        gradeId: inspectGradeId,
+        remark: inspectRemark.trim() || "Inspection completed",
+        listingState: "done",
+        status: "Done",
+        passQty: 1,
+        failQty: 0,
         ...(inspectAttachmentPreview
           ? {
               inspectionImage: inspectAttachmentPreview,
@@ -371,23 +452,22 @@ export function SawingInspectionListPage() {
       // Call backend API if real ID exists
       if (inspectTargetRow.id && !String(inspectTargetRow.id).startsWith("factory-work-")) {
         try {
-          await recordSawingInspectionDecisionApi(inspectTargetRow.id, mode === "pass" ? "PASS" : "FAIL", {
+          await recordSawingInspectionDecisionApi(inspectTargetRow.id, "PASS", {
             inspectionDate: inspectDate,
-            remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+            remark: inspectRemark.trim() || "Inspection completed",
             attachmentUrl: inspectAttachmentPreview || undefined,
             attachmentName: inspectAttachmentName || undefined,
+            gradeId: inspectGradeId || undefined,
+            grade: inspectGradeName || undefined,
+            gradeName: inspectGradeName || undefined,
           });
         } catch (apiErr) {
-          console.error("Failed to submit inspection decision to backend:", apiErr);
+          console.error("Failed to submit inspection to backend:", apiErr);
         }
       }
 
       if (workItemId) {
-        if (mode === "pass") {
-          completeFactoryIssuedWork(workItemId, patch);
-        } else {
-          failFactoryIssuedWork(workItemId, patch);
-        }
+        completeFactoryIssuedWork(workItemId, patch);
       }
 
       // Update in-memory sawingInspectionDefinition rows
@@ -413,11 +493,13 @@ export function SawingInspectionListPage() {
       }
 
       setToastNotification({
-        message: `Sawing Inspection marked as ${mode === "pass" ? "PASS" : "FAIL"} successfully.`,
+        message: "Sawing Inspection completed successfully.",
         severity: "success",
       });
       setInspectDialogOpen(false);
       setInspectTargetRow(null);
+      setInspectGradeId("");
+      setInspectGradeName("");
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: any) {
       setToastNotification({
@@ -544,8 +626,6 @@ export function SawingInspectionListPage() {
         return SAWING_INSPECTION_PENDING_COLUMNS;
       case "done":
         return SAWING_INSPECTION_DONE_COLUMNS;
-      case "failed":
-        return SAWING_INSPECTION_FAIL_COLUMNS;
       default:
         return SAWING_INSPECTION_PENDING_COLUMNS;
     }
@@ -642,7 +722,7 @@ export function SawingInspectionListPage() {
             py: 2,
           }}
         >
-          Record Inspection Decision
+          Record Inspection
         </DialogTitle>
         <DialogContent sx={{ px: 2.5, py: `${theme.spacing(2.5)} !important` }}>
           <Stack spacing={2.5}>
@@ -668,19 +748,14 @@ export function SawingInspectionListPage() {
                           "-",
                       },
                       {
-                        label: "Log No.",
-                        value:
-                          inspectTargetRow.logNo ||
-                          inspectTargetRow.log_no ||
-                          inspectTargetRow.logNumber ||
-                          "-",
-                      },
-                      {
                         label: "Batch No",
                         value:
                           inspectTargetRow.batchNo ||
+                          inspectTargetRow.batchNoCode ||
                           inspectTargetRow.batch_no ||
                           inspectTargetRow.batchNumber ||
+                          inspectTargetRow.logNo ||
+                          inspectTargetRow.log_no ||
                           "-",
                       },
                       {
@@ -737,6 +812,30 @@ export function SawingInspectionListPage() {
                   size="dense"
                   value={isoDateToLocalDate(inspectDate)}
                 />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Grade
+                </Typography>
+                <Select
+                  displayEmpty
+                  fullWidth
+                  onOpen={() => void handleOpenGradeDropdown()}
+                  onChange={(e) => void handleGradeChange(e.target.value as string)}
+                  size="small"
+                  value={inspectGradeId}
+                  sx={getCompactFieldSx(theme, "default")}
+                >
+                  <MenuItem value="" disabled>
+                    <em>{isLoadingGrades ? "Loading grades..." : "Select Grade"}</em>
+                  </MenuItem>
+                  {gradeOptions.map((g) => (
+                    <MenuItem key={g.id} value={g.id}>
+                      {g.name}
+                    </MenuItem>
+                  ))}
+                </Select>
               </Stack>
 
               <Stack spacing={0.75}>
@@ -825,24 +924,9 @@ export function SawingInspectionListPage() {
           </Button>
           <Box sx={{ flex: 1 }} />
           <Button
-            color="error"
+            color="primary"
             disabled={isSubmittingInspect}
-            onClick={() => handleConfirmInspectDecision("fail")}
-            startIcon={<AlertCircle size={16} />}
-            sx={{
-              ...recordFormActionButtonSx,
-              textTransform: "none",
-              fontWeight: 600,
-              px: 2.5,
-            }}
-            variant="outlined"
-          >
-            Confirm Fail
-          </Button>
-          <Button
-            color="success"
-            disabled={isSubmittingInspect}
-            onClick={() => handleConfirmInspectDecision("pass")}
+            onClick={() => void handleConfirmInspectDecision()}
             startIcon={<CheckCircle2 size={16} />}
             sx={{
               ...recordFormActionButtonSx,
@@ -852,7 +936,7 @@ export function SawingInspectionListPage() {
             }}
             variant="contained"
           >
-            Confirm Pass
+            Submit Inspection
           </Button>
         </DialogActions>
       </Dialog>

@@ -223,13 +223,49 @@ function isPlainSawingMeasure(value: string | undefined) {
   return /^\d+(?:\.\d+)?$/u.test(String(value ?? "").trim());
 }
 
+export function extractSawingBatchNo(
+  sourceRow?: Record<string, unknown>,
+  values?: Record<string, string>,
+): string {
+  const candidates = [
+    sourceRow?.batchNo,
+    sourceRow?.batchNoCode,
+    sourceRow?.batch_no,
+    sourceRow?.batchNumber,
+    sourceRow?.logNo,
+    sourceRow?.log_no,
+    sourceRow?.logCode,
+    (sourceRow as any)?.storageItem?.batchNo,
+    (sourceRow as any)?.storageItem?.logCode,
+    (sourceRow as any)?.sourceItem?.batchNo,
+    (sourceRow as any)?.sourceItem?.logNo,
+    values?.batchNoCode,
+    values?.batchNo,
+    values?.logNo,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim().length > 0) {
+      return candidate.trim();
+    }
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return String(candidate).trim();
+    }
+  }
+
+  return "";
+}
+
 export function lockSawingProcessDetailValues(
   values: Record<string, string>,
   sourceRow: Record<string, unknown> | undefined,
 ) {
   const source = readSawingSourceMeasures(sourceRow);
+  const sourceBatch = extractSawingBatchNo(sourceRow, values);
+
   return calculateSawingVolumeValues({
     ...values,
+    ...(sourceBatch ? { batchNoCode: sourceBatch, batchNo: sourceBatch } : {}),
     ...(source.sourceLength > 0
       ? { length: formatSawingNumber(source.sourceLength, 3) }
       : {}),
@@ -538,7 +574,8 @@ export function saveSawingEditProcess({
       processRunId,
       processDate,
       sawingDate: processDate,
-      batchNoCode: values.batchNoCode || values.logNo || original.batchNoCode,
+      batchNoCode: values.batchNoCode || values.batchNo || original.batchNoCode || original.batchNo,
+      batchNo: values.batchNoCode || values.batchNo || original.batchNoCode || original.batchNo,
       length: sourceMeasures.sourceLength,
       width: numericField(values.width) || sourceMeasures.sourceWidth,
       thickness: numericField(values.thickness || values.height),

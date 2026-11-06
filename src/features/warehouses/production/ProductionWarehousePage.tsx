@@ -29,7 +29,6 @@ import {
   rawVeneerColumns,
   plywoodColumns,
   mdfColumns,
-  consumablesColumns,
   sawingColumns,
   sampleSheetColumns,
   type ProductionWarehouseTabSlug,
@@ -39,7 +38,6 @@ import {
 import { RawVeneerTab } from "../production/tabs/RawVeneerTab";
 import { PlywoodTab } from "../production/tabs/PlywoodTab";
 import { MdfTab } from "../production/tabs/MdfTab";
-import { ConsumablesTab } from "../production/tabs/ConsumablesTab";
 import { SawingTab } from "../production/tabs/SawingTab";
 import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
 import { getFactoryIssuedWorkItems } from "../../factory/shared/factoryIssuedWorkStore";
@@ -139,8 +137,7 @@ export function ProductionWarehousePage({
 
   const isBoardIssueTab =
     activeInventory === "plywood" || activeInventory === "mdf";
-  const isLegacyIssueDialogTab =
-    activeInventory === "raw-veneer" || activeInventory === "consumables";
+  const isLegacyIssueDialogTab = activeInventory === "raw-veneer";
 
   const showIssueOrderButton =
     !isSampleSheetsTab &&
@@ -214,9 +211,7 @@ export function ProductionWarehousePage({
     if (!warehouseId || isExporting) return;
 
     const tab =
-      activeInventory === "plywood" ||
-        activeInventory === "mdf" ||
-        activeInventory === "consumables"
+      activeInventory === "plywood" || activeInventory === "mdf"
         ? activeInventory
         : "raw-veneer";
 
@@ -251,12 +246,6 @@ export function ProductionWarehousePage({
         exportRowsToCsv(rows, plywoodColumns, `${warehouseName}-plywood`);
       } else if (tab === "mdf") {
         exportRowsToCsv(rows, mdfColumns, `${warehouseName}-mdf`);
-      } else if (tab === "consumables") {
-        exportRowsToCsv(
-          rows,
-          consumablesColumns,
-          `${warehouseName}-consumables`,
-        );
       } else {
         exportRowsToCsv(rows, rawVeneerColumns, `${warehouseName}-raw-veneer`);
       }
@@ -407,17 +396,6 @@ export function ProductionWarehousePage({
           />
         )}
 
-        {activeInventory === "consumables" && (
-          <ConsumablesTab
-            canEdit={canEditWarehouseC}
-            canView={canViewWarehouseC}
-            onListQueryChange={handleListQueryChange}
-            searchValue={debouncedSearchValue}
-            warehouseId={warehouseId}
-            warehouseName={warehouseName}
-          />
-        )}
-
         {activeInventory === "sawing" && (
           <SawingTab
             canEdit={canEditWarehouseC}
@@ -499,7 +477,6 @@ function getActiveTab(value: string | null): ProductionWarehouseTabSlug {
   if (
     value === "plywood" ||
     value === "mdf" ||
-    value === "consumables" ||
     value === "sawing" ||
     value === "sample-sheets"
   ) {

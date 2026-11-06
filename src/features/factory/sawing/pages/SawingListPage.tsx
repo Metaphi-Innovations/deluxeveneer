@@ -159,7 +159,6 @@ export function SawingListPage() {
         const anyData = data as any;
         if (columnKey === "itemName" && anyData.itemNames) rawOpts = anyData.itemNames;
         else if ((columnKey === "batchNo" || columnKey === "batchNoCode") && anyData.batchNos) rawOpts = anyData.batchNos;
-        else if (columnKey === "logNo" && (anyData.logNos || anyData.batchNos)) rawOpts = anyData.logNos || anyData.batchNos;
         else if (columnKey === "subCategory" && anyData.subCategories) rawOpts = anyData.subCategories;
         else if (columnKey === "storageSrNo" && anyData.storageSrNos) rawOpts = anyData.storageSrNos;
         else if (columnKey === "remark" && anyData.remarks) rawOpts = anyData.remarks;
@@ -168,8 +167,7 @@ export function SawingListPage() {
           rows
             .map((r: any) => {
               if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
-              if (columnKey === "logNo" || columnKey === "batchNo") return String(r.logNo ?? r.batchNo ?? "").trim();
-              if (columnKey === "batchNoCode") return String(r.batchNoCode ?? r.batchNo ?? "").trim();
+              if (columnKey === "batchNo" || columnKey === "batchNoCode") return String(r.batchNo ?? r.batchNoCode ?? "").trim();
               if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
               return String(r[columnKey] ?? "").trim();
             })

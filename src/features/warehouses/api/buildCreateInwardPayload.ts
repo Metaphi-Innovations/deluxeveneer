@@ -397,13 +397,18 @@ async function mapLineItemToPayload(
   }
 
   if (inventoryType === "PLYWOOD" || inventoryType === "MDF") {
+    const gradeVal = String(values.grade ?? values.gradeName ?? "").trim() || null;
     return {
       ...base,
       batchNo: null,
       logCode: null,
+      bundleNumber: gradeVal,
       palletNo: String(values.palletNo ?? "").trim() || null,
-      sheets: parseNumericField(values.sheets, "Sheets"),
-      totalSqMeter: parseNumericField(values.totalSqMeter, "Total Sq Meter"),
+      grade: gradeVal,
+      gradeName: gradeVal,
+      gradeId: values.gradeId ? String(values.gradeId).trim() : null,
+      sheets: parseNumericField(values.sheets ?? values.noOfSheets, "Sheets"),
+      totalSqMeter: parseNumericField(values.totalSqMeter ?? values.totalSqm, "Total Sq Meter"),
       thickness: parseNumericField(values.thickness, "Thickness"),
       length: parseNumericField(values.length, "Length"),
       width: parseNumericField(values.width, "Width"),
@@ -415,7 +420,7 @@ async function mapLineItemToPayload(
     const unitId = unitName ? await resolveUnitId(unitName) : null;
     return {
       ...base,
-      batchNo: String(values.batchNo ?? "").trim() || null,
+      batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,
       logCode: null,
       bundleNumber: null,
       palletNo: null,
@@ -437,7 +442,7 @@ async function mapLineItemToPayload(
     };
   }
 
-  // Veneer Blocks: UI `thickness` → height. The Log No field still posts as batchNo until the API is renamed.
+  // Veneer Blocks: UI `thickness` → height. Batch No is posted directly.
   return {
     ...base,
     batchNo: String(values.batchNo ?? values.logCode ?? "").trim() || null,

@@ -116,6 +116,7 @@ import {
   applySawingVolumeCalculation,
   buildSawingAvailableValues,
   calculateSawingVolumeValues,
+  extractSawingBatchNo,
   getSawingAvailableCbmIssue,
   getSawingCreateSubmitError,
   getSawingProcessDetailError,
@@ -285,6 +286,7 @@ type LineItemColumnDefinition = {
   options?: readonly string[];
   placeholder: string;
   readOnly?: boolean;
+  disabled?: boolean;
   type: "file" | "text" | "select";
 };
 
@@ -409,6 +411,24 @@ const metadataKeys = new Set([
 ]);
 
 const fieldValueAliases: Record<string, readonly string[]> = {
+  batchNoCode: [
+    "batchNoCode",
+    "batchNo",
+    "batch_no",
+    "batchNumber",
+    "logNo",
+    "log_no",
+    "logCode",
+  ],
+  batchNo: [
+    "batchNo",
+    "batchNoCode",
+    "batch_no",
+    "batchNumber",
+    "logNo",
+    "log_no",
+    "logCode",
+  ],
   color: ["color", "colour", "processColour"],
   colour: ["colour", "color", "processColour"],
   itemName: ["itemName", "productName"],
@@ -1263,7 +1283,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         next.length === current.length &&
         next.width === current.width &&
         next.cbm === current.cbm &&
-        next.cbf === current.cbf
+        next.cbf === current.cbf &&
+        next.batchNoCode === current.batchNoCode &&
+        next.batchNo === current.batchNo
       ) {
         return current;
       }
@@ -1275,7 +1297,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         next.length === current.length &&
         next.width === current.width &&
         next.cbm === current.cbm &&
-        next.cbf === current.cbf
+        next.cbf === current.cbf &&
+        next.batchNoCode === current.batchNoCode &&
+        next.batchNo === current.batchNo
       ) {
         return current;
       }
@@ -1296,7 +1320,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
           values.length === item.values.length &&
           values.width === item.values.width &&
           values.cbm === item.values.cbm &&
-          values.cbf === item.values.cbf
+          values.cbf === item.values.cbf &&
+          values.batchNoCode === item.values.batchNoCode &&
+          values.batchNo === item.values.batchNo
         ) {
           return item;
         }
@@ -1987,17 +2013,23 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     setDraftSubmitAttempted(false);
 
     if (definition.slug === "sawing" && sawingSource) {
+      const sourceBatch = extractSawingBatchNo(
+        sourceRow as Record<string, unknown> | undefined,
+        valuesToAdd,
+      );
       const clearedValues = lockSawingProcessDetailValues(
         {
           ...createEmptyLineItemValues(lineItemFields),
-          logNo: valuesToAdd.logNo || "",
-          batchNoCode: "",
+          batchNo: sourceBatch,
+          batchNoCode: sourceBatch,
           thickness: "",
         },
         sourceRow as Record<string, unknown> | undefined,
       );
       clearedValues.cbm = "";
       clearedValues.cbf = "";
+      clearedValues.batchNo = sourceBatch;
+      clearedValues.batchNoCode = sourceBatch;
       setDraftValues(clearedValues);
     } else if (definition.slug === "slicing") {
       setDraftValues(
@@ -2789,7 +2821,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                   );
                                 },
                                 theme,
-                                value: draftValues[column.key] ?? "",
+                                value:
+                                  definition.slug === "sawing" &&
+                                  (column.key === "batchNoCode" || column.key === "batchNo")
+                                    ? (draftValues.batchNoCode ||
+                                        draftValues.batchNo ||
+                                        extractSawingBatchNo(
+                                          sourceRow as Record<string, unknown> | undefined,
+                                          draftValues,
+                                        ) ||
+                                        "")
+                                    : (draftValues[column.key] ?? ""),
                                 errorText: draftSubmitAttempted
                                   ? definition.slug === "grouping"
                                     ? groupingDraftValidation.fieldErrors[
@@ -3253,7 +3295,17 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                         );
                                       },
                                       theme,
-                                      value: editingValues[column.key] ?? "",
+                                      value:
+                                        definition.slug === "sawing" &&
+                                        (column.key === "batchNoCode" || column.key === "batchNo")
+                                          ? (editingValues.batchNoCode ||
+                                              editingValues.batchNo ||
+                                              extractSawingBatchNo(
+                                                sourceRow as Record<string, unknown> | undefined,
+                                                editingValues,
+                                              ) ||
+                                              "")
+                                          : (editingValues[column.key] ?? ""),
                                       errorText: editingSubmitAttempted
                                         ? definition.slug === "grouping"
                                           ? groupingEditValidation.fieldErrors[
@@ -3326,7 +3378,16 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                                           )),
                                     })
                                   : renderReadOnlyCell(
-                                      row.values[column.key] ?? "",
+                                      definition.slug === "sawing" &&
+                                      (column.key === "batchNoCode" || column.key === "batchNo")
+                                        ? (row.values.batchNoCode ||
+                                            row.values.batchNo ||
+                                            extractSawingBatchNo(
+                                              sourceRow as Record<string, unknown> | undefined,
+                                              row.values,
+                                            ) ||
+                                            "")
+                                        : (row.values[column.key] ?? ""),
                                       theme,
                                     )}
                               </TableCell>
@@ -4395,7 +4456,7 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
     return sourceColumnDefinitions
       .filter((column) => column.key !== "cbm" && column.key !== "cbf")
       .map((column) =>
-        column.key === "batchNo" ? { ...column, label: "Log No." } : column,
+        column.key === "batchNo" ? { ...column, label: "Batch No." } : column,
       );
   }
 
@@ -4608,7 +4669,7 @@ function buildLineItemFields(
     { key: "itemName", label: "Item Name", type: "text" },
     { key: "itemSubCategory", label: "Sub Category", type: "text" },
     { key: "color", label: "Color", type: "text" },
-    { key: "logNo", label: "Log No.", type: "text" },
+    { key: "batchNo", label: "Batch No.", type: "text" },
     { key: "length", label: "Length", type: "text" },
     { key: "width", label: "Width", type: "text" },
     { key: "height", label: "Thickness", type: "text" },
@@ -4976,6 +5037,8 @@ function mapFieldToColumn(
       slug === "grouping" && field.key === "groupNo"
         ? false
         : Boolean(field.readOnly),
+    disabled:
+      slug === "sawing" && (field.key === "batchNoCode" || field.key === "batchNo"),
     ...(field.options ? { options: field.options } : {}),
   };
 }
@@ -5002,6 +5065,19 @@ function renderEditableField({
   value: string;
 }) {
   const hasError = Boolean(errorText) || invalid;
+  if (column.disabled) {
+    return (
+      <TextField
+        disabled
+        fullWidth
+        size="small"
+        value={value}
+        slotProps={{ input: { readOnly: true } }}
+        sx={getCompactFieldSx(theme, "default")}
+      />
+    );
+  }
+
   if (column.readOnly) {
     return renderReadOnlyCell(value, theme);
   }

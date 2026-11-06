@@ -51,6 +51,7 @@ export type WarehouseInventoryRow = {
   unitName: string;
   color: string;
   palletNo: string;
+  gradeName?: string;
   length: string;
   width: string;
   thickness: string;

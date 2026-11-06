@@ -14,7 +14,6 @@ import {
 import { CheckCircle2, Eye, Pencil, Plus, RotateCcw, XCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -650,22 +649,63 @@ export function DryingListPage() {
         onSave={handleSaveRejectDrying}
       />
 
-      {/* Revert Dialog */}
-      <ConfirmationDialog
-        cancelLabel="Cancel"
-        confirmLabel={isReverting ? "Reverting..." : "Revert"}
-        description={
-          activeTab === "issued"
-            ? "Are you sure you want to revert this item back to the storage warehouse?"
-            : activeTab === "rejected"
-              ? "Are you sure you want to revert this rejected item back to Drying Done?"
-              : "Are you sure you want to revert this completed item back to the issued tab?"
-        }
-        onClose={() => setRevertDialogOpen(false)}
-        onConfirm={() => void handleExecuteRevert()}
+      {/* Revert Confirmation Dialog */}
+      <Dialog
         open={revertDialogOpen}
-        title="Confirm Revert"
-      />
+        onClose={() => {
+          if (!isReverting) {
+            setRevertDialogOpen(false);
+            setRevertTargetRow(null);
+          }
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Confirm Revert</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Typography variant="body2">
+              {activeTab === "issued"
+                ? `Are you sure you want to revert item ${revertTargetRow?.storageSrNo || ""} back to the storage warehouse?`
+                : activeTab === "rejected"
+                  ? `Are you sure you want to revert this rejected item back to Drying Done?`
+                  : `Are you sure you want to revert this completed item back to the issued tab?`}
+            </Typography>
+            <TextField
+              fullWidth
+              size="small"
+              label="Revert Remark (optional)"
+              placeholder="Enter reason for reverting..."
+              multiline
+              rows={2}
+              value={revertRemark}
+              onChange={(e) => setRevertRemark(e.target.value)}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setRevertDialogOpen(false);
+              setRevertTargetRow(null);
+            }}
+            disabled={isReverting}
+            sx={{ textTransform: "none" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleExecuteRevert}
+            disabled={isReverting}
+            sx={{ textTransform: "none" }}
+          >
+            {isReverting ? "Reverting..." : "Revert"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Issue for Inspection Confirmation Dialog */}
       <Dialog

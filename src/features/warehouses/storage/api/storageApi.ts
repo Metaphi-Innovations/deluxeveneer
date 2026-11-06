@@ -121,10 +121,12 @@ export function mapStorageItemToRow(
     subCategory: item.itemSubCategoryName ?? "",
     specification: item.specification ?? "",
     brandName: item.brandName ?? "",
-    batchNo: item.batchNo ?? "",
+    batchNo: item.batchNo || item.logCode || "",
     unitName: item.unitName ?? "",
     color: "",
     palletNo: item.palletNo ?? "",
+    gradeName: (item as any).gradeName || (item as any).grade || (item as any).bundleNumber || "",
+    grade: (item as any).gradeName || (item as any).grade || (item as any).bundleNumber || "",
     length: item.length != null ? `${item.length} m` : "",
     width: item.width != null ? `${item.width} m` : "",
     thickness: item.thickness != null ? `${item.thickness} m` : "",
@@ -212,7 +214,6 @@ export function mapStorageItemToRow(
     processColor: "",
     cutName: "",
     seriesName: "",
-    grade: "",
     expenseAmount: "0.00",
     totalNoOfSheets: item.sheets != null ? String(item.sheets) : "",
     avSheets: item.sheets != null ? String(item.sheets) : "",
@@ -389,7 +390,7 @@ export async function batchMoveStorageItemsToProductionApi(
     remark?: string | null;
     items: Array<{
       storageItemId: string;
-      gradeId: string;
+      gradeId?: string | null;
       quantity?: number | null;
     }>;
   }

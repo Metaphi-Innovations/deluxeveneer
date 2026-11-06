@@ -12,6 +12,9 @@ export interface SawingInspectionPendingItem {
   itemName: string;
   subCategory: string | null;
   itemCategoryName: string | null;
+  grade?: string | null;
+  gradeName?: string | null;
+  gradeId?: string | null;
   colorName: string | null;
   logNo: string | null;
   batchNo: string | null;
@@ -42,6 +45,9 @@ export interface SawingInspectionDoneItem {
   itemName: string;
   subCategory: string | null;
   itemCategoryName: string | null;
+  grade?: string | null;
+  gradeName?: string | null;
+  gradeId?: string | null;
   colorName: string | null;
   logNo: string | null;
   batchNo: string | null;
@@ -77,6 +83,9 @@ export interface SawingInspectionFailItem {
   itemName: string;
   subCategory: string | null;
   itemCategoryName: string | null;
+  grade?: string | null;
+  gradeName?: string | null;
+  gradeId?: string | null;
   colorName: string | null;
   logNo: string | null;
   batchNo: string | null;
@@ -203,6 +212,9 @@ export async function recordSawingInspectionDecisionApi(
     remark?: string | undefined;
     attachmentUrl?: string | undefined;
     attachmentName?: string | undefined;
+    gradeId?: string | undefined;
+    grade?: string | undefined;
+    gradeName?: string | undefined;
   }
 ): Promise<any> {
   const endpoint = decision === "PASS" ? `${BASE_PATH}/pending/${id}/pass` : `${BASE_PATH}/pending/${id}/fail`;

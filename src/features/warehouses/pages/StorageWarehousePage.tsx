@@ -67,7 +67,6 @@ import { StorageMdfInventory } from "../storage/StorageMdfInventory";
 import { StoragePlywoodInventory } from "../storage/StoragePlywoodInventory";
 import { StorageRawVeneerInventory } from "../storage/StorageRawVeneerInventory";
 import { StorageVeneerBlocksInventory } from "../storage/StorageVeneerBlocksInventory";
-import { StorageConsumablesInventory } from "../storage/StorageConsumablesInventory";
 import {
   STORAGE_EXPORT_COLUMNS,
   STORAGE_INVENTORY_TABS,
@@ -240,14 +239,11 @@ export function StorageWarehousePage({
   };
 
   const getMoveRowAvailable = (row: WarehouseInventoryRow) => {
-    // Transfer qty unit: raw veneer = leaves; plywood / mdf = sheets; consumables = qty.
+    // Transfer qty unit: raw veneer = leaves; plywood / mdf = sheets.
     if (activeInventory === "raw-veneer") {
       return Number(
         row.availableUnits || row.noOfLeaves || row.totalUnits || 0,
       );
-    }
-    if (activeInventory === "consumables") {
-      return Number(row.availableUnits || row.totalUnits || 0);
     }
     return Number(
       row.availableUnits ||
@@ -261,9 +257,7 @@ export function StorageWarehousePage({
   const moveUnitLabel =
     activeInventory === "raw-veneer"
       ? "Leaves"
-      : activeInventory === "consumables"
-        ? "Qty"
-        : "Sheets";
+      : "Sheets";
 
   const updateMoveQuantity = (rowId: string, value: string) => {
     setMoveQuantities((prev) => ({ ...prev, [rowId]: value }));
@@ -526,9 +520,7 @@ export function StorageWarehousePage({
         icon: Eye,
         onSelect: (r) => {
           const targetInwardId = r.referenceSrNo || r.id;
-          const targetSlug =
-            activeInventory === "consumables" ? "consumables" : activeInventory;
-          navigate(`/inventory/${targetSlug}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
+          navigate(`/inventory/${activeInventory}/view/${targetInwardId}?warehouse=warehouse-b&warehouseId=${warehouseId}&warehouseName=${encodeURIComponent(warehouseName)}`);
         },
       });
 
@@ -562,8 +554,7 @@ export function StorageWarehousePage({
         if (
           activeInventory === "raw-veneer" ||
           activeInventory === "plywood" ||
-          activeInventory === "mdf" ||
-          activeInventory === "consumables"
+          activeInventory === "mdf"
         ) {
           actions.push({
             id: "move-to-production",
@@ -634,8 +625,7 @@ export function StorageWarehousePage({
     (activeInventory === "veneer-blocks" ||
       activeInventory === "raw-veneer" ||
       activeInventory === "plywood" ||
-      activeInventory === "mdf" ||
-      activeInventory === "consumables");
+      activeInventory === "mdf");
 
   const inventorySingularLabel =
     activeInventory === "raw-veneer"
@@ -644,9 +634,7 @@ export function StorageWarehousePage({
         ? "plywood"
         : activeInventory === "mdf"
           ? "MDF"
-          : activeInventory === "consumables"
-            ? "consumable"
-            : "veneer block";
+          : "veneer block";
 
   const bulkSecondaryButtonSx = {
     minHeight: 36,
@@ -862,13 +850,6 @@ export function StorageWarehousePage({
         ) : null}
         {activeInventory === "mdf" ? (
           <StorageMdfInventory
-            {...panelProps}
-            searchValue={debouncedSearchValue}
-            getRowActions={getRowActions}
-          />
-        ) : null}
-        {activeInventory === "consumables" ? (
-          <StorageConsumablesInventory
             {...panelProps}
             searchValue={debouncedSearchValue}
             getRowActions={getRowActions}
