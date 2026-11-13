@@ -218,7 +218,18 @@ export const SawingViewPage: React.FC = () => {
         record.sourceIssueItem?.cbm ||
         record.cbm ||
         "-",
+      cft:
+        record.sourceCft ||
+        record.sourceIssueItem?.cft ||
+        record.cft ||
+        record.sourceCbf ||
+        record.sourceIssueItem?.cbf ||
+        record.cbf ||
+        "-",
       cbf:
+        record.sourceCft ||
+        record.sourceIssueItem?.cft ||
+        record.cft ||
         record.sourceCbf ||
         record.sourceIssueItem?.cbf ||
         record.cbf ||
@@ -1133,9 +1144,11 @@ export const SawingViewPage: React.FC = () => {
     const outputCbmDisplay =
       formatSawingCbmDisplay(record?.cbm) ||
       (record?.cbm !== undefined && record?.cbm !== null ? String(record.cbm) : "-");
-    const outputCbfDisplay =
-      formatSawingCbmDisplay(record?.cbf) ||
-      (record?.cbf !== undefined && record?.cbf !== null ? String(record.cbf) : "-");
+    const outputCftDisplay =
+      formatSawingCbmDisplay(record?.cft ?? record?.cbf) ||
+      (record?.cft !== undefined && record?.cft !== null ? String(record.cft) :
+       record?.cbf !== undefined && record?.cbf !== null ? String(record.cbf) : "-");
+    const outputCbfDisplay = outputCftDisplay;
 
     const sourceRecCbmDisplay =
       formatSawingCbmDisplay(sourceItem?.cbm) ||
@@ -1492,8 +1505,8 @@ export const SawingViewPage: React.FC = () => {
                     value: outputCbmDisplay,
                   },
                   {
-                    label: "Output CBF",
-                    value: outputCbfDisplay,
+                    label: "Output CFT",
+                    value: outputCftDisplay,
                   },
                   {
                     label: "Remark",
@@ -1609,7 +1622,7 @@ export const SawingViewPage: React.FC = () => {
                       letterSpacing: "0.02em",
                     }}
                   >
-                    This Output CBF
+                    This Output CFT
                   </Typography>
                   <Typography
                     variant="h6"
@@ -1620,7 +1633,7 @@ export const SawingViewPage: React.FC = () => {
                       fontSize: "18px",
                     }}
                   >
-                    {outputCbfDisplay}
+                    {outputCftDisplay}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.25, display: "block" }}>
                     Output Item Volume
@@ -2187,7 +2200,7 @@ export const SawingViewPage: React.FC = () => {
                   { label: "Width (mm)", value: record.width ?? "-" },
                   { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },
                   { label: "CBM", value: record.cbm ?? "-" },
-                  { label: "CBF", value: record.cbf ?? "-" },
+                  { label: "CFT", value: record.cft ?? record.cbf ?? "-" },
                   { label: "Status", value: "Rejected" },
                   { label: "Created By", value: record.createdBy || "-" },
                   { label: "Created At", value: formatDisplayDate(record.createdAt, true) },

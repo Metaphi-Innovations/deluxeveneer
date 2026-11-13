@@ -34,28 +34,6 @@ export function applyDryingListingColumns<Row extends FactoryRecord>(
     columns = columns.map((col) =>
       col.key === "issueDate" ? { ...col, label: "Drying Date" } : col,
     );
-
-    if (!columns.some((col) => col.key === "issuedForInspectionDate")) {
-      const dryingDateIndex = columns.findIndex(
-        (col) => col.key === "issueDate" || col.key === "processDate" || col.key === "issuedDate",
-      );
-      const inspectionDateColumn: EnterpriseTableColumn<Row> = {
-        key: "issuedForInspectionDate",
-        label: "Issued for Inspection Date",
-        renderCell: (row) =>
-          formatDryingDate(
-            row.issuedForInspectionDate ?? row.inspectionDate,
-          ),
-      };
-      columns =
-        dryingDateIndex === -1
-          ? [inspectionDateColumn, ...columns]
-          : [
-              ...columns.slice(0, dryingDateIndex + 1),
-              inspectionDateColumn,
-              ...columns.slice(dryingDateIndex + 1),
-            ];
-    }
   }
 
   if (activeTab === "history") {

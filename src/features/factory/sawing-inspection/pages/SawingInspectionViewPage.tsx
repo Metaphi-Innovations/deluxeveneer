@@ -52,6 +52,7 @@ import {
   issueSawingInspectionToWarehouseApi,
   fetchSawingInspectionPendingById,
   fetchSawingInspectionDoneById,
+  fetchSawingInspectionHistoryById,
   fetchSawingInspectionFailById,
 } from "../api/sawingInspectionApi";
 import {
@@ -163,6 +164,8 @@ export const SawingInspectionViewPage: React.FC = () => {
         let data: any = null;
         if (tab === "done") {
           data = await fetchSawingInspectionDoneById(id);
+        } else if (tab === "history") {
+          data = await fetchSawingInspectionHistoryById(id);
         } else if (tab === "failed") {
           data = await fetchSawingInspectionFailById(id);
         } else {
@@ -201,8 +204,10 @@ export const SawingInspectionViewPage: React.FC = () => {
 
   const isPass =
     tab === "done" ||
+    tab === "history" ||
     record?.qcStatus === "Pass" ||
-    record?.listingState === "done";
+    record?.listingState === "done" ||
+    record?.listingState === "history";
   const isFail =
     tab === "failed" ||
     record?.qcStatus === "Fail" ||
@@ -211,6 +216,7 @@ export const SawingInspectionViewPage: React.FC = () => {
 
   // Warehouse transfer status for passed items
   const isAlreadyTransferred = Boolean(
+    tab === "history" ||
     record?.transferredToWarehouse ||
     record?.warehouseTransferStatus === "Transferred" ||
     record?.status === "Transferred to Production Warehouse" ||
@@ -517,7 +523,8 @@ export const SawingInspectionViewPage: React.FC = () => {
     "m",
   );
   const cbmDisplay = formatCbmDisplay(record?.cbm ?? record?.sourceSnapshot?.cbm);
-  const cbfDisplay = formatCbmDisplay(record?.cbf ?? record?.sourceSnapshot?.cbf);
+  const cftDisplay = formatCbmDisplay(record?.cft ?? record?.cbf ?? record?.sourceSnapshot?.cft ?? record?.sourceSnapshot?.cbf);
+  const cbfDisplay = cftDisplay;
   const outputRemark = record?.remark || record?.sourceSnapshot?.remark || "-";
 
   // Inspection details
@@ -808,10 +815,10 @@ export const SawingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  CBF
+                  CFT
                 </Typography>
                 <Typography variant="h5" sx={{ color: "text.primary", fontWeight: 700, mt: 0.5, fontSize: "20px" }}>
-                  {cbfDisplay}
+                  {cftDisplay}
                 </Typography>
                 <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.25, display: "block" }}>
                   Output Volume

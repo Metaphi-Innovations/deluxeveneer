@@ -41,6 +41,7 @@ export interface OrderLineItem {
   logNo?: string | undefined;
   batchNo?: string | undefined;
   cbm?: string | undefined;
+  cft?: string | undefined;
   cbf?: string | undefined;
   ratePerCbm?: string | undefined;
   sqm: string;
@@ -772,6 +773,7 @@ function normalizeLineItems(
       logNo: item.logNo ? normalizeString(item.logNo, "") : undefined,
       batchNo: item.batchNo ? normalizeString(item.batchNo, "") : undefined,
       cbm: item.cbm ? normalizeString(item.cbm, "") : undefined,
+      cft: (item as any).cft ? normalizeString((item as any).cft, "") : item.cbf ? normalizeString(item.cbf, "") : undefined,
       cbf: item.cbf ? normalizeString(item.cbf, "") : undefined,
       ratePerCbm: item.ratePerCbm ? normalizeString(item.ratePerCbm, "") : undefined,
       sqm,

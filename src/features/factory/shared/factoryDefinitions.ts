@@ -597,8 +597,8 @@ const sawingListingColumns = columns([
   ["width", "Width"],
   ["height", "Height"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
-  ["ratePerSqf", "Rate per CBF"],
+  ["cft", "CFT"],
+  ["ratePerSqf", "Rate per CFT"],
   ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const);
@@ -614,7 +614,7 @@ export const sawingInspectionListingColumns = columns([
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
+  ["cft", "CFT"],
   ["qcStatus", "Status"],
   ["remark", "Remark"],
   ["createdBy", "Created"],
@@ -879,7 +879,7 @@ const sawingProcessDetailFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
+  ["cft", "CFT"],
   ["remark", "Remark"],
 ] as const;
 

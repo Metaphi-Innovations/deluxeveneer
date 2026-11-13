@@ -300,6 +300,7 @@ export function buildSawingAvailableValues(
     height: formatSawingNumber(height, 3),
     thickness: "",
     cbm: remainingCbm.toFixed(3),
+    cft: (remainingCbm * 35.3147).toFixed(3),
     cbf: (remainingCbm * 35.3147).toFixed(3),
   };
 }
@@ -320,7 +321,7 @@ function positiveDimension(value: unknown) {
 }
 
 export function calculateSawingVolumeValues(values: Record<string, string>) {
-  if (!("cbm" in values) && !("cbf" in values)) {
+  if (!("cbm" in values) && !("cft" in values) && !("cbf" in values)) {
     return values;
   }
 
@@ -334,21 +335,23 @@ export function calculateSawingVolumeValues(values: Record<string, string>) {
       : positiveDimension(values.thickness) || positiveDimension(values.height);
 
   if (length <= 0 || width <= 0 || third <= 0) {
-    return { ...values, cbm: "", cbf: "", availableCbm: values.receivedCbm || "" };
+    return { ...values, cbm: "", cft: "", cbf: "", availableCbm: values.receivedCbm || "" };
   }
 
   const cbm = (length * width * third) / sawingVolumeDivisor(length, width, third);
-  const cbf = cbm * 35.3147;
+  const cft = cbm * 35.3147;
+  const cbf = cft;
 
   const recCbmVal = Number.parseFloat(values.receivedCbm ?? "") || 0;
   const availCbm = recCbmVal > 0 ? Math.max(0, recCbmVal - cbm) : 0;
 
-  const ratePerCbf = Number.parseFloat(values.ratePerSqf ?? values.ratePerCbf ?? "");
-  const amount = Number.isFinite(ratePerCbf) && ratePerCbf > 0 ? (cbf * ratePerCbf).toFixed(2) : values.amount ?? "";
+  const ratePerCft = Number.parseFloat(values.ratePerSqf ?? values.ratePerCft ?? values.ratePerCbf ?? "");
+  const amount = Number.isFinite(ratePerCft) && ratePerCft > 0 ? (cft * ratePerCft).toFixed(2) : values.amount ?? "";
 
   return {
     ...values,
     cbm: cbm.toFixed(3),
+    cft: cft.toFixed(3),
     cbf: cbf.toFixed(3),
     availableCbm: availCbm ? availCbm.toFixed(6).replace(/\.?0+$/u, "") : (recCbmVal > 0 ? "0" : (values.availableCbm ?? "")),
     ...(amount ? { amount } : {}),
@@ -391,8 +394,9 @@ const processedItemsPayload = lineItems.map((item) => {
   const t = numericField(vals.thickness || vals.height);
   const width = numericField(vals.width) || sourceMeasures.sourceWidth;
   const cbmVal = lineSawingCbm(vals, sourceMeasures);
-  const cbfVal = cbmVal * 35.3147;
-  const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCbf || "0");
+  const cftVal = cbmVal * 35.3147;
+  const cbfVal = cftVal;
+  const rateVal = Number.parseFloat(vals.ratePerSqf || vals.ratePerCft || vals.ratePerCbf || "0");
   const amtVal = Number.parseFloat(vals.amount || "0");
   return {
     batchNo: vals.batchNoCode || vals.batchNo || "",
@@ -400,8 +404,9 @@ const processedItemsPayload = lineItems.map((item) => {
     width,
     thickness: t,
     cbm: cbmVal,
+    cft: cftVal,
     cbf: cbfVal,
-    ...(Number.isFinite(rateVal) && rateVal > 0 ? { ratePerCbf: rateVal } : {}),
+    ...(Number.isFinite(rateVal) && rateVal > 0 ? { ratePerCft: rateVal, ratePerCbf: rateVal } : {}),
     ...(Number.isFinite(amtVal) && amtVal > 0 ? { amount: amtVal } : {}),
     ...(vals.remark ? { remark: vals.remark } : {}),
   };
@@ -423,7 +428,8 @@ const editedLength = readEditedAvailableNumber(rejectAvailableValues.length);
 const editedWidth = readEditedAvailableNumber(rejectAvailableValues.width);
 const editedHeight = readEditedAvailableNumber(rejectAvailableValues.height);
 const editedCbm = readEditedAvailableNumber(rejectAvailableValues.cbm);
-const editedCbf = readEditedAvailableNumber(rejectAvailableValues.cbf);
+const editedCft = readEditedAvailableNumber(rejectAvailableValues.cft ?? rejectAvailableValues.cbf);
+const editedCbf = editedCft;
 const availableLength = editedLength ?? sourceMeasures.sourceLength;
 const availableWidth = editedWidth ?? sourceMeasures.sourceWidth;
 const storedRemainingCbm = editedCbm ?? remainingCbm;
@@ -437,6 +443,10 @@ updateSawingIssuedAvailability(
     width: formatSawingNumber(availableWidth, 3),
     height: formatSawingNumber(availableHeight, 3),
     availableCbm: storedRemainingCbm,
+    availableCft:
+      editedCft !== undefined
+        ? formatSawingNumber(editedCft, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
     availableCbf:
       editedCbf !== undefined
         ? formatSawingNumber(editedCbf, 3)
@@ -506,8 +516,9 @@ try {
         width: p.width,
         thickness: p.thickness,
         cbm: Number(p.cbm.toFixed(4)),
-        cbf: Number(p.cbf.toFixed(4)),
-        ratePerCbm: p.ratePerCbf,
+        cft: Number(((p as any).cft ?? p.cbf).toFixed(4)),
+        cbf: Number(((p as any).cft ?? p.cbf).toFixed(4)),
+        ratePerCbm: (p as any).ratePerCft ?? p.ratePerCbf,
         amount: p.amount,
         remark: p.remark,
       })),
@@ -518,6 +529,7 @@ try {
           width: availableWidth,
           height: availableHeight,
           cbm: storedRemainingCbm,
+          cft: Number((storedRemainingCbm * 35.3147).toFixed(4)),
           cbf: Number((storedRemainingCbm * 35.3147).toFixed(4)),
           remark: "Remaining block after sawing",
         },
@@ -581,6 +593,7 @@ export function saveSawingEditProcess({
       thickness: numericField(values.thickness || values.height),
       height: numericField(values.thickness || values.height),
       cbm,
+      cft: cbm * 35.3147,
       cbf: cbm * 35.3147,
       remark: values.remark || original.remark || "-",
       updatedBy: "Admin",
@@ -600,7 +613,8 @@ export function saveSawingEditProcess({
   const editedWidth = readEditedAvailableNumber(rejectAvailableValues.width);
   const editedHeight = readEditedAvailableNumber(rejectAvailableValues.height);
   const editedCbm = readEditedAvailableNumber(rejectAvailableValues.cbm);
-  const editedCbf = readEditedAvailableNumber(rejectAvailableValues.cbf);
+  const editedCft = readEditedAvailableNumber(rejectAvailableValues.cft ?? rejectAvailableValues.cbf);
+  const editedCbf = editedCft;
   const availableLength = editedLength ?? sourceMeasures.sourceLength;
   const availableWidth = editedWidth ?? sourceMeasures.sourceWidth;
   const storedRemainingCbm = editedCbm ?? remainingCbm;
@@ -630,6 +644,10 @@ export function saveSawingEditProcess({
     width: formatSawingNumber(availableWidth, 3),
     height: formatSawingNumber(availableHeight, 3),
     availableCbm: storedRemainingCbm,
+    availableCft:
+      editedCft !== undefined
+        ? formatSawingNumber(editedCft, 3)
+        : formatSawingNumber(storedRemainingCbm * 35.3147, 3),
     availableCbf:
       editedCbf !== undefined
         ? formatSawingNumber(editedCbf, 3)

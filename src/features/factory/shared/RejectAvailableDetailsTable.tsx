@@ -34,6 +34,7 @@ import {
 
 export type RejectAvailableValues = {
   amount: string;
+  cft?: string;
   cbf?: string;
   cbm?: string;
   height?: string;
@@ -173,8 +174,8 @@ export const rejectAvailableVolumeColumns: readonly RejectAvailableColumn[] = [
     type: "text",
   },
   {
-    key: "cbf",
-    label: "CBF",
+    key: "cft",
+    label: "CFT",
     minWidth: 150,
     options: [],
     type: "text",
@@ -458,6 +459,7 @@ export function RejectAvailableDetailsTable({
 export function createEmptyRejectAvailableValues(): RejectAvailableValues {
   return {
     amount: "",
+    cft: "",
     cbf: "",
     cbm: "",
     height: "",
@@ -498,28 +500,30 @@ export function getNextRejectAvailableValues(
     return current;
   }
 
-  if (key === "cbm" || key === "cbf") {
+  if (key === "cbm" || key === "cft" || key === "cbf") {
     if (!volumeMode) {
       return current;
     }
     const nextValue = sanitizeDecimalValue(
       value,
-      key === "cbf" ? (useHeight ? 3 : 4) : useHeight ? 3 : 6,
+      key === "cft" || key === "cbf" ? (useHeight ? 3 : 4) : useHeight ? 3 : 6,
     );
-    if (key === "cbf") {
-      return { ...current, cbf: nextValue };
+    if (key === "cft" || key === "cbf") {
+      return { ...current, cft: nextValue, cbf: nextValue };
     }
     const nextValues = { ...current, cbm: nextValue };
+    const calculatedCft =
+      Number.parseFloat(nextValue) > 0
+        ? (Number.parseFloat(nextValue) * 35.3147)
+            .toFixed(4)
+            .replace(/\.?0+$/u, "")
+        : "";
     return useHeight
       ? withHeightFromAvailableCbm(nextValues)
       : {
           ...nextValues,
-          cbf:
-            Number.parseFloat(nextValue) > 0
-              ? (Number.parseFloat(nextValue) * 35.3147)
-                  .toFixed(4)
-                  .replace(/\.?0+$/u, "")
-              : "",
+          cft: calculatedCft,
+          cbf: calculatedCft,
         };
   }
 

@@ -72,7 +72,7 @@ const orderItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Width", minWidth: 100, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
   { label: "CBM", minWidth: 90, getValue: (row) => row.cbm ?? "-" },
-  { label: "CBF", minWidth: 90, getValue: (row) => row.cbf ?? "-" },
+  { label: "CFT", minWidth: 90, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
   { label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets },
   { label: "Leaves", minWidth: 80, getValue: (row) => row.noOfLeaves ?? "-" },
   { label: "Group No", minWidth: 100, getValue: (row) => row.groupNo ?? "-" },
@@ -115,7 +115,7 @@ const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Width", minWidth: 100, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
   { label: "CBM", minWidth: 90, getValue: (row) => row.cbm ?? "-" },
-  { label: "CBF", minWidth: 90, getValue: (row) => row.cbf ?? "-" },
+  { label: "CFT", minWidth: 90, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
   { label: "Sheets", minWidth: 80, getValue: (row) => row.quantitySheets },
   { label: "Leaves", minWidth: 80, getValue: (row) => row.noOfLeaves ?? "-" },
   { label: "SQM", minWidth: 90, getValue: (row) => row.sqm },
@@ -559,7 +559,7 @@ function getItemDetailColumns(
   if (hasSawing) {
     cols.push(
       { label: "CBM", minWidth: 90, getValue: (row) => row.cbm ?? "-" },
-      { label: "CBF", minWidth: 90, getValue: (row) => row.cbf ?? "-" },
+      { label: "CFT", minWidth: 90, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
     );
   }
 

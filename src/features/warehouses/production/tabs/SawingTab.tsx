@@ -6,8 +6,13 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { useNavigate } from "react-router";
+import { Eye } from "lucide-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { EnterpriseDataTable } from "../../../../components/data-display/EnterpriseDataTable";
+import {
+  EnterpriseDataTable,
+  type EnterpriseTableAction,
+} from "../../../../components/data-display/EnterpriseDataTable";
 import {
   toApiColumnFilters,
   type ColumnFilterValue,
@@ -32,9 +37,9 @@ export interface SawingTabProps {
   canView: boolean;
   canEdit: boolean;
   onExportReady?:
-    | Dispatch<SetStateAction<SawingRow[]>>
-    | ((rows: SawingRow[]) => void)
-    | undefined;
+  | Dispatch<SetStateAction<SawingRow[]>>
+  | ((rows: SawingRow[]) => void)
+  | undefined;
   onListQueryChange?: ((query: ProductionListQueryState) => void) | undefined;
 }
 
@@ -42,17 +47,22 @@ function mapApiItem(item: ProductionInventoryItem): SawingRow {
   return {
     id: String(item.id),
     storageSrNo: String(item.storageSrNo ?? ""),
-    issuedDate: (item.inwardDate ?? item.issuedDate ?? "") as string | Date,
+    inspectionDate: (item.inspectionDate ?? item.inwardDate ?? "") as string | Date,
     sawingDate: (item.sawingDate ?? item.processDate ?? "") as string | Date,
     itemName: String(item.itemName ?? ""),
-    subCategory: String(item.subCategory ?? item.itemSubCategory ?? ""),
+    subCategory: String(item.subCategory ?? item.itemSubCategory ?? item.subCategoryName ?? ""),
+    grade: String(item.grade ?? item.gradeName ?? ""),
     batchNo: String(item.batchNo ?? item.logNo ?? ""),
     batchNoCode: String(item.batchNoCode ?? ""),
     length: String(item.length ?? ""),
     width: String(item.width ?? ""),
     thickness: String(item.thickness ?? item.height ?? ""),
     cbm: String(item.cbm ?? ""),
+    cft: String((item as any).cft ?? item.cbf ?? ""),
     cbf: String(item.cbf ?? ""),
+    productionWarehouse: String(
+      item.productionWarehouse ?? item.productionWarehouseName ?? item.warehouseName ?? ""
+    ),
     remark: String(item.remark ?? ""),
     createdBy: String(item.createdBy ?? ""),
     updatedBy: String(item.updatedBy ?? ""),
@@ -72,6 +82,7 @@ export function SawingTab({
   onExportReady,
   onListQueryChange,
 }: SawingTabProps) {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortBy, setSortBy] = useState<string | null>("storageSrNo");
@@ -83,6 +94,23 @@ export function SawingTab({
     Record<string, Array<{ value: string; label: string }>>
   >({});
   const debouncedSearch = useDebouncedValue(searchValue, 150);
+
+  const actions = useMemo<ReadonlyArray<EnterpriseTableAction<SawingRow>>>(() => {
+    const list: EnterpriseTableAction<SawingRow>[] = [];
+    if (canView) {
+      list.push({
+        id: "view",
+        label: "View",
+        icon: Eye,
+        onSelect: (row: SawingRow) => {
+          navigate(`/factory/sawing-inspection/view/${row.inventoryRecordId || row.id}`, {
+            state: { record: row, tab: "history" },
+          });
+        },
+      });
+    }
+    return list;
+  }, [canView, navigate]);
 
   useEffect(() => {
     setPage(1);
@@ -161,7 +189,7 @@ export function SawingTab({
   return (
     <EnterpriseDataTable
       key="production-sawing"
-      actions={[]}
+      actions={actions}
       columns={sawingColumns}
       columnFilters={columnFilters}
       emptyStateLabel="No sawing inventory records are available."

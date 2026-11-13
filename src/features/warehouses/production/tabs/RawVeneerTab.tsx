@@ -88,6 +88,7 @@ function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
     itemName: String(item.itemName ?? ""),
     factoryCode: String(item.factoryCode ?? ""),
     subCategory: String(item.subCategory ?? ""),
+    batchNo: String(item.batchNo ?? item.logNo ?? ""),
     length: String(item.length ?? ""),
     width: String(item.width ?? ""),
     thickness: String(item.thickness ?? ""),

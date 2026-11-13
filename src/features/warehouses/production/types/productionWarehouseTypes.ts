@@ -1,4 +1,6 @@
 import type { EnterpriseTableColumn, EnterpriseTableRow } from "../../../../components/data-display/EnterpriseDataTable";
+import { renderGradeBadge } from "../../../factory/sawing-inspection/sawingInspectionColumns";
+import { formatInspectionDateDDMMYY } from "../../../factory/inspection/inspectionListingColumns";
 
 export type ProductionWarehouseTabSlug =
   | "raw-veneer"
@@ -23,6 +25,7 @@ export interface RawVeneerRow extends EnterpriseTableRow {
   itemName: string;
   factoryCode: string;
   subCategory: string;
+  batchNo?: string;
   length: string;
   width: string;
   thickness: string;
@@ -51,6 +54,7 @@ export const rawVeneerColumns: readonly EnterpriseTableColumn<RawVeneerRow>[] = 
   { key: "itemName", label: "Item Name" },
   { key: "factoryCode", label: "Factory Code" },
   { key: "subCategory", label: "Sub Category" },
+  { key: "batchNo", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
@@ -215,17 +219,20 @@ export const consumablesColumns: readonly EnterpriseTableColumn<ConsumablesRow>[
 
 export interface SawingRow extends EnterpriseTableRow {
   storageSrNo: string;
-  issuedDate: string | Date;
+  inspectionDate: string | Date;
   sawingDate: string | Date;
   itemName: string;
   subCategory: string;
+  grade: string;
   batchNo: string;
   batchNoCode: string;
   length: string;
   width: string;
   thickness: string;
   cbm: string;
+  cft?: string;
   cbf: string;
+  productionWarehouse: string;
   remark: string;
   createdBy: string;
   updatedBy: string;
@@ -237,16 +244,30 @@ export interface SawingRow extends EnterpriseTableRow {
 
 export const sawingColumns: readonly EnterpriseTableColumn<SawingRow>[] = [
   { key: "storageSrNo", label: "Storage Sr No." },
-  { key: "issuedDate", label: "Issued Date" },
-  { key: "sawingDate", label: "Sawing Date" },
+  {
+    key: "inspectionDate",
+    label: "Inspection Date",
+    renderCell: (row) => formatInspectionDateDDMMYY(row.inspectionDate),
+  },
+  {
+    key: "sawingDate",
+    label: "Sawing Date",
+    renderCell: (row) => formatInspectionDateDDMMYY(row.sawingDate),
+  },
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
-  { key: "batchNo", label: "Batch No" },
+  {
+    key: "grade",
+    label: "Grade",
+    renderCell: (row) => renderGradeBadge(row.grade),
+  },
+  { key: "batchNo", label: "Batch No." },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
-  { key: "cbf", label: "CBF" },
+  { key: "cft", label: "CFT", renderCell: (row) => row.cft || row.cbf || "-" },
+  { key: "productionWarehouse", label: "Production Warehouse" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created By" },
   { key: "updatedBy", label: "Updated By" },

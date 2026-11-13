@@ -16,12 +16,13 @@ import {
  * Slice:  CBM = length × width × thickness × number of leaves
  *          SQM = length × width × number of leaves
  * SQF   = SQM × 10.7639
- * CBF   = CBM × 35.3147
+ * CFT   = CBM × 35.3147
  *
  * Leftover height shrinks with leftover CBM. Leftover SQM stays the face
  * area (CBM / height) until the available CBM is 0.
  */
-export const CBM_TO_CBF = 35.3147;
+export const CBM_TO_CFT = 35.3147;
+export const CBM_TO_CBF = CBM_TO_CFT;
 
 const SLICING_AREA_INPUT_KEYS = new Set([
   "length",
@@ -143,7 +144,8 @@ export function measureSlicingSlice(values: SlicingSliceInput) {
   const sqm = calculateSlicingSqmValue(values.length, values.width, pieces);
 
   return {
-    cbf: cbm * CBM_TO_CBF,
+    cft: cbm * CBM_TO_CFT,
+    cbf: cbm * CBM_TO_CFT,
     cbm,
     complete: cbm > 0 && sqm > 0,
     depth: resolveSlicingDimensionMetres(depth),
@@ -171,7 +173,8 @@ export function calculateSlicingRemainder(
   const sqm = depleted || length <= 0 || width <= 0 ? 0 : length * width;
 
   return {
-    cbf: depleted ? 0 : cbm * CBM_TO_CBF,
+    cft: depleted ? 0 : cbm * CBM_TO_CFT,
+    cbf: depleted ? 0 : cbm * CBM_TO_CFT,
     cbm: depleted ? 0 : cbm,
     depleted,
     height: depth,

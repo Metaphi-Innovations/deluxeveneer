@@ -1013,7 +1013,7 @@ function buildDynamicItemColumns(
   if (hasSawing) {
     cols.push(
       { label: "CBM", minWidth: 90, align: "right", render: (row) => row.cbm || "—" },
-      { label: "CBF", minWidth: 90, align: "right", render: (row) => row.cbf || "—" },
+      { label: "CFT", minWidth: 90, align: "right", render: (row) => (row as any).cft || row.cbf || "—" },
     );
   }
 

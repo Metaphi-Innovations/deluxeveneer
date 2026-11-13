@@ -891,7 +891,7 @@ function getQcTableHeaders(inventoryType: string | undefined): string[] {
   const identityHeaders =
     slug === "raw-veneer"
       ? ([
-          "Log Code",
+          "Batch No",
           "Bundle",
           "Pallet No",
           "L",
@@ -1054,7 +1054,7 @@ function ItemQcTable({
                   ) : isRawVeneer ? (
                     <>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                        {item.logCode || "—"}
+                        {item.batchNo || item.logCode || "—"}
                       </TableCell>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                         {item.bundleNumber || "—"}

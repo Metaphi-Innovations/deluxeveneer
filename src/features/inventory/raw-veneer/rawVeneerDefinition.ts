@@ -14,6 +14,7 @@ import type { InventoryRecord } from "../shared/types";
 export type RawVeneerRecord = InventoryRecord & {
   amount: string;
   approvalStatus: string;
+  batchNo?: string;
   bundleNumber: string;
   currency: string;
   exchangeRate: string;
@@ -55,6 +56,7 @@ const rawVeneerColumns: ReadonlyArray<EnterpriseTableColumn<RawVeneerRecord>> = 
   { key: "subCategory", label: "Sub Category" },
   { key: "itemName", label: "Item Name" },
   { key: "timberColor", label: "Timber Color" },
+  { key: "batchNo", label: "Batch No" },
   { key: "bundleNumber", label: "Bundle Number" },
   { key: "palletNo", label: "Pallet No" },
   { key: "length", label: "Length" },

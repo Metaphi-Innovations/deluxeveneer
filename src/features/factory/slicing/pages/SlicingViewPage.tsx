@@ -353,7 +353,7 @@ export const SlicingViewPage: React.FC = () => {
                 { label: "Issue Date", value: issueDate },
                 { label: "Item Name", value: itemName },
                 { label: "Item Sub Category", value: subCategory },
-                { label: "Log No", value: logNo },
+                { label: "Batch No", value: logNo },
                 { label: "Bundle No", value: bundleNo },
                 { label: "Pallet No", value: palletNo },
               ]

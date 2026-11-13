@@ -50,6 +50,7 @@ import {
 } from "../dryingColumns";
 import { DryingCreateDialog } from "../DryingCreateDialog";
 import { DryingRejectDialog } from "../DryingRejectDialog";
+import { syncDryingInspectionWork } from "../../shared/factoryIssuedWorkStore";
 
 export function DryingListPage() {
   const navigate = useNavigate();
@@ -135,7 +136,7 @@ export function DryingListPage() {
           rows
             .map((r: any) => {
               if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
-              if (columnKey === "logCode" || columnKey === "logNo") return String(r.logCode ?? r.logNo ?? r.batchNo ?? "").trim();
+              if (columnKey === "batchNo" || columnKey === "logCode" || columnKey === "logNo") return String(r.batchNo ?? r.logNo ?? r.logCode ?? "").trim();
               if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
               return String(r[columnKey] ?? "").trim();
             })
@@ -300,48 +301,52 @@ export function DryingListPage() {
           });
         }
       } else if (activeTab === "done") {
-        actions.push({
-          id: "edit",
-          label: "Edit",
-          icon: Pencil,
-          onSelect: () => {
-            setEditDryingTargetRow(row);
-          },
-        });
+        const isEligible = !row.issuedForInspectionDate && (!row.status || row.status === "IN_DONE");
 
-        actions.push({
-          id: "issue-for-inspection",
-          label: "Issue to Inspection",
-          icon: CheckCircle2,
-          tone: "primary",
-          onSelect: () => {
-            setInspectionTargetRows([row]);
-            setInspectionRemark("");
-            setInspectionDialogOpen(true);
-          },
-        });
+        if (isEligible) {
+          actions.push({
+            id: "edit",
+            label: "Edit",
+            icon: Pencil,
+            onSelect: () => {
+              setEditDryingTargetRow(row);
+            },
+          });
 
-        actions.push({
-          id: "reject",
-          label: "Reject",
-          icon: XCircle,
-          tone: "danger",
-          onSelect: () => {
-            setRejectDryingTargetRow(row);
-          },
-        });
+          actions.push({
+            id: "issue-for-inspection",
+            label: "Issue to Inspection",
+            icon: CheckCircle2,
+            tone: "primary",
+            onSelect: () => {
+              setInspectionTargetRows([row]);
+              setInspectionRemark("");
+              setInspectionDialogOpen(true);
+            },
+          });
 
-        actions.push({
-          id: "revert",
-          label: "Revert",
-          icon: RotateCcw,
-          tone: "danger",
-          onSelect: () => {
-            setRevertTargetRow(row);
-            setRevertRemark("");
-            setRevertDialogOpen(true);
-          },
-        });
+          actions.push({
+            id: "reject",
+            label: "Reject",
+            icon: XCircle,
+            tone: "danger",
+            onSelect: () => {
+              setRejectDryingTargetRow(row);
+            },
+          });
+
+          actions.push({
+            id: "revert",
+            label: "Revert",
+            icon: RotateCcw,
+            tone: "danger",
+            onSelect: () => {
+              setRevertTargetRow(row);
+              setRevertRemark("");
+              setRevertDialogOpen(true);
+            },
+          });
+        }
       } else if (activeTab === "rejected") {
         actions.push({
           id: "revert",
@@ -474,15 +479,30 @@ export function DryingListPage() {
   // Execute Issue for Inspection
   const handleExecuteIssueForInspection = useCallback(async () => {
     if (inspectionTargetRows.length === 0) return;
+    const eligibleRows = inspectionTargetRows.filter(
+      (r) => !r.issuedForInspectionDate && (!r.status || r.status === "IN_DONE")
+    );
+    if (eligibleRows.length === 0) {
+      setErrorMessage("Selected item(s) have already been issued to inspection.");
+      setInspectionDialogOpen(false);
+      return;
+    }
     setIsIssuingForInspection(true);
     try {
-      const doneIds = inspectionTargetRows.map((r) => r.id);
+      const doneIds = eligibleRows.map((r) => r.id);
       const payload: { doneIds: string[]; inspectionDate?: string; remark?: string } = {
         doneIds,
         inspectionDate: new Date().toISOString().slice(0, 10),
       };
       if (inspectionRemark.trim()) payload.remark = inspectionRemark.trim();
-      await issueDryingForInspectionApi(payload);
+      const res = await issueDryingForInspectionApi(payload);
+
+      // Synchronize newly issued records to Drying Inspection work items
+      if (res?.items && Array.isArray(res.items) && res.items.length > 0) {
+        syncDryingInspectionWork(res.items);
+      } else {
+        syncDryingInspectionWork(eligibleRows);
+      }
 
       setInspectionDialogOpen(false);
       setInspectionTargetRows([]);

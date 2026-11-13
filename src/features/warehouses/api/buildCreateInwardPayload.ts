@@ -384,10 +384,11 @@ async function mapLineItemToPayload(
   };
 
   if (inventoryType === "RAW_VENEER") {
+    const batchVal = String(values.batchNo ?? values.logCode ?? "").trim() || null;
     return {
       ...base,
-      batchNo: null,
-      logCode: String(values.logCode ?? "").trim() || null,
+      batchNo: batchVal,
+      logCode: batchVal,
       bundleNumber: String(values.bundleNumber ?? "").trim() || null,
       palletNo: String(values.palletNo ?? "").trim() || null,
       noOfLeaves: parseNumericField(values.noOfLeaves, "No of Leaves"),

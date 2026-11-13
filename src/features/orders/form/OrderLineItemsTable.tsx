@@ -128,7 +128,7 @@ const unifiedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   { key: "groupNo", label: "Group No.", controlWidth: 140, minWidth: 120, type: "text" },
   { key: "photoNo", label: "Photo No.", controlWidth: 140, minWidth: 120, type: "text" },
   { key: "cbm", label: "CBM", controlWidth: 130, minWidth: 110, numeric: true, readOnly: true, type: "text" },
-  { key: "cbf", label: "CBF", controlWidth: 130, minWidth: 110, numeric: true, readOnly: true, type: "text" },
+  { key: "cft", label: "CFT", controlWidth: 130, minWidth: 110, numeric: true, readOnly: true, type: "text" },
   { key: "ratePerCbm", label: "Rate / CBM", controlWidth: 140, minWidth: 130, numeric: true, type: "text" },
   { key: "sqm", label: "SQM", controlWidth: 130, minWidth: 120, numeric: true, readOnly: true, type: "text" },
   { key: "totalSqm", label: "SQF", controlWidth: 130, minWidth: 120, numeric: true, readOnly: true, type: "text" },
@@ -161,6 +161,7 @@ const sawingEntryRows: readonly EntryRowConfig[] = [
       "width",
       "thickness",
       "cbm",
+      "cft",
       "cbf",
       "ratePerCbm",
       "amount",
@@ -1586,11 +1587,11 @@ function getFieldValidationError(
 
   // When hidden for current product type, do not trigger validation errors
   if (isSawing) {
-    if (!["productCategory", "itemName", "salesItemName", "logNo", "batchNo", "length", "width", "thickness", "cbm", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
+    if (!["productCategory", "itemName", "salesItemName", "logNo", "batchNo", "length", "width", "thickness", "cbm", "cft", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
       return "";
     }
   } else {
-    if (["logNo", "batchNo", "cbm", "cbf", "ratePerCbm"].includes(column.key)) {
+    if (["logNo", "batchNo", "cbm", "cft", "cbf", "ratePerCbm"].includes(column.key)) {
       return "";
     }
   }
@@ -1724,7 +1725,7 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
   if (hasSawing) {
     headers.push(
       { label: "CBM", minWidth: 90, align: "right" },
-      { label: "CBF", minWidth: 90, align: "right" },
+      { label: "CFT", minWidth: 90, align: "right" },
     );
   }
 
@@ -1807,8 +1808,9 @@ export function getDynamicLineItemCells(
       case "CBM":
         value = isSawing ? (row.cbm ?? "") : "";
         break;
+      case "CFT":
       case "CBF":
-        value = isSawing ? (row.cbf ?? "") : "";
+        value = isSawing ? (row.cft ?? row.cbf ?? "") : "";
         break;
       case "Sheets":
         value = !isVeneer && !isSawing ? row.quantitySheets : "";
@@ -1983,7 +1985,7 @@ function getRawListingValues(row: OrderLineItem, index: number) {
     { label: "Width", value: row.width, align: "left" as const },
     { label: "Thickness", value: row.thickness, align: "left" as const },
     { label: "CBM", value: row.cbm ?? "", align: "right" as const },
-    { label: "CBF", value: row.cbf ?? "", align: "right" as const },
+    { label: "CFT", value: row.cft ?? row.cbf ?? "", align: "right" as const },
     {
       label: "Sheets",
       value: row.quantitySheets,
@@ -2029,7 +2031,8 @@ function mapValuesToLineItem(values: Record<string, string>): Omit<OrderLineItem
     logNo: values.logNo ?? "",
     batchNo: values.batchNo ?? "",
     cbm: values.cbm ?? "",
-    cbf: values.cbf ?? "",
+    cft: values.cft ?? values.cbf ?? "",
+    cbf: values.cft ?? values.cbf ?? "",
     ratePerCbm: values.ratePerCbm ?? "",
     length: values.length ?? "",
     width: values.width ?? "",
@@ -2068,7 +2071,8 @@ function mapLineItemToValues(lineItem: OrderLineItem) {
     logNo: lineItem.logNo ?? "",
     batchNo: lineItem.batchNo ?? "",
     cbm: lineItem.cbm ?? "",
-    cbf: lineItem.cbf ?? "",
+    cft: lineItem.cft ?? lineItem.cbf ?? "",
+    cbf: lineItem.cft ?? lineItem.cbf ?? "",
     ratePerCbm: lineItem.ratePerCbm ?? "",
     length: lineItem.length,
     width: lineItem.width,
@@ -2161,14 +2165,16 @@ function applyLineItemCalculations(
       const isMm = rawLen > 50 || rawWid > 50 || rawThick > 50;
       const divisor = isMm ? 1_000_000_000 : 1;
       const cbmVal = (rawLen * rawWid * rawThick) / divisor;
-      const cbfVal = cbmVal * 35.3147;
+      const cftVal = cbmVal * 35.3147;
       const amountVal = cbmVal * ratePerCbm;
 
       nextValues.cbm = cbmVal.toFixed(4);
-      nextValues.cbf = cbfVal.toFixed(2);
+      nextValues.cft = cftVal.toFixed(2);
+      nextValues.cbf = cftVal.toFixed(2);
       nextValues.amount = ratePerCbm > 0 ? formatMoneyValue(amountVal) : "";
     } else {
       nextValues.cbm = "";
+      nextValues.cft = "";
       nextValues.cbf = "";
       nextValues.amount = "";
     }

@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Stack,
   TextField,
   Typography,
@@ -16,6 +18,8 @@ import { ErpDatePickerField } from "../../../pages/ComponentLibrary/shared/ErpFi
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
+import { fetchGradesApi, getGradeByIdApi } from "../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../warehouses/api/inwardApi";
 import {
   DialogFieldLabel,
   getFactoryString,

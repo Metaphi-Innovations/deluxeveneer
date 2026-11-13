@@ -11,6 +11,7 @@ const STORAGE_KEY = "deluxe-sawing-frontend-flow";
 type SawingFlowRow = Record<string, unknown>;
 
 type SawingIssuedAvailability = {
+  availableCft?: string;
   availableCbf?: string;
   availableCbm?: number;
   height?: string;

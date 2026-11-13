@@ -278,8 +278,20 @@ export function SlicingCreatePage() {
     if (!sourceItem || sourcePrefillDone) {
       return;
     }
-    setBundleNo((current) => current || String(sourceItem.bundleNumber || sourceItem.bundleNo || ""));
-    setPalletNo((current) => current || String(sourceItem.palletNo || ""));
+    const initialBundle = String(
+      sourceItem.bundleNumber ||
+      sourceItem.bundleNo ||
+      sourceItem.batchNo ||
+      sourceItem.logCode ||
+      ""
+    );
+    const initialPallet = String(
+      sourceItem.palletNo ||
+      sourceItem.palletNumber ||
+      ""
+    );
+    setBundleNo((current) => current || initialBundle);
+    setPalletNo((current) => current || initialPallet);
     setLength((current) => current || stripUnit(sourceItem.length).replace(/^-/, ""));
     setWidth((current) => current || stripUnit(sourceItem.width).replace(/^-/, ""));
     setRemark((current) => current || String(sourceItem.remark || ""));
@@ -567,9 +579,7 @@ export function SlicingCreatePage() {
       setProcessedItems((prev) => [...prev, newItem]);
     }
 
-    // Reset fields for next entry - KEEP hold of length and width always
-    setBundleNo("");
-    setPalletNo("");
+    // Reset fields for next entry - KEEP hold of bundleNo, palletNo, length, and width always (static as entered by user)
     setColor("");
     setColorId("");
     setThickness("");
@@ -653,6 +663,7 @@ export function SlicingCreatePage() {
           sqm: item.sqm,
           sqf: item.sqf,
           totalSqMeter: item.sqm,
+          ratePerCft: item.ratePerSqf,
           ratePerCbf: item.ratePerSqf,
           amount: item.amount,
           remark: item.remark,
@@ -663,6 +674,7 @@ export function SlicingCreatePage() {
           thickness: finalRemHeight,
           height: finalRemHeight,
           cbm: finalRemCbm,
+          cft: finalRemCbf,
           cbf: finalRemCbf,
         },
       });
@@ -746,10 +758,22 @@ export function SlicingCreatePage() {
                 <TableBody>
                   <TableRow>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setBundleNo} required value={bundleNo} width={132} />
+                      <CompactTableInput
+                        error={!bundleNo.trim() && Boolean(errorMessage)}
+                        onChange={setBundleNo}
+                        placeholder="Enter bundle no"
+                        required
+                        value={bundleNo}
+                        width={132}
+                      />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setPalletNo} value={palletNo} width={132} />
+                      <CompactTableInput
+                        onChange={setPalletNo}
+                        placeholder="Enter pallet no"
+                        value={palletNo}
+                        width={132}
+                      />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <Box sx={{ width: 136, minWidth: 136 }}>
@@ -765,16 +789,16 @@ export function SlicingCreatePage() {
                       </Box>
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setLength} required type="decimal" value={length} width={100} />
+                      <CompactTableInput onChange={setLength} placeholder="Length" required type="decimal" value={length} width={100} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setWidth} required type="decimal" value={width} width={100} />
+                      <CompactTableInput onChange={setWidth} placeholder="Width" required type="decimal" value={width} width={100} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setThickness} required type="decimal" value={thickness} width={110} />
+                      <CompactTableInput onChange={setThickness} placeholder="Thickness" required type="decimal" value={thickness} width={110} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setNoOfLeaves} required type="integer" value={noOfLeaves} width={120} />
+                      <CompactTableInput onChange={setNoOfLeaves} placeholder="Leaves" required type="integer" value={noOfLeaves} width={120} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput readOnly value={calculatedSqm ? calculatedSqm.toFixed(3) : "-"} width={90} />
@@ -783,7 +807,7 @@ export function SlicingCreatePage() {
                       <CompactTableInput readOnly value={calculatedSqf ? calculatedSqf.toFixed(3) : "-"} width={90} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setRemark} value={remark} width={170} />
+                      <CompactTableInput onChange={setRemark} placeholder="Remark" value={remark} width={170} />
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -913,7 +937,7 @@ export function SlicingCreatePage() {
                     <TableCell sx={headerCellSx(theme, 120)}>Width</TableCell>
                     <TableCell sx={headerCellSx(theme, 120)}>Height</TableCell>
                     <TableCell sx={headerCellSx(theme, 120)}>CBM</TableCell>
-                    <TableCell sx={headerCellSx(theme, 120)}>CBF</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>CFT</TableCell>
                     <TableCell sx={headerCellSx(theme, 180)}>Remark</TableCell>
                   </TableRow>
                 </TableHead>

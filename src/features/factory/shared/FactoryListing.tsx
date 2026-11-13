@@ -46,6 +46,7 @@ import {
   canAccessPermission,
   getFactoryPermissionKey,
 } from "../../permissions";
+import { getCurrentUser } from "../../auth/authSession";
 import {
   getOrderLineItems,
   useOrderRecords,
@@ -460,16 +461,51 @@ export function FactoryListing<Row extends FactoryRecord>({
   );
   const [dryingInspectionHistoryRows, setDryingInspectionHistoryRows] =
     useState<Row[]>([]);
-  const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<
-    Row[]
-  >([]);
-  const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<
-    string[]
-  >([]);
+  const [dryingInspectionEventRows, setDryingInspectionEventRows] = useState<Row[]>(() => {
+    try {
+      const saved = localStorage.getItem("deluxe_drying_inspection_event_rows");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [warehouseBTransferredIds, setWarehouseBTransferredIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("deluxe_warehouse_b_transferred_ids");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [
     warehouseBTransferredWarehouseMap,
     setWarehouseBTransferredWarehouseMap,
-  ] = useState<Record<string, string>>({});
+  ] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("deluxe_warehouse_b_transferred_warehouse_map");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("deluxe_drying_inspection_event_rows", JSON.stringify(dryingInspectionEventRows));
+    } catch {}
+  }, [dryingInspectionEventRows]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("deluxe_warehouse_b_transferred_ids", JSON.stringify(warehouseBTransferredIds));
+    } catch {}
+  }, [warehouseBTransferredIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("deluxe_warehouse_b_transferred_warehouse_map", JSON.stringify(warehouseBTransferredWarehouseMap));
+    } catch {}
+  }, [warehouseBTransferredWarehouseMap]);
   const [dryingIssueStateMap, setDryingIssueStateMap] = useState<
     Record<
       string,
@@ -636,7 +672,8 @@ export function FactoryListing<Row extends FactoryRecord>({
         (row) =>
           !revertedRowIds.includes(row.id) &&
           !(activeTab === "done" && rejectedDoneRowIds.has(row.id)) &&
-          !(activeTab === "done" && dryingDoneRemovedIds.includes(row.id)),
+          !(activeTab === "done" && dryingDoneRemovedIds.includes(row.id)) &&
+          !(isDryingInspectionModule && activeTab === "done" && (warehouseBTransferredIds.includes(String(row.id)) || (row as any).warehouseBStatus === "Transferred to Warehouse B")),
       )
       .map((row) => {
         const sourceNormalizedRow = (
@@ -891,15 +928,61 @@ export function FactoryListing<Row extends FactoryRecord>({
         return sourceNormalizedRow;
       });
 
+    const currentUserProfile = getCurrentUser();
+    const currentSessionUserName =
+      currentUserProfile?.userName ||
+      `${currentUserProfile?.firstName || ""} ${currentUserProfile?.lastName || ""}`.trim() ||
+      "Super Admin";
+    const nowIso = new Date().toISOString();
+
+    const auditMappedRows = mappedRows.map((r: any) => {
+      const createdBy =
+        r.createdBy && r.createdBy !== "-"
+          ? r.createdBy
+          : r.createdByName && r.createdByName !== "-"
+            ? r.createdByName
+            : currentSessionUserName;
+      const createdAt =
+        r.createdAt && r.createdAt !== "-"
+          ? r.createdAt
+          : r.createdDate && r.createdDate !== "-"
+            ? r.createdDate
+            : r.issueDate || r.issuedDate || nowIso;
+      const updatedBy =
+        r.updatedBy && r.updatedBy !== "-"
+          ? r.updatedBy
+          : r.updatedByName && r.updatedByName !== "-"
+            ? r.updatedByName
+            : createdBy || currentSessionUserName;
+      const updatedAt =
+        r.updatedAt && r.updatedAt !== "-"
+          ? r.updatedAt
+          : r.updatedDate && r.updatedDate !== "-"
+            ? r.updatedDate
+            : createdAt || nowIso;
+
+      return {
+        ...r,
+        createdBy,
+        createdByName: createdBy,
+        createdAt,
+        createdDate: createdAt,
+        updatedBy,
+        updatedByName: updatedBy,
+        updatedAt,
+        updatedDate: updatedAt,
+      };
+    }) as Row[];
+
     if (definition.slug === "slicing") {
-      return applySlicingListingRows(mappedRows, activeTab, slicingFlowState);
+      return applySlicingListingRows(auditMappedRows, activeTab, slicingFlowState);
     }
 
     if (definition.slug === "drying") {
-      return applyDryingListingRows(mappedRows, activeTab, dryingFlowState);
+      return applyDryingListingRows(auditMappedRows, activeTab, dryingFlowState);
     }
 
-    return mappedRows;
+    return auditMappedRows;
   }, [
     activeTab,
     definition.rows,
@@ -2679,6 +2762,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           inspectionDateVal,
           counts,
           attachment,
+          gradeInfo,
         ) => {
           if (isDryingInspectionModule) {
             const rowId = String(targetRow.id);
@@ -2707,6 +2791,12 @@ export function FactoryListing<Row extends FactoryRecord>({
               getFactoryString(targetRow.remark) ||
               "Inspection completed";
             const inspectedLeaves = thisPass + thisFail;
+            const doneUser = getCurrentUser();
+            const doneActor =
+              doneUser?.userName ||
+              `${doneUser?.firstName || ""} ${doneUser?.lastName || ""}`.trim() ||
+              "Super Admin";
+            const nowIsoStr = new Date().toISOString();
             const donePatch = {
               inspectionDate,
               remark: enteredRemark,
@@ -2716,6 +2806,29 @@ export function FactoryListing<Row extends FactoryRecord>({
               totalLeaves: String(inspectedLeaves),
               warehouseBStatus: "Not transferred",
               qcStatus: "Done",
+              grade: gradeInfo?.gradeName || (targetRow as any).grade || "-",
+              gradeName: gradeInfo?.gradeName || (targetRow as any).grade || "-",
+              gradeId: gradeInfo?.gradeId || (targetRow as any).gradeId || "",
+              createdBy:
+                (targetRow as any).createdBy && (targetRow as any).createdBy !== "-"
+                  ? (targetRow as any).createdBy
+                  : (targetRow as any).createdByName || doneActor,
+              createdByName:
+                (targetRow as any).createdBy && (targetRow as any).createdBy !== "-"
+                  ? (targetRow as any).createdBy
+                  : (targetRow as any).createdByName || doneActor,
+              createdAt:
+                (targetRow as any).createdAt && (targetRow as any).createdAt !== "-"
+                  ? (targetRow as any).createdAt
+                  : (targetRow as any).createdDate || nowIsoStr,
+              createdDate:
+                (targetRow as any).createdAt && (targetRow as any).createdAt !== "-"
+                  ? (targetRow as any).createdAt
+                  : (targetRow as any).createdDate || nowIsoStr,
+              updatedBy: doneActor,
+              updatedByName: doneActor,
+              updatedAt: nowIsoStr,
+              updatedDate: nowIsoStr,
               ...(attachment
                 ? {
                     inspectionImage: attachment.dataUrl,
@@ -2808,6 +2921,12 @@ export function FactoryListing<Row extends FactoryRecord>({
           const workItemId = getFactoryString(targetRow.workItemId);
           const enteredRemark =
             decisionRemark || getFactoryString(targetRow.remark);
+          const baseUser = getCurrentUser();
+          const baseActor =
+            baseUser?.userName ||
+            `${baseUser?.firstName || ""} ${baseUser?.lastName || ""}`.trim() ||
+            "Super Admin";
+          const baseNowIsoStr = new Date().toISOString();
           const basePatch = {
             inspectionDate:
               inspectionDateVal || new Date().toISOString().slice(0, 10),
@@ -2818,6 +2937,29 @@ export function FactoryListing<Row extends FactoryRecord>({
             failQty: thisFail,
             noOfLeaves: String(thisPass),
             totalLeaves: String(thisPass),
+            grade: gradeInfo?.gradeName || (targetRow as any).grade || "-",
+            gradeName: gradeInfo?.gradeName || (targetRow as any).grade || "-",
+            gradeId: gradeInfo?.gradeId || (targetRow as any).gradeId || "",
+            createdBy:
+              (targetRow as any).createdBy && (targetRow as any).createdBy !== "-"
+                ? (targetRow as any).createdBy
+                : (targetRow as any).createdByName || baseActor,
+            createdByName:
+              (targetRow as any).createdBy && (targetRow as any).createdBy !== "-"
+                ? (targetRow as any).createdBy
+                : (targetRow as any).createdByName || baseActor,
+            createdAt:
+              (targetRow as any).createdAt && (targetRow as any).createdAt !== "-"
+                ? (targetRow as any).createdAt
+                : (targetRow as any).createdDate || baseNowIsoStr,
+            createdDate:
+              (targetRow as any).createdAt && (targetRow as any).createdAt !== "-"
+                ? (targetRow as any).createdAt
+                : (targetRow as any).createdDate || baseNowIsoStr,
+            updatedBy: baseActor,
+            updatedByName: baseActor,
+            updatedAt: baseNowIsoStr,
+            updatedDate: baseNowIsoStr,
             ...(attachment
               ? {
                   inspectionImage: attachment.dataUrl,
@@ -2889,6 +3031,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           inspectionDateVal,
           counts,
           attachment,
+          gradeInfo,
         ) => {
           if (isDryingInspectionModule) {
             return;

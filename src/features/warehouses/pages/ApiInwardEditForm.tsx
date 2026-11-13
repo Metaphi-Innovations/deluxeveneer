@@ -122,7 +122,8 @@ function mapDetailItemToLineValues(
   if (slug === "raw-veneer") {
     return {
       ...shared,
-      logCode: item.logCode ?? "",
+      batchNo: item.batchNo ?? item.logCode ?? "",
+      logCode: item.logCode ?? item.batchNo ?? "",
       bundleNumber: item.bundleNumber ?? "",
       palletNo: item.palletNo ?? "",
       thickness: formatOptionalNumber(item.thickness),

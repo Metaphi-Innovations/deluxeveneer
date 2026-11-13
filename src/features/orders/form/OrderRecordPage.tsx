@@ -134,7 +134,7 @@ const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Width", minWidth: 120, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
   { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
-  { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+  { label: "CFT", minWidth: 110, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
   { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
   { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
   { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
@@ -1550,7 +1550,7 @@ export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly D
   if (isSawing) {
     columns.push(
       { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
-      { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+      { label: "CFT", minWidth: 110, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
     );
   }
 

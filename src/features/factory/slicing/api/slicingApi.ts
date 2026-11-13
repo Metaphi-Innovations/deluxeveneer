@@ -25,6 +25,9 @@ export interface SlicingIssueItem {
   cbm: number | null;
   receivedCbm: number | null;
   availableCbm: number | null;
+  cft?: number | null;
+  receivedCft?: number | null;
+  availableCft?: number | null;
   cbf: number | null;
   receivedCbf: number | null;
   availableCbf: number | null;
@@ -59,6 +62,7 @@ export interface SlicingDoneItem {
   height: number | null;
   thickness: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
   noOfLeaves: number;
   receivedLeaves: number;
@@ -70,6 +74,7 @@ export interface SlicingDoneItem {
   availableSqm: number;
   receivedSqf: number;
   availableSqf: number;
+  ratePerCft?: number | null;
   ratePerCbf: number | null;
   amount: number;
   remark: string | null;
@@ -98,6 +103,7 @@ export interface SlicingHistoryItem {
   height: number | null;
   thickness: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
   noOfLeaves: number;
   sqm: number;
@@ -129,6 +135,7 @@ export interface SlicingRejectedItem {
   height: number | null;
   thickness: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
   noOfLeaves: number | null;
   sqm: number | null;
@@ -246,11 +253,13 @@ export async function createSlicingProcessApi(payload: {
     height?: number | undefined;
     thickness?: number | undefined;
     cbm?: number | string | undefined;
+    cft?: number | string | undefined;
     cbf?: number | string | undefined;
     noOfLeaves: number;
     sqm?: number | string | undefined;
     sqf?: number | string | undefined;
     totalSqMeter?: number | string | undefined;
+    ratePerCft?: number | undefined;
     ratePerCbf?: number | undefined;
     amount?: number | undefined;
     remark?: string | undefined;
@@ -265,6 +274,7 @@ export async function createSlicingProcessApi(payload: {
     height?: number | undefined;
     thickness?: number | undefined;
     cbm?: number | string | undefined;
+    cft?: number | string | undefined;
     cbf?: number | string | undefined;
     noOfLeaves?: number | undefined;
     sqm?: number | string | undefined;
@@ -278,6 +288,7 @@ export async function createSlicingProcessApi(payload: {
     height?: number | undefined;
     thickness?: number | undefined;
     cbm?: number | string | undefined;
+    cft?: number | string | undefined;
     cbf?: number | string | undefined;
   } | undefined;
   rejectAvailableItems?: Array<any> | undefined;
@@ -367,11 +378,13 @@ export async function editSlicingDoneApi(
       height?: number | undefined;
       thickness?: number | undefined;
       cbm?: number | string | undefined;
+      cft?: number | string | undefined;
       cbf?: number | string | undefined;
       noOfLeaves?: number | undefined;
       sqm?: number | string | undefined;
       sqf?: number | string | undefined;
       totalSqMeter?: number | string | undefined;
+      ratePerCft?: number | undefined;
       ratePerCbf?: number | undefined;
       amount?: number | undefined;
       remark?: string | undefined;

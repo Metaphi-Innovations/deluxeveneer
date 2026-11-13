@@ -243,6 +243,108 @@ export function issueFactoryWork(input: {
   return nextItem;
 }
 
+export function syncDryingInspectionWork(historyItems: any[]) {
+  if (!Array.isArray(historyItems) || historyItems.length === 0) return;
+  const store = readStore();
+  const currentItems = [...store.items];
+  let changed = false;
+
+  for (const item of historyItems) {
+    if (!item) continue;
+    const itemId = String(item.id || "");
+    const doneId = String(item.dryingDoneId || item.doneId || "");
+    const srNo = String(item.storageSrNo || "");
+    const batch = String(item.batchNo || item.logCode || "");
+    const bundle = String(item.bundleNumber || item.bundleNo || "");
+
+    const exists = currentItems.some((w) => {
+      if (w.destinationSlug !== "drying-inspection") return false;
+      if (itemId && (w.id === itemId || w.sourceRowId === itemId)) return true;
+      if (doneId && (w.id === doneId || w.sourceRowId === doneId)) return true;
+      const snap = w.sourceSnapshot as Record<string, unknown> | undefined;
+      if (!snap) return false;
+      if (itemId && snap.id === itemId) return true;
+      if (doneId && (snap.id === doneId || snap.dryingDoneId === doneId)) return true;
+      if (srNo && snap.storageSrNo === srNo && (snap.batchNo === batch || snap.logCode === batch) && (snap.bundleNumber === bundle || snap.bundleNo === bundle)) return true;
+      return false;
+    });
+
+    if (!exists) {
+      const leaves = Number(item.noOfLeaves ?? item.availableLeaves ?? 0);
+      const length = item.length !== null && item.length !== undefined ? Number(item.length) : null;
+      const width = item.width !== null && item.width !== undefined ? Number(item.width) : null;
+      const thickness = item.thickness !== null && item.thickness !== undefined ? Number(item.thickness) : null;
+      const height = item.height !== null && item.height !== undefined ? Number(item.height) : null;
+      const sqm = item.sqm !== null && item.sqm !== undefined ? Number(item.sqm) : length && width ? length * width * leaves : 0;
+      const sqf = item.sqf !== null && item.sqf !== undefined ? Number(item.sqf) : sqm * 10.7639;
+      const issueDate = item.issuedDryingDate || item.dryingDate || item.issueDate || item.issuedDate || item.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+      const recordId = itemId || `factory-work-drying-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const nextItem: FactoryIssuedWorkRecord = {
+        id: recordId,
+        destinationSlug: "drying-inspection",
+        listingState: "issued",
+        sourceSlug: "drying",
+        sourceRowId: itemId || doneId || recordId,
+        sourceProcess: "Drying",
+        sourceWarehouseName: "Warehouse B",
+        purpose: "ORDER",
+        sourceSnapshot: {
+          id: recordId,
+          dryingDoneId: doneId,
+          storageItemId: item.storageItemId,
+          storageSrNo: srNo,
+          issuedDryingDate: item.issuedDryingDate,
+          issuedDate: issueDate,
+          issueDate: issueDate,
+          dryingDate: item.dryingDate,
+          processDate: item.dryingDate,
+          inspectionDate: item.dryingDate || issueDate,
+          itemName: item.itemName,
+          itemSubCategory: item.subCategory || item.itemSubCategoryName,
+          subCategory: item.subCategory || item.itemSubCategoryName,
+          logCode: batch,
+          batchNo: batch,
+          bundleNumber: bundle,
+          bundleNo: bundle,
+          palletNo: item.palletNo || "",
+          length,
+          width,
+          thickness,
+          height,
+          noOfLeaves: String(leaves),
+          totalLeaves: String(leaves),
+          availableLeaves: String(leaves),
+          receivedLeaves: String(leaves),
+          noOfSheets: String(leaves),
+          totalSqMeter: sqm,
+          sqm,
+          sqf,
+          remark: item.remark || "",
+          status: "Pending",
+          qcStatus: "Pending",
+          warehouseName: "Warehouse B",
+          createdBy: item.createdBy || "Super Admin",
+          createdByName: item.createdBy || "Super Admin",
+          createdAt: item.createdAt || new Date().toISOString(),
+          createdDate: item.createdAt || new Date().toISOString(),
+          updatedBy: item.updatedBy || item.createdBy || "Super Admin",
+          updatedByName: item.updatedBy || item.createdBy || "Super Admin",
+          updatedAt: item.updatedAt || item.createdAt || new Date().toISOString(),
+          updatedDate: item.updatedAt || item.createdAt || new Date().toISOString(),
+        },
+        createdAt: item.createdAt || new Date().toISOString(),
+      };
+      currentItems.unshift(nextItem);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    writeStore({ items: currentItems });
+  }
+}
+
 export function completeFactoryIssuedWork(
   workItemId: string,
   resultSnapshot?: Record<string, unknown>,
@@ -544,6 +646,14 @@ export function factoryIssuedWorkToRow(
       (isSawingInspection || item.destinationSlug === "splicing") && flowIssueDate
         ? flowIssueDate
         : new Date(item.createdAt),
+    createdBy: (typeof snapshot.createdBy === "string" && snapshot.createdBy) ? snapshot.createdBy : "Super Admin",
+    createdByName: (typeof snapshot.createdByName === "string" && snapshot.createdByName) ? snapshot.createdByName : (typeof snapshot.createdBy === "string" && snapshot.createdBy) ? snapshot.createdBy : "Super Admin",
+    createdAt: (typeof snapshot.createdAt === "string" && snapshot.createdAt) ? snapshot.createdAt : (typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString()),
+    createdDate: (typeof snapshot.createdDate === "string" && snapshot.createdDate) ? snapshot.createdDate : (typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString()),
+    updatedBy: (typeof snapshot.updatedBy === "string" && snapshot.updatedBy) ? snapshot.updatedBy : "Super Admin",
+    updatedByName: (typeof snapshot.updatedByName === "string" && snapshot.updatedByName) ? snapshot.updatedByName : "Super Admin",
+    updatedAt: (typeof snapshot.updatedAt === "string" && snapshot.updatedAt) ? snapshot.updatedAt : (typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString()),
+    updatedDate: (typeof snapshot.updatedDate === "string" && snapshot.updatedDate) ? snapshot.updatedDate : (typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString()),
     ...(isSawingInspection && flowSawingDate ? { sawingDate: flowSawingDate } : {}),
     ...(isSawingInspection && flowSubCategory
       ? { subCategory: flowSubCategory, itemSubCategory: flowSubCategory }
@@ -569,7 +679,7 @@ export function factoryIssuedWorkToRow(
           : typeof snapshot.orderNo === "string"
             ? `Order ${snapshot.orderNo}`
             : "",
-  } as FactoryRecord;
+  } as unknown as FactoryRecord;
 }
 
 function snapshotDate(value: unknown): string | Date | undefined {

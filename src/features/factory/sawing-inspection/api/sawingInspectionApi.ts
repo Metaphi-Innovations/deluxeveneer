@@ -23,6 +23,7 @@ export interface SawingInspectionPendingItem {
   width: number | null;
   thickness: number | null;
   cbm: number;
+  cft?: number;
   cbf: number;
   qcStatus: string;
   remark: string | null;
@@ -56,6 +57,7 @@ export interface SawingInspectionDoneItem {
   width: number | null;
   thickness: number | null;
   cbm: number;
+  cft?: number;
   cbf: number;
   qcStatus: string;
   productionWarehouseId: string | null;
@@ -94,6 +96,7 @@ export interface SawingInspectionFailItem {
   width: number | null;
   thickness: number | null;
   cbm: number;
+  cft?: number;
   cbf: number;
   qcStatus: string;
   remark: string | null;
@@ -415,7 +418,81 @@ export async function revertSawingInspectionFailApi(
 }
 
 // ---------------------------------------------------------------------------
-// D. Dropdowns API
+// D. History API (Transferred to Warehouse)
+// ---------------------------------------------------------------------------
+
+export interface SawingInspectionHistoryItem {
+  id: string;
+  inspectionDoneId: string;
+  productionStockId: string;
+  productionSrNo: string;
+  storageSrNo: string | null;
+  transferDate: string | null;
+  inspectionDate: string | null;
+  sawingDate: string | null;
+  itemName: string;
+  subCategory: string | null;
+  grade?: string | null;
+  gradeName?: string | null;
+  batchNo: string | null;
+  length: number | null;
+  width: number | null;
+  thickness: number | null;
+  cbm: number | null;
+  cft?: number | null;
+  productionWarehouseName: string | null;
+  remark: string | null;
+  transferredBy: string | null;
+  createdAt: string;
+}
+
+export async function fetchSawingInspectionHistory(
+  params: SawingInspectionQueryParams = {}
+): Promise<SawingInspectionListResponse<SawingInspectionHistoryItem>> {
+  let response: ApiResponse<SawingInspectionListResponse<SawingInspectionHistoryItem>>;
+
+  if (params.filters && Object.keys(params.filters).length > 0) {
+    response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionHistoryItem>>>(
+      `${BASE_PATH}/history/filter`,
+      {
+        method: "POST",
+        body: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 10,
+          search: params.search,
+          filters: params.filters,
+          warehouseId: params.warehouseId,
+          sortBy: params.sortBy,
+          sortOrder: params.sortOrder ?? "desc",
+        },
+      }
+    );
+  } else {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.search) qs.set("search", params.search);
+    if (params.sortBy) qs.set("sortBy", params.sortBy);
+    if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
+    if (params.warehouseId) qs.set("warehouseId", params.warehouseId);
+    const url = `${BASE_PATH}/history?${qs.toString()}`;
+    response = await apiRequest<ApiResponse<SawingInspectionListResponse<SawingInspectionHistoryItem>>>(url, {
+      method: "GET",
+    });
+  }
+
+  return response.data ?? { items: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 1 } };
+}
+
+export async function fetchSawingInspectionHistoryById(id: string): Promise<SawingInspectionHistoryItem> {
+  const response = await apiRequest<ApiResponse<SawingInspectionHistoryItem>>(`${BASE_PATH}/history/${id}`, {
+    method: "GET",
+  });
+  return response.data;
+}
+
+// ---------------------------------------------------------------------------
+// E. Dropdowns API
 // ---------------------------------------------------------------------------
 
 export async function fetchSawingInspectionDropdownsApi(

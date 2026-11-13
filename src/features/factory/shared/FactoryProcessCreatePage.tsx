@@ -363,9 +363,9 @@ const sourceColumnDefinitions: readonly SourceColumnDefinition[] = [
     minWidth: 130,
   },
   {
-    key: "cbf",
-    keys: ["cbf", "totalCbf", "volumeCbf"],
-    label: "CBF",
+    key: "cft",
+    keys: ["cft", "cbf", "totalCft", "totalCbf", "volumeCft", "volumeCbf"],
+    label: "CFT",
     minWidth: 120,
   },
   { key: "remark", keys: ["remark"], label: "Remark", minWidth: 200 },

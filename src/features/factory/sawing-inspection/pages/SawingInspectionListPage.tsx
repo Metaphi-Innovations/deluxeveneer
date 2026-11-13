@@ -44,6 +44,7 @@ import {
   fetchSawingInspectionPendingById,
   fetchSawingInspectionDone,
   fetchSawingInspectionDoneById,
+  fetchSawingInspectionHistory,
   fetchSawingInspectionFail,
   fetchSawingInspectionDropdownsApi,
   revertSawingInspectionPendingApi,
@@ -63,6 +64,7 @@ import { sawingInspectionDefinition } from "../../shared/factoryDefinitions";
 import {
   SAWING_INSPECTION_PENDING_COLUMNS,
   SAWING_INSPECTION_DONE_COLUMNS,
+  SAWING_INSPECTION_HISTORY_COLUMNS,
   SAWING_INSPECTION_FAIL_COLUMNS,
   SAWING_INSPECTION_TABS,
   type SawingInspectionTab,
@@ -234,6 +236,8 @@ export function SawingInspectionListPage() {
       let result: { items: any[]; pagination: { total: number } };
       if (activeTab === "done") {
         result = await fetchSawingInspectionDone(queryParams);
+      } else if (activeTab === "history") {
+        result = await fetchSawingInspectionHistory(queryParams);
       } else {
         result = await fetchSawingInspectionPending(queryParams);
       }
@@ -596,6 +600,16 @@ export function SawingInspectionListPage() {
           disabledReason: row.isTransferred ? "Transferred items cannot be reverted" : undefined,
           onSelect: (r: any) => handleOpenRevert(r),
         });
+      } else if (activeTab === "history") {
+        // History: View
+        actions.push({
+          id: "view",
+          label: "View",
+          icon: Eye,
+          onSelect: (r: any) => {
+            navigate(`/factory/sawing-inspection/view/${r.id}`, { state: { record: r, tab: "history" } });
+          },
+        });
       } else {
         // Failed: View, Revert
         actions.push({
@@ -626,6 +640,8 @@ export function SawingInspectionListPage() {
         return SAWING_INSPECTION_PENDING_COLUMNS;
       case "done":
         return SAWING_INSPECTION_DONE_COLUMNS;
+      case "history":
+        return SAWING_INSPECTION_HISTORY_COLUMNS;
       default:
         return SAWING_INSPECTION_PENDING_COLUMNS;
     }

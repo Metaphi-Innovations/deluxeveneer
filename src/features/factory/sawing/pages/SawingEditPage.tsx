@@ -77,7 +77,7 @@ const itemFields = [
   { key: "width", label: "Width", readOnly: false },
   { key: "thickness", label: "Thickness", readOnly: false },
   { key: "cbm", label: "CBM", readOnly: true },
-  { key: "cbf", label: "CBF", readOnly: true },
+  { key: "cft", label: "CFT", readOnly: true },
   { key: "remark", label: "Remark", readOnly: false },
 ] as const;
 
@@ -112,7 +112,8 @@ function buildItemValues(row: SawingRow, sourceRow: SawingRow) {
       width: text(row.width || sourceRow.width),
       thickness: text(row.thickness || row.height),
       cbm: text(row.cbm),
-      cbf: text(row.cbf),
+      cft: text((row as any).cft || row.cbf),
+      cbf: text((row as any).cft || row.cbf),
       remark: text(row.remark),
       receivedCbm: text(sourceRow.receivedCbm),
       availableCbm: text(sourceRow.availableCbm),
@@ -351,7 +352,8 @@ export function SawingEditPage() {
           width: Number(item.values.width) || undefined,
           thickness: Number(item.values.thickness) || undefined,
           cbm: Number(item.values.cbm) || undefined,
-          cbf: Number(item.values.cbf) || undefined,
+          cft: Number(item.values.cft || item.values.cbf) || undefined,
+          cbf: Number(item.values.cft || item.values.cbf) || undefined,
           remark: item.values.remark,
         })),
       });

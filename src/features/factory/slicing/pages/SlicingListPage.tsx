@@ -128,7 +128,7 @@ export function SlicingListPage() {
           rows
             .map((r: any) => {
               if (columnKey === "subCategory") return String(r.subCategory ?? r.itemSubCategoryName ?? "").trim();
-              if (columnKey === "logCode" || columnKey === "logNo") return String(r.logCode ?? r.logNo ?? r.batchNo ?? "").trim();
+              if (columnKey === "batchNo" || columnKey === "logCode" || columnKey === "logNo") return String(r.batchNo ?? r.logNo ?? r.logCode ?? "").trim();
               if (columnKey === "storageSrNo") return String(r.storageSrNo ?? "").trim();
               return String(r[columnKey] ?? "").trim();
             })

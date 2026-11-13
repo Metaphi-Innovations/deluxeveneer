@@ -148,10 +148,23 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
   slug: string,
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
+  const mappedSourceColumns = isDryingInspectionSlug(slug)
+    ? sourceColumns.map((col) =>
+        col.key === "logCode" || col.key === "batchNo"
+          ? {
+              ...col,
+              key: "batchNo",
+              label: "Batch No",
+              renderCell: (row: Row) => (row as any).batchNo ?? (row as any).logCode ?? "-",
+            }
+          : col,
+      )
+    : sourceColumns;
+
   const inspectionSourceColumns =
     isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")
-      ? withDryingInspectionSourceColumns(sourceColumns, activeTab === "history")
-      : sourceColumns;
+      ? withDryingInspectionSourceColumns(mappedSourceColumns, activeTab === "history")
+      : mappedSourceColumns;
 
   if (isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")) {
     const columns = inspectionSourceColumns.filter(
@@ -222,7 +235,8 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
           },
         };
 
-        const withWarehouse = insertColumnsAfter(columns, "cbf", [productionWarehouseCol]);
+        const afterKey = columns.some((c) => c.key === "cft") ? "cft" : "cbf";
+        const withWarehouse = insertColumnsAfter(columns, afterKey, [productionWarehouseCol]);
 
         return [
           ...withWarehouse.filter((column) => column.key !== "inspectionImage"),

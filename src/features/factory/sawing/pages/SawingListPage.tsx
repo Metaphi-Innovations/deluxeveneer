@@ -793,7 +793,7 @@ function mapSawingExportRow(
       return accumulator;
     }
 
-    if (column.key === "cbm" || column.key === "cbf") {
+    if (column.key === "cbm" || column.key === "cft" || column.key === "cbf") {
       accumulator[column.key] = formatSawingCbmDisplay(value) || value || "";
       return accumulator;
     }

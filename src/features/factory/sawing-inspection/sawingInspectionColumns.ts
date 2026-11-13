@@ -69,7 +69,7 @@ export const SAWING_INSPECTION_PENDING_COLUMNS: readonly EnterpriseTableColumn<a
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
-  { key: "cbf", label: "CBF" },
+  { key: "cft", label: "CFT", renderCell: (row) => row.cft ?? row.cbf ?? "-" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
   { key: "updatedBy", label: "Updated" },
@@ -95,7 +95,7 @@ export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
-  { key: "cbf", label: "CBF" },
+  { key: "cft", label: "CFT", renderCell: (row) => row.cft ?? row.cbf ?? "-" },
   { key: "productionWarehouseName", label: "Production Warehouse" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
@@ -117,15 +117,44 @@ export const SAWING_INSPECTION_FAIL_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },
   { key: "cbm", label: "CBM" },
-  { key: "cbf", label: "CBF" },
+  { key: "cft", label: "CFT", renderCell: (row) => row.cft ?? row.cbf ?? "-" },
   { key: "remark", label: "Remark" },
   { key: "createdBy", label: "Created" },
   { key: "updatedBy", label: "Updated" },
 ] as const;
 
+export const SAWING_INSPECTION_HISTORY_COLUMNS: readonly EnterpriseTableColumn<any>[] = [
+  { key: "storageSrNo", label: "Storage Sr No." },
+  { key: "productionSrNo", label: "Production Sr No." },
+  { key: "transferDate", label: "Transfer Date", renderCell: (row) => formatInspectionDateDDMMYY(row.transferDate) },
+  { key: "inspectionDate", label: "Inspection Date", renderCell: (row) => formatInspectionDateDDMMYY(row.inspectionDate) },
+  { key: "sawingDate", label: "Sawing Date", renderCell: (row) => formatInspectionDateDDMMYY(row.sawingDate) },
+  { key: "itemName", label: "Item Name" },
+  { key: "subCategory", label: "Sub Category" },
+  {
+    key: "grade",
+    label: "Grade",
+    renderCell: (row) => renderGradeBadge(row.grade ?? row.gradeName),
+  },
+  {
+    key: "batchNo",
+    label: "Batch No.",
+    renderCell: (row) => row.batchNo || row.logNo || "-",
+  },
+  { key: "length", label: "Length" },
+  { key: "width", label: "Width" },
+  { key: "thickness", label: "Thickness" },
+  { key: "cbm", label: "CBM" },
+  { key: "cft", label: "CFT", renderCell: (row) => row.cft ?? row.cbf ?? "-" },
+  { key: "productionWarehouseName", label: "Production Warehouse" },
+  { key: "remark", label: "Remark" },
+  { key: "transferredBy", label: "Transferred By" },
+] as const;
+
 export const SAWING_INSPECTION_TABS = [
   { label: "Inspection Pending", value: "issued" },
   { label: "Inspection Done", value: "done" },
+  { label: "Inspection History", value: "history" },
 ] as const;
 
 export type SawingInspectionTab = (typeof SAWING_INSPECTION_TABS)[number]["value"];

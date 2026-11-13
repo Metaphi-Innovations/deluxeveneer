@@ -263,7 +263,7 @@ export function ApiInwardViewForm({
         "Item Name",
         "Factory Code",
         "HSN",
-        "Log Code",
+        "Batch No",
         "Bundle",
         "Pallet",
         "L",
@@ -1204,7 +1204,7 @@ function ItemRow({
       ) : isRawVeneer ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.logCode || "—"}
+            {item.batchNo || item.logCode || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {item.bundleNumber || "—"}

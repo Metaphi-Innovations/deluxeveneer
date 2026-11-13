@@ -233,7 +233,7 @@ export function IssueForDryingDialog<Row extends FactoryRecord>({
                           }`
                         : "";
                       const supportingDetails = [
-                        logNo ? `Log: ${logNo}` : "",
+                        logNo ? `Batch: ${logNo}` : "",
                         bundleNo ? `Bundle: ${bundleNo}` : "",
                         palletNo ? `Pallet: ${palletNo}` : "",
                         dimensions ? `Dim: ${dimensions}` : "",

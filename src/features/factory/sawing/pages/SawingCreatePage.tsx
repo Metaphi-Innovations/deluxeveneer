@@ -48,6 +48,7 @@ interface ProcessItemRow {
   width: number;
   thickness: number;
   cbm: number;
+  cft: number;
   cbf: number;
   receivedCbm: number;
   availableCbm: number;
@@ -63,6 +64,7 @@ interface RejectAvailableRow {
   width: number;
   height: number;
   cbm: number;
+  cft: number;
   cbf: number;
   amount: number;
   remark: string;
@@ -150,10 +152,11 @@ export function SawingCreatePage() {
     return Number(((l * w * t) / divisor).toFixed(4));
   }, [length, width, thickness]);
 
-  const calculatedCbf = useMemo(() => {
+  const calculatedCft = useMemo(() => {
     if (!calculatedCbm) return 0;
     return Number((calculatedCbm * 35.3147).toFixed(4));
   }, [calculatedCbm]);
+  const calculatedCbf = calculatedCft;
 
   const sourceCbm = useMemo(() => {
     const rawAvail = sourceItem?.availableCbm ?? sourceItem?.cbm;
@@ -206,10 +209,11 @@ export function SawingCreatePage() {
     return Number(((l * w * h) / divisor).toFixed(4));
   }, [raLength, raWidth, raHeight]);
 
-  const calculatedRaCbf = useMemo(() => {
+  const calculatedRaCft = useMemo(() => {
     if (!calculatedRaCbm) return 0;
     return Number((calculatedRaCbm * 35.3147).toFixed(4));
   }, [calculatedRaCbm]);
+  const calculatedRaCbf = calculatedRaCft;
 
   // ── Source Overview items ─────────────────────────────────────────
   const sourceOverviewItems = useMemo(() => {
@@ -252,6 +256,7 @@ export function SawingCreatePage() {
                 width: w,
                 thickness: t,
                 cbm: calculatedCbm,
+                cft: calculatedCft,
                 cbf: calculatedCbf,
                 receivedCbm,
                 availableCbm,
@@ -272,6 +277,7 @@ export function SawingCreatePage() {
         width: w,
         thickness: t,
         cbm: calculatedCbm,
+        cft: calculatedCft,
         cbf: calculatedCbf,
         receivedCbm,
         availableCbm,
@@ -322,6 +328,7 @@ export function SawingCreatePage() {
       width: w,
       height: h,
       cbm: calculatedRaCbm,
+      cft: calculatedRaCft,
       cbf: calculatedRaCbf,
       amount: 0,
       remark: raRemark,
@@ -383,7 +390,8 @@ export function SawingCreatePage() {
           width: item.width,
           thickness: item.thickness,
           cbm: Number(Number(item.cbm).toFixed(4)),
-          cbf: Number(Number(item.cbf).toFixed(4)),
+          cft: Number(Number(item.cft ?? item.cbf).toFixed(4)),
+          cbf: Number(Number(item.cft ?? item.cbf).toFixed(4)),
           ratePerCbm: item.ratePerCbm,
           amount: item.amount,
           remark: item.remark,
@@ -397,6 +405,7 @@ export function SawingCreatePage() {
                   width: rejectRow.width,
                   height: rejectRow.height,
                   cbm: rejectedCbm,
+                  cft: Number((rejectedCbm * 35.3147).toFixed(4)),
                   cbf: Number((rejectedCbm * 35.3147).toFixed(4)),
                   remark: rejectRow.remark,
                 },
@@ -408,6 +417,7 @@ export function SawingCreatePage() {
             width: availableRow?.width ?? Number(sourceItem?.availableWidth ?? sourceItem?.width ?? 0),
             height: availableRow?.height ?? Number(sourceItem?.availableHeight ?? sourceItem?.height ?? 0),
             cbm: Math.max(0, remainingCbm),
+            cft: Number((Math.max(0, remainingCbm) * 35.3147).toFixed(4)),
             cbf: Number((Math.max(0, remainingCbm) * 35.3147).toFixed(4)),
             remark: availableRow?.remark ?? "Remaining block after sawing",
           },
@@ -510,8 +520,8 @@ export function SawingCreatePage() {
               />
 
               <TextField
-                label="CBF"
-                value={calculatedCbf ? calculatedCbf.toFixed(4) : "0"}
+                label="CFT"
+                value={calculatedCft ? calculatedCft.toFixed(4) : "0"}
                 slotProps={{ input: { readOnly: true } }}
                 size="small"
                 sx={getCompactFieldSx(theme)}
@@ -602,7 +612,7 @@ export function SawingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CFT</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Received CBM</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Available CBM</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Rate per CBM</TableCell>
@@ -628,7 +638,7 @@ export function SawingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.thickness} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cft ?? item.cbf}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.receivedCbm}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.availableCbm}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.ratePerCbm}</TableCell>
@@ -754,7 +764,7 @@ export function SawingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CFT</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Remark</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
                       Action
@@ -787,7 +797,7 @@ export function SawingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{(item.cft ?? item.cbf) || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
                           <IconButton

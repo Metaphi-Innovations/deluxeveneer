@@ -136,7 +136,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
-    { key: "logCode", label: "Log Code", minWidth: 110, placeholder: "Enter log code", type: "text" },
+    { key: "batchNo", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text" },
     { key: "bundleNumber", label: "Bundle Number", minWidth: 110, placeholder: "Enter bundle no", type: "text" },
     { key: "palletNo", label: "Pallet No", minWidth: 110, placeholder: "Enter pallet no", type: "text" },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
@@ -1204,7 +1204,8 @@ function buildLineItemAutofillTextValues(
         width: "1.2",
         thickness: "0.001",
         noOfLeaves: "10",
-        logCode: `LOG-${stamp}`,
+        batchNo: `BATCH-${stamp}`,
+        logCode: `BATCH-${stamp}`,
         bundleNumber: `B-${stamp}`,
         palletNo: `P-${stamp}`,
       };
