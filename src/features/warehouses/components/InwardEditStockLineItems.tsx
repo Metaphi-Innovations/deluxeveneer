@@ -117,7 +117,7 @@ const warehouseAAddStockTableConfigs: Record<
     { key: "itemName", label: "Item Name", minWidth: 260, placeholder: "Select from Item Master", type: "item-name", required: true },
     { key: "factoryCode", label: "Factory Code", minWidth: 160, placeholder: "Auto from item", type: "text", required: true },
     { key: "hsn", label: "HSN Code", minWidth: 140, options: hsnMasterOptions, placeholder: "Auto from item", type: "hsn", required: true },
-    { key: "batchNo", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text" },
+    { key: "batchNo", label: "Batch No", minWidth: 110, placeholder: "Enter batch no", type: "text", required: true },
     { key: "length", label: "Length (m)", minWidth: 100, placeholder: "Enter length", type: "text", required: true },
     { key: "width", label: "Width (m)", minWidth: 100, placeholder: "Enter width", type: "text", required: true },
     { key: "thickness", label: "Height (m)", minWidth: 100, placeholder: "Enter height", type: "text", required: true },
@@ -1726,25 +1726,79 @@ function renderEditableField({
     );
   }
 
+  if (column.key === "grade" || column.key === "gradeName") {
+    const gradeSelectOptions = [...(gradeOptions ?? column.options ?? [])];
+    return (
+      <Autocomplete
+        options={gradeSelectOptions}
+        value={value || null}
+        onChange={(_, nextValue) =>
+          onChange(typeof nextValue === "string" ? nextValue : nextValue ?? "")
+        }
+        onOpen={() => onGradeDropdownOpen?.()}
+        sx={{
+          cursor: "text",
+          "& .MuiInputBase-root": { cursor: "text" },
+          "& .MuiInputBase-input": { cursor: "text" },
+        }}
+        slotProps={{
+          popper: getAutocompletePopperSlotProps(theme, 280),
+          paper: {
+            sx: getAutocompletePaperSx(theme),
+          },
+          listbox: {
+            sx: getAutocompleteListboxSx(theme),
+          },
+        }}
+        renderOption={(props, option) => (
+          <li {...props} title={option}>
+            {option}
+          </li>
+        )}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            error={Boolean(errorText)}
+            helperText={errorText || undefined}
+            placeholder={column.placeholder}
+            size="small"
+            title={value.trim() ? value : undefined}
+            sx={{
+              ...getCompactFieldSx(theme, errorText ? "error" : "default", {
+                dense: true,
+              }),
+              "& .MuiInputBase-input": {
+                cursor: "text",
+                fontSize: theme.typography.caption.fontSize,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              },
+              "& .MuiFormHelperText-root": {
+                mx: 0,
+                mt: 0.25,
+                fontSize: "0.65rem",
+                lineHeight: 1.2,
+              },
+            }}
+          />
+        )}
+      />
+    );
+  }
+
   if (column.type === "gst" || column.type === "select") {
     const selectOptions =
       column.key === "itemSubCategory"
         ? [...(itemSubCategoryOptions ?? getLiveItemSubCategoryOptions())]
         : column.key === "unitName"
           ? [...(unitNameOptions ?? getLiveUnitOptions())]
-          : column.key === "grade" || column.key === "gradeName"
-            ? [...(gradeOptions ?? column.options ?? [])]
-            : column.options ?? [];
+          : column.options ?? [];
 
     return (
       <ErpSelectField
         helperText={errorText || undefined}
         onChange={onChange}
-        onOpen={
-          column.key === "grade" || column.key === "gradeName"
-            ? onGradeDropdownOpen
-            : undefined
-        }
         options={selectOptions}
         placeholder={column.placeholder}
         size="dense"

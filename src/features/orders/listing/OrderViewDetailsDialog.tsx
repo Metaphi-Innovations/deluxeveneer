@@ -65,7 +65,6 @@ const orderItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
   { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Sales Item Name", minWidth: 160, getValue: (row) => row.salesItemName },
   { label: "Log No.", minWidth: 110, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 110, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 100, getValue: (row) => row.length },
@@ -96,9 +95,6 @@ const orderItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Amount", minWidth: 110, getValue: (row) => row.amount },
   { label: "Base Type", minWidth: 120, getValue: (row) => row.baseType },
   { label: "Base Name", minWidth: 150, getValue: (row) => row.baseName },
-  { label: "Base Length", minWidth: 110, getValue: (row) => row.baseLength },
-  { label: "Base Width", minWidth: 110, getValue: (row) => row.baseWidth },
-  { label: "Base Thickness", minWidth: 120, getValue: (row) => row.baseThickness },
   { label: "Design Code", minWidth: 120, getValue: (row) => row.designCode },
   { label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode },
   { label: "Remark", minWidth: 180, getValue: (row) => row.remark },
@@ -108,7 +104,6 @@ const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
   { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Sales Item Name", minWidth: 160, getValue: (row) => row.salesItemName },
   { label: "Log No.", minWidth: 110, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 110, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 100, getValue: (row) => row.length },
@@ -144,7 +139,6 @@ const finishedItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] 
   { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
   { label: "Finished Type", minWidth: 140, getValue: (row) => row.finishedType || row.productCategory },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Sales Item", minWidth: 160, getValue: (row) => row.salesItemName },
   { label: "Length", minWidth: 100, getValue: (row) => row.length },
   { label: "Width", minWidth: 100, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 100, getValue: (row) => row.thickness },
@@ -517,7 +511,6 @@ function getItemDetailColumns(
     { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
     { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
     { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-    { label: "Sales Item Name", minWidth: 160, getValue: (row) => row.salesItemName },
   ];
 
   if (hasSawing) {
@@ -534,12 +527,12 @@ function getItemDetailColumns(
     );
   }
 
-  if (hasFluted) {
-    cols.push({ label: "Design Code", minWidth: 120, getValue: (row) => row.designCode });
-  }
-
-  if (hasEmbossed) {
-    cols.push({ label: "Structured Code", minWidth: 130, getValue: (row) => row.structuredCode });
+  if (hasFluted || hasEmbossed) {
+    cols.push({
+      label: "Structured Code",
+      minWidth: 130,
+      getValue: (row) => row.structuredCode ?? "-",
+    });
   }
 
   cols.push(
@@ -592,9 +585,6 @@ function getItemDetailColumns(
     cols.push(
       { label: "Base Type", minWidth: 120, getValue: (row) => row.baseType },
       { label: "Base Name", minWidth: 150, getValue: (row) => row.baseName },
-      { label: "Base Length", minWidth: 110, getValue: (row) => row.baseLength },
-      { label: "Base Width", minWidth: 110, getValue: (row) => row.baseWidth },
-      { label: "Base Thickness", minWidth: 120, getValue: (row) => row.baseThickness },
     );
   }
 

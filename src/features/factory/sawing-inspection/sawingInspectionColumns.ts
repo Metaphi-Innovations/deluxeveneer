@@ -28,6 +28,38 @@ export function getGradeBadgeStyle(grade?: string | null) {
   return GRADE_COLOR_PALETTES[index];
 }
 
+function inspectionDecisionIsPass(row: Record<string, unknown>) {
+  const qc = String(row.qcStatus ?? "").trim().toLowerCase();
+  const listing = String(row.listingState ?? "").trim().toLowerCase();
+  return qc === "pass" || qc === "done" || listing === "done";
+}
+
+function inspectionDecisionIsFail(row: Record<string, unknown>) {
+  const qc = String(row.qcStatus ?? "").trim().toLowerCase();
+  const listing = String(row.listingState ?? "").trim().toLowerCase();
+  return qc === "fail" || listing === "failed" || listing === "fail";
+}
+
+export function formatInspectionGradeAQty(row: Record<string, unknown>): string {
+  const raw = row.passQty;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "" && String(raw).trim() !== "-") {
+    return String(raw);
+  }
+  if (inspectionDecisionIsFail(row)) return "0";
+  if (inspectionDecisionIsPass(row)) return "1";
+  return "-";
+}
+
+export function formatInspectionGradeBQty(row: Record<string, unknown>): string {
+  const raw = row.failQty;
+  if (raw !== undefined && raw !== null && String(raw).trim() !== "" && String(raw).trim() !== "-") {
+    return String(raw);
+  }
+  if (inspectionDecisionIsFail(row)) return "1";
+  if (inspectionDecisionIsPass(row)) return "0";
+  return "-";
+}
+
 export function renderGradeBadge(grade?: string | null) {
   const val = grade ? String(grade).trim() : "";
   if (!val || val === "-" || val === "—") {
@@ -82,9 +114,14 @@ export const SAWING_INSPECTION_DONE_COLUMNS: readonly EnterpriseTableColumn<any>
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
   {
-    key: "grade",
-    label: "Grade",
-    renderCell: (row) => renderGradeBadge(row.grade ?? row.gradeName),
+    key: "passQty",
+    label: "Grade A",
+    renderCell: (row) => formatInspectionGradeAQty(row),
+  },
+  {
+    key: "failQty",
+    label: "Grade B",
+    renderCell: (row) => formatInspectionGradeBQty(row),
   },
   {
     key: "batchNo",
@@ -132,9 +169,14 @@ export const SAWING_INSPECTION_HISTORY_COLUMNS: readonly EnterpriseTableColumn<a
   { key: "itemName", label: "Item Name" },
   { key: "subCategory", label: "Sub Category" },
   {
-    key: "grade",
-    label: "Grade",
-    renderCell: (row) => renderGradeBadge(row.grade ?? row.gradeName),
+    key: "passQty",
+    label: "Grade A",
+    renderCell: (row) => formatInspectionGradeAQty(row),
+  },
+  {
+    key: "failQty",
+    label: "Grade B",
+    renderCell: (row) => formatInspectionGradeBQty(row),
   },
   {
     key: "batchNo",

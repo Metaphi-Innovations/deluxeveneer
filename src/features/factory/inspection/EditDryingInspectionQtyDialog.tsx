@@ -188,7 +188,7 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
                 value={String(leafQuantity || "-")}
               />
               <Stack spacing={0.75}>
-                <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
+                <DialogFieldLabel required>Grade A</DialogFieldLabel>
                 <TextField
                   error={exceedsTotal}
                   fullWidth
@@ -206,7 +206,7 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
                 />
               </Stack>
               <Stack spacing={0.75}>
-                <DialogFieldLabel required>Fail Quantity (Leaves)</DialogFieldLabel>
+                <DialogFieldLabel required>Grade B</DialogFieldLabel>
                 <TextField
                   error={exceedsTotal}
                   fullWidth

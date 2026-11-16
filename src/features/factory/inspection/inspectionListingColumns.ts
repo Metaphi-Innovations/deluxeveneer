@@ -1,6 +1,10 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
+import {
+  formatInspectionGradeAQty,
+  formatInspectionGradeBQty,
+} from "../sawing-inspection/sawingInspectionColumns";
 
 function isDryingInspectionSlug(slug: string) {
   return slug === "drying-inspection" || slug === "inspection";
@@ -168,7 +172,7 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
 
   if (isDryingInspectionSlug(slug) && (activeTab === "done" || activeTab === "history")) {
     const columns = inspectionSourceColumns.filter(
-      (column) => column.key !== "qcStatus",
+      (column) => column.key !== "qcStatus" && column.key !== "grade",
     );
 
     const warehouseColumn: EnterpriseTableColumn<Row> = {
@@ -193,8 +197,8 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
         : { key: "inspectionEventStatus", label: "Status" };
 
     return insertColumnsAfter(columns, "noOfLeaves", [
-      { key: "passQty", label: "Pass Qty (Leaves)" },
-      { key: "failQty", label: "Failed Qty (Leaves)" },
+      { key: "passQty", label: "Grade A" },
+      { key: "failQty", label: "Grade B" },
       ...(activeTab === "done" ? [warehouseColumn] : []),
       statusColumn,
       inspectionImageColumn<Row>(),
@@ -235,8 +239,21 @@ export function applyInspectionListingColumns<Row extends FactoryRecord>(
           },
         };
 
-        const afterKey = columns.some((c) => c.key === "cft") ? "cft" : "cbf";
-        const withWarehouse = insertColumnsAfter(columns, afterKey, [productionWarehouseCol]);
+        const withoutGrade = columns.filter((column) => column.key !== "grade");
+        const withGradeSplit = insertColumnsAfter(withoutGrade, "subCategory", [
+          {
+            key: "passQty",
+            label: "Grade A",
+            renderCell: (row: Row) => formatInspectionGradeAQty(row as Record<string, unknown>),
+          },
+          {
+            key: "failQty",
+            label: "Grade B",
+            renderCell: (row: Row) => formatInspectionGradeBQty(row as Record<string, unknown>),
+          },
+        ]);
+        const afterKey = withGradeSplit.some((c) => c.key === "cft") ? "cft" : "cbf";
+        const withWarehouse = insertColumnsAfter(withGradeSplit, afterKey, [productionWarehouseCol]);
 
         return [
           ...withWarehouse.filter((column) => column.key !== "inspectionImage"),

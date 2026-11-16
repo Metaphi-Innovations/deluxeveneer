@@ -39,6 +39,11 @@ import {
   getCachedItemMasterRows,
   refreshItemMasterCache,
 } from "../../masters/item-name-master/api/itemMasterApi";
+import {
+  fetchItemSubCategoriesApi,
+  getCachedItemSubCategoryMasterRows,
+  refreshItemSubCategoryMasterCache,
+} from "../../masters/item-sub-category-master/api/itemSubCategoryMasterApi";
 import { fetchOrderDropdownsApi } from "../api/ordersApi";
 import { formatMasterValue } from "../../masters/shared";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
@@ -87,22 +92,99 @@ const sqmToSqf = SQM_TO_SQF;
 export function normalizeProductType(value?: string): string {
   const trimmed = (value ?? "").trim();
   if (!trimmed) return "";
-  // Strip classification suffix like ' (Raw)' or ' (Finished)'
-  const base = trimmed.replace(/\s*\((?:Raw|Finished)\)$/i, "").trim().toLowerCase();
+  // Strip classification suffix like ' (Raw)', ' (Finished)', ' (Wood)', or ' (Pressed Veneer)'
+  const base = trimmed
+    .replace(/\s*\((?:Raw|Finished|Wood|Pressed Veneer)\)$/i, "")
+    .trim()
+    .toLowerCase();
   return base;
 }
 
 export function formatProductTypeLabel(value?: string): string {
   const trimmed = (value ?? "").trim();
   if (!trimmed) return "";
-  if (trimmed.endsWith(" (Raw)") || trimmed.endsWith(" (Finished)")) {
+
+  const norm = normalizeProductType(trimmed);
+  if (norm === "veneer") return "Veneer (Raw)";
+  if (norm === "sawing") return "Sawing (Wood)";
+  if (norm === "mdf") return "MDF";
+  if (norm === "plywood") return "Plywood";
+
+  const finishedLabels: Record<string, string> = {
+    decorative: "Decorative (Pressed Veneer)",
+    marquetry: "Marquetry (Finished)",
+    fluted: "Fluted (Finished)",
+    embossed: "Embossed (Finished)",
+  };
+  if (finishedLabels[norm]) {
+    return finishedLabels[norm];
+  }
+
+  if (
+    trimmed.endsWith(" (Raw)") ||
+    trimmed.endsWith(" (Finished)") ||
+    trimmed.endsWith(" (Wood)") ||
+    trimmed.endsWith(" (Pressed Veneer)")
+  ) {
     return trimmed;
   }
-  const norm = trimmed.toLowerCase();
-  if (norm === "veneer" || norm === "sawing" || norm === "mdf" || norm === "plywood") {
-    return `${trimmed} (Raw)`;
-  }
+
   return `${trimmed} (Finished)`;
+}
+
+/** Finished craft types: Base Type on row 1; Base Name + Remark on row 3 (no Base Type on row 3). */
+function usesBaseTypeFirstRowFlow(productType?: string): boolean {
+  const norm = normalizeProductType(productType);
+  return ["decorative", "marquetry", "fluted", "embossed"].includes(norm);
+}
+
+function usesFlutedOrEmbossedCraftFlow(productType?: string): boolean {
+  const norm = normalizeProductType(productType);
+  return norm === "fluted" || norm === "embossed";
+}
+
+function showsStructuredCodeField(productType?: string): boolean {
+  return usesFlutedOrEmbossedCraftFlow(productType);
+}
+
+function getCraftProductTypeRowConfig(
+  typeKey: "productCategory" | "finishedType",
+  productType?: string,
+): Pick<EntryRowConfig, "keys" | "template"> {
+  if (!usesBaseTypeFirstRowFlow(productType)) {
+    return {
+      keys:
+        typeKey === "finishedType"
+          ? ["finishedType", "subCategory", "itemName"]
+          : ["productCategory", "subCategory", "itemName"],
+      template:
+        typeKey === "finishedType"
+          ? {
+              xs: "1fr",
+              sm: `${productTypeControlWidth}px 200px 350px`,
+              md: `${productTypeControlWidth}px 200px 350px`,
+            }
+          : { ...productTypeRowTemplate },
+    };
+  }
+
+  if (usesFlutedOrEmbossedCraftFlow(productType)) {
+    return {
+      keys:
+        typeKey === "finishedType"
+          ? ["finishedType", "baseType", "structuredCode", "subCategory", "itemName"]
+          : ["productCategory", "baseType", "structuredCode", "subCategory", "itemName"],
+      template: { ...flutedEmbossedProductTypeRowTemplate },
+    };
+  }
+
+  return {
+    keys:
+      typeKey === "finishedType"
+        ? ["finishedType", "baseType", "subCategory", "itemName"]
+        : ["productCategory", "baseType", "subCategory", "itemName"],
+    template: { ...decorativeProductTypeRowTemplate },
+  };
 }
 
 const finishedTypeOptions = [
@@ -112,12 +194,22 @@ const finishedTypeOptions = [
   "Decorative",
 ] as const;
 
-const baseTypeOptions = ["Plywood", "MDF"] as const;
+const baseTypeOptions = ["Plywood", "MDF", "Fleece Back", "Twist"] as const;
+
+const productTypeControlWidth = 220;
 
 const unifiedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
-  { key: "productCategory", label: "Product Type", controlWidth: 170, minWidth: 170, options: [...productCategoryOptions], type: "select" },
-  { key: "itemName", label: "Item Name", controlWidth: 260, dropdownWidth: 340, minWidth: 240, showItemDetails: true, type: "select" },
-  { key: "salesItemName", label: "Sales Item Name", controlWidth: 240, minWidth: 200, type: "text" },
+  {
+    key: "productCategory",
+    label: "Product Type",
+    controlWidth: productTypeControlWidth,
+    dropdownWidth: 280,
+    minWidth: productTypeControlWidth,
+    options: [...productCategoryOptions],
+    type: "select",
+  },
+  { key: "subCategory", label: "Sub Category", controlWidth: 200, dropdownWidth: 280, minWidth: 200, type: "select" },
+  { key: "itemName", label: "Item Name", controlWidth: 350, dropdownWidth: 400, minWidth: 350, showItemDetails: true, type: "select" },
   { key: "logNo", label: "Log No.", controlWidth: 150, minWidth: 130, type: "text" },
   { key: "batchNo", label: "Batch No", controlWidth: 150, minWidth: 130, type: "text" },
   { key: "length", label: "Length", controlWidth: 130, minWidth: 110, numeric: true, type: "text" },
@@ -135,23 +227,34 @@ const unifiedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   { key: "ratePerSqf", label: "Rate / SQF", controlWidth: 140, minWidth: 130, numeric: true, type: "text" },
   { key: "amount", label: "Amount", controlWidth: 150, minWidth: 120, numeric: true, readOnly: true, type: "text" },
   { key: "baseType", label: "Base Type", controlWidth: 160, minWidth: 140, options: baseTypeOptions, type: "select" },
-  { key: "baseName", label: "Base Name", controlWidth: 220, dropdownWidth: 300, minWidth: 200, type: "select" },
-  { key: "baseLength", label: "Base Length", controlWidth: 130, minWidth: 110, numeric: true, type: "text" },
-  { key: "baseWidth", label: "Base Width", controlWidth: 130, minWidth: 110, numeric: true, type: "text" },
-  { key: "baseThickness", label: "Base Thickness", controlWidth: 130, minWidth: 120, numeric: true, type: "text" },
+  { key: "baseName", label: "Base Name", controlWidth: 350, dropdownWidth: 400, minWidth: 350, type: "select" },
   { key: "designCode", label: "Design Code", controlWidth: 160, minWidth: 140, type: "text" },
   { key: "structuredCode", label: "Structured Code", controlWidth: 170, minWidth: 150, type: "text" },
-  { key: "remark", label: "Remark", controlWidth: 300, minWidth: 220, type: "text" },
+  { key: "remark", label: "Remark", controlWidth: 400, minWidth: 400, type: "text" },
 ];
+
+const productTypeRowTemplate = {
+  xs: "1fr",
+  sm: `${productTypeControlWidth}px 200px 350px`,
+  md: `${productTypeControlWidth}px 200px 350px`,
+} as const;
+
+const decorativeProductTypeRowTemplate = {
+  xs: "1fr",
+  sm: `${productTypeControlWidth}px 160px 200px 350px`,
+  md: `${productTypeControlWidth}px 160px 200px 350px`,
+} as const;
+
+const flutedEmbossedProductTypeRowTemplate = {
+  xs: "1fr",
+  sm: `${productTypeControlWidth}px 160px 170px 200px 350px`,
+  md: `${productTypeControlWidth}px 160px 170px 200px 350px`,
+} as const;
 
 const sawingEntryRows: readonly EntryRowConfig[] = [
   {
-    keys: ["productCategory", "itemName", "salesItemName"],
-    template: {
-      xs: "1fr",
-      sm: "1fr 1fr",
-      md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-    },
+    keys: ["productCategory", "subCategory", "itemName"],
+    template: { ...productTypeRowTemplate },
   },
   {
     keys: [
@@ -170,46 +273,42 @@ const sawingEntryRows: readonly EntryRowConfig[] = [
     template: {
       xs: "1fr 1fr",
       sm: "repeat(3, minmax(110px, 1fr))",
-      md: "repeat(9, minmax(100px, 1fr)) minmax(160px, 1.4fr)",
+      md: "repeat(9, minmax(100px, 1fr)) 400px",
     },
   },
 ];
 
 const unifiedEntryRows: readonly EntryRowConfig[] = [
-  { keys: ["productCategory", "itemName", "salesItemName"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(150px, 1.1fr) minmax(220px, 1.8fr) minmax(200px, 1.5fr)" } },
+  { keys: ["productCategory", "subCategory", "itemName"], template: { ...productTypeRowTemplate } },
   { keys: ["length", "width", "thickness", "quantitySheets", "sqm", "totalSqm", "ratePerSqf", "amount"], template: { xs: "1fr 1fr", sm: "repeat(4, minmax(120px, 1fr))", md: "repeat(8, minmax(105px, 1fr))" } },
-  { keys: ["baseType", "baseName", "baseLength", "baseWidth", "baseThickness", "designCode", "structuredCode", "remark"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(120px, 1fr) minmax(170px, 1.4fr) repeat(3, minmax(100px, 0.8fr)) minmax(130px, 1fr) minmax(130px, 1fr) minmax(180px, 1.4fr)" } },
+  { keys: ["baseType", "baseName", "designCode", "structuredCode", "remark"], template: { xs: "1fr", sm: "1fr 1fr", md: "minmax(120px, 1fr) 350px minmax(130px, 1fr) minmax(130px, 1fr) 400px" } },
 ];
 
 const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "productCategory",
     label: "Product Type",
-    controlWidth: 170,
-    minWidth: 170,
+    controlWidth: productTypeControlWidth,
+    dropdownWidth: 280,
+    minWidth: productTypeControlWidth,
     options: productCategoryOptions,
     type: "select",
-  },
-  {
-    key: "itemName",
-    label: "Item Name",
-    controlWidth: 280,
-    dropdownWidth: 360,
-    minWidth: 250,
-    type: "select",
-  },
-  {
-    key: "salesItemName",
-    label: "Sales Item Name",
-    controlWidth: 240,
-    minWidth: 200,
-    type: "text",
   },
   {
     key: "subCategory",
     label: "Sub Category",
     controlWidth: 200,
+    dropdownWidth: 280,
     minWidth: 200,
+    type: "select",
+  },
+  {
+    key: "itemName",
+    label: "Item Name",
+    controlWidth: 350,
+    dropdownWidth: 400,
+    minWidth: 350,
+    showItemDetails: true,
     type: "select",
   },
   {
@@ -318,34 +417,10 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "baseName",
     label: "Base Name",
-    controlWidth: 220,
-    dropdownWidth: 300,
-    minWidth: 200,
+    controlWidth: 350,
+    dropdownWidth: 400,
+    minWidth: 350,
     type: "select",
-  },
-  {
-    key: "baseLength",
-    label: "Base Length",
-    controlWidth: 130,
-    minWidth: 110,
-    numeric: true,
-    type: "text",
-  },
-  {
-    key: "baseWidth",
-    label: "Base Width",
-    controlWidth: 130,
-    minWidth: 110,
-    numeric: true,
-    type: "text",
-  },
-  {
-    key: "baseThickness",
-    label: "Base Thickness",
-    controlWidth: 130,
-    minWidth: 120,
-    numeric: true,
-    type: "text",
   },
   {
     key: "designCode",
@@ -364,8 +439,8 @@ const rawOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "remark",
     label: "Remark",
-    controlWidth: 350,
-    minWidth: 240,
+    controlWidth: 400,
+    minWidth: 400,
     type: "text",
   },
 ];
@@ -374,26 +449,28 @@ const finishedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "finishedType",
     label: "Finished Type",
-    controlWidth: 180,
-    minWidth: 170,
+    controlWidth: productTypeControlWidth,
+    dropdownWidth: 280,
+    minWidth: productTypeControlWidth,
     options: finishedTypeOptions,
+    type: "select",
+  },
+  {
+    key: "subCategory",
+    label: "Sub Category",
+    controlWidth: 200,
+    dropdownWidth: 280,
+    minWidth: 200,
     type: "select",
   },
   {
     key: "itemName",
     label: "Item Name",
-    controlWidth: 280,
-    dropdownWidth: 360,
-    minWidth: 260,
+    controlWidth: 350,
+    dropdownWidth: 400,
+    minWidth: 350,
     showItemDetails: true,
     type: "select",
-  },
-  {
-    key: "salesItemName",
-    label: "Sales Item Name",
-    controlWidth: 280,
-    minWidth: 220,
-    type: "text",
   },
   {
     key: "length",
@@ -473,34 +550,10 @@ const finishedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "baseName",
     label: "Base Name",
-    controlWidth: 260,
-    dropdownWidth: 340,
-    minWidth: 220,
+    controlWidth: 350,
+    dropdownWidth: 400,
+    minWidth: 350,
     type: "select",
-  },
-  {
-    key: "baseLength",
-    label: "Base Length",
-    controlWidth: 140,
-    minWidth: 120,
-    numeric: true,
-    type: "text",
-  },
-  {
-    key: "baseWidth",
-    label: "Base Width",
-    controlWidth: 140,
-    minWidth: 120,
-    numeric: true,
-    type: "text",
-  },
-  {
-    key: "baseThickness",
-    label: "Base Thickness",
-    controlWidth: 140,
-    minWidth: 130,
-    numeric: true,
-    type: "text",
   },
   {
     key: "designCode",
@@ -519,86 +572,35 @@ const finishedOrderLineItemColumns: readonly OrderLineItemColumn[] = [
   {
     key: "remark",
     label: "Remark",
-    controlWidth: 350,
-    minWidth: 240,
+    controlWidth: 400,
+    minWidth: 400,
     type: "text",
   },
 ];
 
 const finishedProductBaseRow: EntryRowConfig = {
-  keys: [
-    "baseType",
-    "baseName",
-    "baseLength",
-    "baseWidth",
-    "baseThickness",
-    "remark",
-  ],
+  keys: ["baseType", "baseName", "remark"],
   template: {
     xs: "1fr",
     sm: "1fr 1fr",
-    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
-  },
-};
-
-const finishedProductFlutedRow: EntryRowConfig = {
-  keys: [
-    "baseType",
-    "baseName",
-    "baseLength",
-    "baseWidth",
-    "baseThickness",
-    "remark",
-  ],
-  template: {
-    xs: "1fr",
-    sm: "1fr 1fr",
-    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
-  },
-};
-
-const finishedProductEmbossedRow: EntryRowConfig = {
-  keys: [
-    "baseType",
-    "baseName",
-    "baseLength",
-    "baseWidth",
-    "baseThickness",
-    "remark",
-  ],
-  template: {
-    xs: "1fr",
-    sm: "1fr 1fr",
-    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
+    md: "minmax(130px, 1.1fr) 350px 400px",
   },
 };
 
 const finishedProductDecorativeRow: EntryRowConfig = {
-  keys: [
-    "baseType",
-    "baseName",
-    "baseLength",
-    "baseWidth",
-    "baseThickness",
-    "remark",
-  ],
+  keys: ["baseName", "remark"],
   template: {
     xs: "1fr",
     sm: "1fr 1fr",
-    md: "minmax(130px, 1.1fr) minmax(200px, 1.8fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(120px, 0.95fr) minmax(200px, 1.5fr)",
+    md: "350px 400px",
   },
 };
 
 function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConfig[] {
   const normalized = normalizeProductType(finishedType);
-  const thirdRow =
-    normalized === "fluted"
-      ? finishedProductFlutedRow
-      : normalized === "embossed"
-        ? finishedProductEmbossedRow
-        : normalized === "decorative"
-          ? finishedProductDecorativeRow
-          : finishedProductBaseRow;
+  const thirdRow = usesBaseTypeFirstRowFlow(finishedType)
+    ? finishedProductDecorativeRow
+    : finishedProductBaseRow;
 
   const middleKeys: readonly (keyof Omit<OrderLineItem, "id">)[] =
     normalized === "decorative"
@@ -614,9 +616,8 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
           "ratePerSqf",
           "amount",
         ]
-      : normalized === "fluted"
+      : normalized === "fluted" || normalized === "embossed" || normalized === "marquetry"
         ? [
-            "designCode",
             "length",
             "width",
             "thickness",
@@ -626,19 +627,7 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
             "ratePerSqf",
             "amount",
           ]
-        : normalized === "embossed"
-          ? [
-              "structuredCode",
-              "length",
-              "width",
-              "thickness",
-              "quantitySheets",
-              "sqm",
-              "totalSqm",
-              "ratePerSqf",
-              "amount",
-            ]
-          : [
+        : [
               "length",
               "width",
               "thickness",
@@ -649,14 +638,12 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
               "amount",
             ];
 
+  const firstRow = getCraftProductTypeRowConfig("finishedType", finishedType);
+
   return [
     {
-      keys: ["finishedType", "itemName", "salesItemName"],
-      template: {
-        xs: "1fr",
-        sm: "1fr 1fr",
-        md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-      },
+      keys: firstRow.keys,
+      template: firstRow.template,
     },
     {
       keys: middleKeys,
@@ -672,50 +659,38 @@ function getFinishedOrderEntryRows(finishedType?: string): readonly EntryRowConf
 
 const veneerEntryRows: readonly EntryRowConfig[] = [
   {
-    keys: ["productCategory", "itemName", "salesItemName"],
-    template: {
-      xs: "1fr",
-      sm: "1fr 1fr",
-      md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-    },
+    keys: ["productCategory", "subCategory", "itemName"],
+    template: { ...productTypeRowTemplate },
   },
   {
     keys: ["length", "width", "thickness", "noOfLeaves", "sqm", "ratePerSqf", "amount", "remark"],
     template: {
       xs: "1fr 1fr",
       sm: "repeat(4, 1fr)",
-      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) minmax(200px, 1.6fr)",
+      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) 400px",
     },
   },
 ];
 
 const sheetBasedRawEntryRows: readonly EntryRowConfig[] = [
   {
-    keys: ["productCategory", "itemName", "salesItemName"],
-    template: {
-      xs: "1fr",
-      sm: "1fr 1fr",
-      md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-    },
+    keys: ["productCategory", "subCategory", "itemName"],
+    template: { ...productTypeRowTemplate },
   },
   {
     keys: ["length", "width", "thickness", "quantitySheets", "sqm", "ratePerSqf", "amount", "remark"],
     template: {
       xs: "1fr 1fr",
       sm: "repeat(4, 1fr)",
-      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) minmax(200px, 1.6fr)",
+      md: "minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(130px, 1.1fr) minmax(130px, 1.1fr) 400px",
     },
   },
 ];
 
 const emptySelectionEntryRows: readonly EntryRowConfig[] = [
   {
-    keys: ["productCategory", "itemName", "salesItemName"],
-    template: {
-      xs: "1fr",
-      sm: "1fr 1fr",
-      md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-    },
+    keys: ["productCategory", "subCategory", "itemName"],
+    template: { ...productTypeRowTemplate },
   },
 ];
 
@@ -734,14 +709,9 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
     return sheetBasedRawEntryRows;
   }
   if (["decorative", "marquetry", "fluted", "embossed"].includes(normalized)) {
-    const thirdRow =
-      normalized === "fluted"
-        ? finishedProductFlutedRow
-        : normalized === "embossed"
-          ? finishedProductEmbossedRow
-          : normalized === "decorative"
-            ? finishedProductDecorativeRow
-            : finishedProductBaseRow;
+    const thirdRow = usesBaseTypeFirstRowFlow(productType)
+      ? finishedProductDecorativeRow
+      : finishedProductBaseRow;
 
     const middleKeys: readonly (keyof Omit<OrderLineItem, "id">)[] =
       normalized === "decorative"
@@ -757,49 +727,23 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
             "ratePerSqf",
             "amount",
           ]
-        : normalized === "fluted"
-          ? [
-              "designCode",
-              "length",
-              "width",
-              "thickness",
-              "quantitySheets",
-              "sqm",
-              "totalSqm",
-              "ratePerSqf",
-              "amount",
-            ]
-          : normalized === "embossed"
-            ? [
-                "structuredCode",
-                "length",
-                "width",
-                "thickness",
-                "quantitySheets",
-                "sqm",
-                "totalSqm",
-                "ratePerSqf",
-                "amount",
-              ]
-            : [
-                "length",
-                "width",
-                "thickness",
-                "quantitySheets",
-                "sqm",
-                "totalSqm",
-                "ratePerSqf",
-                "amount",
-              ];
+        : [
+            "length",
+            "width",
+            "thickness",
+            "quantitySheets",
+            "sqm",
+            "totalSqm",
+            "ratePerSqf",
+            "amount",
+          ];
+
+    const firstRow = getCraftProductTypeRowConfig("productCategory", productType);
 
     return [
       {
-        keys: ["productCategory", "itemName", "salesItemName"],
-        template: {
-          xs: "1fr",
-          sm: "1fr 1fr",
-          md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-        },
+        keys: firstRow.keys,
+        template: firstRow.template,
       },
       {
         keys: middleKeys,
@@ -814,12 +758,8 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
   }
   return [
     {
-      keys: ["productCategory", "itemName", "salesItemName"],
-      template: {
-        xs: "1fr",
-        sm: "1fr 1fr",
-        md: "minmax(160px, 1.1fr) minmax(240px, 2.2fr) minmax(220px, 1.8fr)",
-      },
+      keys: ["productCategory", "subCategory", "itemName"],
+      template: { ...productTypeRowTemplate },
     },
     {
       keys: [
@@ -835,7 +775,7 @@ function getDynamicEntryRows(productType?: string): readonly EntryRowConfig[] {
       template: {
         xs: "1fr 1fr",
         sm: "repeat(4, minmax(120px, 1fr))",
-        md: "repeat(8, minmax(110px, 1fr))",
+        md: "repeat(7, minmax(110px, 1fr)) 400px",
       },
     },
   ];
@@ -876,65 +816,121 @@ export const OrderLineItemsTable = forwardRef<
   const isFinishedOrder = variant === "finished";
   const [itemsVersion, setItemsVersion] = useState(0);
   const [dropdownItems, setDropdownItems] = useState<Array<{ id?: string; name?: string; label?: string; category?: string; subCategory?: string }>>([]);
+  const [subCategoryMasterRows, setSubCategoryMasterRows] = useState<MasterRecord[]>(
+    () => getCachedItemSubCategoryMasterRows(),
+  );
+  const [subCategoryOptions, setSubCategoryOptions] = useState<string[]>(() =>
+    getAllSubCategoryMasterOptions(getCachedItemSubCategoryMasterRows()),
+  );
 
   useEffect(() => {
     let ignore = false;
-    // Check if items are already cached in itemMasterRowsCache
-    const cached = getCachedItemMasterRows();
-    if (cached && cached.length > 0) {
-      return;
-    }
+    void Promise.all([
+      refreshItemSubCategoryMasterCache(),
+      getCachedItemMasterRows().length > 0
+        ? Promise.resolve(getCachedItemMasterRows())
+        : refreshItemMasterCache().catch(() => [] as MasterRecord[]),
+    ])
+      .then(([subRows]) => {
+        if (ignore) return;
+        setSubCategoryMasterRows(subRows);
+        setSubCategoryOptions(getAllSubCategoryMasterOptions(subRows));
+        setItemsVersion((v) => v + 1);
+      })
+      .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
   }, []);
 
-  const handleFetchDropdownsOnDemand = useCallback((categoryOrType?: string) => {
-    void fetchOrderDropdownsApi({
-      type: "items",
-      category: categoryOrType || undefined,
-    })
-      .then((data) => {
-        if (data?.items && data.items.length > 0) {
-          setDropdownItems((prev) => {
-            const existingIds = new Set(prev.map((i) => i.id));
-            const newItems = data.items.filter((i) => !existingIds.has(i.id));
-            return newItems.length > 0 ? [...prev, ...newItems] : prev;
-          });
-          setItemsVersion((v) => v + 1);
-        }
+  const mergeDropdownItems = useCallback(
+    (items: Array<{ id?: string; name?: string; label?: string; category?: string; subCategory?: string }>) => {
+      if (!items.length) return;
+      setDropdownItems((prev) => {
+        const existingIds = new Set(prev.map((i) => i.id).filter(Boolean));
+        const existingNames = new Set(
+          prev.map((i) => String(i.name || i.label || "").trim().toLowerCase()).filter(Boolean),
+        );
+        const newItems = items.filter((i) => {
+          const name = String(i.name || i.label || "").trim().toLowerCase();
+          if (i.id && existingIds.has(i.id)) return false;
+          if (name && existingNames.has(name)) return false;
+          return Boolean(name);
+        });
+        return newItems.length > 0 ? [...prev, ...newItems] : prev;
+      });
+      setItemsVersion((v) => v + 1);
+    },
+    [],
+  );
+
+  const handleFetchDropdownsOnDemand = useCallback(
+    (params?: { category?: string; subCategory?: string }) => {
+      void fetchOrderDropdownsApi({
+        type: "items",
+        category: params?.category || undefined,
+        subCategory: params?.subCategory || undefined,
+        limit: 500,
       })
-      .catch(() => {});
-  }, []);
+        .then((data) => {
+          if (data?.items?.length) {
+            mergeDropdownItems(data.items);
+          }
+        })
+        .catch(() => {});
+    },
+    [mergeDropdownItems],
+  );
 
   const itemRows = useMemo(() => {
     const fromMaster = getItemMasterRows();
-    if (fromMaster.length > 0) {
-      return fromMaster;
-    }
-    if (dropdownItems.length > 0) {
-      return dropdownItems.map((d, idx) => ({
-        id: `dd-item-${idx}`,
-        itemName: d.name || d.label || "",
-        category: d.category || "",
-        subCategory: d.subCategory || "",
-        status: "Active",
-      }));
-    }
-    return fromMaster;
+    const fromDropdown = dropdownItems.map((d, idx) => ({
+      id: d.id || `dd-item-${idx}`,
+      itemName: d.name || d.label || "",
+      category: d.category || "",
+      subCategory: d.subCategory || "",
+      status: "Active",
+    }));
+
+    const byName = new Map<string, MasterRecord>();
+    [...fromMaster, ...fromDropdown].forEach((row) => {
+      const name = String(row.itemName ?? "").trim().toLowerCase();
+      if (!name) return;
+      byName.set(name, row);
+    });
+
+    return Array.from(byName.values());
   }, [dropdownItems, itemsVersion]);
-  const itemOptions = useMemo(() => getItemMasterOptions(itemRows), [itemRows]);
-  const subCategoryOptions = useMemo(
-    () => getItemMasterSubCategoryOptions(itemRows),
-    [itemRows],
-  );
+
+  const loadAllSubCategories = useCallback(() => {
+    const cached = getCachedItemSubCategoryMasterRows();
+    if (cached.length > 0) {
+      setSubCategoryMasterRows(cached);
+      setSubCategoryOptions(getAllSubCategoryMasterOptions(cached));
+    }
+
+    void fetchItemSubCategoriesApi({
+      status: true,
+      limit: 1000,
+    })
+      .then((rows) => {
+        const activeRows = rows.filter(isActiveMasterRow);
+        const source = activeRows.length > 0 ? activeRows : cached;
+        void refreshItemSubCategoryMasterCache(source);
+        setSubCategoryMasterRows(source);
+        setSubCategoryOptions(getAllSubCategoryMasterOptions(source));
+      })
+      .catch(() => {
+        const fallback =
+          getCachedItemSubCategoryMasterRows().length > 0
+            ? getCachedItemSubCategoryMasterRows()
+            : subCategoryMasterRows;
+        setSubCategoryOptions(getAllSubCategoryMasterOptions(fallback));
+      });
+  }, [subCategoryMasterRows]);
   const columns = useMemo(
-    () =>
-      getOrderLineItemColumns(isFinishedOrder, isUnifiedOrder).map((column) =>
-        column.key === "itemName" && column.type === "select"
-          ? { ...column, options: itemOptions }
-          : column.key === "subCategory" && column.type === "select"
-            ? { ...column, options: subCategoryOptions }
-            : column,
-      ),
-    [isFinishedOrder, isUnifiedOrder, itemOptions, subCategoryOptions],
+    () => getOrderLineItemColumns(isFinishedOrder, isUnifiedOrder),
+    [isFinishedOrder, isUnifiedOrder],
   );
   const nextRowId = useRef(1);
   const [draftValues, setDraftValues] = useState<Record<string, string>>(() =>
@@ -1031,52 +1027,48 @@ export const OrderLineItemsTable = forwardRef<
       getNextLineItemValues(current, key, value, isFinishedOrder, itemRows),
     );
 
-    // When an item or baseType/baseName is selected from dropdown, call the specific items dropdown API
+    if (key === "productCategory" || key === "finishedType") {
+      const category = getProductTypeCategoryFilter(value);
+      if (category) {
+        handleFetchDropdownsOnDemand({ category });
+      }
+      return;
+    }
+
+    if (key === "subCategory" && value.trim()) {
+      handleFetchDropdownsOnDemand({
+        subCategory: value.trim(),
+      });
+      return;
+    }
+
     if (key === "itemName" && value.trim()) {
       void fetchOrderDropdownsApi({
         type: "items",
         search: value.trim(),
       })
         .then((data) => {
-          if (data?.items && data.items.length > 0) {
-            setDropdownItems((prev) => {
-              const existingIds = new Set(prev.map((i) => i.id));
-              const newItems = data.items.filter((i) => !existingIds.has(i.id));
-              return newItems.length > 0 ? [...prev, ...newItems] : prev;
-            });
-            setItemsVersion((v) => v + 1);
+          if (data?.items?.length) {
+            mergeDropdownItems(data.items);
           }
         })
         .catch(() => {});
-    } else if (key === "baseType" && value.trim()) {
-      void fetchOrderDropdownsApi({
-        type: "items",
-        category: value.trim(),
-      })
-        .then((data) => {
-          if (data?.items && data.items.length > 0) {
-            setDropdownItems((prev) => {
-              const existingIds = new Set(prev.map((i) => i.id));
-              const newItems = data.items.filter((i) => !existingIds.has(i.id));
-              return newItems.length > 0 ? [...prev, ...newItems] : prev;
-            });
-            setItemsVersion((v) => v + 1);
-          }
-        })
-        .catch(() => {});
-    } else if (key === "baseName" && value.trim()) {
+      return;
+    }
+
+    if (key === "baseType" && value.trim()) {
+      handleFetchDropdownsOnDemand({ category: value.trim() });
+      return;
+    }
+
+    if (key === "baseName" && value.trim()) {
       void fetchOrderDropdownsApi({
         type: "items",
         search: value.trim(),
       })
         .then((data) => {
-          if (data?.items && data.items.length > 0) {
-            setDropdownItems((prev) => {
-              const existingIds = new Set(prev.map((i) => i.id));
-              const newItems = data.items.filter((i) => !existingIds.has(i.id));
-              return newItems.length > 0 ? [...prev, ...newItems] : prev;
-            });
-            setItemsVersion((v) => v + 1);
+          if (data?.items?.length) {
+            mergeDropdownItems(data.items);
           }
         })
         .catch(() => {});
@@ -1198,8 +1190,10 @@ export const OrderLineItemsTable = forwardRef<
                     if (
                       !column ||
                       (isUnifiedOrder && isBaseField(column.key) && !isFinishedProductType(draftValues.productCategory)) ||
-                      (column.key === "designCode" && normalizeProductType(selectedProductOrFinishedType) !== "fluted") ||
-                      (column.key === "structuredCode" && normalizeProductType(selectedProductOrFinishedType) !== "embossed")
+                      (column.key === "designCode" &&
+                        showsStructuredCodeField(selectedProductOrFinishedType)) ||
+                      (column.key === "structuredCode" &&
+                        !showsStructuredCodeField(selectedProductOrFinishedType))
                     ) {
                       return null;
                     }
@@ -1210,7 +1204,23 @@ export const OrderLineItemsTable = forwardRef<
                     const isRequired = isLineItemColumnRequired(column, draftValues, isFinishedOrder);
 
                     return (
-                      <Stack key={column.key} spacing={0.5} sx={{ minWidth: 0 }}>
+                      <Stack
+                        key={column.key}
+                        spacing={0.5}
+                        sx={{
+                          minWidth: 0,
+                          ...(column.key === "productCategory" ||
+                          column.key === "finishedType" ||
+                          column.key === "itemName" ||
+                          column.key === "baseName" ||
+                          column.key === "remark"
+                            ? {
+                                width: column.controlWidth,
+                                maxWidth: column.controlWidth,
+                              }
+                            : {}),
+                        }}
+                      >
                         <FieldLabel required={isRequired}>{fieldLabel}</FieldLabel>
                         {renderField({
                           column,
@@ -1223,17 +1233,43 @@ export const OrderLineItemsTable = forwardRef<
                                 if (
                                   col &&
                                   !(isUnifiedOrder && isBaseField(col.key) && !isFinishedProductType(draftValues.productCategory)) &&
-                                  !(col.key === "designCode" && normalizeProductType(selectedProductOrFinishedType) !== "fluted") &&
-                                  !(col.key === "structuredCode" && normalizeProductType(selectedProductOrFinishedType) !== "embossed")
+                                  !(col.key === "designCode" &&
+                                    showsStructuredCodeField(selectedProductOrFinishedType)) &&
+                                  !(col.key === "structuredCode" &&
+                                    !showsStructuredCodeField(selectedProductOrFinishedType))
                                 ) {
                                   allVisibleKeys.push(k);
                                 }
                               });
                             });
                             const keyIndex = allVisibleKeys.indexOf(column.key);
+                            const normProduct = normalizeProductType(
+                              draftValues.productCategory || draftValues.finishedType,
+                            );
+                            const isSequentialFirstRowFlow = usesBaseTypeFirstRowFlow(
+                              draftValues.productCategory || draftValues.finishedType,
+                            );
                             for (let i = 0; i < keyIndex; i++) {
                               const prevKey = allVisibleKeys[i];
                               if (!prevKey) continue;
+                              if (!isSequentialFirstRowFlow) {
+                                // Product type and sub category are independent.
+                                if (
+                                  (column.key === "subCategory" &&
+                                    (prevKey === "productCategory" || prevKey === "finishedType")) ||
+                                  ((column.key === "productCategory" || column.key === "finishedType") &&
+                                    prevKey === "subCategory")
+                                ) {
+                                  continue;
+                                }
+                                // Item name depends only on sub category.
+                                if (
+                                  column.key === "itemName" &&
+                                  prevKey !== "subCategory"
+                                ) {
+                                  continue;
+                                }
+                              }
                               const prevCol = columnsByKey.get(prevKey);
                               if (prevCol && !prevCol.readOnly) {
                                 const prevReq = isLineItemColumnRequired(prevCol, draftValues, isFinishedOrder);
@@ -1255,15 +1291,32 @@ export const OrderLineItemsTable = forwardRef<
                           itemRows,
                           onChange: (value) =>
                             updateDraftValue(column.key, value),
-                          onOpenDropdown: () =>
-                            handleFetchDropdownsOnDemand(
-                              column.key === "baseName"
-                                ? draftValues.baseType
-                                : column.key === "baseType"
-                                  ? undefined
-                                  : undefined,
-                            ),
+                          onOpenDropdown: () => {
+                            if (column.key === "baseName") {
+                              const baseType = (draftValues.baseType ?? "").trim();
+                              if (baseType) {
+                                handleFetchDropdownsOnDemand({ category: baseType });
+                              } else {
+                                handleFetchDropdownsOnDemand();
+                              }
+                              return;
+                            }
+                            if (column.key === "subCategory" || column.key === "itemName") {
+                              if (column.key === "subCategory") {
+                                loadAllSubCategories();
+                                handleFetchDropdownsOnDemand();
+                                return;
+                              }
+                              const subCategory = (draftValues.subCategory ?? "").trim();
+                              if (subCategory) {
+                                handleFetchDropdownsOnDemand({ subCategory });
+                              } else {
+                                handleFetchDropdownsOnDemand();
+                              }
+                            }
+                          },
                           onOpenItemDetails: openItemDetails,
+                          subCategoryOptions,
                           value: draftValues[column.key] ?? "",
                         })}
                       </Stack>
@@ -1548,7 +1601,7 @@ function isLineItemColumnRequired(
 
   // Sawing conditional mandatory fields
   if (isSawing) {
-    if (["productCategory", "itemName", "logNo", "batchNo", "length", "width", "thickness", "ratePerCbm"].includes(column.key)) {
+    if (["productCategory", "subCategory", "itemName", "logNo", "batchNo", "length", "width", "thickness", "ratePerCbm"].includes(column.key)) {
       return true;
     }
     return false;
@@ -1557,6 +1610,10 @@ function isLineItemColumnRequired(
   // Decorative conditional fields: mandatory only for Decorative
   if (column.key === "groupNo" || column.key === "photoNo") {
     return normProduct === "decorative";
+  }
+
+  if (column.key === "baseType") {
+    return usesBaseTypeFirstRowFlow(values.productCategory || values.finishedType);
   }
 
   // Veneer conditional field: No. of Leaves is mandatory for Veneer
@@ -1569,8 +1626,12 @@ function isLineItemColumnRequired(
     return normProduct !== "veneer" && !isSawing;
   }
 
+  if (column.key === "finishedType") {
+    return true;
+  }
+
   // Core mandatory fields
-  if (["productCategory", "itemName", "length", "width", "thickness", "ratePerSqf"].includes(column.key)) {
+  if (["productCategory", "subCategory", "itemName", "length", "width", "thickness", "ratePerSqf"].includes(column.key)) {
     return true;
   }
 
@@ -1587,7 +1648,7 @@ function getFieldValidationError(
 
   // When hidden for current product type, do not trigger validation errors
   if (isSawing) {
-    if (!["productCategory", "itemName", "salesItemName", "logNo", "batchNo", "length", "width", "thickness", "cbm", "cft", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
+    if (!["productCategory", "subCategory", "itemName", "logNo", "batchNo", "length", "width", "thickness", "cbm", "cft", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
       return "";
     }
   } else {
@@ -1605,7 +1666,10 @@ function getFieldValidationError(
   if (column.key === "quantitySheets" && (normProduct === "veneer" || isSawing)) {
     return "";
   }
-  if (isBaseField(column.key) && !isFinishedProductType(values.productCategory)) {
+  if (
+    isBaseField(column.key) &&
+    !isFinishedProductType(values.productCategory || values.finishedType)
+  ) {
     return "";
   }
 
@@ -1683,7 +1747,6 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
     { label: "Order Item No", minWidth: 120, align: "left" },
     { label: "Product Type", minWidth: 140, align: "left" },
     { label: "Item Name", minWidth: 180, align: "left" },
-    { label: "Sales Item Name", minWidth: 160, align: "left" },
   ];
 
   if (hasSawing) {
@@ -1700,11 +1763,7 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
     );
   }
 
-  if (hasFluted) {
-    headers.push({ label: "Design Code", minWidth: 120, align: "left" });
-  }
-
-  if (hasEmbossed) {
+  if (hasFluted || hasEmbossed) {
     headers.push({ label: "Structured Code", minWidth: 130, align: "left" });
   }
 
@@ -1743,9 +1802,6 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
     headers.push(
       { label: "Base Type", minWidth: 120, align: "left" },
       { label: "Base Name", minWidth: 150, align: "left" },
-      { label: "Base Length", minWidth: 110, align: "left" },
-      { label: "Base Width", minWidth: 110, align: "left" },
-      { label: "Base Thickness", minWidth: 120, align: "left" },
     );
   }
 
@@ -1785,10 +1841,6 @@ export function getDynamicLineItemCells(
         break;
       case "Item Name":
         value = row.itemName;
-        break;
-      case "Sales Item Name":
-      case "Sales Item":
-        value = row.salesItemName;
         break;
       case "Log No.":
         value = isSawing ? (row.logNo ?? "") : "";
@@ -1844,20 +1896,11 @@ export function getDynamicLineItemCells(
       case "Base Name":
         value = isFinished ? row.baseName : "";
         break;
-      case "Base Length":
-        value = isFinished ? row.baseLength : "";
-        break;
-      case "Base Width":
-        value = isFinished ? row.baseWidth : "";
-        break;
-      case "Base Thickness":
-        value = isFinished ? row.baseThickness : "";
-        break;
       case "Design Code":
-        value = normProduct === "fluted" ? (row.designCode ?? "") : "";
+        value = "";
         break;
       case "Structured Code":
-        value = normProduct === "embossed" ? (row.structuredCode ?? "") : "";
+        value = showsStructuredCodeField(normProduct) ? (row.structuredCode ?? "") : "";
         break;
       case "Remark":
         value = row.remark;
@@ -1887,7 +1930,7 @@ function isFinishedProductType(value: string | undefined) {
 }
 
 function isBaseField(key: keyof Omit<OrderLineItem, "id">) {
-  return ["baseType", "baseName", "baseLength", "baseWidth", "baseThickness"].includes(key);
+  return ["baseType", "baseName"].includes(key);
 }
 
 function getFinishedListingValues(row: OrderLineItem, index: number) {
@@ -1906,11 +1949,6 @@ function getFinishedListingValues(row: OrderLineItem, index: number) {
     {
       label: "Item Name",
       value: row.itemName,
-      align: "left" as const,
-    },
-    {
-      label: "Sales Item",
-      value: row.salesItemName,
       align: "left" as const,
     },
     { label: "Length", value: row.length, align: "left" as const },
@@ -1972,11 +2010,6 @@ function getRawListingValues(row: OrderLineItem, index: number) {
     {
       label: "Item Name",
       value: row.itemName,
-      align: "left" as const,
-    },
-    {
-      label: "Sales Item Name",
-      value: row.salesItemName,
       align: "left" as const,
     },
     { label: "Log No.", value: row.logNo ?? "", align: "left" as const },
@@ -2049,7 +2082,9 @@ function mapValuesToLineItem(values: Record<string, string>): Omit<OrderLineItem
     baseLength: values.baseLength ?? "",
     baseWidth: values.baseWidth ?? "",
     baseThickness: values.baseThickness ?? "",
-    designCode: values.designCode ?? "",
+    designCode: showsStructuredCodeField(values.productCategory || values.finishedType)
+      ? ""
+      : (values.designCode ?? ""),
     structuredCode: values.structuredCode ?? "",
     amount: values.amount ?? "",
     remark: values.remark ?? "",
@@ -2090,7 +2125,17 @@ function mapLineItemToValues(lineItem: OrderLineItem) {
     baseWidth: lineItem.baseWidth,
     baseThickness: lineItem.baseThickness,
     designCode: lineItem.designCode ?? "",
-    structuredCode: lineItem.structuredCode ?? "",
+    structuredCode: (() => {
+      const structured = lineItem.structuredCode ?? "";
+      if (structured.trim()) {
+        return structured;
+      }
+      const norm = normalizeProductType(lineItem.productCategory || lineItem.finishedType);
+      if (norm === "fluted") {
+        return lineItem.designCode ?? "";
+      }
+      return "";
+    })(),
     amount: lineItem.amount,
     remark: lineItem.remark,
   };
@@ -2113,26 +2158,45 @@ function getNextLineItemValues(
     [key]: nextValue,
   };
 
-  if (key === "baseType") {
-    nextValues.baseName = "";
-  }
-
-  if (key === "productCategory") {
+  if (key === "productCategory" || key === "finishedType") {
     const norm = normalizeProductType(nextValue);
-    if (!isFinishedProductType(nextValue)) {
+    if (usesBaseTypeFirstRowFlow(nextValue)) {
+      nextValues.baseType = "";
+      nextValues.subCategory = "";
+      nextValues.itemName = "";
+    } else if (key === "productCategory" && !isFinishedProductType(nextValue)) {
       nextValues.baseType = "";
       nextValues.baseName = "";
-      nextValues.baseLength = "";
-      nextValues.baseWidth = "";
-      nextValues.baseThickness = "";
+    } else if (key === "productCategory" || key === "finishedType") {
+      nextValues.baseType = "";
+      nextValues.baseName = "";
     }
     if (norm !== "decorative") {
       nextValues.groupNo = "";
       nextValues.photoNo = "";
     }
+    if (!showsStructuredCodeField(nextValue)) {
+      nextValues.structuredCode = "";
+    }
+    nextValues.designCode = "";
     if (norm !== "veneer") {
       nextValues.noOfLeaves = "";
     }
+  }
+
+  if (key === "baseType") {
+    nextValues.baseName = "";
+    if (usesBaseTypeFirstRowFlow(nextValues.productCategory || nextValues.finishedType)) {
+      if (usesFlutedOrEmbossedCraftFlow(nextValues.productCategory || nextValues.finishedType)) {
+        nextValues.structuredCode = "";
+      }
+      nextValues.subCategory = "";
+      nextValues.itemName = "";
+    }
+  }
+
+  if (key === "subCategory") {
+    nextValues.itemName = "";
   }
 
   if (key === "itemName") {
@@ -2286,9 +2350,6 @@ function isNumericLineItemKey(key: keyof Omit<OrderLineItem, "id">) {
     "sqm",
     "totalSqm",
     "ratePerSqf",
-    "baseLength",
-    "baseWidth",
-    "baseThickness",
     "amount",
   ].includes(key);
 }
@@ -2310,6 +2371,7 @@ function renderField({
   onChange,
   onOpenDropdown,
   onOpenItemDetails,
+  subCategoryOptions = [],
   value,
 }: {
   column: OrderLineItemColumn;
@@ -2320,9 +2382,15 @@ function renderField({
   onChange: (value: string) => void;
   onOpenDropdown?: () => void;
   onOpenItemDetails: (itemName: string) => void;
+  subCategoryOptions?: readonly string[];
   value: string;
 }) {
-  const selectOptions = getColumnOptions(column, itemRows, currentValues);
+  const selectOptions = getColumnOptions(
+    column,
+    itemRows,
+    currentValues,
+    subCategoryOptions,
+  );
   const isFieldDisabled = disabled || column.readOnly;
   const control =
     column.type === "select" ? (
@@ -2331,7 +2399,10 @@ function renderField({
         helperText={errorText}
         onChange={onChange}
         onOpen={
-          column.key === "itemName" || column.key === "baseName" || column.key === "baseType"
+          column.key === "itemName" ||
+          column.key === "subCategory" ||
+          column.key === "baseName" ||
+          column.key === "baseType"
             ? onOpenDropdown
             : undefined
         }
@@ -2389,7 +2460,7 @@ function renderField({
   }
 
   return (
-    <Stack direction="row" spacing={0.75} alignItems="center">
+    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ width: "100%" }}>
       <Box sx={{ minWidth: 0, flex: 1 }}>{control}</Box>
       <IconButton
         aria-label="View item details"
@@ -2635,12 +2706,44 @@ function getItemMasterRows() {
   return buildLocalMasterDefinition(itemMasterDefinition).rows;
 }
 
-function getItemMasterOptions(rows: readonly MasterRecord[]) {
+function getProductTypeCategoryFilter(productType?: string): string {
+  const norm = normalizeProductType(productType);
+  if (!norm) return "";
+
+  const labels: Record<string, string> = {
+    veneer: "Veneer",
+    sawing: "Sawing",
+    mdf: "MDF",
+    plywood: "Plywood",
+    decorative: "Decorative",
+    marquetry: "Marquetry",
+    fluted: "Fluted",
+    embossed: "Embossed",
+  };
+
+  return labels[norm] ?? norm;
+}
+
+function isActiveMasterRow(row: MasterRecord) {
+  return String(row.status ?? "Active").toLowerCase() !== "inactive";
+}
+
+function getItemMasterOptionsForSelection(
+  rows: readonly MasterRecord[],
+  subCategory?: string,
+) {
+  const selectedSubCategory = String(subCategory ?? "").trim().toLowerCase();
+  if (!selectedSubCategory) {
+    return [];
+  }
+
   return Array.from(
     new Set(
       rows
+        .filter(isActiveMasterRow)
         .filter(
-          (row) => String(row.status ?? "Active").toLowerCase() !== "inactive",
+          (row) =>
+            String(row.subCategory ?? "").trim().toLowerCase() === selectedSubCategory,
         )
         .map((row) => String(row.itemName ?? "").trim())
         .filter(Boolean),
@@ -2648,14 +2751,12 @@ function getItemMasterOptions(rows: readonly MasterRecord[]) {
   );
 }
 
-function getItemMasterSubCategoryOptions(rows: readonly MasterRecord[]) {
+function getAllSubCategoryMasterOptions(subCategoryRows: readonly MasterRecord[]) {
   return Array.from(
     new Set(
-      rows
-        .filter(
-          (row) => String(row.status ?? "Active").toLowerCase() !== "inactive",
-        )
-        .map((row) => String(row.subCategory ?? "").trim())
+      subCategoryRows
+        .filter(isActiveMasterRow)
+        .map((row) => String(row.itemSubCategory ?? row.name ?? "").trim())
         .filter(Boolean),
     ),
   );
@@ -2665,9 +2766,20 @@ function getColumnOptions(
   column: OrderLineItemColumn,
   itemRows: readonly MasterRecord[],
   values: Record<string, string>,
+  subCategoryOptions: readonly string[] = [],
 ) {
   if (column.key === "baseName") {
     return getBaseNameOptions(itemRows, values.baseType);
+  }
+
+  if (column.key === "subCategory") {
+    return subCategoryOptions.length > 0
+      ? [...subCategoryOptions]
+      : getAllSubCategoryMasterOptions(getCachedItemSubCategoryMasterRows());
+  }
+
+  if (column.key === "itemName") {
+    return getItemMasterOptionsForSelection(itemRows, values.subCategory);
   }
 
   return column.options ?? [];

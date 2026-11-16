@@ -428,13 +428,13 @@ export function SlicingCreatePage() {
     ];
   }, [sourceItem, sourceAvailableCbm, sourceReceivedCbm]);
 
-  // Output CBM = Output SQM * Thickness (all dimensions in metres)
+  // Output CBM = Output SQM × Thickness(mm) / 1000
   const totalProcessedCbm = useMemo(() => {
     return processedItems.reduce((sum, item) => {
       const leaves = item.noOfLeaves || 0;
       const itemSqm = item.sqm || item.length * item.width * leaves;
       const th = item.thickness || 0;
-      return sum + itemSqm * th;
+      return sum + (itemSqm * th) / 1000;
     }, 0);
   }, [processedItems]);
 
@@ -497,7 +497,7 @@ export function SlicingCreatePage() {
       return;
     }
     if (!th || th <= 0 || isNaN(th)) {
-      setErrorMessage("Please enter a valid positive Thickness (m).");
+      setErrorMessage("Please enter a valid positive Thickness (mm).");
       return;
     }
     if (!leaves || leaves <= 0 || !Number.isInteger(leaves)) {
@@ -506,13 +506,13 @@ export function SlicingCreatePage() {
     }
 
     const itemSqm = Number((l * w * leaves).toFixed(4));
-    const newItemCbm = itemSqm * th;
+    const newItemCbm = (itemSqm * th) / 1000;
     const otherItemsCbm = processedItems
       .filter((item) => (editingItemId ? item.id !== editingItemId : true))
       .reduce((sum, item) => {
         const iLeaves = item.noOfLeaves || 0;
         const iSqm = item.sqm || item.length * item.width * iLeaves;
-        return sum + iSqm * (item.thickness || 0);
+        return sum + (iSqm * (item.thickness || 0)) / 1000;
       }, 0);
 
     const proposedTotalCbm = otherItemsCbm + newItemCbm;
@@ -745,7 +745,7 @@ export function SlicingCreatePage() {
                       <RequiredHeader>Width</RequiredHeader>
                     </TableCell>
                     <TableCell sx={headerCellSx(theme, 120)}>
-                      <RequiredHeader>Thickness</RequiredHeader>
+                      <RequiredHeader>Thickness (mm)</RequiredHeader>
                     </TableCell>
                     <TableCell sx={headerCellSx(theme, 130)}>
                       <RequiredHeader>No. of Leaves</RequiredHeader>
@@ -795,7 +795,7 @@ export function SlicingCreatePage() {
                       <CompactTableInput onChange={setWidth} placeholder="Width" required type="decimal" value={width} width={100} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
-                      <CompactTableInput onChange={setThickness} placeholder="Thickness" required type="decimal" value={thickness} width={110} />
+                      <CompactTableInput onChange={setThickness} placeholder="Thickness (mm)" required type="decimal" value={thickness} width={110} />
                     </TableCell>
                     <TableCell sx={bodyCellSx(theme)}>
                       <CompactTableInput onChange={setNoOfLeaves} placeholder="Leaves" required type="integer" value={noOfLeaves} width={120} />
@@ -878,7 +878,7 @@ export function SlicingCreatePage() {
                     <TableCell sx={headerCellSx(theme, 120)}>Color</TableCell>
                     <TableCell sx={headerCellSx(theme, 110)}>Length</TableCell>
                     <TableCell sx={headerCellSx(theme, 110)}>Width</TableCell>
-                    <TableCell sx={headerCellSx(theme, 120)}>Thickness</TableCell>
+                    <TableCell sx={headerCellSx(theme, 120)}>Thickness (mm)</TableCell>
                     <TableCell sx={headerCellSx(theme, 130)}>No. of Leaves</TableCell>
                     <TableCell sx={headerCellSx(theme, 100)}>SQM</TableCell>
                     <TableCell sx={headerCellSx(theme, 100)}>SQF</TableCell>

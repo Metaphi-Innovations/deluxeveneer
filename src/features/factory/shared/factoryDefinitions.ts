@@ -712,7 +712,7 @@ const groupingListingColumns = columns([
   ["groupingDate", "Grouping Date"],
   ["groupPhoto", "Group Photo"],
   ["issueTo", "Issue To"],
-  ["logNo", "Log No."],
+  ["logNo", "Lot No"],
   ["grade", "Grade"],
   ["length", "Length"],
   ["width", "Width"],

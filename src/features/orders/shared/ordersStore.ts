@@ -190,10 +190,10 @@ export const orderTypeOptions = orderCreateOptions.map((option) => option.label)
 
 export const productCategoryOptions = [
   "Veneer (Raw)",
-  "Sawing (Raw)",
-  "MDF (Raw)",
-  "Plywood (Raw)",
-  "Decorative (Finished)",
+  "Sawing (Wood)",
+  "MDF",
+  "Plywood",
+  "Decorative (Pressed Veneer)",
   "Marquetry (Finished)",
   "Fluted (Finished)",
   "Embossed (Finished)",
@@ -956,7 +956,7 @@ function createInitialOrderState() {
     "Hold for supervisor review.",
   ] as const;
   const finishedTypes = ["Marquetry", "Fluted", "Embossed", "Decorative"] as const;
-  const baseTypes = ["Plywood", "MDF"] as const;
+  const baseTypes = ["Plywood", "MDF", "Fleece Back", "Twist"] as const;
   const coordinators = [...salesCoordinatorOptions];
   const records: OrderRecord[] = [];
   const lineItemsById = new Map<string, OrderLineItem[]>();

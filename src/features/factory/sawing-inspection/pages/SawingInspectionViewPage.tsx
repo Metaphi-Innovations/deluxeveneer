@@ -12,9 +12,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  MenuItem,
   Paper,
-  Select,
   Snackbar,
   Stack,
   TextField,
@@ -62,9 +60,10 @@ import {
   getFactoryIssuedWorkById,
   updateFactoryIssuedWorkSnapshot,
 } from "../../shared/factoryIssuedWorkStore";
-import { renderGradeBadge } from "../sawingInspectionColumns";
-import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
-import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
+import {
+  formatInspectionGradeAQty,
+  formatInspectionGradeBQty,
+} from "../sawingInspectionColumns";
 
 function displayDate(value: unknown, withTime = false): string {
   if (!value) return "-";
@@ -239,62 +238,11 @@ export const SawingInspectionViewPage: React.FC = () => {
   const [dialogRemark, setDialogRemark] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
-  const [dialogGradeId, setDialogGradeId] = useState("");
-  const [dialogGradeName, setDialogGradeName] = useState("");
-  const [gradeOptions, setGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
-  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error";
   } | null>(null);
-
-  const handleOpenGradeDropdown = async () => {
-    setIsLoadingGrades(true);
-    try {
-      const res = await fetchGradesApi({ status: true, limit: 100 });
-      if (Array.isArray(res) && res.length > 0) {
-        setGradeOptions(res.map((g: any) => ({ id: String(g.id), name: String(g.name || g.gradeName || "") })));
-      } else {
-        const inwardOpts = await fetchInwardGradeOptions();
-        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
-      }
-    } catch {
-      try {
-        const inwardOpts = await fetchInwardGradeOptions();
-        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
-      } catch {
-        // fallback
-      }
-    } finally {
-      setIsLoadingGrades(false);
-    }
-  };
-
-  const handleGradeChange = async (selectedId: string) => {
-    setDialogGradeId(selectedId);
-    const found = gradeOptions.find((o) => o.id === selectedId);
-    if (found) {
-      setDialogGradeName(found.name);
-    }
-    if (selectedId) {
-      try {
-        const gradeDetail = await getGradeByIdApi(selectedId);
-        if (gradeDetail && gradeDetail.name) {
-          setDialogGradeName(String(gradeDetail.name));
-        }
-      } catch {
-        try {
-          const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
-          if (inwardDetail?.name) {
-            setDialogGradeName(String(inwardDetail.name));
-          }
-        } catch {
-          // ignore
-        }
-      }
-    }
-  };
 
   const handleOpenDialog = (mode: "pass" | "fail" = "pass") => {
     setActiveDialog(mode);
@@ -302,8 +250,6 @@ export const SawingInspectionViewPage: React.FC = () => {
     setDialogRemark(mode === "pass" ? "Passed inspection" : "Failed inspection");
     setAttachmentName("");
     setAttachmentPreview(null);
-    setDialogGradeId(record?.gradeId || "");
-    setDialogGradeName(record?.grade || record?.gradeName || "");
   };
 
   const handleCloseDialog = () => {
@@ -311,8 +257,6 @@ export const SawingInspectionViewPage: React.FC = () => {
     setActiveDialog(null);
     setAttachmentName("");
     setAttachmentPreview(null);
-    setDialogGradeId("");
-    setDialogGradeName("");
     setDialogRemark("");
   };
 
@@ -330,27 +274,19 @@ export const SawingInspectionViewPage: React.FC = () => {
 
   const handleConfirmDecision = async () => {
     if (!record) return;
-    if (!dialogGradeId && !dialogGradeName) {
-      setToastNotification({
-        message: "Please select a Grade before submitting the inspection.",
-        severity: "error",
-      });
-      return;
-    }
     setIsSubmitting(true);
 
     try {
       const workItemId = record.workItemId || (String(record.id).startsWith("factory-work-") ? record.id : null);
+      const isPassDecision = activeDialog !== "fail";
       const patch = {
         inspectionDate: dialogDate,
-        grade: dialogGradeName,
-        gradeName: dialogGradeName,
-        gradeId: dialogGradeId,
         remark: dialogRemark.trim() || "Inspection completed",
-        listingState: "done",
-        status: "Done",
-        passQty: 1,
-        failQty: 0,
+        listingState: isPassDecision ? "done" : "failed",
+        status: isPassDecision ? "Done" : "Failed",
+        qcStatus: isPassDecision ? "Pass" : "Fail",
+        passQty: isPassDecision ? 1 : 0,
+        failQty: isPassDecision ? 0 : 1,
         ...(attachmentPreview
           ? {
               inspectionImage: attachmentPreview,
@@ -362,15 +298,16 @@ export const SawingInspectionViewPage: React.FC = () => {
       // Call backend API if real ID exists
       if (record.id && !String(record.id).startsWith("factory-work-")) {
         try {
-          await recordSawingInspectionDecisionApi(record.id, "PASS", {
-            inspectionDate: dialogDate,
-            remark: dialogRemark.trim() || "Inspection completed",
-            attachmentUrl: attachmentPreview || undefined,
-            attachmentName: attachmentName || undefined,
-            gradeId: dialogGradeId || undefined,
-            grade: dialogGradeName || undefined,
-            gradeName: dialogGradeName || undefined,
-          });
+          await recordSawingInspectionDecisionApi(
+            record.id,
+            isPassDecision ? "PASS" : "FAIL",
+            {
+              inspectionDate: dialogDate,
+              remark: dialogRemark.trim() || "Inspection completed",
+              attachmentUrl: attachmentPreview || undefined,
+              attachmentName: attachmentName || undefined,
+            },
+          );
         } catch (apiErr) {
           console.error("Failed to submit inspection to backend:", apiErr);
         }
@@ -879,11 +816,29 @@ export const SawingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Grade
+                  Grade A
                 </Typography>
-                <Box>
-                  {renderGradeBadge(record?.grade ?? record?.gradeName)}
-                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatInspectionGradeAQty(record ?? {})}
+                </Typography>
+              </Stack>
+
+              <Stack spacing={0.5}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  Grade B
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatInspectionGradeBQty(record ?? {})}
+                </Typography>
               </Stack>
 
               {!isPending && (
@@ -1146,30 +1101,6 @@ export const SawingInspectionViewPage: React.FC = () => {
                   size="dense"
                   value={isoDateToLocalDate(dialogDate)}
                 />
-              </Stack>
-
-              <Stack spacing={0.75}>
-                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
-                  Grade
-                </Typography>
-                <Select
-                  displayEmpty
-                  fullWidth
-                  onOpen={() => void handleOpenGradeDropdown()}
-                  onChange={(e) => void handleGradeChange(e.target.value as string)}
-                  size="small"
-                  value={dialogGradeId}
-                  sx={getCompactFieldSx(theme, "default")}
-                >
-                  <MenuItem value="" disabled>
-                    <em>{isLoadingGrades ? "Loading grades..." : "Select Grade"}</em>
-                  </MenuItem>
-                  {gradeOptions.map((g) => (
-                    <MenuItem key={g.id} value={g.id}>
-                      {g.name}
-                    </MenuItem>
-                  ))}
-                </Select>
               </Stack>
 
               <Stack spacing={0.75}>

@@ -543,7 +543,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     value={String(totalQuantity || "-")}
                   />
                   <Stack spacing={0.75}>
-                    <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
+                    <DialogFieldLabel required>Grade A</DialogFieldLabel>
                     <TextField
                       error={exceedsTotal}
                       fullWidth
@@ -557,7 +557,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     />
                   </Stack>
                   <Stack spacing={0.75}>
-                    <DialogFieldLabel required>Fail Quantity (Leaves)</DialogFieldLabel>
+                    <DialogFieldLabel required>Grade B</DialogFieldLabel>
                     <TextField
                       error={exceedsTotal}
                       fullWidth
@@ -592,29 +592,6 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     value={isoDateToLocalDate(inspectionDate)}
                   />
                 </Stack>
-                {isDryingInspection ? (
-                  <Stack spacing={0.75}>
-                    <DialogFieldLabel>Grade</DialogFieldLabel>
-                    <Select
-                      displayEmpty
-                      fullWidth
-                      onOpen={() => void handleOpenGradeDropdown()}
-                      onChange={(e) => void handleGradeChange(e.target.value as string)}
-                      size="small"
-                      value={gradeId}
-                      sx={(theme) => getCompactFieldSx(theme, "default")}
-                    >
-                      <MenuItem value="">
-                        <em>{isLoadingGrades ? "Loading grades..." : "Select Grade"}</em>
-                      </MenuItem>
-                      {gradeOptions.map((g) => (
-                        <MenuItem key={g.id} value={g.id}>
-                          {g.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </Stack>
-                ) : null}
                 <Stack spacing={0.75}>
                   <DialogFieldLabel>Attachment (Upload Photo)</DialogFieldLabel>
                   <Stack direction="row" spacing={1.5} alignItems="center">

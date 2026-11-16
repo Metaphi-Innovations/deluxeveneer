@@ -437,7 +437,7 @@ export const GroupingViewPage: React.FC = () => {
                 { label: "Source Warehouse", value: sourceWarehouse },
                 { label: "Item Name", value: itemName },
                 { label: "Item Sub Category", value: subCategory },
-                { label: "Log No", value: logNo },
+                { label: "Lot No", value: logNo },
                 { label: "Bundle No", value: bundleNo },
                 { label: "Pallet No", value: palletNo },
                 { label: "Grade", value: grade },
@@ -572,7 +572,7 @@ export const GroupingViewPage: React.FC = () => {
                       Sub Category
                     </TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme, 110)}>
-                      Log No
+                      Lot No
                     </TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme, 90)}>
                       Length

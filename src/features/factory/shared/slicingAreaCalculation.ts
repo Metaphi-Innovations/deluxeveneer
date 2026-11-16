@@ -9,12 +9,14 @@ import {
 } from "../../shared/numberFormat";
 
 /**
- * Slicing measures, in metres. This is the frontend reference for the backend.
+ * Slicing measures.
  *
- * Block:  CBM = length × width × height
+ * Length / width are metres. Output thickness is millimetres.
+ *
+ * Block:  CBM = length × width × height (metres)
  *          SQM = CBM / height
- * Slice:  CBM = length × width × thickness × number of leaves
- *          SQM = length × width × number of leaves
+ * Slice:  SQM = length × width × number of leaves
+ *          CBM = SQM × thickness(mm) / 1000
  * SQF   = SQM × 10.7639
  * CFT   = CBM × 35.3147
  *
@@ -42,8 +44,8 @@ export function parseMeasurementMagnitude(value: unknown): number {
 }
 
 /**
- * Resolve Length / Width / Thickness in metres for Slicing.
- * Values already in m/mtr are used as-is; legacy mm values are converted.
+ * Resolve Length / Width / Height in metres for Slicing.
+ * Values already in m/mtr are used as-is; legacy mm/cm values are converted.
  */
 export function resolveSlicingDimensionMetres(value: unknown): number {
   if (value == null || value === "") {
@@ -70,6 +72,54 @@ export function resolveSlicingDimensionMetres(value: unknown): number {
 }
 
 /**
+ * Resolve output thickness in millimetres for CBM = SQM × thickness / 1000.
+ * Bare numbers and `mm` values are treated as mm; explicit `m` values are converted.
+ */
+export function resolveSlicingThicknessMm(value: unknown): number {
+  if (value == null || value === "") {
+    return 0;
+  }
+
+  const raw = String(value).trim().toLowerCase();
+  const magnitude = parseMeasurementMagnitude(value);
+  if (!magnitude) {
+    return 0;
+  }
+
+  if (/\bmm\b/.test(raw) || raw.endsWith("mm")) {
+    return magnitude;
+  }
+
+  if (/\bcm\b/.test(raw) || raw.endsWith("cm")) {
+    return magnitude * 10;
+  }
+
+  if (
+    /\bm\b/.test(raw) ||
+    raw.includes("mtr") ||
+    raw.includes("metre") ||
+    raw.includes("meter")
+  ) {
+    return magnitude * 1000;
+  }
+
+  // Bare Slicing output thickness is entered in millimetres.
+  return magnitude;
+}
+
+/** Output CBM = SQM × thickness(mm) / 1000 */
+export function calculateSlicingCbmFromSqm(
+  sqm: number,
+  thicknessMm: unknown,
+): number {
+  const thickness = resolveSlicingThicknessMm(thicknessMm);
+  if (!(sqm > 0) || !(thickness > 0)) {
+    return 0;
+  }
+  return (sqm * thickness) / 1000;
+}
+
+/**
  * Face area used by processes that do not have a block height.
  * length(m) × width(m) × no. of leaves
  */
@@ -89,7 +139,10 @@ export function calculateSlicingSqmValue(
   return lengthM * widthM * leaves;
 }
 
-/** CBM = length × width × depth × pieces. Depth is height or thickness. Pieces is 1 for a block. */
+/**
+ * Block-style CBM in metres: length × width × height × pieces.
+ * For slicing outputs prefer calculateSlicingCbmFromSqm (SQM × thickness_mm / 1000).
+ */
 export function calculateSlicingCbm(
   length: unknown,
   width: unknown,
@@ -140,15 +193,16 @@ export type SlicingSliceInput = {
 export function measureSlicingSlice(values: SlicingSliceInput) {
   const depth = values.thickness || values.height;
   const pieces = values.noOfLeaves || values.noOfSheets || values.totalLeaves;
-  const cbm = calculateSlicingCbm(values.length, values.width, depth, pieces);
   const sqm = calculateSlicingSqmValue(values.length, values.width, pieces);
+  const thicknessMm = resolveSlicingThicknessMm(depth);
+  const cbm = calculateSlicingCbmFromSqm(sqm, thicknessMm);
 
   return {
     cft: cbm * CBM_TO_CFT,
     cbf: cbm * CBM_TO_CFT,
     cbm,
     complete: cbm > 0 && sqm > 0,
-    depth: resolveSlicingDimensionMetres(depth),
+    depth: thicknessMm / 1000,
     sqf: sqm * SQM_TO_SQF,
     sqm,
   };
