@@ -949,11 +949,6 @@ function buildDynamicItemColumns(
       minWidth: 180,
       render: (row) => row.itemName || "—",
     },
-    {
-      label: "Sales Item Name",
-      minWidth: 160,
-      render: (row) => row.salesItemName || "—",
-    },
   ];
 
   if (hasSawing) {
@@ -970,15 +965,7 @@ function buildDynamicItemColumns(
     );
   }
 
-  if (hasFluted) {
-    cols.push({
-      label: "Design Code",
-      minWidth: 120,
-      render: (row) => row.designCode || "—",
-    });
-  }
-
-  if (hasEmbossed) {
+  if (hasFluted || hasEmbossed) {
     cols.push({
       label: "Structured Code",
       minWidth: 130,
@@ -1013,7 +1000,7 @@ function buildDynamicItemColumns(
   if (hasSawing) {
     cols.push(
       { label: "CBM", minWidth: 90, align: "right", render: (row) => row.cbm || "—" },
-      { label: "CBF", minWidth: 90, align: "right", render: (row) => row.cbf || "—" },
+      { label: "CFT", minWidth: 90, align: "right", render: (row) => (row as any).cft || row.cbf || "—" },
     );
   }
 
@@ -1054,9 +1041,6 @@ function buildDynamicItemColumns(
     cols.push(
       { label: "Base Type", minWidth: 120, render: (row) => row.baseType || "—" },
       { label: "Base Name", minWidth: 150, render: (row) => row.baseName || "—" },
-      { label: "Base Length", minWidth: 110, render: (row) => row.baseLength || "—" },
-      { label: "Base Width", minWidth: 110, render: (row) => row.baseWidth || "—" },
-      { label: "Base Thickness", minWidth: 120, render: (row) => row.baseThickness || "—" },
     );
   }
 

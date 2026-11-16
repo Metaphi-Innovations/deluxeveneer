@@ -218,7 +218,18 @@ export const SawingViewPage: React.FC = () => {
         record.sourceIssueItem?.cbm ||
         record.cbm ||
         "-",
+      cft:
+        record.sourceCft ||
+        record.sourceIssueItem?.cft ||
+        record.cft ||
+        record.sourceCbf ||
+        record.sourceIssueItem?.cbf ||
+        record.cbf ||
+        "-",
       cbf:
+        record.sourceCft ||
+        record.sourceIssueItem?.cft ||
+        record.cft ||
         record.sourceCbf ||
         record.sourceIssueItem?.cbf ||
         record.cbf ||
@@ -735,7 +746,7 @@ export const SawingViewPage: React.FC = () => {
                   { label: "Source From", value: record?.storageWarehouseName || sourceItem?.storageWarehouseName || "Warehouse B" },
                   { label: "Item Name", value: sourceItem?.itemName || "-" },
                   { label: "Sub Category", value: sourceItem?.subCategory || "-" },
-                  { label: "Log No.", value: sourceItem?.batchNo || "-" },
+                  { label: "Batch No.", value: sourceItem?.batchNo || "-" },
                   {
                     label: "Storage / Issue Date",
                     value: formatDate(sourceItem?.issueDate || record?.processDate),
@@ -1133,9 +1144,11 @@ export const SawingViewPage: React.FC = () => {
     const outputCbmDisplay =
       formatSawingCbmDisplay(record?.cbm) ||
       (record?.cbm !== undefined && record?.cbm !== null ? String(record.cbm) : "-");
-    const outputCbfDisplay =
-      formatSawingCbmDisplay(record?.cbf) ||
-      (record?.cbf !== undefined && record?.cbf !== null ? String(record.cbf) : "-");
+    const outputCftDisplay =
+      formatSawingCbmDisplay(record?.cft ?? record?.cbf) ||
+      (record?.cft !== undefined && record?.cft !== null ? String(record.cft) :
+       record?.cbf !== undefined && record?.cbf !== null ? String(record.cbf) : "-");
+    const outputCbfDisplay = outputCftDisplay;
 
     const sourceRecCbmDisplay =
       formatSawingCbmDisplay(sourceItem?.cbm) ||
@@ -1219,7 +1232,7 @@ export const SawingViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Log No.
+                  Batch No
                 </Typography>
                 <Typography
                   variant="body1"
@@ -1229,7 +1242,7 @@ export const SawingViewPage: React.FC = () => {
                     fontSize: "15px",
                   }}
                 >
-                  {record?.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || record?.batchNo || "-"}
+                  {record?.batchNo || sourceItem?.batchNo || "-"}
                 </Typography>
               </Stack>
 
@@ -1300,14 +1313,8 @@ export const SawingViewPage: React.FC = () => {
                       "-",
                   },
                   {
-                    label: "Source Log No / Batch No",
-                    value: (() => {
-                      const log = record?.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || record?.batchNo || "";
-                      const batch = record?.batchNoCode || (sourceItem as any)?.batchNoCode || (record?.batchNo && record.batchNo !== log ? record.batchNo : "");
-                      if (log && batch && log !== batch) return `${log} / ${batch}`;
-                      if (log && batch && log === batch) return log;
-                      return log || batch || "-";
-                    })(),
+                    label: "Batch No",
+                    value: record?.batchNo || sourceItem?.batchNo || "-",
                   },
                   
                   {
@@ -1490,20 +1497,16 @@ export const SawingViewPage: React.FC = () => {
               >
                 {[
                   {
-                    label: "Log No.",
-                    value: record?.batchNo || record?.logNo || sourceItem?.batchNo || "-",
-                  },
-                  {
                     label: "Batch No",
-                    value: record?.batchNoCode || record?.batchNo || "-",
+                    value: record?.batchNo || record?.batchNoCode || sourceItem?.batchNo || "-",
                   },
                   {
                     label: "Output CBM",
                     value: outputCbmDisplay,
                   },
                   {
-                    label: "Output CBF",
-                    value: outputCbfDisplay,
+                    label: "Output CFT",
+                    value: outputCftDisplay,
                   },
                   {
                     label: "Remark",
@@ -1619,7 +1622,7 @@ export const SawingViewPage: React.FC = () => {
                       letterSpacing: "0.02em",
                     }}
                   >
-                    This Output CBF
+                    This Output CFT
                   </Typography>
                   <Typography
                     variant="h6"
@@ -1630,7 +1633,7 @@ export const SawingViewPage: React.FC = () => {
                       fontSize: "18px",
                     }}
                   >
-                    {outputCbfDisplay}
+                    {outputCftDisplay}
                   </Typography>
                   <Typography variant="caption" sx={{ color: "text.secondary", mt: 0.25, display: "block" }}>
                     Output Item Volume
@@ -1984,7 +1987,7 @@ export const SawingViewPage: React.FC = () => {
                     <TableHead>
                       <TableRow>
                         <TableCell sx={getDialogHeaderCellSx(theme)}>Sawing Done No.</TableCell>
-                        <TableCell sx={getDialogHeaderCellSx(theme)}>Log No.</TableCell>
+                        <TableCell sx={getDialogHeaderCellSx(theme)}>Batch No</TableCell>
                         <TableCell sx={getDialogHeaderCellSx(theme)}>Thickness</TableCell>
                         <TableCell sx={getDialogHeaderCellSx(theme)}>CBM</TableCell>
                         <TableCell sx={getDialogHeaderCellSx(theme)}>Status</TableCell>
@@ -1997,7 +2000,7 @@ export const SawingViewPage: React.FC = () => {
                             {item.batchNoCode || item.sawingSrNo || item.id || `Item ${idx + 1}`}
                           </TableCell>
                           <TableCell sx={getDialogBodyCellSx(theme)}>
-                            {item.batchNo || item.logNo || "-"}
+                            {item.batchNo || "-"}
                           </TableCell>
                           <TableCell sx={getDialogBodyCellSx(theme)}>
                             {item.thickness ? `${item.thickness} m` : "-"}
@@ -2138,7 +2141,7 @@ export const SawingViewPage: React.FC = () => {
           items={[
             { label: "Storage Sr No.", value: sourceItem?.storageSrNo || "-" },
             { label: "Item Name", value: sourceItem?.itemName || "-" },
-            { label: "Log No.", value: sourceItem?.batchNo || "-" },
+            { label: "Batch No.", value: sourceItem?.batchNo || "-" },
             {
               label: "Source Length",
               value: sourceItem?.length !== "-" ? String(sourceItem?.length).replace(/\s*(m|mm|mtr)$/i, "") : "-",
@@ -2192,13 +2195,12 @@ export const SawingViewPage: React.FC = () => {
                   },
                   { label: "Item Name", value: record.itemName || sourceItem?.itemName || "-" },
                   { label: "Sub Category", value: record.subCategory || record.itemSubCategory || sourceItem?.subCategory || "-" },
-                  { label: "Log No.", value: record.logNo || (sourceItem as any)?.logNo || sourceItem?.batchNo || "-" },
-                  { label: "Batch No", value: record.batchNoCode || record.batchNo || "-" },
+                  { label: "Batch No", value: record.batchNo || record.batchNoCode || sourceItem?.batchNo || "-" },
                   { label: "Length (mm)", value: record.length ?? "-" },
                   { label: "Width (mm)", value: record.width ?? "-" },
                   { label: "Thickness (mm)", value: record.thickness ?? record.height ?? "-" },
                   { label: "CBM", value: record.cbm ?? "-" },
-                  { label: "CBF", value: record.cbf ?? "-" },
+                  { label: "CFT", value: record.cft ?? record.cbf ?? "-" },
                   { label: "Status", value: "Rejected" },
                   { label: "Created By", value: record.createdBy || "-" },
                   { label: "Created At", value: formatDisplayDate(record.createdAt, true) },

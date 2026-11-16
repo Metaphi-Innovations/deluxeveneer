@@ -13,6 +13,7 @@ import {
   formatSlicingDecimal,
   measureSlicingSlice,
   resolveSlicingDimensionMetres,
+  resolveSlicingThicknessMm,
   slicingStockCbm,
 } from "../shared/slicingAreaCalculation";
 import { formatSawingNumber, numericField } from "../sawing/sawingCreateRules";
@@ -97,7 +98,10 @@ export function getMaximumSlicingThickness(
   if (length <= 0 || width <= 0 || !Number.isInteger(leaves) || leaves <= 0) {
     return 0;
   }
-  return Math.max(0, currentRemainingCbm) / (length * width * leaves);
+  const sqm = length * width * leaves;
+  if (sqm <= 0) return 0;
+  // CBM = SQM × thickness(mm) / 1000 → max thickness(mm) = CBM × 1000 / SQM
+  return (Math.max(0, currentRemainingCbm) * 1000) / sqm;
 }
 
 export function validateSlicingRow({
@@ -117,7 +121,7 @@ export function validateSlicingRow({
   const width = resolveSlicingDimensionMetres(values.width);
   const thicknessKey = "height" in values ? "height" : "thickness";
   const thicknessText = String(values.height || values.thickness || "").trim();
-  const thickness = resolveSlicingDimensionMetres(thicknessText);
+  const thickness = resolveSlicingThicknessMm(thicknessText);
   const leavesText = String(values.noOfLeaves ?? values.noOfSheets ?? "").trim();
   const leaves = Number(leavesText);
 
@@ -224,6 +228,7 @@ export function buildSlicingAvailableValues(
     height: formatSlicingDecimal(remainder.height, 6),
     thickness: formatSlicingDecimal(remainder.height, 6),
     cbm: formatSlicingDecimal(remainder.cbm, 6),
+    cft: formatSlicingDecimal(remainder.cft ?? remainder.cbf, 4),
     cbf: formatSlicingDecimal(remainder.cbf, 4),
     sqm: formatSlicingDecimal(remainder.sqm, 3),
     sqf: formatSlicingDecimal(remainder.sqf, 3),
@@ -410,6 +415,7 @@ addSlicingDoneItems(
       receivedLeaves: vals.noOfLeaves || vals.noOfSheets || "",
       availableLeaves: vals.noOfLeaves || vals.noOfSheets || "",
       cbm: vals.cbm || "",
+      cft: vals.cft || vals.cbf || "",
       cbf: vals.cbf || "",
       receivedCbm: slicingSource.receivedCbm ?? slicingSource.availableCbm ?? slicingSource.cbm ?? "",
       sourceLength: slicingSource.length ?? "",

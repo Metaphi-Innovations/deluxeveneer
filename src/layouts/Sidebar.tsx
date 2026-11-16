@@ -921,5 +921,9 @@ function canViewNavigationItem(
     return canAccessPermission("componentLibrary", "view", user);
   }
 
+  if (itemId === "master-warehouse-consumables") {
+    return true;
+  }
+
   return false;
 }

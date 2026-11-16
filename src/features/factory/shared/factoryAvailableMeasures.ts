@@ -15,7 +15,8 @@ const measureColumns = [
   { availableKey: "availableSqm", availableLabel: "Available SQM", receivedLabel: "Received SQM", sourceKey: "totalSqMeter" },
   { availableKey: "availableSqf", availableLabel: "Available SQF", receivedLabel: "Received SQF", sourceKey: "sqf" },
   { availableKey: "availableCbm", availableLabel: "Available CBM", receivedLabel: "Received CBM", sourceKey: "cbm" },
-  { availableKey: "availableCbf", availableLabel: "Available CBF", receivedLabel: "Received CBF", sourceKey: "cbf" },
+  { availableKey: "availableCft", availableLabel: "Available CFT", receivedLabel: "Received CFT", sourceKey: "cft" },
+  { availableKey: "availableCbf", availableLabel: "Available CFT", receivedLabel: "Received CFT", sourceKey: "cbf" },
 ] as const;
 
 export function withAvailableFactoryMeasureColumns<Row extends FactoryRecord>(

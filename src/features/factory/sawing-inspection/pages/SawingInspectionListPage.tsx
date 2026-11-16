@@ -39,7 +39,10 @@ import {
 } from "../../shared/listing/factoryListingParts";
 import {
   fetchSawingInspectionPending,
+  fetchSawingInspectionPendingById,
   fetchSawingInspectionDone,
+  fetchSawingInspectionDoneById,
+  fetchSawingInspectionHistory,
   fetchSawingInspectionFail,
   fetchSawingInspectionDropdownsApi,
   revertSawingInspectionPendingApi,
@@ -57,6 +60,7 @@ import { sawingInspectionDefinition } from "../../shared/factoryDefinitions";
 import {
   SAWING_INSPECTION_PENDING_COLUMNS,
   SAWING_INSPECTION_DONE_COLUMNS,
+  SAWING_INSPECTION_HISTORY_COLUMNS,
   SAWING_INSPECTION_FAIL_COLUMNS,
   SAWING_INSPECTION_TABS,
   type SawingInspectionTab,
@@ -159,7 +163,7 @@ export function SawingInspectionListPage() {
   const handleColumnFilterOpen = useCallback(
     async (columnKey: string) => {
       try {
-        const tabName = activeTab === "done" ? "done" : activeTab === "failed" ? "failed" : "pending";
+        const tabName = activeTab === "done" ? "done" : "pending";
         const dropdowns = await fetchSawingInspectionDropdownsApi(tabName);
         let rawOpts: string[] = [];
         if (columnKey === "storageSrNo") rawOpts = dropdowns.storageSrNos || [];
@@ -224,8 +228,8 @@ export function SawingInspectionListPage() {
       let result: { items: any[]; pagination: { total: number } };
       if (activeTab === "done") {
         result = await fetchSawingInspectionDone(queryParams);
-      } else if (activeTab === "failed") {
-        result = await fetchSawingInspectionFail(queryParams);
+      } else if (activeTab === "history") {
+        result = await fetchSawingInspectionHistory(queryParams);
       } else {
         result = await fetchSawingInspectionPending(queryParams);
       }
@@ -264,8 +268,6 @@ export function SawingInspectionListPage() {
       const rem = revertRemark.trim() || undefined;
       if (activeTab === "done") {
         await revertSawingInspectionDoneApi(revertTargetRow.id, rem);
-      } else if (activeTab === "failed") {
-        await revertSawingInspectionFailApi(revertTargetRow.id, rem);
       } else {
         await revertSawingInspectionPendingApi(revertTargetRow.id, rem);
       }
@@ -319,6 +321,19 @@ export function SawingInspectionListPage() {
     setInspectAttachmentName("");
     setInspectAttachmentPreview(null);
     setInspectDialogOpen(true);
+
+    // Call inspection API to load latest details
+    if (r?.id && !String(r.id).startsWith("factory-work-")) {
+      void fetchSawingInspectionPendingById(r.id)
+        .then((detail) => {
+          if (detail) {
+            setInspectTargetRow((prev: any) => ({ ...prev, ...detail }));
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch inspection pending detail:", err);
+        });
+    }
   };
 
   const handleCloseInspect = () => {
@@ -342,24 +357,23 @@ export function SawingInspectionListPage() {
     }
   };
 
-  const handleConfirmInspectDecision = async (decision: "pass" | "fail") => {
+  const handleConfirmInspectDecision = async () => {
     if (!inspectTargetRow) return;
     setIsSubmittingInspect(true);
 
     try {
-      const mode = decision;
       const workItemId =
         inspectTargetRow.workItemId ||
         (String(inspectTargetRow.id).startsWith("factory-work-") ? inspectTargetRow.id : null);
 
       const patch = {
         inspectionDate: inspectDate,
-        remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
-        qcStatus: mode === "pass" ? "Pass" : "Fail",
-        listingState: mode === "pass" ? "done" : "failed",
-        status: mode === "pass" ? "Pass" : "Fail",
-        passQty: mode === "pass" ? 1 : 0,
-        failQty: mode === "pass" ? 0 : 1,
+        remark: inspectRemark.trim() || "Inspection completed",
+        listingState: "done",
+        status: "Done",
+        qcStatus: "Pass",
+        passQty: 1,
+        failQty: 0,
         ...(inspectAttachmentPreview
           ? {
               inspectionImage: inspectAttachmentPreview,
@@ -371,23 +385,19 @@ export function SawingInspectionListPage() {
       // Call backend API if real ID exists
       if (inspectTargetRow.id && !String(inspectTargetRow.id).startsWith("factory-work-")) {
         try {
-          await recordSawingInspectionDecisionApi(inspectTargetRow.id, mode === "pass" ? "PASS" : "FAIL", {
+          await recordSawingInspectionDecisionApi(inspectTargetRow.id, "PASS", {
             inspectionDate: inspectDate,
-            remark: inspectRemark.trim() || (mode === "pass" ? "Passed inspection" : "Failed inspection"),
+            remark: inspectRemark.trim() || "Inspection completed",
             attachmentUrl: inspectAttachmentPreview || undefined,
             attachmentName: inspectAttachmentName || undefined,
           });
         } catch (apiErr) {
-          console.error("Failed to submit inspection decision to backend:", apiErr);
+          console.error("Failed to submit inspection to backend:", apiErr);
         }
       }
 
       if (workItemId) {
-        if (mode === "pass") {
-          completeFactoryIssuedWork(workItemId, patch);
-        } else {
-          failFactoryIssuedWork(workItemId, patch);
-        }
+        completeFactoryIssuedWork(workItemId, patch);
       }
 
       // Update in-memory sawingInspectionDefinition rows
@@ -413,7 +423,7 @@ export function SawingInspectionListPage() {
       }
 
       setToastNotification({
-        message: `Sawing Inspection marked as ${mode === "pass" ? "PASS" : "FAIL"} successfully.`,
+        message: "Sawing Inspection completed successfully.",
         severity: "success",
       });
       setInspectDialogOpen(false);
@@ -514,6 +524,16 @@ export function SawingInspectionListPage() {
           disabledReason: row.isTransferred ? "Transferred items cannot be reverted" : undefined,
           onSelect: (r: any) => handleOpenRevert(r),
         });
+      } else if (activeTab === "history") {
+        // History: View
+        actions.push({
+          id: "view",
+          label: "View",
+          icon: Eye,
+          onSelect: (r: any) => {
+            navigate(`/factory/sawing-inspection/view/${r.id}`, { state: { record: r, tab: "history" } });
+          },
+        });
       } else {
         // Failed: View, Revert
         actions.push({
@@ -544,8 +564,8 @@ export function SawingInspectionListPage() {
         return SAWING_INSPECTION_PENDING_COLUMNS;
       case "done":
         return SAWING_INSPECTION_DONE_COLUMNS;
-      case "failed":
-        return SAWING_INSPECTION_FAIL_COLUMNS;
+      case "history":
+        return SAWING_INSPECTION_HISTORY_COLUMNS;
       default:
         return SAWING_INSPECTION_PENDING_COLUMNS;
     }
@@ -642,7 +662,7 @@ export function SawingInspectionListPage() {
             py: 2,
           }}
         >
-          Record Inspection Decision
+          Record Inspection
         </DialogTitle>
         <DialogContent sx={{ px: 2.5, py: `${theme.spacing(2.5)} !important` }}>
           <Stack spacing={2.5}>
@@ -668,19 +688,14 @@ export function SawingInspectionListPage() {
                           "-",
                       },
                       {
-                        label: "Log No.",
-                        value:
-                          inspectTargetRow.logNo ||
-                          inspectTargetRow.log_no ||
-                          inspectTargetRow.logNumber ||
-                          "-",
-                      },
-                      {
                         label: "Batch No",
                         value:
                           inspectTargetRow.batchNo ||
+                          inspectTargetRow.batchNoCode ||
                           inspectTargetRow.batch_no ||
                           inspectTargetRow.batchNumber ||
+                          inspectTargetRow.logNo ||
+                          inspectTargetRow.log_no ||
                           "-",
                       },
                       {
@@ -825,24 +840,9 @@ export function SawingInspectionListPage() {
           </Button>
           <Box sx={{ flex: 1 }} />
           <Button
-            color="error"
+            color="primary"
             disabled={isSubmittingInspect}
-            onClick={() => handleConfirmInspectDecision("fail")}
-            startIcon={<AlertCircle size={16} />}
-            sx={{
-              ...recordFormActionButtonSx,
-              textTransform: "none",
-              fontWeight: 600,
-              px: 2.5,
-            }}
-            variant="outlined"
-          >
-            Confirm Fail
-          </Button>
-          <Button
-            color="success"
-            disabled={isSubmittingInspect}
-            onClick={() => handleConfirmInspectDecision("pass")}
+            onClick={() => void handleConfirmInspectDecision()}
             startIcon={<CheckCircle2 size={16} />}
             sx={{
               ...recordFormActionButtonSx,
@@ -852,7 +852,7 @@ export function SawingInspectionListPage() {
             }}
             variant="contained"
           >
-            Confirm Pass
+            Submit Inspection
           </Button>
         </DialogActions>
       </Dialog>

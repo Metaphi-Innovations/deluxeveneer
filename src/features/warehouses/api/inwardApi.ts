@@ -62,6 +62,9 @@ export interface CreateInwardItemPayload {
   logCode?: string | null;
   bundleNumber?: string | null;
   palletNo?: string | null;
+  gradeId?: string | null;
+  gradeName?: string | null;
+  grade?: string | null;
   noOfLeaves?: number | null;
   sheets?: number | null;
   totalSqMeter?: number | null;
@@ -125,6 +128,9 @@ export interface InwardItemDetail {
   logCode?: string | null;
   bundleNumber?: string | null;
   palletNo?: string | null;
+  gradeId?: string | null;
+  gradeName?: string | null;
+  grade?: string | null;
   noOfLeaves?: number | null;
   sheets?: number | null;
   totalSqMeter?: number | null;
@@ -563,4 +569,76 @@ export async function fetchInwardKpisApi(params: {
   );
 
   return res.data;
+}
+
+export interface InwardGradeOption {
+  id: string;
+  name: string;
+  label: string;
+  value: string;
+}
+
+export async function fetchInwardGradeOptions(): Promise<InwardGradeOption[]> {
+  try {
+    const res = await apiRequest<ApiResponse<Array<{ id: string; name: string; label?: string; value?: string }>>>(
+      `${BASE_PATH}/dropdowns/grades`,
+      { method: "GET" }
+    );
+    if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+      return res.data.map((g) => ({
+        id: g.id,
+        name: g.name || g.label || "",
+        label: g.label || g.name || "",
+        value: g.name || g.label || g.value || "",
+      }));
+    }
+  } catch {
+    // fallback below
+  }
+  try {
+    const masterRes = await apiRequest<ApiResponse<any>>(`/masters/grades?status=true&limit=1000`, { method: "GET" });
+    const items = masterRes?.data?.items || masterRes?.data || [];
+    if (Array.isArray(items) && items.length > 0) {
+      return items.map((g: any) => ({
+        id: g.id,
+        name: g.name || g.gradeName || "",
+        label: g.name || g.gradeName || "",
+        value: g.name || g.gradeName || "",
+      }));
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
+export async function fetchInwardGradeByIdApi(idOrName: string): Promise<InwardGradeOption | null> {
+  if (!idOrName) return null;
+  try {
+    const res = await apiRequest<ApiResponse<any>>(`${BASE_PATH}/dropdowns/grades/${encodeURIComponent(idOrName)}`, { method: "GET" });
+    if (res?.data) {
+      return {
+        id: res.data.id,
+        name: res.data.name || res.data.gradeName || "",
+        label: res.data.name || res.data.gradeName || "",
+        value: res.data.name || res.data.gradeName || "",
+      };
+    }
+  } catch {
+    // fallback
+  }
+  try {
+    const masterRes = await apiRequest<ApiResponse<any>>(`/masters/grades/${encodeURIComponent(idOrName)}`, { method: "GET" });
+    if (masterRes?.data) {
+      return {
+        id: masterRes.data.id,
+        name: masterRes.data.name || masterRes.data.gradeName || "",
+        label: masterRes.data.name || masterRes.data.gradeName || "",
+        value: masterRes.data.name || masterRes.data.gradeName || "",
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
 }

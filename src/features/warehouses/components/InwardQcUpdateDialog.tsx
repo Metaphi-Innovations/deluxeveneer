@@ -891,7 +891,7 @@ function getQcTableHeaders(inventoryType: string | undefined): string[] {
   const identityHeaders =
     slug === "raw-veneer"
       ? ([
-          "Log Code",
+          "Batch No",
           "Bundle",
           "Pallet No",
           "L",
@@ -903,7 +903,7 @@ function getQcTableHeaders(inventoryType: string | undefined): string[] {
         ? (["Pallet No", "L", "W", "Thk", qtyLabel] as const)
         : slug === "consumables"
           ? (["Unit", qtyLabel] as const)
-          : (["Log No", "L", "W", "H", qtyLabel] as const);
+          : (["Batch No", "L", "W", "H", qtyLabel] as const);
 
   return [
     "#",
@@ -1054,7 +1054,7 @@ function ItemQcTable({
                   ) : isRawVeneer ? (
                     <>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                        {item.logCode || "—"}
+                        {item.batchNo || item.logCode || "—"}
                       </TableCell>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                         {item.bundleNumber || "—"}
@@ -1108,7 +1108,7 @@ function ItemQcTable({
                   ) : (
                     <>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
-                        {item.batchNo || item.logCode || "—"}
+                        {item.batchNo || "—"}
                       </TableCell>
                       <TableCell sx={(theme) => listingTableBodyCellSx(theme)}>
                         {formatMeasure(item.length)}

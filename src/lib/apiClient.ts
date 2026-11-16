@@ -36,6 +36,7 @@ export async function apiRequest<TResponse>(
         parsedPath.pathname.startsWith('/factory/slicing') ||
         parsedPath.pathname.startsWith('/factory/drying') ||
         parsedPath.pathname.startsWith('/factory/sawing-inspection')) &&
+      !parsedPath.pathname.includes('/export') &&
       serializedFilters
     ) {
       let filters: Record<string, string[]> | undefined;

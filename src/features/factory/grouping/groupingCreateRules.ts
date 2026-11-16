@@ -49,11 +49,15 @@ export function orderGroupingCreateFields(fields: readonly MasterFieldDefinition
         field.key !== "subCategory" &&
         field.key !== "grade",
     )
-    .map((field) =>
-      field.key === "itemName"
-        ? { ...field, readOnly: true }
-        : field,
-    );
+    .map((field) => {
+      if (field.key === "itemName") {
+        return { ...field, readOnly: true };
+      }
+      if (field.key === "logNo") {
+        return { ...field, label: "Lot No" };
+      }
+      return field;
+    });
   const groupNoField = groupingFields.find((field) => field.key === "groupNo");
   const withoutGroupNo = groupNoField
     ? groupingFields.filter((field) => field !== groupNoField)

@@ -519,7 +519,7 @@ const sawingItemTableFields: readonly MasterFieldDefinition[] = [
   { key: "width", label: "Width", type: "text" },
   { key: "height", label: "Thickness", type: "text" },
   { key: "cbm", label: "CBM", type: "text" },
-  { key: "cbf", label: "CBF", type: "text" },
+  { key: "cft", label: "CFT", type: "text" },
   { key: "remark", label: "Remark", type: "text" },
 ];
 

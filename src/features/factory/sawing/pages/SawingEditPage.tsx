@@ -72,12 +72,12 @@ type EditLineItem = {
 };
 
 const itemFields = [
-  { key: "batchNoCode", label: "Batch No", readOnly: false },
+  { key: "batchNoCode", label: "Batch No", readOnly: true },
   { key: "length", label: "Length", readOnly: true },
   { key: "width", label: "Width", readOnly: false },
   { key: "thickness", label: "Thickness", readOnly: false },
   { key: "cbm", label: "CBM", readOnly: true },
-  { key: "cbf", label: "CBF", readOnly: true },
+  { key: "cft", label: "CFT", readOnly: true },
   { key: "remark", label: "Remark", readOnly: false },
 ] as const;
 
@@ -112,7 +112,8 @@ function buildItemValues(row: SawingRow, sourceRow: SawingRow) {
       width: text(row.width || sourceRow.width),
       thickness: text(row.thickness || row.height),
       cbm: text(row.cbm),
-      cbf: text(row.cbf),
+      cft: text((row as any).cft || row.cbf),
+      cbf: text((row as any).cft || row.cbf),
       remark: text(row.remark),
       receivedCbm: text(sourceRow.receivedCbm),
       availableCbm: text(sourceRow.availableCbm),
@@ -252,8 +253,8 @@ export function SawingEditPage() {
       value: text(sourceRow.subCategory || sourceRow.itemSubCategory) || "-",
     },
     {
-      label: "Log No.",
-      value: text(sourceRow.batchNo || sourceRow.logNo) || "-",
+      label: "Batch No",
+      value: text(sourceRow.batchNo) || "-",
     },
     { label: "Source Length", value: decimal(sourceRow.length) },
     { label: "Source Width", value: decimal(sourceRow.width) },
@@ -346,12 +347,13 @@ export function SawingEditPage() {
         remark: text(selectedRow.remark),
         outputs: rowsForSave.map((item) => ({
           id: item.id,
-          batchNo: item.values.batchNoCode || item.values.logNo,
+          batchNo: item.values.batchNoCode || item.values.batchNo || text(sourceRow.batchNo),
           length: Number(item.values.length) || undefined,
           width: Number(item.values.width) || undefined,
           thickness: Number(item.values.thickness) || undefined,
           cbm: Number(item.values.cbm) || undefined,
-          cbf: Number(item.values.cbf) || undefined,
+          cft: Number(item.values.cft || item.values.cbf) || undefined,
+          cbf: Number(item.values.cft || item.values.cbf) || undefined,
           remark: item.values.remark,
         })),
       });

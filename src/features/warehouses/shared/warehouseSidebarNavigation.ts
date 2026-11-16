@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowDownToLine, Boxes, Factory, Warehouse } from "lucide-react";
+import { ArrowDownToLine, Boxes, Factory, Package, Warehouse } from "lucide-react";
 
 import {
   matchesSidebarPath,
@@ -20,11 +20,32 @@ export const WAREHOUSE_TYPE_ICONS: Record<WarehouseMasterType, LucideIcon> = {
 export function buildWarehousesNavigationEntry(
   warehouses: readonly SidebarWarehouseItem[] = [],
 ): SidebarNavigationGroup {
+  const items = warehouses.map((warehouse) =>
+    buildWarehouseNavigationItem(warehouse),
+  );
+
+  items.push({
+    id: "master-warehouse-consumables",
+    label: "Consumables Warehouse",
+    icon: Package,
+    permissionKey: "warehouseB",
+    to: "/warehouses/consumables",
+    match: (location) => {
+      if (matchesSidebarPath(location, "/warehouses/consumables")) {
+        return true;
+      }
+      if (location.pathname.startsWith("/inventory/consumables")) {
+        return true;
+      }
+      return false;
+    },
+  });
+
   return {
     id: "warehouses",
     label: "Warehouses",
     icon: Warehouse,
-    items: warehouses.map((warehouse) => buildWarehouseNavigationItem(warehouse)),
+    items,
   };
 }
 

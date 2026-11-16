@@ -32,13 +32,6 @@ import {
 } from "../api/productionWarehouseApi";
 import { queryKeys } from "../../../../query/queryKeys";
 import { useDebouncedValue } from "../../../../query/useDebouncedValue";
-import { IssueForGroupingDialog } from "../IssueForGroupingDialog";
-import {
-  groupingIssuedLeavesBySource,
-  groupingIssuedSliceAreas,
-  parseLeafCount,
-  withGroupingAvailability,
-} from "../rawVeneerGroupingQuantity";
 import { getProductionInventoryRecordPath } from "../productionInventoryPaths";
 import type { ProductionListQueryState } from "../productionListQuery";
 
@@ -88,6 +81,7 @@ function mapApiItem(item: ProductionInventoryItem): RawVeneerRow {
     itemName: String(item.itemName ?? ""),
     factoryCode: String(item.factoryCode ?? ""),
     subCategory: String(item.subCategory ?? ""),
+    batchNo: String(item.batchNo ?? item.logNo ?? ""),
     length: String(item.length ?? ""),
     width: String(item.width ?? ""),
     thickness: String(item.thickness ?? ""),
@@ -119,13 +113,8 @@ export function RawVeneerTab({
   onListQueryChange,
 }: RawVeneerTabProps) {
   const navigate = useNavigate();
-  const [marquetryIssuedRowIds, setMarquetryIssuedRowIds] = useState<string[]>(
-    [],
-  );
   const [marquetryConfirmRow, setMarquetryConfirmRow] = useState<RawVeneerRow | null>(null);
-  const [groupingIssueRow, setGroupingIssueRow] = useState<RawVeneerRow | null>(
-    null,
-  );
+  const [flutingConfirmRow, setFlutingConfirmRow] = useState<RawVeneerRow | null>(null);
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -154,11 +143,6 @@ export function RawVeneerTab({
           )
           .map((item) => item.sourceRowId),
       ),
-    [factoryIssuedWorkItems, warehouseName],
-  );
-
-  const groupingIssuedLeavesByRowId = useMemo(
-    () => groupingIssuedLeavesBySource(factoryIssuedWorkItems, warehouseName),
     [factoryIssuedWorkItems, warehouseName],
   );
 
@@ -197,20 +181,8 @@ export function RawVeneerTab({
   const isLoading = Boolean(warehouseId) && listQuery.isLoading;
 
   const visibleRows = useMemo(
-    () =>
-      rows
-        .filter(
-          (row) =>
-            !marquetryIssuedRowIds.includes(String(row.id)) &&
-            !movedWarehouseRowIds.has(String(row.id)),
-        )
-        .map((row) => withGroupingAvailability(row, groupingIssuedLeavesByRowId)),
-    [
-      groupingIssuedLeavesByRowId,
-      marquetryIssuedRowIds,
-      movedWarehouseRowIds,
-      rows,
-    ],
+    () => rows.filter((row) => !movedWarehouseRowIds.has(String(row.id))),
+    [movedWarehouseRowIds, rows],
   );
   const totalCount = listQuery.data?.total ?? 0;
 
@@ -284,23 +256,19 @@ export function RawVeneerTab({
         });
 
         list.push({
-          id: "issue-for-grouping",
-          label: "Issue for Grouping",
+          id: "issue-for-fluting",
+          label: "Issue for Fluting",
           icon: Plus,
           tone: "primary",
           onSelect: (row: RawVeneerRow) => {
-            setGroupingIssueRow(withGroupingAvailability(row, groupingIssuedLeavesByRowId));
+            setFlutingConfirmRow(row);
           },
         });
       }
 
       return list;
     },
-    [canView, canEdit, groupingIssuedLeavesByRowId, navigate, warehouseId, warehouseName],
-  );
-
-  const groupingIssueAvailableLeaves = parseLeafCount(
-    groupingIssueRow?.availableNoOfLeaves ?? groupingIssueRow?.noOfLeaves,
+    [canView, canEdit, navigate, warehouseId, warehouseName],
   );
 
   return (
@@ -327,61 +295,54 @@ export function RawVeneerTab({
               warehouseName,
             } as FactoryRecord,
           });
-          setMarquetryIssuedRowIds((current) =>
-            current.includes(String(row.id)) ? current : [...current, String(row.id)],
-          );
         }}
         open={Boolean(marquetryConfirmRow)}
         title="Issue for Marquetry"
       />
-      <IssueForGroupingDialog
-        availableLeaves={groupingIssueAvailableLeaves}
-        onClose={() => setGroupingIssueRow(null)}
-        onConfirm={(leaves) => {
-          if (!groupingIssueRow) return;
-          const availableLeaves = parseLeafCount(groupingIssueRow.availableNoOfLeaves);
-          if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) return;
-          const issuedAreas = groupingIssuedSliceAreas(groupingIssueRow, leaves);
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Issue"
+        description="Issue this raw veneer stock to the Fluting (CNC) process?"
+        onClose={() => setFlutingConfirmRow(null)}
+        onConfirm={() => {
+          if (!flutingConfirmRow) return;
+          const row = flutingConfirmRow;
+          setFlutingConfirmRow(null);
           issueFactoryWork({
-            destinationProcess: "Grouping",
+            destinationProcess: "Fluting",
             sourceSlug: warehouseName,
             sourceProcess: "Inventory",
             sourceWarehouseName: warehouseName,
             sourceRow: {
-              ...groupingIssueRow,
-              itemName: groupingIssueRow.itemName,
-              productName: groupingIssueRow.itemName,
-              factoryCode: groupingIssueRow.factoryCode,
-              subCategory: groupingIssueRow.subCategory,
-              itemSubCategory: groupingIssueRow.subCategory,
-              length: groupingIssueRow.length,
-              width: groupingIssueRow.width,
-              thickness: groupingIssueRow.thickness,
-              height: groupingIssueRow.thickness,
-              grade: groupingIssueRow.grade,
-              currency: groupingIssueRow.currency,
-              remark: groupingIssueRow.remark,
-              updatedBy: groupingIssueRow.updatedBy,
-              storageSrNo: groupingIssueRow.storageSrNo,
-              noOfLeaves: String(leaves),
-              sqm: issuedAreas.sqm,
-              sqf: issuedAreas.sqf,
-              totalSqMeter: issuedAreas.sqm,
-              totalSqm: issuedAreas.sqm,
-              totalSqf: issuedAreas.sqf,
-              issuedLeafCount: String(leaves),
-              groupingIssuedLeaves: String(leaves),
+              ...row,
+              itemName: row.itemName,
+              productName: row.itemName,
+              factoryCode: row.factoryCode,
+              subCategory: row.subCategory,
+              itemSubCategory: row.subCategory,
+              length: row.length,
+              width: row.width,
+              thickness: row.thickness,
+              height: row.thickness,
+              grade: row.grade,
+              noOfLeaves: row.noOfLeaves,
+              sqm: row.sqm,
+              sqf: row.sqf,
+              totalSqm: row.sqm,
+              totalSqf: row.sqf,
+              storageSrNo: row.storageSrNo,
+              productionSrNo: row.productionSrNo,
               issuedFrom: "Inventory",
-              issuedFor: "Grouping",
+              issuedFor: "Fluting",
               issuedDate: new Date(),
               issueDate: new Date(),
               warehouseName,
+              inventorySlug: row.inventorySlug ?? "raw-veneer",
             } as FactoryRecord,
           });
-          setGroupingIssueRow(null);
         }}
-        open={Boolean(groupingIssueRow)}
-        row={groupingIssueRow}
+        open={Boolean(flutingConfirmRow)}
+        title="Issue for Fluting"
       />
       <EnterpriseDataTable
         key="production-raw-veneer"
@@ -392,11 +353,7 @@ export function RawVeneerTab({
         filterOptionsByColumn={filterOptionsByColumn}
         loading={isLoading}
         loadingLabel="Loading raw veneer inventory..."
-        getRowActions={(row) =>
-          parseLeafCount(row.availableNoOfLeaves) >= 1
-            ? actions
-            : actions.filter((action) => action.id !== "issue-for-grouping")
-        }
+        getRowActions={() => actions}
         onColumnFilterOpen={(columnKey) => {
           if (clientQuantityColumnKeys.has(columnKey)) return;
           void loadDropdownOptions(columnKey);

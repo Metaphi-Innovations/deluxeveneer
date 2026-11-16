@@ -23,7 +23,9 @@ export interface SawingIssueItem {
   cbm: number | null;
   receivedCbm: number | null;
   availableCbm: number | null;
+  cft?: number | null;
   cbf: number | null;
+  ratePerCft?: number | null;
   ratePerCbf: number | null;
   amount: number;
   totalAmount: number;
@@ -51,9 +53,11 @@ export interface SawingDoneItem {
   width: number | null;
   thickness: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
   receivedCbm: number | null;
   availableCbm: number | null;
+  ratePerCft?: number | null;
   ratePerCbf: number | null;
   amount: number;
   totalAmount: number;
@@ -76,7 +80,9 @@ export interface SawingHistoryItem {
   width: number | null;
   height: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
+  ratePerCft?: number | null;
   ratePerCbf: number | null;
   amount: number | null;
   totalAmount: number | null;
@@ -97,6 +103,7 @@ export interface SawingRejectedItem {
   width: number | null;
   height: number | null;
   cbm: number | null;
+  cft?: number | null;
   cbf: number | null;
   remark: string | null;
   createdBy: string | null;
@@ -114,6 +121,7 @@ export interface SawingAvailableItem {
   width: number | null;
   height: number | null;
   availableCbm: number;
+  availableCft?: number;
   availableCbf: number;
   remark: string | null;
   createdBy: string | null;
@@ -223,9 +231,11 @@ export async function createSawingProcessApi(data: {
     width: number;
     thickness: number;
     cbm?: number | undefined;
+    cft?: number | undefined;
     cbf?: number | undefined;
     receivedCbm?: number | undefined;
     availableCbm?: number | undefined;
+    ratePerCft?: number | undefined;
     ratePerCbf?: number | undefined;
     ratePerCbm?: number | undefined;
     amount?: number | undefined;
@@ -238,6 +248,7 @@ export async function createSawingProcessApi(data: {
     height?: number | undefined;
     thickness?: number | undefined;
     cbm?: number | undefined;
+    cft?: number | undefined;
     cbf?: number | undefined;
     amount?: number | undefined;
     remark?: string | undefined;
@@ -511,6 +522,7 @@ export async function editSawingDoneApi(
       width?: number | undefined;
       thickness?: number | undefined;
       cbm?: number | undefined;
+      cft?: number | undefined;
       cbf?: number | undefined;
       remark?: string | undefined;
     }> | undefined;

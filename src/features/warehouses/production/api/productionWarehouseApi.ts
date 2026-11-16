@@ -5,6 +5,10 @@ export interface ProductionInventoryItem {
   productionSrNo?: string | null | undefined;
   storageSrNo?: string | null | undefined;
   inwardDate: string | Date;
+  inspectionDate?: string | Date | undefined;
+  sawingDate?: string | Date | undefined;
+  productionWarehouse?: string | undefined;
+  productionWarehouseName?: string | undefined;
   inwardItemCode?: string | null | undefined;
   factoryCode?: string | null | undefined;
   itemName: string;
@@ -109,7 +113,7 @@ export async function fetchProductionColumnDropdown(params: {
 
 export async function exportProductionInventoryApi(params: {
   warehouseId: string;
-  tab: "raw-veneer" | "plywood" | "mdf" | "consumables";
+  tab: "raw-veneer" | "plywood" | "mdf" | "consumables" | "sawing" | "sample-sheets";
   search?: string | undefined;
   sortBy?: string | undefined;
   sortOrder?: "asc" | "desc" | undefined;

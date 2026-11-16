@@ -59,8 +59,7 @@ type InwardInventoryTab =
   | "veneer-blocks"
   | "raw-veneer"
   | "plywood"
-  | "mdf"
-  | "consumables";
+  | "mdf";
 
 const INWARD_SORT_FIELD_MAP: Record<string, string> = {
   inwardSrNo: "inwardSrNo",
@@ -86,7 +85,6 @@ const inwardInventoryTabs = [
   { label: "Raw Veneer", value: "raw-veneer" },
   { label: "Plywood", value: "plywood" },
   { label: "MDF", value: "mdf" },
-  { label: "Consumables", value: "consumables" },
 ] as const satisfies readonly {
   label: string;
   value: InwardInventoryTab;
@@ -97,7 +95,6 @@ const inwardInventoryTitles: Record<InwardInventoryTab, string> = {
   "raw-veneer": "Raw Veneer",
   plywood: "Plywood",
   mdf: "MDF",
-  consumables: "Consumables",
 };
 
 const inwardListingColumns: readonly EnterpriseTableColumn<WarehouseInventoryRow>[] =
@@ -521,8 +518,7 @@ function getActiveInwardInventoryTab(
     value === "veneer-blocks" ||
     value === "raw-veneer" ||
     value === "plywood" ||
-    value === "mdf" ||
-    value === "consumables"
+    value === "mdf"
   ) {
     return value;
   }

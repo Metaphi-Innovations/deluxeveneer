@@ -48,6 +48,7 @@ interface OutputEditRow {
   sqf: number;
   totalSqMeter: number;
   cbm: number;
+  cft?: number;
   cbf: number;
   remark: string;
 }
@@ -92,7 +93,7 @@ export function SlicingEditPage() {
         setOutputs([
           {
             id: data.id,
-            logCode: data.logCode || "",
+            logCode: data.batchNo || data.logCode || "",
             bundleNumber: data.bundleNumber || "",
             palletNo: data.palletNo || "",
             length: data.length || 0,
@@ -103,6 +104,7 @@ export function SlicingEditPage() {
             sqf: data.sqf || 0,
             totalSqMeter: data.totalSqMeter || 0,
             cbm: data.cbm || 0,
+            cft: (data as any).cft || data.cbf || 0,
             cbf: data.cbf || 0,
             remark: data.remark || "",
           },
@@ -174,6 +176,7 @@ export function SlicingEditPage() {
         outputs: outputs.map((out) => ({
           id: out.id,
           logCode: out.logCode,
+          batchNo: out.logCode,
           bundleNumber: out.bundleNumber,
           palletNo: out.palletNo,
           length: out.length,
@@ -251,7 +254,7 @@ export function SlicingEditPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell sx={transactionTableHeaderCellSx}>Log Code</TableCell>
+                  <TableCell sx={transactionTableHeaderCellSx}>Batch No</TableCell>
                   <TableCell sx={transactionTableHeaderCellSx}>Bundle Number</TableCell>
                   <TableCell sx={transactionTableHeaderCellSx}>Pallet No</TableCell>
                   <TableCell sx={transactionTableHeaderCellSx}>Length</TableCell>

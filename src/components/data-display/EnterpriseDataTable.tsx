@@ -2091,11 +2091,26 @@ function getAuditInitials(name: string) {
 }
 
 function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
-  const normalized =
-    typeof value === "string" && value.trim().toLowerCase() === "sample"
-      ? "Sample"
-      : "Order";
-  const isSample = normalized === "Sample";
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  const raw = String(value).trim();
+  const lower = raw.toLowerCase();
+  const isSample = lower === "sample" || lower === "sample sheet";
+  const isSawing = lower.includes("sawing");
+  const isSlicing = lower.includes("slicing");
+  const isOrder = lower === "order";
+
+  const label = isSawing
+    ? "Sawing"
+    : isSlicing
+      ? "Slicing"
+      : isSample
+        ? "Sample"
+        : isOrder
+          ? "Order"
+          : raw;
 
   return (
     <Box
@@ -2106,16 +2121,29 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
         height: 22,
         px: 1,
         borderRadius: "999px",
-        border: `1px solid ${isSample
-          ? theme.customTokens.brand.primary
-          : theme.customTokens.borders.default
-          }`,
+        border: `1px solid ${
+          isSample
+            ? theme.customTokens.brand.primary
+            : isSawing
+              ? theme.palette.mode === "dark" ? "#f59e0b" : "#d97706"
+              : isSlicing
+                ? theme.palette.mode === "dark" ? "#3b82f6" : "#2563eb"
+                : theme.customTokens.borders.default
+        }`,
         backgroundColor: isSample
           ? `${theme.customTokens.brand.primary}14`
-          : theme.customTokens.neutrals[100],
+          : isSawing
+            ? theme.palette.mode === "dark" ? "rgba(245, 158, 11, 0.15)" : "#fef3c7"
+            : isSlicing
+              ? theme.palette.mode === "dark" ? "rgba(59, 130, 246, 0.15)" : "#eff6ff"
+              : theme.customTokens.neutrals[100],
         color: isSample
           ? theme.customTokens.brand.primary
-          : theme.customTokens.neutrals[700],
+          : isSawing
+            ? theme.palette.mode === "dark" ? "#fbbf24" : "#92400e"
+            : isSlicing
+              ? theme.palette.mode === "dark" ? "#60a5fa" : "#1d4ed8"
+              : theme.customTokens.neutrals[700],
         fontSize: 11,
         fontWeight: 700,
         letterSpacing: "0.02em",
@@ -2124,7 +2152,7 @@ function renderForPurposeBadge(value: EnterpriseTableCellValue, theme: Theme) {
         whiteSpace: "nowrap",
       }}
     >
-      {normalized}
+      {label}
     </Box>
   );
 }

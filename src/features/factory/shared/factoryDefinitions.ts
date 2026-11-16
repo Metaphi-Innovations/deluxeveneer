@@ -597,8 +597,8 @@ const sawingListingColumns = columns([
   ["width", "Width"],
   ["height", "Height"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
-  ["ratePerSqf", "Rate per CBF"],
+  ["cft", "CFT"],
+  ["ratePerSqf", "Rate per CFT"],
   ["amount", "Amount"],
   ["remark", "Remark"],
 ] as const);
@@ -609,13 +609,12 @@ export const sawingInspectionListingColumns = columns([
   ["sawingDate", "Sawing Date"],
   ["itemName", "Item Name"],
   ["subCategory", "Sub Category"],
-  ["batchNo", "Log No."],
-  ["batchNoCode", "Batch No"],
+  ["batchNo", "Batch No."],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
+  ["cft", "CFT"],
   ["qcStatus", "Status"],
   ["remark", "Remark"],
   ["createdBy", "Created"],
@@ -713,7 +712,7 @@ const groupingListingColumns = columns([
   ["groupingDate", "Grouping Date"],
   ["groupPhoto", "Group Photo"],
   ["issueTo", "Issue To"],
-  ["logNo", "Log No."],
+  ["logNo", "Lot No"],
   ["grade", "Grade"],
   ["length", "Length"],
   ["width", "Width"],
@@ -880,7 +879,7 @@ const sawingProcessDetailFields = [
   ["width", "Width"],
   ["thickness", "Thickness"],
   ["cbm", "CBM"],
-  ["cbf", "CBF"],
+  ["cft", "CFT"],
   ["remark", "Remark"],
 ] as const;
 
@@ -905,6 +904,8 @@ function buildSawingFormSections(rows: readonly FactoryRecord[]) {
     createSection(
       "Output Details",
       fields(sawingProcessDetailFields, rows).map((fieldDefinition) =>
+        fieldDefinition.key === "batchNoCode" ||
+        fieldDefinition.key === "batchNo" ||
         fieldDefinition.key === "length" ||
         fieldDefinition.key === "cbm" ||
         fieldDefinition.key === "cbf"

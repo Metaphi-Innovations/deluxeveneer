@@ -15,7 +15,7 @@ export function applySlicingListingColumns<Row extends FactoryRecord>(
       { key: "issueDate", label: "Issue Date" },
       { key: "itemName", label: "Item Name" },
       { key: "subCategory", label: "Sub Category" },
-      { key: "batchNo", label: "Log No." },
+      { key: "batchNo", label: "Batch No" },
       { key: "length", label: "Length" },
       { key: "width", label: "Width" },
       { key: "height", label: "Height" },

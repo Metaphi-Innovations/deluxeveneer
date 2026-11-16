@@ -203,7 +203,6 @@ export const DryingInspectionViewPage: React.FC = () => {
   const rawLength = record?.length;
   const rawWidth = record?.width;
   const rawThickness = record?.thickness ?? record?.height;
-  const grade = String(record?.grade || record?.itemGrade || "Export");
   const color = String(record?.color || record?.colour || "-");
 
   const lengthDisplay = formatDisplayDimension(rawLength, "m");
@@ -488,7 +487,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                 gridTemplateColumns: {
                   xs: "1fr",
                   sm: "repeat(2, minmax(0, 1fr))",
-                  md: color !== "-" ? "repeat(7, minmax(0, 1fr))" : "repeat(6, minmax(0, 1fr))",
+                  md: color !== "-" ? "repeat(6, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))",
                 },
                 gap: 1.5,
               }}
@@ -497,7 +496,6 @@ export const DryingInspectionViewPage: React.FC = () => {
                 { label: "Length", value: lengthDisplay },
                 { label: "Width", value: widthDisplay },
                 { label: "Thickness", value: thicknessDisplay },
-                { label: "Grade", value: grade },
                 ...(color !== "-" ? [{ label: "Color", value: color }] : []),
                 { label: "SQM", value: sqmDisplay },
                 { label: "SQF", value: sqfDisplay },
@@ -608,7 +606,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Passed Leaves
+                  Grade A
                 </Typography>
                 <Typography
                   variant="h5"
@@ -642,7 +640,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Failed Leaves
+                  Grade B
                 </Typography>
                 <Typography
                   variant="h5"
@@ -679,10 +677,10 @@ export const DryingInspectionViewPage: React.FC = () => {
                   variant="body2"
                   sx={{ color: "text.primary", fontWeight: 600, fontSize: "0.85rem" }}
                 >
-                  Passed: {passedLeaves} / {receivedLeaves} ({passPercent.toFixed(1)}%)
+                  Grade A: {passedLeaves} / {receivedLeaves} ({passPercent.toFixed(1)}%)
                   {failedLeaves > 0 && (
                     <Box component="span" sx={{ ml: 2, color: theme.palette.error.main }}>
-                      Failed: {failedLeaves} / {receivedLeaves} ({failPercent.toFixed(1)}%)
+                      Grade B: {failedLeaves} / {receivedLeaves} ({failPercent.toFixed(1)}%)
                     </Box>
                   )}
                 </Typography>
@@ -764,7 +762,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Passed Leaves
+                  Grade A
                 </Typography>
                 <Typography
                   variant="body2"
@@ -785,7 +783,7 @@ export const DryingInspectionViewPage: React.FC = () => {
                     letterSpacing: "0.02em",
                   }}
                 >
-                  Failed Leaves
+                  Grade B
                 </Typography>
                 <Typography
                   variant="body2"

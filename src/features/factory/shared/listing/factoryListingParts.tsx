@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -17,6 +19,8 @@ import {
   Typography,
 } from "@mui/material";
 import { AlertCircle, CheckCircle2, Eye, Plus, XCircle } from "lucide-react";
+import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
 import {
   ErpDatePickerField,
   ErpSelectField,
@@ -250,8 +254,22 @@ export interface InspectionDecisionDialogProps<Row extends FactoryRecord> {
   row: Row | null;
   processSlug?: string;
   onClose: () => void;
-  onPass: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
-  onFail: (row: Row, remark?: string, inspectionDate?: string, counts?: { passQty: number; failQty: number }, attachment?: { name: string; dataUrl: string }) => void;
+  onPass: (
+    row: Row,
+    remark?: string,
+    inspectionDate?: string,
+    counts?: { passQty: number; failQty: number },
+    attachment?: { name: string; dataUrl: string },
+    gradeInfo?: { gradeId?: string; gradeName?: string },
+  ) => void;
+  onFail: (
+    row: Row,
+    remark?: string,
+    inspectionDate?: string,
+    counts?: { passQty: number; failQty: number },
+    attachment?: { name: string; dataUrl: string },
+    gradeInfo?: { gradeId?: string; gradeName?: string },
+  ) => void;
   passCount: number;
   failCount: number;
 }
@@ -274,6 +292,10 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const [passQtyStr, setPassQtyStr] = useState<string>("");
   const [failQtyStr, setFailQtyStr] = useState<string>("0");
+  const [gradeId, setGradeId] = useState<string>("");
+  const [gradeName, setGradeName] = useState<string>("");
+  const [gradeOptions, setGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingGrades, setIsLoadingGrades] = useState(false);
   const isSawingInspection = processSlug === "sawing-inspection";
   const isDryingInspection =
     !isSawingInspection &&
@@ -284,6 +306,59 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
       ? Number(row.availableLeaves ?? row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
       : Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0)
     : 0;
+
+  const handleOpenGradeDropdown = async () => {
+    setIsLoadingGrades(true);
+    try {
+      const res = await fetchGradesApi({ status: true, limit: 100 });
+      if (Array.isArray(res) && res.length > 0) {
+        setGradeOptions(
+          res.map((g: any) => ({
+            id: String(g.id),
+            name: String(g.name || g.gradeName || ""),
+          })),
+        );
+      } else {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      }
+    } catch {
+      try {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      } catch {
+        // fallback
+      }
+    } finally {
+      setIsLoadingGrades(false);
+    }
+  };
+
+  const handleGradeChange = async (selectedId: string) => {
+    setGradeId(selectedId);
+    const found = gradeOptions.find((o) => o.id === selectedId);
+    if (found) {
+      setGradeName(found.name);
+    }
+    // Call on-selection API every time
+    if (selectedId) {
+      try {
+        const gradeDetail = await getGradeByIdApi(selectedId);
+        if (gradeDetail && (gradeDetail.name || gradeDetail.gradeName)) {
+          setGradeName(String(gradeDetail.name || gradeDetail.gradeName));
+        }
+      } catch {
+        try {
+          const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
+          if (inwardDetail?.name) {
+            setGradeName(String(inwardDetail.name));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     if (open && row) {
@@ -296,6 +371,9 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
         : Number(row.noOfLeaves ?? row.totalLeaves ?? row.noOfSheets ?? 0);
       setPassQtyStr(total > 0 ? String(total) : "");
       setFailQtyStr("0");
+      setGradeId(String((row as any).gradeId || ""));
+      setGradeName(String((row as any).grade || (row as any).gradeName || ""));
+      void handleOpenGradeDropdown();
     }
   }, [isDryingInspection, open, row]);
 
@@ -314,7 +392,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
         { label: "Width", value: formatDialogMeasure(row.width) },
         { label: "Thickness", value: formatDialogMeasure(row.thickness ?? row.height) },
         { label: "CBM", value: formatDialogMeasure(row.cbm) },
-        { label: "CBF", value: formatDialogMeasure(row.cbf) },
+        { label: "CFT", value: formatDialogMeasure(row.cft ?? row.cbf) },
       ]
     : [
         { label: "Storage Sr No.", value: String(row.storageSrNo ?? row.id ?? "-") },
@@ -465,7 +543,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     value={String(totalQuantity || "-")}
                   />
                   <Stack spacing={0.75}>
-                    <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
+                    <DialogFieldLabel required>Grade A</DialogFieldLabel>
                     <TextField
                       error={exceedsTotal}
                       fullWidth
@@ -479,7 +557,7 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     />
                   </Stack>
                   <Stack spacing={0.75}>
-                    <DialogFieldLabel required>Fail Quantity (Leaves)</DialogFieldLabel>
+                    <DialogFieldLabel required>Grade B</DialogFieldLabel>
                     <TextField
                       error={exceedsTotal}
                       fullWidth
@@ -498,7 +576,12 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                 sx={(theme) => ({
                   display: "grid",
                   gap: theme.spacing(2),
-                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: isDryingInspection
+                      ? "repeat(3, minmax(0, 1fr))"
+                      : "repeat(2, minmax(0, 1fr))",
+                  },
                 })}
               >
                 <Stack spacing={0.75} sx={{ maxWidth: { sm: 260 } }}>
@@ -577,10 +660,17 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
           <Button
             disabled={dryingQuantitiesInvalid}
             onClick={() =>
-              onPass(row, remark, inspectionDate, {
-                passQty: currentPass,
-                failQty: currentFail,
-              }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
+              onPass(
+                row,
+                remark,
+                inspectionDate,
+                {
+                  passQty: currentPass,
+                  failQty: currentFail,
+                },
+                attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined,
+                { gradeId, gradeName },
+              )
             }
             sx={recordFormActionButtonSx}
             variant="contained"
@@ -593,10 +683,17 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
               color="error"
               disabled={exceedsTotal}
               onClick={() =>
-                onFail(row, remark, inspectionDate, {
-                  passQty: isSawingInspection ? 0 : currentPass,
-                  failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
-                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
+                onFail(
+                  row,
+                  remark,
+                  inspectionDate,
+                  {
+                    passQty: isSawingInspection ? 0 : currentPass,
+                    failQty: isSawingInspection ? totalQuantity || 1 : currentFail,
+                  },
+                  attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined,
+                  { gradeId, gradeName },
+                )
               }
               startIcon={<AlertCircle size={16} />}
               sx={recordFormActionButtonSx}
@@ -608,10 +705,17 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
               color="success"
               disabled={exceedsTotal}
               onClick={() =>
-                onPass(row, remark, inspectionDate, {
-                  passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
-                  failQty: isSawingInspection ? 0 : currentFail,
-                }, attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined)
+                onPass(
+                  row,
+                  remark,
+                  inspectionDate,
+                  {
+                    passQty: isSawingInspection ? totalQuantity || 1 : currentPass,
+                    failQty: isSawingInspection ? 0 : currentFail,
+                  },
+                  attachmentPreview ? { name: attachmentName, dataUrl: attachmentPreview } : undefined,
+                  { gradeId, gradeName },
+                )
               }
               startIcon={<CheckCircle2 size={16} />}
               sx={recordFormActionButtonSx}

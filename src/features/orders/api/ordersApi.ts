@@ -21,6 +21,7 @@ export interface BackendOrderItem {
   logNo: string | null;
   batchNo: string | null;
   cbm: string | number | null;
+  cft?: string | number | null;
   cbf: string | number | null;
   ratePerCbm: string | number | null;
   groupNo: string | null;
@@ -115,6 +116,7 @@ export interface CreateOrderPayload {
     logNo?: string | undefined;
     batchNo?: string | undefined;
     cbm?: number | string | undefined;
+    cft?: number | string | undefined;
     cbf?: number | string | undefined;
     ratePerCbm?: number | string | undefined;
     groupNo?: string | undefined;
@@ -159,6 +161,7 @@ export function mapBackendOrderToOrderRecord(backendOrder: BackendOrder): {
     logNo: item.logNo ?? undefined,
     batchNo: item.batchNo ?? undefined,
     cbm: item.cbm !== null && item.cbm !== undefined ? String(item.cbm) : undefined,
+    cft: (item as any).cft !== null && (item as any).cft !== undefined ? String((item as any).cft) : item.cbf !== null && item.cbf !== undefined ? String(item.cbf) : undefined,
     cbf: item.cbf !== null && item.cbf !== undefined ? String(item.cbf) : undefined,
     ratePerCbm: item.ratePerCbm !== null && item.ratePerCbm !== undefined ? String(item.ratePerCbm) : undefined,
     sqm: String(item.sqm),
@@ -241,6 +244,7 @@ export async function createOrderApi(payload: Partial<OrderDraft>): Promise<Back
       logNo: item.logNo,
       batchNo: item.batchNo,
       cbm: item.cbm,
+      cft: (item as any).cft ?? item.cbf,
       cbf: item.cbf,
       ratePerCbm: item.ratePerCbm,
       groupNo: item.groupNo,
@@ -329,6 +333,7 @@ export async function updateOrderApi(
           logNo: item.logNo,
           batchNo: item.batchNo,
           cbm: item.cbm,
+          cft: (item as any).cft ?? item.cbf,
           cbf: item.cbf,
           ratePerCbm: item.ratePerCbm,
           groupNo: item.groupNo,

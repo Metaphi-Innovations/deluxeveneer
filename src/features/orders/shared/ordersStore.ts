@@ -41,6 +41,7 @@ export interface OrderLineItem {
   logNo?: string | undefined;
   batchNo?: string | undefined;
   cbm?: string | undefined;
+  cft?: string | undefined;
   cbf?: string | undefined;
   ratePerCbm?: string | undefined;
   sqm: string;
@@ -189,10 +190,10 @@ export const orderTypeOptions = orderCreateOptions.map((option) => option.label)
 
 export const productCategoryOptions = [
   "Veneer (Raw)",
-  "Sawing (Raw)",
-  "MDF (Raw)",
-  "Plywood (Raw)",
-  "Decorative (Finished)",
+  "Sawing (Wood)",
+  "MDF",
+  "Plywood",
+  "Decorative (Pressed Veneer)",
   "Marquetry (Finished)",
   "Fluted (Finished)",
   "Embossed (Finished)",
@@ -772,6 +773,7 @@ function normalizeLineItems(
       logNo: item.logNo ? normalizeString(item.logNo, "") : undefined,
       batchNo: item.batchNo ? normalizeString(item.batchNo, "") : undefined,
       cbm: item.cbm ? normalizeString(item.cbm, "") : undefined,
+      cft: (item as any).cft ? normalizeString((item as any).cft, "") : item.cbf ? normalizeString(item.cbf, "") : undefined,
       cbf: item.cbf ? normalizeString(item.cbf, "") : undefined,
       ratePerCbm: item.ratePerCbm ? normalizeString(item.ratePerCbm, "") : undefined,
       sqm,
@@ -954,7 +956,7 @@ function createInitialOrderState() {
     "Hold for supervisor review.",
   ] as const;
   const finishedTypes = ["Marquetry", "Fluted", "Embossed", "Decorative"] as const;
-  const baseTypes = ["Plywood", "MDF"] as const;
+  const baseTypes = ["Plywood", "MDF", "Fleece Back", "Twist"] as const;
   const coordinators = [...salesCoordinatorOptions];
   const records: OrderRecord[] = [];
   const lineItemsById = new Map<string, OrderLineItem[]>();

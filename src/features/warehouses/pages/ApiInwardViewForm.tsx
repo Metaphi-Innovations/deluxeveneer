@@ -263,7 +263,7 @@ export function ApiInwardViewForm({
         "Item Name",
         "Factory Code",
         "HSN",
-        "Log Code",
+        "Batch No",
         "Bundle",
         "Pallet",
         "L",
@@ -286,6 +286,7 @@ export function ApiInwardViewForm({
         "Factory Code",
         "HSN",
         "Pallet No",
+        "Grade",
         "L",
         "W",
         "Thk",
@@ -324,7 +325,7 @@ export function ApiInwardViewForm({
       "Item Name",
       "Factory Code",
       "HSN",
-      "Log No",
+      "Batch No",
       "L",
       "W",
       "H",
@@ -1203,7 +1204,7 @@ function ItemRow({
       ) : isRawVeneer ? (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.logCode || "—"}
+            {item.batchNo || item.logCode || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {item.bundleNumber || "—"}
@@ -1233,6 +1234,9 @@ function ItemRow({
             {item.palletNo || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
+            {item.gradeName || item.grade || (item as any).bundleNumber || "—"}
+          </TableCell>
+          <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.length)}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
@@ -1251,7 +1255,7 @@ function ItemRow({
       ) : (
         <>
           <TableCell sx={getViewBodyCellSx(theme)}>
-            {item.batchNo || item.logCode || "—"}
+            {item.batchNo || "—"}
           </TableCell>
           <TableCell sx={getViewBodyCellSx(theme)}>
             {formatMeasure(item.length)}

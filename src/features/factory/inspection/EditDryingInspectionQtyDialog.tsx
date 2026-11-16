@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Stack,
   TextField,
   Typography,
@@ -16,6 +18,8 @@ import { ErpDatePickerField } from "../../../pages/ComponentLibrary/shared/ErpFi
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
 import { recordFormActionButtonSx } from "../../shared/buttonStyles";
 import { formSectionCardSx } from "../../shared/formSectionStyles";
+import { fetchGradesApi, getGradeByIdApi } from "../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../warehouses/api/inwardApi";
 import {
   DialogFieldLabel,
   getFactoryString,
@@ -184,7 +188,7 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
                 value={String(leafQuantity || "-")}
               />
               <Stack spacing={0.75}>
-                <DialogFieldLabel required>Pass Quantity (Leaves)</DialogFieldLabel>
+                <DialogFieldLabel required>Grade A</DialogFieldLabel>
                 <TextField
                   error={exceedsTotal}
                   fullWidth
@@ -202,7 +206,7 @@ export function EditDryingInspectionQtyDialog<Row extends FactoryRecord>({
                 />
               </Stack>
               <Stack spacing={0.75}>
-                <DialogFieldLabel required>Fail Quantity (Leaves)</DialogFieldLabel>
+                <DialogFieldLabel required>Grade B</DialogFieldLabel>
                 <TextField
                   error={exceedsTotal}
                   fullWidth

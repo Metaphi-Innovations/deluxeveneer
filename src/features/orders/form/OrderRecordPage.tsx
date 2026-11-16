@@ -127,14 +127,13 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
 const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
   { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 120, getValue: (row) => row.length },
   { label: "Width", minWidth: 120, getValue: (row) => row.width },
   { label: "Thickness", minWidth: 120, getValue: (row) => row.thickness },
   { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
-  { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+  { label: "CFT", minWidth: 110, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
   { label: "No. of Sheets", minWidth: 130, getValue: (row) => row.quantitySheets },
   { label: "No. of Leaves", minWidth: 130, getValue: (row) => row.noOfLeaves ?? "-" },
   { label: "Group No.", minWidth: 130, getValue: (row) => row.groupNo ?? "-" },
@@ -157,9 +156,6 @@ const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   },
   { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
   { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
-  { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
-  { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
-  { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
   { label: "Design Code", minWidth: 130, getValue: (row) => row.designCode },
   { label: "Structured Code", minWidth: 140, getValue: (row) => row.structuredCode },
   { label: "Amount", minWidth: 130, getValue: (row) => row.amount },
@@ -1531,7 +1527,6 @@ export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly D
   const columns: DetailColumn<OrderLineItem>[] = [
     { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
     { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-    { label: "Sales Item Name", minWidth: 190, getValue: (row) => row.salesItemName },
   ];
 
   if (isSawing) {
@@ -1550,7 +1545,7 @@ export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly D
   if (isSawing) {
     columns.push(
       { label: "CBM", minWidth: 110, getValue: (row) => row.cbm ?? "-" },
-      { label: "CBF", minWidth: 110, getValue: (row) => row.cbf ?? "-" },
+      { label: "CFT", minWidth: 110, getValue: (row) => (row as any).cft ?? row.cbf ?? "-" },
     );
   }
 
@@ -1602,22 +1597,15 @@ export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly D
     columns.push(
       { label: "Base Type", minWidth: 130, getValue: (row) => row.baseType },
       { label: "Base Name", minWidth: 160, getValue: (row) => row.baseName },
-      { label: "Base Length", minWidth: 130, getValue: (row) => row.baseLength },
-      { label: "Base Width", minWidth: 130, getValue: (row) => row.baseWidth },
-      { label: "Base Thickness", minWidth: 150, getValue: (row) => row.baseThickness },
     );
   }
 
-  if (isFluted) {
-    columns.push(
-      { label: "Design Code", minWidth: 130, getValue: (row) => row.designCode },
-    );
-  }
-
-  if (isEmbossed) {
-    columns.push(
-      { label: "Structured Code", minWidth: 140, getValue: (row) => row.structuredCode },
-    );
+  if (isFluted || isEmbossed) {
+    columns.push({
+      label: "Structured Code",
+      minWidth: 140,
+      getValue: (row) => row.structuredCode ?? "-",
+    });
   }
 
   columns.push({ label: "Remark", minWidth: 200, getValue: (row) => row.remark });

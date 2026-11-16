@@ -45,7 +45,9 @@ interface ProcessItemRow {
   width: number;
   thickness: number;
   cbm: number;
+  cft: number;
   cbf: number;
+  ratePerCft: number;
   ratePerCbf: number;
   amount: number;
   remark?: string;
@@ -58,6 +60,7 @@ interface RejectAvailableRow {
   width: number;
   height: number;
   cbm: number;
+  cft: number;
   cbf: number;
   amount: number;
   remark: string;
@@ -86,9 +89,11 @@ export function DryingCreatePage() {
   const [length, setLength] = useState(sourceItem?.length ? String(sourceItem.length) : "");
   const [width, setWidth] = useState(sourceItem?.width ? String(sourceItem.width) : "");
   const [thickness, setThickness] = useState("");
-  const [ratePerCbf, setRatePerCbf] = useState(
-    sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf) : "",
+  const [ratePerCft, setRatePerCft] = useState(
+    sourceItem?.ratePerCft ? String(sourceItem.ratePerCft) : sourceItem?.ratePerCbf ? String(sourceItem.ratePerCbf) : "",
   );
+  const ratePerCbf = ratePerCft;
+  const setRatePerCbf = setRatePerCft;
   const [remark, setRemark] = useState("");
 
   // Processed Items List
@@ -119,16 +124,17 @@ export function DryingCreatePage() {
     return Number(((l * w * t) / divisor).toFixed(6));
   }, [length, width, thickness]);
 
-  const calculatedCbf = useMemo(() => {
+  const calculatedCft = useMemo(() => {
     if (!calculatedCbm) return 0;
     return Number((calculatedCbm * 35.3147).toFixed(4));
   }, [calculatedCbm]);
+  const calculatedCbf = calculatedCft;
 
   const calculatedAmount = useMemo(() => {
-    const rate = Number(ratePerCbf) || 0;
-    if (!calculatedCbf || !rate) return 0;
-    return Number((calculatedCbf * rate).toFixed(2));
-  }, [calculatedCbf, ratePerCbf]);
+    const rate = Number(ratePerCft) || 0;
+    if (!calculatedCft || !rate) return 0;
+    return Number((calculatedCft * rate).toFixed(2));
+  }, [calculatedCft, ratePerCft]);
 
   // Auto-calculated fields for Reject / Available add
   const calculatedRaCbm = useMemo(() => {
@@ -141,10 +147,11 @@ export function DryingCreatePage() {
     return Number(((l * w * h) / divisor).toFixed(6));
   }, [raLength, raWidth, raHeight]);
 
-  const calculatedRaCbf = useMemo(() => {
+  const calculatedRaCft = useMemo(() => {
     if (!calculatedRaCbm) return 0;
     return Number((calculatedRaCbm * 35.3147).toFixed(4));
   }, [calculatedRaCbm]);
+  const calculatedRaCbf = calculatedRaCft;
 
   // Source Overview items
   const sourceOverviewItems = useMemo(() => {
@@ -185,8 +192,10 @@ export function DryingCreatePage() {
                 width: w,
                 thickness: t,
                 cbm: calculatedCbm,
+                cft: calculatedCft,
                 cbf: calculatedCbf,
-                ratePerCbf: Number(ratePerCbf) || 0,
+                ratePerCft: Number(ratePerCft) || 0,
+                ratePerCbf: Number(ratePerCft) || 0,
                 amount: calculatedAmount,
                 remark,
               }
@@ -203,8 +212,10 @@ export function DryingCreatePage() {
         width: w,
         thickness: t,
         cbm: calculatedCbm,
+        cft: calculatedCft,
         cbf: calculatedCbf,
-        ratePerCbf: Number(ratePerCbf) || 0,
+        ratePerCft: Number(ratePerCft) || 0,
+        ratePerCbf: Number(ratePerCft) || 0,
         amount: calculatedAmount,
         remark,
       };
@@ -251,6 +262,7 @@ export function DryingCreatePage() {
       width: w,
       height: h,
       cbm: calculatedRaCbm,
+      cft: calculatedRaCft,
       cbf: calculatedRaCbf,
       amount: 0,
       remark: raRemark,
@@ -379,18 +391,18 @@ export function DryingCreatePage() {
               />
 
               <TextField
-                label="CBF"
-                value={calculatedCbf ? calculatedCbf.toFixed(4) : "0"}
+                label="CFT"
+                value={calculatedCft ? calculatedCft.toFixed(4) : "0"}
                 slotProps={{ input: { readOnly: true } }}
                 size="small"
                 sx={getCompactFieldSx(theme)}
               />
 
               <TextField
-                label="Rate per CBF"
+                label="Rate per CFT"
                 type="number"
-                value={ratePerCbf}
-                onChange={(e) => setRatePerCbf(e.target.value)}
+                value={ratePerCft}
+                onChange={(e) => setRatePerCft(e.target.value)}
                 size="small"
                 sx={getCompactFieldSx(theme)}
               />
@@ -455,7 +467,7 @@ export function DryingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CFT</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
                       Action
                     </TableCell>
@@ -477,7 +489,7 @@ export function DryingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.thickness} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cft ?? item.cbf}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
                           <Stack direction="row" spacing={1} justifyContent="center">
                             <IconButton
@@ -597,7 +609,7 @@ export function DryingCreatePage() {
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Width</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Height</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>CBM</TableCell>
-                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CBF</TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme)}>CFT</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)}>Remark</TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme)} align="center">
                       Action
@@ -630,7 +642,7 @@ export function DryingCreatePage() {
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.width || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.height || "-"} mm</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbm || "-"}</TableCell>
-                        <TableCell sx={transactionTableBodyCellSx(theme)}>{item.cbf || "-"}</TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>{(item.cft ?? item.cbf) || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>{item.remark || "-"}</TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)} align="center">
                           <IconButton

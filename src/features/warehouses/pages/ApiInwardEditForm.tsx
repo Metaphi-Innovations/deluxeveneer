@@ -122,7 +122,8 @@ function mapDetailItemToLineValues(
   if (slug === "raw-veneer") {
     return {
       ...shared,
-      logCode: item.logCode ?? "",
+      batchNo: item.batchNo ?? item.logCode ?? "",
+      logCode: item.logCode ?? item.batchNo ?? "",
       bundleNumber: item.bundleNumber ?? "",
       palletNo: item.palletNo ?? "",
       thickness: formatOptionalNumber(item.thickness),
@@ -132,12 +133,18 @@ function mapDetailItemToLineValues(
   }
 
   if (slug === "plywood" || slug === "mdf") {
+    const gradeVal = (item as any).grade ?? (item as any).gradeName ?? (item as any).bundleNumber ?? "";
     return {
       ...shared,
       palletNo: item.palletNo ?? "",
+      grade: gradeVal,
+      gradeName: gradeVal,
+      gradeId: (item as any).gradeId ?? "",
       thickness: formatOptionalNumber(item.thickness),
       sheets: formatOptionalNumber(item.sheets),
+      noOfSheets: formatOptionalNumber(item.sheets),
       totalSqMeter: formatOptionalNumber(item.totalSqMeter),
+      totalSqm: formatOptionalNumber(item.totalSqMeter),
       remarks: item.remark ?? "",
     };
   }
@@ -168,7 +175,8 @@ function mapDetailItemToLineValues(
 
   return {
     ...shared,
-    logCode: item.batchNo ?? "",
+    batchNo: item.batchNo ?? item.logCode ?? "",
+    logCode: item.logCode ?? item.batchNo ?? "",
     thickness: formatOptionalNumber(item.height),
     cbm: formatOptionalNumber(item.cbm),
   };

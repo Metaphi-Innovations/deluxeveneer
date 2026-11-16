@@ -86,7 +86,11 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
     field("Group No.", row, ["groupNo"]),
     field("Source Warehouse", row, ["warehouseName", "storageWarehouseName"]),
     field("Issued From", row, ["issuedFrom", "sourceProcess"]),
-    field("Log No.", row, ["logNo", "batchNo", "logCode"]),
+    field(
+      definition.slug === "grouping" ? "Lot No" : "Log No.",
+      row,
+      ["logNo", "batchNo", "logCode"],
+    ),
     field("Bundle No.", row, ["bundleNumber", "bundleNo"]),
     field("Pallet No.", row, ["palletNo"]),
     field("Issued Date", row, ["issuedDate", "issueDate"]),

@@ -495,18 +495,20 @@ export async function exportDryingDataApi(
   tab: "issued" | "done" | "history" | "rejected" = "done",
   params: DryingQueryParams = {}
 ): Promise<any[]> {
-  const query = new URLSearchParams();
-  if (params.search?.trim()) query.set("search", params.search.trim());
-  if (params.sortBy) query.set("sortBy", params.sortBy);
-  if (params.sortOrder) query.set("sortOrder", params.sortOrder);
-  if (params.warehouseId) query.set("warehouseId", params.warehouseId);
+  const body: Record<string, unknown> = {};
+  if (params.search?.trim()) body.search = params.search.trim();
+  if (params.sortBy) body.sortBy = params.sortBy;
+  if (params.sortOrder) body.sortOrder = params.sortOrder;
+  if (params.warehouseId) body.warehouseId = params.warehouseId;
   if (params.filters && Object.keys(params.filters).length > 0) {
-    query.set("filters", JSON.stringify(params.filters));
+    body.filters = params.filters;
   }
 
-  const qs = query.toString();
-  const endpoint = qs ? `${BASE_PATH}/${tab}/export?${qs}` : `${BASE_PATH}/${tab}/export`;
-  const response = await apiRequest<ApiResponse<any[]>>(endpoint, { method: "GET" });
+  const endpoint = `${BASE_PATH}/${tab}/export`;
+  const response = await apiRequest<ApiResponse<any[]>>(endpoint, {
+    method: "POST",
+    body,
+  });
   return response.data || [];
 }
 
