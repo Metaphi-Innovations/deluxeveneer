@@ -1026,7 +1026,7 @@ const embossingCreateFields = [
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
   ["structureCode", "Structure Code"],
-  ["logNo", "Log No."],
+  ["logNo", "Lot No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],

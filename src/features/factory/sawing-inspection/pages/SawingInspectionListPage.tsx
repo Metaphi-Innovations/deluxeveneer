@@ -7,6 +7,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  MenuItem,
+  Select,
   Snackbar,
   Stack,
   TextField,
@@ -37,6 +39,8 @@ import {
   isoDateToLocalDate,
   localDateToIso,
 } from "../../shared/listing/factoryListingParts";
+import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
 import {
   fetchSawingInspectionPending,
   fetchSawingInspectionPendingById,
@@ -112,6 +116,10 @@ export function SawingInspectionListPage() {
   const [inspectRemark, setInspectRemark] = useState("");
   const [inspectAttachmentName, setInspectAttachmentName] = useState("");
   const [inspectAttachmentPreview, setInspectAttachmentPreview] = useState<string | null>(null);
+  const [inspectGradeId, setInspectGradeId] = useState("");
+  const [inspectGradeName, setInspectGradeName] = useState("");
+  const [inspectGradeOptions, setInspectGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingInspectGrades, setIsLoadingInspectGrades] = useState(false);
   const [isSubmittingInspect, setIsSubmittingInspect] = useState(false);
 
   // Issue to Warehouse Dialog state (Done tab)
@@ -314,13 +322,71 @@ export function SawingInspectionListPage() {
     }
   };
 
+  const loadInspectGradeOptions = useCallback(async () => {
+    setIsLoadingInspectGrades(true);
+    try {
+      const res = await fetchGradesApi({ status: true, limit: 100 });
+      if (Array.isArray(res) && res.length > 0) {
+        setInspectGradeOptions(
+          res.map((g: { id: string; name?: string; gradeName?: string }) => ({
+            id: String(g.id),
+            name: String(g.name || g.gradeName || ""),
+          })),
+        );
+      } else {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setInspectGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      }
+    } catch {
+      try {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setInspectGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      } catch {
+        setInspectGradeOptions([]);
+      }
+    } finally {
+      setIsLoadingInspectGrades(false);
+    }
+  }, []);
+
+  const handleInspectGradeChange = async (selectedId: string) => {
+    setInspectGradeId(selectedId);
+    const found = inspectGradeOptions.find((o) => o.id === selectedId);
+    if (found) {
+      setInspectGradeName(found.name);
+    } else if (!selectedId) {
+      setInspectGradeName("");
+    }
+
+    if (!selectedId) return;
+
+    try {
+      const gradeDetail = await getGradeByIdApi(selectedId);
+      if (gradeDetail && (gradeDetail.name || gradeDetail.gradeName)) {
+        setInspectGradeName(String(gradeDetail.name || gradeDetail.gradeName));
+      }
+    } catch {
+      try {
+        const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
+        if (inwardDetail?.name) {
+          setInspectGradeName(String(inwardDetail.name));
+        }
+      } catch {
+        // keep selected option name
+      }
+    }
+  };
+
   const handleOpenInspect = (r: any) => {
     setInspectTargetRow(r);
     setInspectDate(new Date().toISOString().slice(0, 10));
     setInspectRemark("");
     setInspectAttachmentName("");
     setInspectAttachmentPreview(null);
+    setInspectGradeId(String(r?.gradeId || ""));
+    setInspectGradeName(String(r?.gradeName || r?.grade || ""));
     setInspectDialogOpen(true);
+    void loadInspectGradeOptions();
 
     // Call inspection API to load latest details
     if (r?.id && !String(r.id).startsWith("factory-work-")) {
@@ -328,6 +394,10 @@ export function SawingInspectionListPage() {
         .then((detail) => {
           if (detail) {
             setInspectTargetRow((prev: any) => ({ ...prev, ...detail }));
+            setInspectGradeId((prev) => prev || String(detail.gradeId || ""));
+            setInspectGradeName(
+              (prev) => prev || String(detail.gradeName || detail.grade || ""),
+            );
           }
         })
         .catch((err) => {
@@ -343,6 +413,8 @@ export function SawingInspectionListPage() {
     setInspectAttachmentName("");
     setInspectAttachmentPreview(null);
     setInspectRemark("");
+    setInspectGradeId("");
+    setInspectGradeName("");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -366,6 +438,14 @@ export function SawingInspectionListPage() {
         inspectTargetRow.workItemId ||
         (String(inspectTargetRow.id).startsWith("factory-work-") ? inspectTargetRow.id : null);
 
+      const gradePayload = inspectGradeId
+        ? {
+            gradeId: inspectGradeId,
+            grade: inspectGradeName || undefined,
+            gradeName: inspectGradeName || undefined,
+          }
+        : {};
+
       const patch = {
         inspectionDate: inspectDate,
         remark: inspectRemark.trim() || "Inspection completed",
@@ -374,6 +454,7 @@ export function SawingInspectionListPage() {
         qcStatus: "Pass",
         passQty: 1,
         failQty: 0,
+        ...gradePayload,
         ...(inspectAttachmentPreview
           ? {
               inspectionImage: inspectAttachmentPreview,
@@ -390,6 +471,7 @@ export function SawingInspectionListPage() {
             remark: inspectRemark.trim() || "Inspection completed",
             attachmentUrl: inspectAttachmentPreview || undefined,
             attachmentName: inspectAttachmentName || undefined,
+            ...gradePayload,
           });
         } catch (apiErr) {
           console.error("Failed to submit inspection to backend:", apiErr);
@@ -752,6 +834,40 @@ export function SawingInspectionListPage() {
                   size="dense"
                   value={isoDateToLocalDate(inspectDate)}
                 />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Grade
+                </Typography>
+                <Select
+                  displayEmpty
+                  fullWidth
+                  onChange={(e) => void handleInspectGradeChange(String(e.target.value))}
+                  onOpen={() => {
+                    if (inspectGradeOptions.length === 0) {
+                      void loadInspectGradeOptions();
+                    }
+                  }}
+                  size="small"
+                  value={inspectGradeId}
+                  sx={getCompactFieldSx(theme, "default")}
+                >
+                  <MenuItem value="">
+                    <em>{isLoadingInspectGrades ? "Loading grades..." : "Select grade"}</em>
+                  </MenuItem>
+                  {inspectGradeId &&
+                  !inspectGradeOptions.some((option) => option.id === inspectGradeId) ? (
+                    <MenuItem value={inspectGradeId}>
+                      {inspectGradeName || inspectGradeId}
+                    </MenuItem>
+                  ) : null}
+                  {inspectGradeOptions.map((option) => (
+                    <MenuItem key={option.id} value={option.id}>
+                      {option.name}
+                    </MenuItem>
+                  ))}
+                </Select>
               </Stack>
 
               <Stack spacing={0.75}>

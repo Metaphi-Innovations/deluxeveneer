@@ -271,7 +271,7 @@ export const splicingCreateSourceColumns = [
   { key: "orderItemNo", keys: ["orderItemNo"], label: "Order Item No", minWidth: 140 },
   { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
   { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory"], label: "Sub Category", minWidth: 160 },
-  { key: "logNo", keys: ["logNo", "logCode", "batchNo"], label: "Log No.", minWidth: 140 },
+  { key: "logNo", keys: ["logNo", "logCode", "batchNo"], label: "Lot No", minWidth: 140 },
   { key: "bundleNumber", keys: ["bundleNumber", "noOfBundle"], label: "Bundle No.", minWidth: 140 },
   { key: "palletNo", keys: ["palletNo", "palletNumber"], label: "Pallet No.", minWidth: 140 },
   { key: "color", keys: ["color", "colour", "processColour"], label: "Color", minWidth: 120 },

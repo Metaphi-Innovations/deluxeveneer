@@ -258,7 +258,6 @@ const sawingEntryRows: readonly EntryRowConfig[] = [
   },
   {
     keys: [
-      "logNo",
       "batchNo",
       "length",
       "width",
@@ -273,7 +272,7 @@ const sawingEntryRows: readonly EntryRowConfig[] = [
     template: {
       xs: "1fr 1fr",
       sm: "repeat(3, minmax(110px, 1fr))",
-      md: "repeat(9, minmax(100px, 1fr)) 400px",
+      md: "repeat(8, minmax(100px, 1fr)) 400px",
     },
   },
 ];
@@ -1601,7 +1600,7 @@ function isLineItemColumnRequired(
 
   // Sawing conditional mandatory fields
   if (isSawing) {
-    if (["productCategory", "subCategory", "itemName", "logNo", "batchNo", "length", "width", "thickness", "ratePerCbm"].includes(column.key)) {
+    if (["productCategory", "subCategory", "itemName", "batchNo", "length", "width", "thickness", "ratePerCbm"].includes(column.key)) {
       return true;
     }
     return false;
@@ -1648,7 +1647,7 @@ function getFieldValidationError(
 
   // When hidden for current product type, do not trigger validation errors
   if (isSawing) {
-    if (!["productCategory", "subCategory", "itemName", "logNo", "batchNo", "length", "width", "thickness", "cbm", "cft", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
+    if (!["productCategory", "subCategory", "itemName", "batchNo", "length", "width", "thickness", "cbm", "cft", "cbf", "ratePerCbm", "amount", "remark"].includes(column.key)) {
       return "";
     }
   } else {
@@ -1750,10 +1749,7 @@ export function getDynamicLineItemHeaders(lineItems: readonly OrderLineItem[]): 
   ];
 
   if (hasSawing) {
-    headers.push(
-      { label: "Log No.", minWidth: 110, align: "left" },
-      { label: "Batch No", minWidth: 110, align: "left" },
-    );
+    headers.push({ label: "Batch No", minWidth: 110, align: "left" });
   }
 
   if (hasDecorative) {
@@ -1841,9 +1837,6 @@ export function getDynamicLineItemCells(
         break;
       case "Item Name":
         value = row.itemName;
-        break;
-      case "Log No.":
-        value = isSawing ? (row.logNo ?? "") : "";
         break;
       case "Batch No":
         value = isSawing ? (row.batchNo ?? "") : "";
@@ -2012,7 +2005,6 @@ function getRawListingValues(row: OrderLineItem, index: number) {
       value: row.itemName,
       align: "left" as const,
     },
-    { label: "Log No.", value: row.logNo ?? "", align: "left" as const },
     { label: "Batch No", value: row.batchNo ?? "", align: "left" as const },
     { label: "Length", value: row.length, align: "left" as const },
     { label: "Width", value: row.width, align: "left" as const },
@@ -2182,6 +2174,9 @@ function getNextLineItemValues(
     if (norm !== "veneer") {
       nextValues.noOfLeaves = "";
     }
+    if (norm === "sawing") {
+      nextValues.logNo = "";
+    }
   }
 
   if (key === "baseType") {
@@ -2223,7 +2218,7 @@ function applyLineItemCalculations(
     const rawThick = parsePositiveNumber(values.thickness);
     const ratePerCbm = parsePositiveNumber(values.ratePerCbm || values.ratePerSqf);
 
-    let nextValues = { ...values };
+    const nextValues: Record<string, string> = { ...values, logNo: "" };
     if (rawLen > 0 && rawWid > 0 && rawThick > 0) {
       // Dimensions in mm -> / 1,000,000,000
       const isMm = rawLen > 50 || rawWid > 50 || rawThick > 50;

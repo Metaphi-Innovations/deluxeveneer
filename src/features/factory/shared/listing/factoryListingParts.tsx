@@ -592,6 +592,36 @@ export function InspectionDecisionDialog<Row extends FactoryRecord>({
                     value={isoDateToLocalDate(inspectionDate)}
                   />
                 </Stack>
+                {isSawingInspection ? (
+                  <Stack spacing={0.75}>
+                    <DialogFieldLabel>Grade</DialogFieldLabel>
+                    <Select
+                      displayEmpty
+                      fullWidth
+                      onChange={(event) => void handleGradeChange(String(event.target.value))}
+                      onOpen={() => {
+                        if (gradeOptions.length === 0) {
+                          void handleOpenGradeDropdown();
+                        }
+                      }}
+                      size="small"
+                      value={gradeId}
+                      sx={(theme) => getCompactFieldSx(theme, "default")}
+                    >
+                      <MenuItem value="">
+                        <em>{isLoadingGrades ? "Loading grades..." : "Select grade"}</em>
+                      </MenuItem>
+                      {gradeId && !gradeOptions.some((option) => option.id === gradeId) ? (
+                        <MenuItem value={gradeId}>{gradeName || gradeId}</MenuItem>
+                      ) : null}
+                      {gradeOptions.map((option) => (
+                        <MenuItem key={option.id} value={option.id}>
+                          {option.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </Stack>
+                ) : null}
                 <Stack spacing={0.75}>
                   <DialogFieldLabel>Attachment (Upload Photo)</DialogFieldLabel>
                   <Stack direction="row" spacing={1.5} alignItems="center">

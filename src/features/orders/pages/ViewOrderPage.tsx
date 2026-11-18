@@ -953,7 +953,6 @@ function buildDynamicItemColumns(
 
   if (hasSawing) {
     cols.push(
-      { label: "Log No.", minWidth: 110, render: (row) => row.logNo || "—" },
       { label: "Batch No", minWidth: 110, render: (row) => row.batchNo || "—" },
     );
   }

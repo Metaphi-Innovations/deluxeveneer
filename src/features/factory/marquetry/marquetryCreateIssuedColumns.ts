@@ -11,7 +11,7 @@ export const marquetryCreateIssuedColumns: readonly EnterpriseTableColumn<Factor
   { key: "issuedDate", label: "Issued Date" },
   { key: "itemName", label: "Item Name" },
   { key: "itemSubCategory", label: "Item Sub-Category" },
-  { key: "logNo", label: "Log No" },
+  { key: "logNo", label: "Lot No" },
   { key: "bundleNumber", label: "Bundle No" },
   { key: "palletNo", label: "Pallet No" },
   { key: "length", label: "Length" },

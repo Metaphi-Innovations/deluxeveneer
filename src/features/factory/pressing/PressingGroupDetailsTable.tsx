@@ -51,7 +51,7 @@ const columns: readonly GroupColumn[] = [
   { key: "groupNo", label: "Group No", minWidth: 160 },
   { key: "itemName", label: "Item Name", minWidth: 130 },
   { key: "itemSubCategory", label: "Item Sub Category", minWidth: 130 },
-  { key: "logNo", label: "Log No", minWidth: 100 },
+  { key: "logNo", label: "Lot No", minWidth: 100 },
   { key: "length", label: "Length", minWidth: 80 },
   { key: "width", label: "Width", minWidth: 80 },
   { key: "thickness", label: "Thickness", minWidth: 80 },
