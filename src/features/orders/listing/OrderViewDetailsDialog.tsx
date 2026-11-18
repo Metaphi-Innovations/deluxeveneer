@@ -65,7 +65,6 @@ const orderItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
   { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Log No.", minWidth: 110, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 110, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 100, getValue: (row) => row.length },
   { label: "Width", minWidth: 100, getValue: (row) => row.width },
@@ -104,7 +103,6 @@ const rawItemDetailColumns: readonly DetailColumn<OrderLineItemTableRow>[] = [
   { label: "Order Item No", minWidth: 120, getValue: (row) => row.orderItemNo },
   { label: "Product Type", minWidth: 140, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Log No.", minWidth: 110, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 110, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 100, getValue: (row) => row.length },
   { label: "Width", minWidth: 100, getValue: (row) => row.width },
@@ -515,7 +513,6 @@ function getItemDetailColumns(
 
   if (hasSawing) {
     cols.push(
-      { label: "Log No.", minWidth: 110, getValue: (row) => row.logNo ?? "-" },
       { label: "Batch No", minWidth: 110, getValue: (row) => row.batchNo ?? "-" },
     );
   }

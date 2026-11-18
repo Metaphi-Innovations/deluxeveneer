@@ -8,6 +8,8 @@ import {
   CircularProgress,
   Dialog,
   IconButton,
+  MenuItem,
+  Select,
   Tooltip,
   DialogActions,
   DialogContent,
@@ -45,6 +47,8 @@ import {
   type ProductionWarehouseOption,
 } from "../../shared/FactoryActionConfirmDialog";
 import { sawingInspectionDefinition } from "../../shared/factoryDefinitions";
+import { fetchGradesApi, getGradeByIdApi } from "../../../masters/grade-master/api/gradeMasterApi";
+import { fetchInwardGradeOptions, fetchInwardGradeByIdApi } from "../../../warehouses/api/inwardApi";
 import {
   recordSawingInspectionDecisionApi,
   issueSawingInspectionToWarehouseApi,
@@ -238,11 +242,70 @@ export const SawingInspectionViewPage: React.FC = () => {
   const [dialogRemark, setDialogRemark] = useState("");
   const [attachmentName, setAttachmentName] = useState("");
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [dialogGradeId, setDialogGradeId] = useState("");
+  const [dialogGradeName, setDialogGradeName] = useState("");
+  const [dialogGradeOptions, setDialogGradeOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [isLoadingDialogGrades, setIsLoadingDialogGrades] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastNotification, setToastNotification] = useState<{
     message: string;
     severity: "success" | "error";
   } | null>(null);
+
+  const loadDialogGradeOptions = async () => {
+    setIsLoadingDialogGrades(true);
+    try {
+      const res = await fetchGradesApi({ status: true, limit: 100 });
+      if (Array.isArray(res) && res.length > 0) {
+        setDialogGradeOptions(
+          res.map((g: { id: string; name?: string; gradeName?: string }) => ({
+            id: String(g.id),
+            name: String(g.name || g.gradeName || ""),
+          })),
+        );
+      } else {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setDialogGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      }
+    } catch {
+      try {
+        const inwardOpts = await fetchInwardGradeOptions();
+        setDialogGradeOptions(inwardOpts.map((g) => ({ id: g.id, name: g.name })));
+      } catch {
+        setDialogGradeOptions([]);
+      }
+    } finally {
+      setIsLoadingDialogGrades(false);
+    }
+  };
+
+  const handleDialogGradeChange = async (selectedId: string) => {
+    setDialogGradeId(selectedId);
+    const found = dialogGradeOptions.find((o) => o.id === selectedId);
+    if (found) {
+      setDialogGradeName(found.name);
+    } else if (!selectedId) {
+      setDialogGradeName("");
+    }
+
+    if (!selectedId) return;
+
+    try {
+      const gradeDetail = await getGradeByIdApi(selectedId);
+      if (gradeDetail && (gradeDetail.name || gradeDetail.gradeName)) {
+        setDialogGradeName(String(gradeDetail.name || gradeDetail.gradeName));
+      }
+    } catch {
+      try {
+        const inwardDetail = await fetchInwardGradeByIdApi(selectedId);
+        if (inwardDetail?.name) {
+          setDialogGradeName(String(inwardDetail.name));
+        }
+      } catch {
+        // keep selected option name
+      }
+    }
+  };
 
   const handleOpenDialog = (mode: "pass" | "fail" = "pass") => {
     setActiveDialog(mode);
@@ -250,6 +313,9 @@ export const SawingInspectionViewPage: React.FC = () => {
     setDialogRemark(mode === "pass" ? "Passed inspection" : "Failed inspection");
     setAttachmentName("");
     setAttachmentPreview(null);
+    setDialogGradeId(String(record?.gradeId || ""));
+    setDialogGradeName(String(record?.gradeName || record?.grade || ""));
+    void loadDialogGradeOptions();
   };
 
   const handleCloseDialog = () => {
@@ -258,6 +324,8 @@ export const SawingInspectionViewPage: React.FC = () => {
     setAttachmentName("");
     setAttachmentPreview(null);
     setDialogRemark("");
+    setDialogGradeId("");
+    setDialogGradeName("");
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -279,6 +347,13 @@ export const SawingInspectionViewPage: React.FC = () => {
     try {
       const workItemId = record.workItemId || (String(record.id).startsWith("factory-work-") ? record.id : null);
       const isPassDecision = activeDialog !== "fail";
+      const gradePayload = dialogGradeId
+        ? {
+            gradeId: dialogGradeId,
+            grade: dialogGradeName || undefined,
+            gradeName: dialogGradeName || undefined,
+          }
+        : {};
       const patch = {
         inspectionDate: dialogDate,
         remark: dialogRemark.trim() || "Inspection completed",
@@ -287,6 +362,7 @@ export const SawingInspectionViewPage: React.FC = () => {
         qcStatus: isPassDecision ? "Pass" : "Fail",
         passQty: isPassDecision ? 1 : 0,
         failQty: isPassDecision ? 0 : 1,
+        ...gradePayload,
         ...(attachmentPreview
           ? {
               inspectionImage: attachmentPreview,
@@ -306,6 +382,7 @@ export const SawingInspectionViewPage: React.FC = () => {
               remark: dialogRemark.trim() || "Inspection completed",
               attachmentUrl: attachmentPreview || undefined,
               attachmentName: attachmentName || undefined,
+              ...gradePayload,
             },
           );
         } catch (apiErr) {
@@ -1101,6 +1178,40 @@ export const SawingInspectionViewPage: React.FC = () => {
                   size="dense"
                   value={isoDateToLocalDate(dialogDate)}
                 />
+              </Stack>
+
+              <Stack spacing={0.75}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  Grade
+                </Typography>
+                <Select
+                  displayEmpty
+                  fullWidth
+                  onChange={(e) => void handleDialogGradeChange(String(e.target.value))}
+                  onOpen={() => {
+                    if (dialogGradeOptions.length === 0) {
+                      void loadDialogGradeOptions();
+                    }
+                  }}
+                  size="small"
+                  value={dialogGradeId}
+                  sx={getCompactFieldSx(theme, "default")}
+                >
+                  <MenuItem value="">
+                    <em>{isLoadingDialogGrades ? "Loading grades..." : "Select grade"}</em>
+                  </MenuItem>
+                  {dialogGradeId &&
+                  !dialogGradeOptions.some((option) => option.id === dialogGradeId) ? (
+                    <MenuItem value={dialogGradeId}>
+                      {dialogGradeName || dialogGradeId}
+                    </MenuItem>
+                  ) : null}
+                  {dialogGradeOptions.map((option) => (
+                    <MenuItem key={option.id} value={option.id}>
+                      {option.name}
+                    </MenuItem>
+                  ))}
+                </Select>
               </Stack>
 
               <Stack spacing={0.75}>

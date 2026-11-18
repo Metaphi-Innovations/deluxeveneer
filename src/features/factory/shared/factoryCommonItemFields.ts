@@ -20,7 +20,7 @@ import {
 export const commonFactoryItemFieldSpecs = [
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub-Category"],
-  ["logNo", "Log No."],
+  ["logNo", "Lot No"],
   ["length", "Length"],
   ["width", "Width"],
   ["height", "Thickness"],
@@ -42,7 +42,7 @@ const optionalFactoryItemFieldSpecs = [
 const factoryItemFieldOrderSpecs = [
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub-Category"],
-  ["logNo", "Log No."],
+  ["logNo", "Lot No"],
   ...optionalFactoryItemFieldSpecs,
   ["length", "Length"],
   ["width", "Width"],

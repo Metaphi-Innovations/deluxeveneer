@@ -127,7 +127,6 @@ const orderDetailColumns: readonly DetailColumn<OrderRecord>[] = [
 const unifiedItemDetailColumns: readonly DetailColumn<OrderLineItem>[] = [
   { label: "Product Type", minWidth: 150, getValue: (row) => row.productCategory || row.finishedType },
   { label: "Item Name", minWidth: 180, getValue: (row) => row.itemName },
-  { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
   { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
   { label: "Length", minWidth: 120, getValue: (row) => row.length },
   { label: "Width", minWidth: 120, getValue: (row) => row.width },
@@ -1531,7 +1530,6 @@ export function getDynamicLineItemDetailColumns(item: OrderLineItem): readonly D
 
   if (isSawing) {
     columns.push(
-      { label: "Log No.", minWidth: 120, getValue: (row) => row.logNo ?? "-" },
       { label: "Batch No", minWidth: 120, getValue: (row) => row.batchNo ?? "-" },
     );
   }
