@@ -250,6 +250,8 @@ export function PressingBaseDetailsTable({
   };
 
   const draftRecord = optionsFor().find((row) => String(row.id) === draft.selectedRecordId);
+  const requireBaseSelection = showErrors && savedRows.length === 0;
+  const baseFieldError = Boolean(draftError) || requireBaseSelection;
 
   const renderMeasureCells = (record: FactoryRecord | undefined) => (
     <>
@@ -317,7 +319,17 @@ export function PressingBaseDetailsTable({
                       openOnFocus
                       options={optionsFor()}
                       renderInput={(params) => (
-                        <TextField {...params} error={Boolean(draftError)} placeholder="Search pallet no." size="small" />
+                        <TextField
+                          {...params}
+                          error={baseFieldError}
+                          helperText={
+                            requireBaseSelection && !draft.selectedRecordId
+                              ? "Pallet is required."
+                              : " "
+                          }
+                          placeholder="Search pallet no. *"
+                          size="small"
+                        />
                       )}
                       size="small"
                       slotProps={searchableRecordSlotProps}
@@ -328,13 +340,18 @@ export function PressingBaseDetailsTable({
                   {renderMeasureCells(draftRecord)}
                   <TableCell sx={bodyCellSx}>
                     <TextField
-                      error={Boolean(draftError)}
+                      error={baseFieldError}
+                      helperText={
+                        requireBaseSelection && !draft.consumeSheets.trim()
+                          ? "Consume sheets is required."
+                          : " "
+                      }
                       onChange={(event) => {
                         const sheets = sanitizePressingDecimal(event.target.value);
                         setDraft(applySheets(draftRecord, sheets));
                         setDraftError("");
                       }}
-                      placeholder="0"
+                      placeholder="0 *"
                       size="small"
                       sx={inputSx}
                       value={draft.consumeSheets}

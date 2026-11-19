@@ -24,6 +24,7 @@ export type PressingEditForm = {
   orderItemNo: string;
   orderNo: string;
   processValues: PressingProcessValues;
+  productType: string;
   purpose: PressingPurpose;
   rejectValues: PressingRejectValues;
   sampleNo: string;
@@ -100,10 +101,22 @@ export function readPressingEditForm(
       noOfSheets: pressingText(row?.noOfSheets),
       outputItemName: pressingText(row?.outputItemName) || pressingText(row?.itemName),
       pressingDate: readDateKey(row?.pressingDate) || pressingDate,
+      productType:
+        purpose === "Order"
+          ? pressingText(row?.productType) ||
+            pressingText(row?.finishedType) ||
+            pressingText(row?.orderType)
+          : "",
       remark: context.rows.map((entry) => pressingText(entry.processRemark)).find(Boolean) ?? "",
       thickness: pressingText(row?.thickness),
       width: pressingText(row?.width),
     },
+    productType:
+      purpose === "Order"
+        ? pressingText(row?.productType) ||
+          pressingText(row?.finishedType) ||
+          pressingText(row?.orderType)
+        : "",
     purpose,
     rejectValues: readRejectValues(row),
     sampleNo:

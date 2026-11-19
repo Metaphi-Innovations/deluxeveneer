@@ -417,7 +417,127 @@ export function applyMarquetryProcessResult(
   workItemId: string,
   resultSnapshot: Record<string, unknown>,
 ) {
-  return applyFactoryProcessResult(workItemId, resultSnapshot);
+  const store = readStore();
+  const current = store.items.find((item) => item.id === workItemId);
+  if (!current) {
+    return null;
+  }
+
+  const count = (value: unknown) => {
+    const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const availableLeaves = count(
+    current.sourceSnapshot.availableNoOfLeaves ??
+      current.sourceSnapshot.availableLeaves ??
+      current.sourceSnapshot.receivedNoOfLeaves ??
+      current.sourceSnapshot.noOfLeaves,
+  );
+  const usedLeaves = Math.min(availableLeaves, count(resultSnapshot.leavesUsed));
+  const remainingLeaves = Math.max(0, availableLeaves - usedLeaves);
+  const remainderMarker = `marquetry-remainder-${workItemId}`;
+
+  // Re-applying an edited Marquetry result must replace its old remainder,
+  // otherwise each edit would add another issued stock row.
+  const withoutOldRemainder = store.items.filter(
+    (item) => item.sourceSnapshot.marquetryRemainderOf !== remainderMarker,
+  );
+  if (withoutOldRemainder.length !== store.items.length) {
+    writeStore({ items: withoutOldRemainder });
+  }
+
+  // Done snapshot must expose output qty as available — input stock
+  // availableLeaves often survives the row spread and would mislead Pressing.
+  const outputLeaves = count(resultSnapshot.noOfLeaves);
+  const outputSqm =
+    resultSnapshot.sqm != null && String(resultSnapshot.sqm).trim() !== ""
+      ? String(resultSnapshot.sqm)
+      : undefined;
+  const outputSqf =
+    resultSnapshot.sqf != null && String(resultSnapshot.sqf).trim() !== ""
+      ? String(resultSnapshot.sqf)
+      : undefined;
+  const normalizedResultSnapshot =
+    outputLeaves > 0
+      ? {
+          ...resultSnapshot,
+          noOfLeaves: String(outputLeaves),
+          noOfSheets: String(outputLeaves),
+          receivedNoOfLeaves: String(outputLeaves),
+          receivedLeaves: String(outputLeaves),
+          receivedSheets: String(outputLeaves),
+          availableNoOfLeaves: String(outputLeaves),
+          availableLeaves: String(outputLeaves),
+          availableSheets: String(outputLeaves),
+          ...(outputSqm
+            ? {
+                sqm: outputSqm,
+                receivedSqm: outputSqm,
+                availableSqm: outputSqm,
+                totalSqm: outputSqm,
+              }
+            : {}),
+          ...(outputSqf
+            ? {
+                sqf: outputSqf,
+                receivedSqf: outputSqf,
+                availableSqf: outputSqf,
+                totalSqf: outputSqf,
+              }
+            : {}),
+        }
+      : resultSnapshot;
+
+  const completed = applyFactoryProcessResult(
+    workItemId,
+    normalizedResultSnapshot,
+  );
+  if (!completed || remainingLeaves <= 0) {
+    return completed;
+  }
+
+  const latestStore = readStore();
+  const ratio = availableLeaves > 0 ? remainingLeaves / availableLeaves : 0;
+  const scaledMeasure = (value: unknown) => {
+    const parsed = count(value);
+    return parsed > 0 ? String(Number((parsed * ratio).toFixed(3))) : "0";
+  };
+  const source = current.sourceSnapshot;
+  const sqm = scaledMeasure(source.availableSqm ?? source.sqm ?? source.totalSqm);
+  const sqf = scaledMeasure(source.availableSqf ?? source.sqf ?? source.totalSqf);
+  const createdAt = new Date().toISOString();
+  const remainderId = `${remainderMarker}-${Date.now()}`;
+  const remainder: FactoryIssuedWorkRecord = {
+    ...current,
+    id: remainderId,
+    listingState: "issued",
+    createdAt,
+    sourceSnapshot: {
+      ...source,
+      id: remainderId,
+      marquetryRemainderOf: remainderMarker,
+      listingState: "issued",
+      noOfLeaves: String(remainingLeaves),
+      receivedNoOfLeaves: String(remainingLeaves),
+      availableNoOfLeaves: String(remainingLeaves),
+      receivedLeaves: String(remainingLeaves),
+      availableLeaves: String(remainingLeaves),
+      sqm,
+      sqf,
+      receivedSqm: sqm,
+      availableSqm: sqm,
+      receivedSqf: sqf,
+      availableSqf: sqf,
+      totalSqm: sqm,
+      totalSqf: sqf,
+      issuedDate: source.issuedDate ?? createdAt,
+      issueDate: source.issueDate ?? createdAt,
+    },
+  };
+  delete remainder.completedAt;
+  delete remainder.movedAt;
+  writeStore({ items: [remainder, ...latestStore.items] });
+  return completed;
 }
 
 export function applyPressingProcessResult(
@@ -592,6 +712,41 @@ export function updateFactoryIssuedWorkSnapshot(
   return nextItem;
 }
 
+/** Fully issued Done rows leave the Done tab and appear under History. */
+export function moveFactoryIssuedWork(
+  workItemId: string,
+  snapshotPatch: Record<string, unknown> = {},
+) {
+  const store = readStore();
+  const index = store.items.findIndex((item) => item.id === workItemId);
+  if (index < 0) {
+    return null;
+  }
+
+  const current = store.items[index]!;
+  const movedAt = new Date().toISOString();
+  const nextItem: FactoryIssuedWorkRecord = {
+    ...current,
+    listingState: "moved",
+    movedAt,
+    sourceSnapshot: {
+      ...current.sourceSnapshot,
+      ...snapshotPatch,
+    },
+  };
+  const items = [...store.items];
+  items[index] = nextItem;
+  writeStore({ items });
+  return nextItem;
+}
+
+export function getMovedFactoryIssuedWorkForHistory(destinationSlug: string) {
+  return getFactoryIssuedWorkItems().filter(
+    (item) =>
+      item.destinationSlug === destinationSlug && item.listingState === "moved",
+  );
+}
+
 export function getFactoryIssuedWorkForListing(
   destinationSlug: string,
   tab: FactoryProcessTab,
@@ -661,6 +816,7 @@ export function factoryIssuedWorkToRow(
     purpose: isSample ? "SAMPLE" : "ORDER",
     for: isSample ? "Sample" : "Order",
     forLabel: isSample ? "Sample" : "Order",
+    issuePurpose: isSample ? "Sample" : "Order",
     ...(item.sampleNo
       ? {
           sampleNo: item.sampleNo,

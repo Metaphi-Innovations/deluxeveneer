@@ -52,16 +52,20 @@ function ReadOnlyDetailField({ label, value }: { label: string; value: unknown }
 
 export function IssueForGroupingDialog({
   availableLeaves,
+  confirmLabel = "Issue for Grouping",
   onClose,
   onConfirm,
   open,
   row,
+  title = "Issue for Grouping",
 }: {
   availableLeaves: number;
+  confirmLabel?: string;
   onClose: () => void;
   onConfirm: (issuedLeaves: number) => void;
   open: boolean;
   row: RawVeneerRow | null;
+  title?: string;
 }) {
   const [leaves, setLeaves] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -105,7 +109,7 @@ export function IssueForGroupingDialog({
           py: theme.spacing(1.5),
         })}
       >
-        Issue for Grouping
+        {title}
       </DialogTitle>
       <DialogContent
         sx={(theme) => ({
@@ -176,7 +180,7 @@ export function IssueForGroupingDialog({
           sx={recordFormActionButtonSx}
           variant="contained"
         >
-          Issue for Grouping
+          {confirmLabel}
         </Button>
       </DialogActions>
     </Dialog>

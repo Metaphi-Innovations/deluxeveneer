@@ -24,6 +24,13 @@ export type PressingIssueEntry = {
   remark: string;
 };
 
+const confirmationOnlyDestinations = new Set([
+  "Embossing",
+  "Finishing",
+  "Fluting",
+  "Packing",
+]);
+
 function quantity(value: unknown) {
   const parsed = parseNumericValue(value);
   return parsed !== null && parsed > 0 ? parsed : 0;
@@ -48,6 +55,10 @@ export function getPressingIssueBalances(row: FactoryRecord | null) {
   };
 }
 
+export function isPressingConfirmationOnlyIssue(destination: string) {
+  return confirmationOnlyDestinations.has(destination.trim());
+}
+
 export function PressingIssueDialog<Row extends FactoryRecord>({
   destination,
   onClose,
@@ -65,7 +76,10 @@ export function PressingIssueDialog<Row extends FactoryRecord>({
   const [remark, setRemark] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const balances = useMemo(() => getPressingIssueBalances(row), [row]);
-  const numericSheets = Number(issueSheets);
+  const confirmationOnly = isPressingConfirmationOnlyIssue(destination);
+  const numericSheets = confirmationOnly
+    ? balances.availableSheets
+    : Number(issueSheets);
   const issueRatio =
     balances.availableSheets > 0 && Number.isFinite(numericSheets)
       ? numericSheets / balances.availableSheets
@@ -91,20 +105,30 @@ export function PressingIssueDialog<Row extends FactoryRecord>({
 
   const handleSubmit = () => {
     setSubmitted(true);
+
+    const sheetsToIssue = confirmationOnly
+      ? balances.availableSheets
+      : numericSheets;
+
     if (
-      !Number.isInteger(numericSheets) ||
-      numericSheets <= 0 ||
-      numericSheets > balances.availableSheets
+      !Number.isInteger(sheetsToIssue) ||
+      sheetsToIssue <= 0 ||
+      sheetsToIssue > balances.availableSheets
     ) {
       return;
     }
 
+    const ratio =
+      balances.availableSheets > 0
+        ? sheetsToIssue / balances.availableSheets
+        : 0;
+
     onSubmit(row, {
       issueDate: new Date().toISOString().slice(0, 10),
-      issueSheets: numericSheets,
-      issueSqf,
-      issueSqm,
-      remark: remark.trim(),
+      issueSheets: sheetsToIssue,
+      issueSqf: balances.availableSqf * ratio,
+      issueSqm: balances.availableSqm * ratio,
+      remark: confirmationOnly ? "" : remark.trim(),
     });
   };
 
@@ -152,67 +176,71 @@ export function PressingIssueDialog<Row extends FactoryRecord>({
             Issue to {destination}
           </Typography>
           <Typography color="text.secondary" variant="body2">
-            Enter the number of sheets to issue and confirm this action.
+            {confirmationOnly
+              ? `Issue all ${balances.availableSheets} available sheet(s) to ${destination}?`
+              : "Enter the number of sheets to issue and confirm this action."}
           </Typography>
         </Stack>
 
-        <Box
-          sx={{
-            display: "grid",
-            gap: 1.5,
-            gridTemplateColumns:
-              destination === "Packing"
-                ? { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }
-                : "1fr",
-          }}
-        >
-          {destination === "Packing" ? (
+        {confirmationOnly ? null : (
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1.5,
+              gridTemplateColumns:
+                destination === "Packing"
+                  ? { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }
+                  : "1fr",
+            }}
+          >
+            {destination === "Packing" ? (
+              <Stack spacing={0.75}>
+                <DialogFieldLabel>Available Sheets</DialogFieldLabel>
+                <TextField
+                  disabled
+                  fullWidth
+                  size="small"
+                  value={balances.availableSheets}
+                  sx={(theme) => getCompactFieldSx(theme)}
+                />
+              </Stack>
+            ) : null}
             <Stack spacing={0.75}>
-              <DialogFieldLabel>Available Sheets</DialogFieldLabel>
+              <DialogFieldLabel required>Sheets to Issue</DialogFieldLabel>
               <TextField
-                disabled
+                autoFocus
+                error={Boolean(sheetError)}
                 fullWidth
+                helperText={sheetError || " "}
+                onChange={(event) =>
+                  setIssueSheets(event.target.value.replace(/\D/gu, ""))
+                }
+                placeholder="Enter sheets"
                 size="small"
-                value={balances.availableSheets}
+                value={issueSheets}
+                sx={(theme) =>
+                  getCompactFieldSx(theme, sheetError ? "error" : "default")
+                }
+              />
+            </Stack>
+            <Stack
+              spacing={0.75}
+              sx={{ gridColumn: destination === "Packing" ? "1 / -1" : "auto" }}
+            >
+              <DialogFieldLabel>Remark</DialogFieldLabel>
+              <TextField
+                fullWidth
+                minRows={2}
+                multiline
+                onChange={(event) => setRemark(event.target.value)}
+                placeholder="Enter remark"
+                size="small"
+                value={remark}
                 sx={(theme) => getCompactFieldSx(theme)}
               />
             </Stack>
-          ) : null}
-          <Stack spacing={0.75}>
-            <DialogFieldLabel required>Sheets to Issue</DialogFieldLabel>
-            <TextField
-              autoFocus
-              error={Boolean(sheetError)}
-              fullWidth
-              helperText={sheetError || " "}
-              onChange={(event) =>
-                setIssueSheets(event.target.value.replace(/\D/gu, ""))
-              }
-              placeholder="Enter sheets"
-              size="small"
-              value={issueSheets}
-              sx={(theme) =>
-                getCompactFieldSx(theme, sheetError ? "error" : "default")
-              }
-            />
-          </Stack>
-          <Stack
-            spacing={0.75}
-            sx={{ gridColumn: destination === "Packing" ? "1 / -1" : "auto" }}
-          >
-            <DialogFieldLabel>Remark</DialogFieldLabel>
-            <TextField
-              fullWidth
-              minRows={2}
-              multiline
-              onChange={(event) => setRemark(event.target.value)}
-              placeholder="Enter remark"
-              size="small"
-              value={remark}
-              sx={(theme) => getCompactFieldSx(theme)}
-            />
-          </Stack>
-        </Box>
+          </Box>
+        )}
 
         <Box
           sx={(theme) => ({

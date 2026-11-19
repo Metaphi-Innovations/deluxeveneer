@@ -6,10 +6,22 @@ import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
-import type { OrderRecord } from "../../orders/shared/ordersStore";
+import type {
+  OrderLineItem,
+  OrderRecord,
+} from "../../orders/shared/ordersStore";
+import { SelectedOrderDetails } from "../shared/SelectedOrderDetails";
 import type { PressingBaseMaterialType } from "./usePressingBaseStock";
 
 export type PressingPurpose = "" | "Order" | "Sample Sheet";
+
+export const pressingProductTypeOptions = [
+  "Decorative",
+  "Fluted",
+  "Embossed",
+] as const;
+
+export type PressingProductType = (typeof pressingProductTypeOptions)[number] | "";
 
 export function PressingPurposeChoice({
   allocationError = "",
@@ -18,11 +30,15 @@ export function PressingPurposeChoice({
   onChange,
   onOrderItemNoChange,
   onOrderNoChange,
+  onProductTypeChange,
   orderItemNo,
   orderItemOptions,
   orderNo,
   orderOptions,
   orderRecords,
+  productType,
+  productTypeOptions = pressingProductTypeOptions,
+  selectedOrderLine = null,
   showError,
   value,
 }: {
@@ -32,11 +48,15 @@ export function PressingPurposeChoice({
   onChange: (value: PressingPurpose) => void;
   onOrderItemNoChange: (value: string) => void;
   onOrderNoChange: (value: string) => void;
+  onProductTypeChange: (value: string) => void;
   orderItemNo: string;
   orderItemOptions: readonly string[];
   orderNo: string;
   orderOptions: readonly string[];
   orderRecords: readonly OrderRecord[];
+  productType: string;
+  productTypeOptions?: readonly string[];
+  selectedOrderLine?: OrderLineItem | null;
   showError: boolean;
   value: PressingPurpose;
 }) {
@@ -89,25 +109,37 @@ export function PressingPurposeChoice({
               gridTemplateColumns: {
                 xs: "1fr",
                 sm: "repeat(2, minmax(0, 1fr))",
-                lg: "repeat(4, minmax(0, 1fr))",
+                lg: "repeat(5, minmax(0, 1fr))",
               },
             })}
           >
             <>
               <PressingSelectField
-                error={showError && !orderNo}
+                error={showError && !productType}
+                label="Product Type"
+                onChange={onProductTypeChange}
+                options={[...productTypeOptions]}
+                placeholder="Select product type"
+                value={productType}
+              />
+              <PressingSelectField
+                error={showError && Boolean(productType) && !orderNo}
                 label="Order No"
                 onChange={onOrderNoChange}
                 options={orderOptions}
-                placeholder="Select order no"
+                placeholder={
+                  productType ? "Select order no" : "Select product type first"
+                }
                 value={orderNo}
               />
               <PressingSelectField
-                error={showError && !orderItemNo}
+                error={showError && Boolean(orderNo) && !orderItemNo}
                 label="Order Item No"
                 onChange={onOrderItemNoChange}
                 options={orderItemOptions}
-                placeholder="Select order item no"
+                placeholder={
+                  orderNo ? "Select order item no" : "Select order no first"
+                }
                 value={orderItemNo}
               />
               <ReadOnlyPressingField
@@ -120,6 +152,16 @@ export function PressingPurposeChoice({
               />
             </>
           </Box>
+          {orderNo && orderItemNo ? (
+            <Stack spacing={1}>
+              <FormSectionHeader title="Order Details" />
+              <SelectedOrderDetails
+                lineItem={selectedOrderLine}
+                order={selectedOrder}
+                orderItemNo={orderItemNo}
+              />
+            </Stack>
+          ) : null}
           {allocationError ? (
             <Typography
               color="error"

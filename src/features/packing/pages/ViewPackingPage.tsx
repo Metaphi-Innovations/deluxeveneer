@@ -50,6 +50,7 @@ import {
 import {
   getPackingPaths,
   type PackingRecord,
+  usePackingRecords,
 } from "../shared/packingStore";
 import { fetchPackingById } from "../api/packingApi";
 import { mapApiItemToPackingRecord } from "../hooks/usePackingList";
@@ -61,21 +62,24 @@ export function ViewPackingPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const paths = getPackingPaths();
+  const frontendPackingRecords = usePackingRecords();
 
   const dummyRecord = id?.startsWith("dummy-packing-")
     ? getPackingDummyRecord(id)
     : undefined;
+  const frontendRecord = frontendPackingRecords.find((entry) => entry.id === id);
   const { data: apiItem, isLoading, isError } = useQuery({
     queryKey: queryKeys.packing.detail(id ?? ""),
     queryFn: () => fetchPackingById(id!),
-    enabled: Boolean(id) && !dummyRecord,
+    enabled: Boolean(id) && !dummyRecord && !frontendRecord,
   });
 
   const record: PackingRecord | undefined = useMemo(() => {
     if (dummyRecord) return dummyRecord;
+    if (frontendRecord) return frontendRecord;
     if (!apiItem) return undefined;
     return mapApiItemToPackingRecord(apiItem);
-  }, [apiItem, dummyRecord]);
+  }, [apiItem, dummyRecord, frontendRecord]);
 
   const canEdit = canAccessPermission("packing", "edit");
   const canView = canAccessPermission("packing", "view");

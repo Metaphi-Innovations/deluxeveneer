@@ -337,7 +337,7 @@ function getDefaultIssuedFromProcess(prefix: string, index: number) {
   };
 
   if (prefix === "finishing") {
-    return ["Pressing", "CNC/Fluting", "Embossing"][index % 3]!;
+    return ["Pressing", "Fluting", "Embossing"][index % 3]!;
   }
 
   return issuedFromByProcess[prefix] ?? "Inventory";
@@ -487,24 +487,89 @@ const withCarriedGroupNo = (row: FactoryRowSeed, index: number) => ({
 const splicingRows = factoryRows("splicing", "Warehouse C", (row, index) => {
   const seq = String(index + 1).padStart(4, "0");
   const year = new Date().getFullYear().toString().slice(-2);
+  const leaves = Number(row.noOfLeaves);
+  const lengthMetres = Number(row.length) / 1000;
+  const widthMetres = Number(row.width) / 1000;
+  const splicedSqm = formatSQM(lengthMetres * widthMetres * leaves);
+  const isSampleSheet = index % 2 === 1;
+  const orderProductType = ["Decorative", "Fluted", "Embossed"][
+    Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 3
+  ]!;
   return {
     ...withCarriedGroupNo(row, index),
     storageSrNo: `STG-RV-${year}-${seq}`,
-    issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
-      Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
-    ],
+    batchNo: `BATCH-GRP-${seq}`,
+    subCategory: row.itemSubCategory,
+    groupPhoto:
+      "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
+    splicingDate: day(8 + index),
+    applyingType: ["MACHINE SPLICING", "HAND", "END TAPING"][index % 3],
+    issuePurpose: isSampleSheet ? "Sample" : "Order",
+    purpose: isSampleSheet ? "SAMPLE" : "ORDER",
+    for: isSampleSheet ? "Sample" : "Order",
+    forLabel: isSampleSheet ? "Sample" : "Order",
+    isSample: isSampleSheet || undefined,
+    ...(isSampleSheet
+      ? {
+          sampleNo: `SMP-SPL-${seq}`,
+          orderType: "",
+          productType: "",
+          finishedType: "",
+          issuedFor: "",
+          customerName: `SMP-SPL-${seq}`,
+          orderNo: `SMP-SPL-${seq}`,
+        }
+      : {
+          orderType: orderProductType,
+          productType: orderProductType,
+          finishedType: orderProductType,
+          issuedFor: orderProductType,
+        }),
+    noOfSheets: row.noOfLeaves,
+    issuedLeafCount: row.noOfLeaves,
+    receivedNoOfLeaves: row.noOfLeaves,
+    availableNoOfLeaves: row.noOfLeaves,
+    sourceAvailableLeaves: row.noOfLeaves,
+    sqm: splicedSqm,
+    sqf: formatSqfFromSqm(splicedSqm),
   };
 });
 
 const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => {
   const sequence = String(index + 1).padStart(4, "0");
+  const productType = ["Marquetry", "Decorative", "Fluted", "Embossed"][
+    index % 4
+  ]!;
+  const issuedFor =
+    productType === "Fluted"
+      ? "Fluting"
+      : productType === "Embossed"
+        ? "Embossing"
+        : "Finishing";
   return {
     ...withCarriedGroupNo(row, index),
     logNo: row.logNo || `LOT-${sequence}`,
-    batchNo: `BATCH-PRS-${sequence}`,
-    issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
-      Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
-    ],
+    batchNo: `BATCH-GRP-${sequence}`,
+    subCategory: row.itemSubCategory,
+    productType,
+    orderType: productType,
+    pressingFor: "Order",
+    purpose: "ORDER",
+    for: "Order",
+    forLabel: "Order",
+    quantitySheets: row.noOfSheets,
+    receivedSheets: row.noOfSheets,
+    availableSheets: row.noOfSheets,
+    sourceAvailableSheets: row.noOfSheets,
+    receivedSqm: row.sqm,
+    availableSqm: row.sqm,
+    receivedSqf: row.sqf,
+    availableSqf: row.sqf,
+    outputNoOfSheets: row.noOfSheets,
+    outputSqm: row.sqm,
+    outputSqf: row.sqf,
+    baseName: `${row.baseType} Base`,
+    issuedFor,
   };
 });
 
@@ -515,10 +580,11 @@ const pressingListingRows = expandFactoryRowsForTabs(
   row.id === "pressing-done-1"
     ? {
         ...row,
-        customerName: "",
+        customerName: "Sample Sheet - Marquetry",
         isSample: true,
-        orderItemNo: "",
-        orderNo: "",
+        sampleNo: "SAMPLE-PRS-0001",
+        orderItemNo: "SAMPLE-ITEM-001",
+        orderNo: "SAMPLE-PRS-0001",
         pressingFor: "Sample Sheet",
         purpose: "SAMPLE",
         for: "Sample",
@@ -542,8 +608,38 @@ const cncFlutingRows = factoryRows(
       palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
       structureCode: `STR-FLT-${sequence}`,
       issuedFor: "Finishing",
+      damagedSheets: String(index % 3),
+      flutingDamagedSheets: String(index % 3),
     };
   },
+);
+
+const cncFlutingListingRows = expandFactoryRowsForTabs(
+  "cnc-fluting",
+  cncFlutingRows,
+).map((row) =>
+  row.id === "cnc-fluting-done-1" || row.id === "cnc-fluting-issued-1"
+    ? {
+        ...row,
+        customerName: "Sample Sheet - Fluting",
+        isSample: true,
+        sampleNo: "SAMPLE-FLT-0001",
+        orderItemNo: "SAMPLE-ITEM-001",
+        orderNo: "SAMPLE-FLT-0001",
+        orderType: "Sample Sheet",
+        productType: "",
+        finishedType: "",
+        purpose: "SAMPLE",
+        issuePurpose: "Sample Sheet",
+        for: "Sample Sheet",
+        forLabel: "Sample Sheet",
+        pressingFor: "Sample Sheet",
+        issuedFor: "Finishing",
+        issuedFrom: "Pressing",
+        sourceProcess: "Pressing",
+        remark: "Dummy Sample Sheet for testing Fluting.",
+      }
+    : row,
 );
 
 const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => {
@@ -557,8 +653,50 @@ const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => {
     palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
     issuedFor: "Finishing",
     structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
+    status: "Issued",
+    receivedSheets: row.noOfSheets,
+    availableSheets: row.noOfSheets,
+    sourceAvailableSheets: row.noOfSheets,
+    receivedSqm: row.sqm,
+    availableSqm: row.sqm,
+    receivedSqf: row.sqf,
+    availableSqf: row.sqf,
+    embossedSheets: row.outputNoOfSheets,
+    embossedSqm: row.outputSqm,
+    embossedSqf: row.outputSqf,
+    damagedSheets: String(index % 4),
+    embossingDamagedSheets: String(index % 4),
+    embossingDate: row.cncDate,
   };
 });
+
+const embossingListingRows = expandFactoryRowsForTabs(
+  "embossing",
+  embossingRows,
+).map((row) =>
+  row.id === "embossing-done-1" || row.id === "embossing-issued-1"
+    ? {
+        ...row,
+        customerName: "Sample Sheet - Embossing",
+        isSample: true,
+        sampleNo: "SAMPLE-EMB-0001",
+        orderItemNo: "SAMPLE-ITEM-001",
+        orderNo: "SAMPLE-EMB-0001",
+        orderType: "Sample Sheet",
+        productType: "",
+        finishedType: "",
+        purpose: "SAMPLE",
+        issuePurpose: "Sample Sheet",
+        for: "Sample Sheet",
+        forLabel: "Sample Sheet",
+        pressingFor: "Sample Sheet",
+        issuedFor: "Finishing",
+        issuedFrom: "Pressing",
+        sourceProcess: "Pressing",
+        remark: "Dummy Sample Sheet for testing Embossing.",
+      }
+    : row,
+);
 
 const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => {
   const sequence = String(index + 1).padStart(4, "0");
@@ -572,8 +710,50 @@ const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => {
     issuedFor: "Packing",
     designCode: `DSN-${String(index + 1).padStart(3, "0")}`,
     structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
+    status: "Issued",
+    finishingType: ["Glossy", "Rough"][index % 2]!,
+    receivedSheets: row.noOfSheets,
+    availableSheets: row.noOfSheets,
+    sourceAvailableSheets: row.noOfSheets,
+    receivedSqm: row.sqm,
+    availableSqm: row.sqm,
+    receivedSqf: row.sqf,
+    availableSqf: row.sqf,
+    finishedSheets: row.outputNoOfSheets,
+    finishedSqm: row.outputSqm,
+    finishedSqf: row.outputSqf,
+    damagedSheets: String((index + 1) % 3),
+    finishingDamagedSheets: String((index + 1) % 3),
   };
 });
+
+const finishingListingRows = expandFactoryRowsForTabs(
+  "finishing",
+  finishingRows,
+).map((row) =>
+  row.id === "finishing-done-1" || row.id === "finishing-issued-1"
+    ? {
+        ...row,
+        customerName: "Sample Sheet - Finishing",
+        isSample: true,
+        sampleNo: "SAMPLE-FIN-0001",
+        orderItemNo: "SAMPLE-ITEM-001",
+        orderNo: "SAMPLE-FIN-0001",
+        orderType: "Sample Sheet",
+        productType: "",
+        finishedType: "",
+        purpose: "SAMPLE",
+        issuePurpose: "Sample Sheet",
+        for: "Sample Sheet",
+        forLabel: "Sample Sheet",
+        pressingFor: "Sample Sheet",
+        issuedFor: row.id === "finishing-done-1" ? "Packing" : "Finishing",
+        issuedFrom: "Fluting",
+        sourceProcess: "Fluting",
+        remark: "Dummy Sample Sheet for testing Finishing (no Issue for Packing).",
+      }
+    : row,
+);
 
 const marquetryRows = factoryRows("marquetry", "Warehouse C", (row, index) => {
   const seq = String(index + 1).padStart(4, "0");
@@ -1266,7 +1446,7 @@ export const cncFlutingDefinition: FactoryDefinition = {
   title: "Fluting",
   listColumns: flutingListingColumns,
   formSections: sectionSet(cncFlutingRows, flutingCreateFields),
-  rows: expandFactoryRowsForTabs("cnc-fluting", cncFlutingRows),
+  rows: cncFlutingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
@@ -1275,7 +1455,7 @@ export const embossingDefinition: FactoryDefinition = {
   title: "Embossing",
   listColumns: embossingListingColumns,
   formSections: sectionSet(embossingRows, embossingCreateFields),
-  rows: expandFactoryRowsForTabs("embossing", embossingRows),
+  rows: embossingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 
@@ -1284,7 +1464,7 @@ export const finishingDefinition: FactoryDefinition = {
   title: "Finishing",
   listColumns: finishingListingColumns,
   formSections: sectionSet(finishingRows, finishingCreateFields),
-  rows: expandFactoryRowsForTabs("finishing", finishingRows),
+  rows: finishingListingRows,
   initialSort: { key: "issuedDate", direction: "desc" },
 };
 

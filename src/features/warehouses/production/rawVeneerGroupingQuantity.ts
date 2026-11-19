@@ -21,13 +21,19 @@ export function parseLeafCount(value: unknown) {
   return Math.floor(parsed);
 }
 
+/** Leaf destinations that keep the warehouse row and deduct available qty. */
+const PARTIAL_ISSUE_DESTINATION_SLUGS = new Set(["grouping", "marquetry"]);
+
 export function groupingIssuedLeavesBySource(
   issues: readonly FactoryIssuedWorkRecord[],
   warehouseName: string,
 ) {
   const issued = new Map<string, number>();
   for (const item of issues) {
-    if (item.destinationSlug !== "grouping" || item.sourceSlug !== warehouseName) {
+    if (
+      item.sourceSlug !== warehouseName ||
+      !PARTIAL_ISSUE_DESTINATION_SLUGS.has(item.destinationSlug)
+    ) {
       continue;
     }
     const leaves = parseLeafCount(

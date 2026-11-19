@@ -9,6 +9,7 @@ import {
   packingIssuedListingColumns,
   type PackingRecord,
   type PackingTabValue,
+  usePackingRecords,
 } from "../shared/packingStore";
 import {
   fetchPackingList,
@@ -65,6 +66,7 @@ export function mapApiItemToPackingRecord(item: PackingApiItem): PackingRecord {
 }
 
 export function usePackingList() {
+  const frontendPackingRecords = usePackingRecords();
   const [activeTab, setActiveTabState] = useState<PackingTabValue>("issued");
   const [searchValue, setSearchValueState] = useState("");
   const [page, setPage] = useState(1);
@@ -94,6 +96,34 @@ export function usePackingList() {
     try {
       const apiFilters = toApiColumnFilters(columnFilters);
       const hasFilters = Object.keys(apiFilters).length > 0;
+      const normalizedSearch = searchValue.trim().toLowerCase();
+      const finishingFlowRows =
+        page === 1 && !hasFilters
+          ? frontendPackingRecords.filter(
+              (record) =>
+                record.id.startsWith("packing-finishing-") &&
+                record.packingState === activeTab &&
+                (!normalizedSearch ||
+                  Object.values(record).some((value) =>
+                    String(value ?? "").toLowerCase().includes(normalizedSearch),
+                  )),
+            )
+          : [];
+      const mergeFinishingFlowRows = (sourceRows: PackingRecord[]) => {
+        const flowReferences = new Set(
+          finishingFlowRows.flatMap((record) =>
+            record.sourceRef ? [record.sourceRef] : [],
+          ),
+        );
+        return [
+          ...finishingFlowRows,
+          ...sourceRows.filter(
+            (record) =>
+              !finishingFlowRows.some((flow) => flow.id === record.id) &&
+              (!record.sourceRef || !flowReferences.has(record.sourceRef)),
+          ),
+        ].slice(0, rowsPerPage);
+      };
       const result = await fetchPackingList({
         tab: activeTab,
         page,
@@ -110,12 +140,12 @@ export function usePackingList() {
           limit: rowsPerPage,
           search: searchValue,
         });
-        setRows(dummy.items);
-        setTotalCount(dummy.total);
+        setRows(mergeFinishingFlowRows(dummy.items));
+        setTotalCount(dummy.total + finishingFlowRows.length);
         return;
       }
-      setRows(apiRows);
-      setTotalCount(result.total);
+      setRows(mergeFinishingFlowRows(apiRows));
+      setTotalCount(result.total + finishingFlowRows.length);
     } catch (err) {
       console.error("Failed to load packing list:", err);
       const dummy = paginatePackingDummyRecords(activeTab, {
@@ -123,13 +153,22 @@ export function usePackingList() {
         limit: rowsPerPage,
         search: searchValue,
       });
-      setRows(dummy.items);
-      setTotalCount(dummy.total);
+      setRows(mergeFinishingFlowRows(dummy.items));
+      setTotalCount(dummy.total + finishingFlowRows.length);
     } finally {
       setIsLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, page, rowsPerPage, searchValue, sortConfig, columnFilters, refreshTrigger]);
+  }, [
+    activeTab,
+    page,
+    rowsPerPage,
+    searchValue,
+    sortConfig,
+    columnFilters,
+    refreshTrigger,
+    frontendPackingRecords,
+  ]);
 
   useEffect(() => {
     void loadData();

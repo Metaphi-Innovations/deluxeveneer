@@ -3,7 +3,7 @@ import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMe
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
-const finishingHiddenOutsideHistory = new Set(["warehouseName", "issuedFor"]);
+const finishingHiddenOutsideHistory = new Set(["issuedFor"]);
 const finishingHiddenKeys = new Set([
   "amount",
   "rate",
@@ -111,21 +111,39 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
   const visible = withFinishingIdentityColumns(
-    columns.filter((column) => {
-      if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
-        return false;
-      }
+    columns
+      .filter((column) => {
+        if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
+          return false;
+        }
 
-      if (finishingHiddenKeys.has(column.key)) {
-        return false;
-      }
+        if (finishingHiddenKeys.has(column.key)) {
+          return false;
+        }
 
-      if (activeTab === "history" || activeTab === "rejected") {
-        return true;
-      }
+        if (column.key === "warehouseName") {
+          return false;
+        }
 
-      return !finishingHiddenOutsideHistory.has(column.key);
-    }),
+        if (activeTab === "history" || activeTab === "rejected") {
+          return true;
+        }
+
+        return !finishingHiddenOutsideHistory.has(column.key);
+      })
+      .map((column) =>
+        column.key === "issuedFrom"
+          ? {
+              ...column,
+              renderCell: (row: Row) => {
+                const value = String(row.issuedFrom ?? "-").trim();
+                return value === "CNC/Fluting" || value === "CNC / Fluting"
+                  ? "Fluting"
+                  : value;
+              },
+            }
+          : column,
+      ),
   );
 
   if (activeTab === "issued") {
@@ -157,18 +175,38 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
       }
       return column;
     });
-    const withAvailableSheets = insertColumnsAfter(
-      withReceivedSheets,
-      "receivedSheets",
-      [{ key: "availableSheets", label: "Available Sheets" }],
+    const receivedColumns = withReceivedSheets.map((column) =>
+      column.key === "sqm"
+        ? { ...column, label: "Received SQM" }
+        : column.key === "sqf"
+          ? { ...column, label: "Received SQF" }
+          : column,
     );
-    return withAvailableFactoryMeasureColumns(withAvailableSheets);
+    return insertColumnsAfter(receivedColumns, "receivedSheets", [
+      {
+        key: "damagedSheets",
+        label: "Damage Qty",
+        renderCell: (row: FactoryRecord) =>
+          String(row.finishingDamagedSheets ?? row.damagedSheets ?? "0"),
+      },
+    ]);
   }
 
   if (activeTab === "history" || activeTab === "rejected") {
-    return insertColumnsAfter(visible, "palletNo", [
+    const withFinishingType = insertColumnsAfter(visible, "palletNo", [
       { key: "finishingType", label: "Finishing Type" },
     ]);
+    if (activeTab === "history") {
+      return insertColumnsAfter(withFinishingType, "noOfSheets", [
+        {
+          key: "damagedSheets",
+          label: "Damage Qty",
+          renderCell: (row: FactoryRecord) =>
+            String(row.finishingDamagedSheets ?? row.damagedSheets ?? "0"),
+        },
+      ]);
+    }
+    return withFinishingType;
   }
 
   return visible;

@@ -33,6 +33,12 @@ const measurementKeyOrder = [
   "outputSqf",
   "receivedSqf",
   "availableSqf",
+  // Damaged qty sits immediately after the SQF measure group.
+  "damagedSheets",
+  "flutingDamagedSheets",
+  "embossingDamagedSheets",
+  "finishingDamagedSheets",
+  "damagedQty",
 ] as const;
 
 const measurementKeyRank = new Map<string, number>(

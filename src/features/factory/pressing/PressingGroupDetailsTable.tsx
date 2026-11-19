@@ -208,6 +208,8 @@ export function PressingGroupDetailsTable({
   };
 
   const draftRecord = optionsFor().find((row) => String(row.id) === draft.selectedRecordId);
+  const requireGroupSelection = showErrors && savedRows.length === 0;
+  const groupFieldError = Boolean(draftError) || requireGroupSelection;
 
   const renderRecordCells = (record: FactoryRecord | undefined) => (
     <>
@@ -287,7 +289,17 @@ export function PressingGroupDetailsTable({
                       openOnFocus
                       options={optionsFor()}
                       renderInput={(params) => (
-                        <TextField {...params} error={Boolean(draftError)} placeholder="Search group" size="small" />
+                        <TextField
+                          {...params}
+                          error={groupFieldError}
+                          helperText={
+                            requireGroupSelection && !draft.selectedRecordId
+                              ? "Group is required."
+                              : " "
+                          }
+                          placeholder="Search group *"
+                          size="small"
+                        />
                       )}
                       size="small"
                       slotProps={searchableGroupSlotProps}
@@ -298,7 +310,12 @@ export function PressingGroupDetailsTable({
                   {renderRecordCells(draftRecord)}
                   <TableCell sx={bodyCellSx}>
                     <TextField
-                      error={Boolean(draftError)}
+                      error={groupFieldError}
+                      helperText={
+                        requireGroupSelection && !draft.consume.trim()
+                          ? "Consume is required."
+                          : " "
+                      }
                       onChange={(event) => {
                         setDraft((current) => ({
                           ...current,
@@ -306,7 +323,7 @@ export function PressingGroupDetailsTable({
                         }));
                         setDraftError("");
                       }}
-                      placeholder="0"
+                      placeholder="0 *"
                       size="small"
                       sx={inputSx}
                       value={draft.consume}

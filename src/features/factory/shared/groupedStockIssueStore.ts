@@ -151,7 +151,26 @@ export function getReceivedGroupedLeaves(row: FactoryRecord) {
     readLeafCount(row.originalNoOfLeaves),
     readLeafCount(row.totalLeaves),
     readLeafCount(row.noOfLeaves),
+    readLeafCount(row.receivedNoOfLeaves),
+    readLeafCount(row.receivedLeaves),
+    readLeafCount(row.issuedLeafCount),
   );
+}
+
+function issuedSheetsForGroupingRow(row: FactoryRecord) {
+  const ids = new Set<string>([String(row.id)]);
+  for (const value of [row.workItemId, row.groupingRef, row.sourceRowId]) {
+    const id = String(value ?? "").trim();
+    if (id) {
+      ids.add(id);
+    }
+  }
+
+  let issued = 0;
+  for (const id of ids) {
+    issued = Math.max(issued, getIssuedGroupedSheetsTotal(id));
+  }
+  return issued;
 }
 
 export function getOriginalGroupedSheets(row: FactoryRecord) {
@@ -171,8 +190,14 @@ export function getOriginalGroupedSheets(row: FactoryRecord) {
 
 export function getAvailableGroupedSheets(row: FactoryRecord) {
   const original = getOriginalGroupedSheets(row);
-  const issued = getIssuedGroupedSheetsTotal(String(row.id));
-  return Math.max(0, original - issued);
+  const issued = issuedSheetsForGroupingRow(row);
+  const remaining = Math.max(0, original - issued);
+  if (remaining > 0 || original > 0) {
+    return remaining;
+  }
+
+  // Fallback when Done snapshots only carry mapped available leaves.
+  return readLeafCount(row.availableNoOfLeaves ?? row.availableLeaves);
 }
 
 export function appendGroupedStockSampleIssue(input: {

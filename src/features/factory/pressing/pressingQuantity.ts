@@ -71,7 +71,11 @@ export function getPressingAvailableQuantity(row: FactoryRecord) {
     return parseNumericValue(availableText) ?? 0;
   }
 
-  return parseNumericValue(firstPressingText(row, ["noOfSheets", "issuedNoOfSheets"])) ?? 0;
+  return (
+    parseNumericValue(
+      firstPressingText(row, ["noOfSheets", "issuedNoOfSheets", "noOfLeaves"]),
+    ) ?? 0
+  );
 }
 
 export function isPressingSourceEligible(row: FactoryRecord) {

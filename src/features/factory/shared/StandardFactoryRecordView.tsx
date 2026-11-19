@@ -23,6 +23,7 @@ import {
   formSectionCardSx,
   FormSectionHeader,
 } from "../../shared/formSectionStyles";
+import { resolveSplicingIssuePurpose } from "./sampleSheetIdentityStore";
 import type { FactoryDefinition, FactoryRecord } from "./types";
 
 type ViewField = {
@@ -80,6 +81,21 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
     ? buildFactoryOrderItemDetailFields(row, orderRecords)
     : [];
 
+  const showOrderProductTypeRefs =
+    definition.slug === "splicing" || definition.slug === "pressing";
+  const issuePurposeLabel = showOrderProductTypeRefs
+    ? resolveSplicingIssuePurpose(row)
+    : "";
+  const productTypeLabel =
+    issuePurposeLabel === "Sample"
+      ? "-"
+      : readValue(row, [
+          "productType",
+          "finishedType",
+          "orderType",
+          ...(definition.slug === "splicing" ? (["issuedFor"] as const) : []),
+        ]) || "-";
+
   const sourceFields = compactFields([
     field("Source Record No.", row, config.sourceReferenceKeys),
     field("Storage / Production Sr No.", row, ["storageSrNo", "productionSrNo"]),
@@ -88,6 +104,12 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
       : [field("Group No.", row, ["groupNo"])]),
     field("Source Warehouse", row, ["warehouseName", "storageWarehouseName"]),
     field("Issued From", row, ["issuedFrom", "sourceProcess"]),
+    ...(showOrderProductTypeRefs
+      ? [
+          { label: "Issued For", value: issuePurposeLabel || "-" },
+          { label: "Product Type", value: productTypeLabel },
+        ]
+      : []),
     field("Lot No", row, ["logNo", "logCode"]),
     field("Batch No", row, ["batchNo", "batchNoCode"]),
     field("Bundle No.", row, ["bundleNumber", "bundleNo"]),
@@ -192,14 +214,39 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
     "Order Item No.",
     "Customer Name",
     "Order Date",
+    ...(showOrderProductTypeRefs
+      ? (["Issued For", "Product Type"] as const)
+      : []),
   ]);
-  const orderFields = orderDialogFields.filter((entry) => compactOrderLabels.has(entry.label));
+  const orderFields = compactFields([
+    ...(showOrderProductTypeRefs &&
+    !isSample &&
+    orderDialogFields.length === 0
+      ? [
+          { label: "Issued For", value: issuePurposeLabel || "Order" },
+          { label: "Product Type", value: productTypeLabel },
+        ]
+      : []),
+    ...orderDialogFields.filter((entry) => compactOrderLabels.has(entry.label)),
+  ]);
 
   const sampleFields = isSample
     ? compactFields([
-        field("Processing Mode", row, ["pressingFor", "forLabel", "for", "purpose"]),
-        field("Sample Sheet Reference", row, ["sampleSheetNo", "sampleNo", "groupNo"]),
-        field("Issued For", row, ["issuedFor"]),
+        field("Processing Mode", row, [
+          "pressingFor",
+          "forLabel",
+          "for",
+          "purpose",
+        ]),
+        field("Sample Sheet Reference", row, [
+          "sampleSheetNo",
+          "sampleNo",
+          "groupNo",
+        ]),
+        // Splicing/Pressing already show Issued For / Product Type in Source Details.
+        ...(showOrderProductTypeRefs
+          ? []
+          : [field("Issued For", row, ["issuedFor"])]),
       ])
     : [];
 
@@ -309,6 +356,7 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
       ) : null}
       {orderFields.length > 0 ? (
         <FactoryViewSection
+          desktopColumns={orderFields.length}
           fields={orderFields}
           title="Order Details"
           titleAction={
@@ -1205,15 +1253,35 @@ export function buildFactoryOrderItemDetailFields(
   const baseType = line?.baseType || formatValue(row.baseType) || (isFinishedOrder ? "Plywood" : "");
   const baseName = line?.baseName || formatValue(row.baseName) || (baseType ? `${baseType} Base` : "");
 
+  const issuedForPurpose = resolveSplicingIssuePurpose(row);
+  const productType =
+    issuedForPurpose === "Sample"
+      ? "-"
+      : formatValue(
+          row.productType ||
+            row.finishedType ||
+            row.orderType ||
+            line?.finishedType ||
+            row.issuedFor,
+        ) || "-";
+
   return [
     orderValueField("Order No.", order?.orderNo, orderNo),
     orderValueField("Order Item No.", orderItemNo),
+    orderValueField("Issued For", issuedForPurpose || "Order"),
+    orderValueField("Product Type", productType),
     orderValueField("Order Type", order?.orderType, row.orderType, "Raw Order"),
     orderValueField("Customer Name", order?.customerName, row.customerName),
     orderValueField("Order Date", order?.orderDate, row.orderDate),
     orderValueField("Required Delivery Date", order?.deliveryDate, row.deliveryDate, row.requiredDeliveryDate, row.orderDate),
     orderValueField("Product Category", line?.productCategory, row.productCategory, row.productType ? `${row.productType} Veneer` : "Raw Veneer"),
-    orderValueField("Finished Type", line?.finishedType, row.finishedType, row.productType),
+    orderValueField(
+      "Finished Type",
+      line?.finishedType,
+      row.finishedType,
+      row.productType,
+      row.orderType,
+    ),
     orderValueField("Design Code", line?.designCode, row.designCode),
     orderValueField("Structure Code", line?.structuredCode, row.structureCode, row.structuredCode),
     orderValueField("Sales Item Name", line?.salesItemName, row.salesItemName, line?.itemName, row.itemName),

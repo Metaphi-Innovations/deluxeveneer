@@ -12,19 +12,27 @@ function pressingString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function getPressingRouteLabel(row: FactoryRecord) {
+export function getPressingRouteLabel(row: FactoryRecord) {
   const candidates = [
     row.issueTo,
     row.nextProcess,
     row.targetProcess,
     row.productType,
+    row.finishedType,
     row.orderType,
+    // Marquetry → Pressing stock keeps issuedFrom/sourceProcess = Marquetry.
+    row.issuedFrom,
+    row.sourceProcess,
     row.issuedFor,
   ];
 
   for (const candidate of candidates) {
     const normalized = pressingString(candidate).toLowerCase();
-    const match = pressingRouteLabels.find(([keyword]) => normalized.includes(keyword));
+    // Canonical: Fluted → Fluting, Embossed → Embossing, Decorative / Marquetry → Finishing.
+    // Loose forms like "flutted" still match via "flut".
+    const match = pressingRouteLabels.find(([keyword]) =>
+      normalized.includes(keyword),
+    );
     if (match) return match[1];
   }
 

@@ -97,12 +97,14 @@ import { appendEmbossingSampleIssueActions } from "../embossing/embossingSampleA
 import { applyMarquetryListingColumns } from "../marquetry/marquetryListingColumns";
 import { withMarquetryIssuedFrom } from "../marquetry/mapMarquetryListingRow";
 import { appendMarquetrySampleIssueActions } from "../marquetry/marquetrySampleActions";
+import { buildMarquetryPressingIssueRow } from "../marquetry/marquetryPressingIssue";
 import { buildFinishingDoneRowActions } from "../finishing/finishingDoneActions";
 import { issueFinishingToPacking } from "../../packing/shared/packingStore";
 import { applyFinishingListingColumns } from "../finishing/finishingListingColumns";
 import { availableFactoryMeasures } from "./factoryAvailableMeasures";
 import {
   applyPressingIssuedForLabels,
+  getPressingDoneIssuedForLabel,
   getPressingForLabel,
 } from "../pressing/pressingIssuedForLabel";
 import { applyPressingListingColumns } from "../pressing/pressingListingColumns";
@@ -113,7 +115,6 @@ import {
 } from "../pressing/PressingIssueDialog";
 import { mapSplicingIssuedListingRow } from "../splicing/mapSplicingIssuedListingRow";
 import { applySplicingListingColumns } from "../splicing/splicingListingColumns";
-import { appendSplicingSampleIssueActions } from "../splicing/splicingSampleActions";
 import { submitSplicingOrderIssue } from "../splicing/submitSplicingOrderIssue";
 import { buildGroupingDoneRowActions } from "../grouping/groupingDoneActions";
 import { applyGroupingListingColumns } from "../grouping/groupingListingColumns";
@@ -172,6 +173,8 @@ import {
   reopenCompletedFactoryWork,
   revertFactoryIssuedWork,
   updateFactoryIssuedWorkSnapshot,
+  moveFactoryIssuedWork,
+  getMovedFactoryIssuedWorkForHistory,
   getFactoryIssuedWorkForListing,
   issueFactoryWork,
   removeFactoryIssuedWork,
@@ -181,9 +184,12 @@ import {
 import {
   createSampleSheetFromGrouping,
   getSampleNoFromRow,
+  getSampleSheetRecords,
   isSampleFactoryRow,
   issueSampleToProcess,
   markSampleProcessDone,
+  resolveSplicingIssuePurpose,
+  sampleToFactoryRecord,
   useSampleSheetRecords,
 } from "./sampleSheetIdentityStore";
 import type { FactoryDefinition, FactoryRecord } from "./types";
@@ -228,6 +234,135 @@ function formatInspectionLeafQty(value: unknown) {
     return value.trim();
   }
   return "-";
+}
+
+function resolveFactoryListingWorkItemId(row: FactoryRecord) {
+  if (typeof row.workItemId === "string" && row.workItemId.trim()) {
+    return row.workItemId.trim();
+  }
+  const id = String(row.id ?? "");
+  return id.startsWith("factory-work-") ? id : "";
+}
+
+/** Fully issued Finishing Done → History (creates a work item for seed/local rows). */
+function moveFinishingDoneToHistory(
+  row: FactoryRecord,
+  sourcePatch: Record<string, unknown>,
+) {
+  const existingId = resolveFactoryListingWorkItemId(row);
+  if (existingId) {
+    const moved = moveFactoryIssuedWork(existingId, sourcePatch);
+    if (moved) {
+      return moved;
+    }
+  }
+
+  const issued = issueFactoryWork({
+    destinationProcess: "Finishing",
+    sourceProcess: "Finishing",
+    sourceRow: row,
+    sourceSlug: "finishing",
+  });
+  completeFactoryIssuedWork(issued.id, {
+    ...(row as Record<string, unknown>),
+    listingState: "done",
+  });
+  return moveFactoryIssuedWork(issued.id, sourcePatch);
+}
+
+function buildSplicingPressingIssueRow<Row extends FactoryRecord>(row: Row) {
+  const availableSheets = Math.max(
+    0,
+    Math.floor(
+      parseNumericValue(
+        row.availableNoOfLeaves ??
+          row.availableSheets ??
+          row.noOfSheets ??
+          row.noOfLeaves,
+      ) ?? 0,
+    ),
+  );
+  if (availableSheets <= 0) return null;
+
+  const isSample = isSampleFactoryRow(row);
+  if (
+    !isSample &&
+    (!String(row.orderNo ?? "").trim() ||
+      !String(row.orderItemNo ?? "").trim())
+  ) {
+    return null;
+  }
+
+  const receivedSheets = Math.max(
+    availableSheets,
+    Math.floor(
+      parseNumericValue(
+        row.receivedNoOfLeaves ?? row.noOfSheets ?? row.noOfLeaves,
+      ) ?? 0,
+    ),
+  );
+  const receivedSqm = parseNumericValue(row.sqm) ?? 0;
+  const receivedSqf = parseNumericValue(row.sqf) ?? receivedSqm * SQM_TO_SQF;
+  const ratio = receivedSheets > 0 ? availableSheets / receivedSheets : 0;
+  const issuedSqm = receivedSqm * ratio;
+  const issuedSqf = receivedSqf * ratio;
+  // Carry Order craft type into Pressing (Decorative | Fluted | Embossed).
+  // Sample Sheet has no product type.
+  const productType = isSample
+    ? ""
+    : String(
+        row.productType ||
+          row.finishedType ||
+          row.orderType ||
+          row.issuedFor ||
+          "",
+      ).trim();
+
+  return {
+    ...row,
+    noOfLeaves: String(availableSheets),
+    noOfSheets: String(availableSheets),
+    issuedLeafCount: String(availableSheets),
+    issuedNoOfSheets: String(availableSheets),
+    receivedNoOfLeaves: String(availableSheets),
+    receivedSheets: String(availableSheets),
+    availableNoOfLeaves: String(availableSheets),
+    availableSheets: String(availableSheets),
+    sourceAvailableLeaves: String(availableSheets),
+    sourceAvailableSheets: String(availableSheets),
+    sqm: issuedSqm.toFixed(3),
+    sqf: issuedSqf.toFixed(3),
+    receivedSqm: issuedSqm.toFixed(3),
+    receivedSqf: issuedSqf.toFixed(3),
+    availableSqm: issuedSqm.toFixed(3),
+    availableSqf: issuedSqf.toFixed(3),
+    ...(isSample
+      ? {
+          purpose: "SAMPLE",
+          issuePurpose: "Sample",
+          for: "Sample",
+          forLabel: "Sample",
+          isSample: true,
+          productType: "",
+          finishedType: "",
+          orderType: "",
+        }
+      : {
+          purpose: "ORDER",
+          issuePurpose: "Order",
+          for: "Order",
+          forLabel: "Order",
+          isSample: false,
+          ...(productType
+            ? {
+                productType,
+                finishedType: productType,
+                orderType: productType,
+                nextProcess: getPressingDoneIssuedForLabel(productType) || productType,
+              }
+            : {}),
+        }),
+  } as Row;
 }
 
 interface FactoryListingProps<Row extends FactoryRecord> {
@@ -624,17 +759,86 @@ export function FactoryListing<Row extends FactoryRecord>({
               issuedFor: issue.purpose === "order" ? "Order" : "Sample",
               issueSheets: String(issue.issueSheets),
               noOfSheets: String(issue.issueSheets),
-              orderType: issue.orderType ?? "",
-              orderNo: issue.orderNo ?? "",
-              orderItemNo: issue.orderItemNo ?? "",
-              customerName: order?.customerName ?? "",
-              orderDate: order?.orderDate,
+              orderType:
+                issue.orderType ??
+                issue.sourceSnapshot.orderType ??
+                (issue.purpose === "sample-sheet" ? "Sample Sheet" : ""),
+              orderNo: issue.orderNo ?? issue.sourceSnapshot.orderNo ?? "",
+              orderItemNo:
+                issue.orderItemNo ?? issue.sourceSnapshot.orderItemNo ?? "",
+              customerName:
+                order?.customerName ?? issue.sourceSnapshot.customerName ?? "",
+              orderDate: order?.orderDate ?? issue.sourceSnapshot.orderDate,
             } as unknown as Row;
+          })
+        : [];
+    const splicingIssueHistoryRows =
+      definition.slug === "splicing" && activeTab === "history"
+        ? factoryIssuedWorkItems
+            .filter(
+              (item) =>
+                item.sourceSlug === "splicing" &&
+                item.destinationSlug !== "splicing",
+            )
+            .map(
+              (item) =>
+                ({
+                  ...item.sourceSnapshot,
+                  id: `splicing-history-${item.id}`,
+                  listingState: "history",
+                  issuedDate: new Date(item.createdAt),
+                  issuedFor: resolveFactoryProcessLabel(item.destinationSlug),
+                  noOfLeaves:
+                    item.sourceSnapshot.issuedLeafCount ??
+                    item.sourceSnapshot.noOfLeaves ??
+                    item.sourceSnapshot.noOfSheets,
+                  noOfSheets:
+                    item.sourceSnapshot.issuedLeafCount ??
+                    item.sourceSnapshot.noOfSheets ??
+                    item.sourceSnapshot.noOfLeaves,
+                }) as unknown as Row,
+            )
+        : [];
+    const stageIssueHistorySlugs = new Set([
+      "pressing",
+      "cnc-fluting",
+      "embossing",
+      "finishing",
+    ]);
+    const stageIssueHistoryRows =
+      activeTab === "history" && stageIssueHistorySlugs.has(definition.slug)
+        ? getMovedFactoryIssuedWorkForHistory(definition.slug).map((item) => {
+            const row = factoryIssuedWorkToRow({
+              ...item,
+              listingState: "done",
+            });
+            const issuedTo =
+              String(item.sourceSnapshot.issuedTo ?? "").trim() ||
+              String(item.sourceSnapshot.nextProcess ?? "").trim() ||
+              resolveFactoryProcessLabel(
+                String(item.sourceSnapshot.issuedFor ?? ""),
+              );
+
+            return {
+              ...row,
+              id: `${definition.slug}-history-${item.id}`,
+              workItemId: item.id,
+              listingState: "history",
+              availableSheets: "0",
+              issuedFor: issuedTo || row.issuedFor,
+              issuedDate: item.movedAt
+                ? new Date(item.movedAt)
+                : new Date(item.createdAt),
+            } as Row;
           })
         : [];
     const rowsForTab =
       isGroupingModule && activeTab === "history"
         ? [...groupingIssueHistoryRows, ...baseRowsForTab]
+        : definition.slug === "splicing" && activeTab === "history"
+          ? [...splicingIssueHistoryRows, ...baseRowsForTab]
+        : stageIssueHistoryRows.length > 0
+          ? [...stageIssueHistoryRows, ...baseRowsForTab]
         : activeTab === "rejected"
           ? [...baseRowsForTab, ...rejectedDoneRows]
           : definition.slug === "drying" && activeTab === "history"
@@ -664,10 +868,31 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     const issuedWorkRows = getFactoryIssuedWorkForListing(
       definition.slug,
-      activeTab,
+      activeTab === "rejected" ? "failed" : activeTab,
     ).map((item) => factoryIssuedWorkToRow(item) as Row);
 
-    const mappedRows = [...issuedWorkRows, ...rowsForTab]
+    // Sample Sheets module is driven by the identity store (Grouping → Sample Sheet).
+    const sampleIdentityRows =
+      definition.slug === "sample-sheets" &&
+      (activeTab === "issued" || activeTab === "done")
+        ? getSampleSheetRecords()
+            .filter((sample) => {
+              const status = sample.currentStatus.toLowerCase();
+              if (activeTab === "issued") {
+                return status.startsWith("issued for");
+              }
+              return status.endsWith(" done");
+            })
+            .map(
+              (sample) => sampleToFactoryRecord(sample, activeTab) as Row,
+            )
+        : [];
+
+    const mappedRows = [
+      ...issuedWorkRows,
+      ...sampleIdentityRows,
+      ...rowsForTab,
+    ]
       .filter(
         (row) =>
           !revertedRowIds.includes(row.id) &&
@@ -688,22 +913,31 @@ export function FactoryListing<Row extends FactoryRecord>({
           return mapGroupingListingRow(sourceNormalizedRow, activeTab);
         }
 
-        if (
-          supportsSamplePurposeColumn &&
-          !isSampleFactoryRow(sourceNormalizedRow)
-        ) {
-          return {
-            ...sourceNormalizedRow,
-            for:
-              typeof sourceNormalizedRow.for === "string"
-                ? sourceNormalizedRow.for
-                : "Order",
-            forLabel:
-              typeof sourceNormalizedRow.forLabel === "string"
-                ? sourceNormalizedRow.forLabel
-                : "Order",
-          } as Row;
-        }
+        // Enrich "For" without returning early — stage/pressing availability
+        // patches below must still run for Done → History moves.
+        const withPurposeColumns = supportsSamplePurposeColumn
+          ? isSampleFactoryRow(sourceNormalizedRow)
+            ? ({
+                ...sourceNormalizedRow,
+                for: "Sample Sheet",
+                forLabel: "Sample Sheet",
+              } as Row)
+            : ({
+                ...sourceNormalizedRow,
+                for:
+                  typeof sourceNormalizedRow.for === "string" &&
+                  sourceNormalizedRow.for.trim() &&
+                  sourceNormalizedRow.for !== "Sample"
+                    ? sourceNormalizedRow.for
+                    : "Order",
+                forLabel:
+                  typeof sourceNormalizedRow.forLabel === "string" &&
+                  sourceNormalizedRow.forLabel.trim() &&
+                  sourceNormalizedRow.forLabel !== "Sample"
+                    ? sourceNormalizedRow.forLabel
+                    : "Order",
+              } as Row)
+          : sourceNormalizedRow;
 
         if (isInspectionModule) {
           const rowId = String(sourceNormalizedRow.id);
@@ -798,11 +1032,42 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
 
         if (definition.slug === "splicing") {
+          const issuePurpose = resolveSplicingIssuePurpose(sourceNormalizedRow);
+          const orderProductType =
+            issuePurpose === "Order"
+              ? String(
+                  sourceNormalizedRow.productType ||
+                    sourceNormalizedRow.finishedType ||
+                    sourceNormalizedRow.orderType ||
+                    sourceNormalizedRow.issuedFor ||
+                    "",
+                ).trim()
+              : "";
           const splicingRow = {
             ...sourceNormalizedRow,
-            issuePurpose: isSampleFactoryRow(sourceNormalizedRow)
-              ? "Sample"
-              : "Order",
+            issuePurpose,
+            for: issuePurpose,
+            forLabel: issuePurpose,
+            ...(issuePurpose === "Sample"
+              ? {
+                  purpose: "SAMPLE",
+                  isSample: true,
+                  productType: "",
+                  finishedType: "",
+                  orderType: "",
+                }
+              : {
+                  purpose: "ORDER",
+                  isSample: false,
+                  ...(orderProductType
+                    ? {
+                        productType: orderProductType,
+                        finishedType: orderProductType,
+                        orderType: orderProductType,
+                        issuedFor: orderProductType,
+                      }
+                    : {}),
+                }),
           } as Row;
 
           return activeTab === "issued"
@@ -846,33 +1111,33 @@ export function FactoryListing<Row extends FactoryRecord>({
         ) {
           const receivedSheets =
             Number(
-              sourceNormalizedRow.receivedSheets ??
-                sourceNormalizedRow.outputNoOfSheets ??
-                sourceNormalizedRow.noOfSheets ??
+              withPurposeColumns.receivedSheets ??
+                withPurposeColumns.outputNoOfSheets ??
+                withPurposeColumns.noOfSheets ??
                 0,
             ) || 0;
           const patch =
-            pressingAvailabilityPatches[String(sourceNormalizedRow.id)];
+            pressingAvailabilityPatches[String(withPurposeColumns.id)];
           const availableSheets = patch
             ? Number(patch.availableSheets) || 0
-            : sourceNormalizedRow.availableSheets !== undefined &&
-                sourceNormalizedRow.availableSheets !== null &&
-                String(sourceNormalizedRow.availableSheets).trim() !== ""
-              ? Number(sourceNormalizedRow.availableSheets) || 0
+            : withPurposeColumns.availableSheets !== undefined &&
+                withPurposeColumns.availableSheets !== null &&
+                String(withPurposeColumns.availableSheets).trim() !== ""
+              ? Number(withPurposeColumns.availableSheets) || 0
               : receivedSheets;
 
           return {
-            ...sourceNormalizedRow,
+            ...withPurposeColumns,
             receivedSheets: String(receivedSheets),
             availableSheets: String(availableSheets),
             receivedSqm: String(
-              sourceNormalizedRow.receivedSqm ?? sourceNormalizedRow.sqm ?? "0",
+              withPurposeColumns.receivedSqm ?? withPurposeColumns.sqm ?? "0",
             ),
             receivedSqf: String(
-              sourceNormalizedRow.receivedSqf ?? sourceNormalizedRow.sqf ?? "0",
+              withPurposeColumns.receivedSqf ?? withPurposeColumns.sqf ?? "0",
             ),
             ...availableFactoryMeasures(
-              sourceNormalizedRow,
+              withPurposeColumns,
               receivedSheets,
               availableSheets,
             ),
@@ -886,46 +1151,66 @@ export function FactoryListing<Row extends FactoryRecord>({
             definition.slug === "finishing") &&
           (activeTab === "issued" || activeTab === "done")
         ) {
-          const receivedCount =
-            Number(
-              sourceNormalizedRow.receivedSheets ??
-                sourceNormalizedRow.flutedSheets ??
-                sourceNormalizedRow.embossedSheets ??
-                sourceNormalizedRow.finishedSheets ??
-                sourceNormalizedRow.outputNoOfSheets ??
-                sourceNormalizedRow.noOfSheets ??
-                0,
-            ) || 0;
+          const receivedRaw = [
+            withPurposeColumns.receivedSheets,
+            withPurposeColumns.flutedSheets,
+            withPurposeColumns.embossedSheets,
+            withPurposeColumns.finishedSheets,
+            withPurposeColumns.outputNoOfSheets,
+            withPurposeColumns.noOfSheets,
+          ]
+            .map((value) => String(value ?? "").trim())
+            .find((value) => value && value !== "-");
+          const receivedCount = Number(receivedRaw) || 0;
           const patch =
-            stageAvailabilityPatches[String(sourceNormalizedRow.id)];
+            stageAvailabilityPatches[String(withPurposeColumns.id)];
+          const availableRaw = patch
+            ? String(patch.availableSheets ?? "").trim()
+            : String(withPurposeColumns.availableSheets ?? "").trim();
+          // Treat explicit "0" from a full-issue patch as zero (not "use received").
           const availableCount = patch
-            ? Number(patch.availableSheets) || 0
-            : sourceNormalizedRow.availableSheets !== undefined &&
-                sourceNormalizedRow.availableSheets !== null &&
-                String(sourceNormalizedRow.availableSheets).trim() !== ""
-              ? Number(sourceNormalizedRow.availableSheets) || 0
+            ? Number(availableRaw) || 0
+            : availableRaw
+              ? Number(availableRaw) || 0
               : receivedCount;
 
+          const receivedSqm = String(
+            withPurposeColumns.receivedSqm ??
+              withPurposeColumns.sqm ??
+              withPurposeColumns.outputSqm ??
+              "0",
+          );
+          const receivedSqf = String(
+            withPurposeColumns.receivedSqf ??
+              withPurposeColumns.sqf ??
+              withPurposeColumns.outputSqf ??
+              "0",
+          );
+          const measureSource = {
+            ...withPurposeColumns,
+            sqm: withPurposeColumns.sqm ?? receivedSqm,
+            sqf: withPurposeColumns.sqf ?? receivedSqf,
+          };
+
           return {
-            ...sourceNormalizedRow,
-            receivedSheets: String(receivedCount),
-            availableSheets: String(availableCount),
-            receivedSqm: String(
-              sourceNormalizedRow.receivedSqm ?? sourceNormalizedRow.sqm ?? "0",
-            ),
-            receivedSqf: String(
-              sourceNormalizedRow.receivedSqf ?? sourceNormalizedRow.sqf ?? "0",
-            ),
+            ...withPurposeColumns,
             ...availableFactoryMeasures(
-              sourceNormalizedRow,
+              measureSource,
               receivedCount,
               availableCount,
             ),
             ...(patch ?? {}),
+            // Keep received sheets / areas even when availability patches are applied.
+            receivedSheets: String(receivedCount),
+            sqm: receivedSqm,
+            sqf: receivedSqf,
+            receivedSqm,
+            receivedSqf,
+            availableSheets: String(availableCount),
           } as Row;
         }
 
-        return sourceNormalizedRow;
+        return withPurposeColumns;
       });
 
     const currentUserProfile = getCurrentUser();
@@ -976,6 +1261,19 @@ export function FactoryListing<Row extends FactoryRecord>({
 
     if (definition.slug === "slicing") {
       return applySlicingListingRows(auditMappedRows, activeTab, slicingFlowState);
+    }
+
+    if (
+      activeTab === "done" &&
+      (definition.slug === "pressing" ||
+        definition.slug === "cnc-fluting" ||
+        definition.slug === "embossing" ||
+        definition.slug === "finishing")
+    ) {
+      // Fully issued Done rows are shown under History instead.
+      return auditMappedRows.filter(
+        (row) => getPressingIssueBalances(row).availableSheets > 0,
+      );
     }
 
     if (definition.slug === "drying") {
@@ -1207,7 +1505,14 @@ export function FactoryListing<Row extends FactoryRecord>({
           label: "For",
           ...(definition.slug === "pressing"
             ? { renderCell: (row: Row) => getPressingForLabel(row) }
-            : {}),
+            : definition.slug === "cnc-fluting" ||
+                definition.slug === "embossing" ||
+                definition.slug === "finishing"
+              ? {
+                  renderCell: (row: Row) =>
+                    isSampleFactoryRow(row) ? "Sample Sheet" : "Order",
+                }
+              : {}),
         },
         "itemName",
       );
@@ -1693,6 +1998,13 @@ export function FactoryListing<Row extends FactoryRecord>({
         canEdit,
         canView,
         onIssueToPacking: (selectedRow) => {
+          if (isSampleFactoryRow(selectedRow)) {
+            setToastNotification({
+              message: "Sample Sheet items cannot be issued to Packing.",
+              severity: "warning",
+            });
+            return;
+          }
           setStageIssue({
             destination: "Packing",
             row: selectedRow,
@@ -1755,7 +2067,9 @@ export function FactoryListing<Row extends FactoryRecord>({
       const withIssueToPressing = (
         actions: readonly EnterpriseTableAction<Row>[],
       ) =>
-        canCreate && definition.slug === "splicing"
+        canCreate &&
+        definition.slug === "splicing" &&
+        Boolean(buildSplicingPressingIssueRow(row))
           ? [...actions, issueToPressingAction]
           : actions;
 
@@ -1831,17 +2145,18 @@ export function FactoryListing<Row extends FactoryRecord>({
 
         if (canCreate && definition.slug === "marquetry") {
           return confirmIssueActions(
-            appendMarquetrySampleIssueActions(sampleActions, definition.slug),
+            appendMarquetrySampleIssueActions(
+              sampleActions,
+              definition.slug,
+              row,
+            ),
           );
         }
 
         if (canCreate && definition.slug === "splicing") {
+          // Sample Sheet: only Issue to Pressing (no Finishing/Fluting/Embossing).
           return withProcessDoneRevert(
-            withIssueToPressing(
-              confirmIssueActions(
-                appendSplicingSampleIssueActions(sampleActions, definition.slug),
-              ),
-            ),
+            withIssueToPressing(confirmIssueActions(sampleActions)),
           );
         }
 
@@ -1915,6 +2230,11 @@ export function FactoryListing<Row extends FactoryRecord>({
               definition.slug === "slicing" &&
               action.id === "issue-for-drying" &&
               Number(row.availableLeaves ?? row.noOfLeaves ?? 0) <= 0
+            ) &&
+            !(
+              definition.slug === "marquetry" &&
+              action.id === "issue-for-pressing" &&
+              !buildMarquetryPressingIssueRow(row)
             ),
         );
 
@@ -1960,6 +2280,53 @@ export function FactoryListing<Row extends FactoryRecord>({
   ]);
 
   const rejectFactoryDoneRow = (selectedRow: Row) => {
+    if (definition.slug === "splicing") {
+      const rowIds = new Set([
+        String(selectedRow.id),
+        typeof selectedRow.workItemId === "string"
+          ? selectedRow.workItemId
+          : "",
+      ]);
+      const alreadyForwarded = factoryIssuedWorkItems.some(
+        (item) =>
+          item.sourceSlug === "splicing" && rowIds.has(item.sourceRowId),
+      );
+      if (alreadyForwarded) {
+        setToastNotification({
+          message: "This Splicing item cannot be rejected because it has already been issued onward.",
+          severity: "warning",
+        });
+        return;
+      }
+
+      const workItemId =
+        typeof selectedRow.workItemId === "string" && selectedRow.workItemId
+          ? selectedRow.workItemId
+          : String(selectedRow.id).startsWith("factory-work-")
+            ? String(selectedRow.id)
+            : "";
+      if (workItemId) {
+        failFactoryIssuedWork(workItemId, {
+          ...selectedRow,
+          listingState: "rejected",
+          rejectedDate: new Date().toISOString(),
+        });
+      } else {
+        const rejectedWork = issueFactoryWork({
+          destinationProcess: "Splicing",
+          sourceProcess: "Splicing",
+          sourceRow: selectedRow,
+          sourceSlug: "splicing",
+        });
+        failFactoryIssuedWork(rejectedWork.id, {
+          ...selectedRow,
+          listingState: "rejected",
+          rejectedDate: new Date().toISOString(),
+        });
+      }
+      setActiveTab("rejected");
+      return;
+    }
     if (definition.slug === "slicing") {
       markSlicingDoneRejected(selectedRow);
     }
@@ -1997,6 +2364,13 @@ export function FactoryListing<Row extends FactoryRecord>({
       setGroupingSampleIssue((current) =>
         current ? { ...current, submitted: true } : current,
       );
+      setToastNotification({
+        message:
+          availableSheets < 1
+            ? "No available leaves left to issue for Sample Sheet."
+            : `Enter a whole number of leaves from 1 to ${availableSheets}.`,
+        severity: "error",
+      });
       return;
     }
 
@@ -2019,8 +2393,28 @@ export function FactoryListing<Row extends FactoryRecord>({
       remark: groupingSampleIssue.remark,
     });
 
-    const { workItemId: _groupingWorkItemId, ...groupingSourceFields } =
-      groupingRow;
+    const {
+      workItemId: _groupingWorkItemId,
+      sourceRowId: _sourceRowId,
+      ...groupingSourceFields
+    } = groupingRow;
+    const sheetsText = String(issueSheets);
+    const sourceLeaves =
+      parseNumericValue(
+        groupingRow.receivedNoOfLeaves ??
+          groupingRow.noOfLeaves ??
+          groupingRow.availableNoOfLeaves,
+      ) ?? 0;
+    const sourceSqm = parseNumericValue(groupingRow.sqm) ?? 0;
+    const issuedSqm =
+      sourceLeaves > 0 && sourceSqm > 0
+        ? (sourceSqm * issueSheets) / sourceLeaves
+        : 0;
+    const issuedSqf = issuedSqm > 0 ? issuedSqm * SQM_TO_SQF : 0;
+    const sqmText =
+      issuedSqm > 0 ? issuedSqm.toFixed(3) : String(groupingRow.sqm ?? "0");
+    const sqfText =
+      issuedSqf > 0 ? issuedSqf.toFixed(3) : String(groupingRow.sqf ?? "0");
 
     issueFactoryWork({
       destinationProcess: "Pressing",
@@ -2037,15 +2431,30 @@ export function FactoryListing<Row extends FactoryRecord>({
         purpose: "SAMPLE",
         for: "Sample",
         forLabel: "Sample",
-        noOfLeaves: String(issueSheets),
-        receivedNoOfLeaves: String(issueSheets),
-        availableNoOfLeaves: String(issueSheets),
-        noOfSheets: String(issueSheets),
+        pressingFor: "Sample Sheet",
+        noOfLeaves: sheetsText,
+        receivedNoOfLeaves: sheetsText,
+        availableNoOfLeaves: sheetsText,
+        availableLeaves: sheetsText,
+        noOfSheets: sheetsText,
+        receivedSheets: sheetsText,
+        availableSheets: sheetsText,
+        issuedNoOfSheets: sheetsText,
+        sqm: sqmText,
+        sqf: sqfText,
+        receivedSqm: sqmText,
+        availableSqm: sqmText,
+        receivedSqf: sqfText,
+        availableSqf: sqfText,
         remark: groupingSampleIssue.remark || `Sample ${sample.sampleNo}`,
       },
       sourceSlug: "grouping",
     });
 
+    setToastNotification({
+      message: `Issued ${issueSheets} leaf${issueSheets === 1 ? "" : "ves"} to Sample Sheet (${sample.sampleNo}) for Pressing.`,
+      severity: "success",
+    });
     setGroupingSampleIssue(null);
   };
   const handleCloseGroupingOrderIssue = () => {
@@ -2368,6 +2777,14 @@ export function FactoryListing<Row extends FactoryRecord>({
                       const eligibleRows = selectedListingRows.filter(
                         (row) => !isSampleFactoryRow(row),
                       );
+                      if (eligibleRows.length === 0) {
+                        setToastNotification({
+                          message:
+                            "Sample Sheet items cannot be issued to Packing. Select Order items.",
+                          severity: "warning",
+                        });
+                        return;
+                      }
                       if (
                         selectedListingRows.length === 1 &&
                         eligibleRows.length === 1
@@ -2379,7 +2796,7 @@ export function FactoryListing<Row extends FactoryRecord>({
                         });
                         return;
                       }
-                      setFinishingPackingIssueRows(selectedListingRows);
+                      setFinishingPackingIssueRows(eligibleRows);
                     }}
                     sx={{
                       backgroundColor: "primary.main",
@@ -2387,7 +2804,13 @@ export function FactoryListing<Row extends FactoryRecord>({
                       fontWeight: 600,
                     }}
                   >
-                    Issue to Packing ({selectedListingRows.length})
+                    Issue to Packing (
+                    {
+                      selectedListingRows.filter(
+                        (row) => !isSampleFactoryRow(row),
+                      ).length
+                    }
+                    )
                   </Button>
                 ) : null}
               </Stack>
@@ -2496,15 +2919,33 @@ export function FactoryListing<Row extends FactoryRecord>({
             availableSheets: String(remainingSheets),
             availableSqm: remainingSqm.toFixed(3),
             availableSqf: remainingSqf.toFixed(3),
+            ...(remainingSheets === 0
+              ? {
+                  issuedTo: pressingIssue.destination,
+                  nextProcess: pressingIssue.destination,
+                  issuedFor: pressingIssue.destination,
+                }
+              : {}),
           };
 
           setPressingAvailabilityPatches((current) => ({
             ...current,
-            [String(row.id)]: sourcePatch,
+            [String(row.id)]: {
+              availableSheets: sourcePatch.availableSheets,
+              availableSqm: sourcePatch.availableSqm,
+              availableSqf: sourcePatch.availableSqf,
+            },
           }));
 
-          if (typeof row.workItemId === "string" && row.workItemId) {
-            updateFactoryIssuedWorkSnapshot(row.workItemId, sourcePatch);
+          const workItemId =
+            typeof row.workItemId === "string" ? row.workItemId : "";
+          if (workItemId) {
+            if (remainingSheets === 0) {
+              // Fully issued Pressing Done rows move to Pressing History.
+              moveFactoryIssuedWork(workItemId, sourcePatch);
+            } else {
+              updateFactoryIssuedWorkSnapshot(workItemId, sourcePatch);
+            }
           }
 
           const issuedRow = { ...row } as Row;
@@ -2531,6 +2972,13 @@ export function FactoryListing<Row extends FactoryRecord>({
             row: issuedRow,
             sourceSlug: "pressing",
           });
+          setToastNotification({
+            message: `Issued ${entry.issueSheets} sheet(s) to ${pressingIssue.destination} successfully.`,
+            severity: "success",
+          });
+          setSelectedListingRows((current) =>
+            current.filter((selectedRow) => selectedRow.id !== row.id),
+          );
           setPressingIssue(null);
         }}
         open={Boolean(pressingIssue)}
@@ -2543,11 +2991,25 @@ export function FactoryListing<Row extends FactoryRecord>({
         onSubmit={(row, entry) => {
           if (!stageIssue) return;
 
+          if (
+            stageIssue.destination === "Packing" &&
+            isSampleFactoryRow(row)
+          ) {
+            setToastNotification({
+              message: "Sample Sheet items cannot be issued to Packing.",
+              severity: "warning",
+            });
+            setStageIssue(null);
+            return;
+          }
+
           const balances = getPressingIssueBalances(row);
+          const remainingSheets = Math.max(
+            0,
+            balances.availableSheets - entry.issueSheets,
+          );
           const sourcePatch = {
-            availableSheets: String(
-              Math.max(0, balances.availableSheets - entry.issueSheets),
-            ),
+            availableSheets: String(remainingSheets),
             availableSqm: Math.max(
               0,
               balances.availableSqm - entry.issueSqm,
@@ -2556,14 +3018,32 @@ export function FactoryListing<Row extends FactoryRecord>({
               0,
               balances.availableSqf - entry.issueSqf,
             ).toFixed(3),
+            ...(remainingSheets === 0
+              ? {
+                  issuedTo: stageIssue.destination,
+                  nextProcess: stageIssue.destination,
+                  issuedFor: stageIssue.destination,
+                }
+              : {}),
           };
 
           setStageAvailabilityPatches((current) => ({
             ...current,
-            [String(row.id)]: sourcePatch,
+            [String(row.id)]: {
+              availableSheets: sourcePatch.availableSheets,
+              availableSqm: sourcePatch.availableSqm,
+              availableSqf: sourcePatch.availableSqf,
+            },
           }));
-          if (typeof row.workItemId === "string" && row.workItemId) {
-            updateFactoryIssuedWorkSnapshot(row.workItemId, sourcePatch);
+          const workItemId = resolveFactoryListingWorkItemId(row);
+          if (stageIssue.destination === "Packing" && remainingSheets === 0) {
+            moveFinishingDoneToHistory(row, sourcePatch);
+          } else if (workItemId) {
+            if (remainingSheets === 0) {
+              moveFactoryIssuedWork(workItemId, sourcePatch);
+            } else {
+              updateFactoryIssuedWorkSnapshot(workItemId, sourcePatch);
+            }
           }
 
           const issuedRow = { ...row } as Row;
@@ -3174,8 +3654,6 @@ export function FactoryListing<Row extends FactoryRecord>({
           const sampleNo = getSampleNoFromRow(finishingCreateRow);
           if (sampleNo) {
             markSampleProcessDone(sampleNo, "finishing");
-          } else {
-            issueFinishingToPacking(snapshot);
           }
 
           setFinishingCreateRow(null);
@@ -3231,7 +3709,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           } else {
             const issued = issueFactoryWork({
               destinationProcess: "CNC / Fluting",
-              sourceProcess: "CNC / Fluting",
+              sourceProcess: "Fluting",
               sourceRow: flutingCreateRow,
               sourceSlug: "cnc-fluting",
             });
@@ -3630,8 +4108,18 @@ export function FactoryListing<Row extends FactoryRecord>({
         onClose={() => setIssueConfirm(null)}
         onConfirm={(warehouse) => {
           const run = issueConfirm?.run;
+          const title = issueConfirm?.title ?? "";
           setIssueConfirm(null);
           run?.(warehouse);
+          if (
+            definition.slug === "marquetry" &&
+            /pressing/i.test(title)
+          ) {
+            setToastNotification({
+              message: "Issued to Pressing successfully.",
+              severity: "success",
+            });
+          }
         }}
         open={Boolean(issueConfirm)}
         showWarehouse={Boolean(issueConfirm?.showWarehouse)}
@@ -3647,7 +4135,11 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
         onClose={() => setSplicingPressingIssueRows([])}
         onConfirm={() => {
-          splicingPressingIssueRows.forEach((row) => {
+          const eligibleRows = splicingPressingIssueRows.flatMap((row) => {
+            const issuedRow = buildSplicingPressingIssueRow(row);
+            return issuedRow ? [issuedRow] : [];
+          });
+          eligibleRows.forEach((row) => {
             issueToNextFactoryProcess({
               destinationProcess: "Pressing",
               row,
@@ -3655,15 +4147,21 @@ export function FactoryListing<Row extends FactoryRecord>({
             });
           });
           const issuedIds = new Set(
-            splicingPressingIssueRows.map((row) => row.id),
+            eligibleRows.map((row) => row.id),
           );
           setSelectedListingRows((current) =>
             current.filter((row) => !issuedIds.has(row.id)),
           );
-          if (splicingPressingIssueRows.length > 0) {
+          if (eligibleRows.length > 0) {
             setToastNotification({
-              message: `Issued ${splicingPressingIssueRows.length} item(s) to Pressing successfully.`,
+              message: `Issued ${eligibleRows.length} item(s) to Pressing successfully.`,
               severity: "success",
+            });
+          } else {
+            setToastNotification({
+              message:
+                "No selected Splicing items have available quantity and complete order references.",
+              severity: "warning",
             });
           }
           setSplicingPressingIssueRows([]);
@@ -3682,23 +4180,30 @@ export function FactoryListing<Row extends FactoryRecord>({
         }
         onClose={() => setMarquetryPressingIssueRows([])}
         onConfirm={() => {
-          marquetryPressingIssueRows.forEach((row) => {
+          const eligibleRows = marquetryPressingIssueRows.filter((row) =>
+            Boolean(buildMarquetryPressingIssueRow(row)),
+          );
+          eligibleRows.forEach((row) => {
             issueToNextFactoryProcess({
               destinationProcess: "Pressing",
               row,
               sourceSlug: "marquetry",
             });
           });
-          const issuedIds = new Set(
-            marquetryPressingIssueRows.map((row) => row.id),
-          );
+          const issuedIds = new Set(eligibleRows.map((row) => row.id));
           setSelectedListingRows((current) =>
             current.filter((row) => !issuedIds.has(row.id)),
           );
-          if (marquetryPressingIssueRows.length > 0) {
+          if (eligibleRows.length > 0) {
             setToastNotification({
-              message: `Issued ${marquetryPressingIssueRows.length} item(s) to Pressing successfully.`,
+              message: `Issued ${eligibleRows.length} item(s) to Pressing successfully.`,
               severity: "success",
+            });
+          } else {
+            setToastNotification({
+              message:
+                "No selected Marquetry items have available quantity and complete order references.",
+              severity: "warning",
             });
           }
           setMarquetryPressingIssueRows([]);
@@ -3718,9 +4223,37 @@ export function FactoryListing<Row extends FactoryRecord>({
         onClose={() => setFlutingFinishingIssueRows([])}
         onConfirm={() => {
           flutingFinishingIssueRows.forEach((row) => {
+            const balances = getPressingIssueBalances(row);
+            const workItemId =
+              typeof row.workItemId === "string" ? row.workItemId : "";
+            const issuedRow = { ...row } as Row;
+            delete issuedRow.workItemId;
+            if (workItemId) {
+              moveFactoryIssuedWork(workItemId, {
+                availableSheets: "0",
+                availableSqm: "0.000",
+                availableSqf: "0.000",
+                issuedTo: "Finishing",
+                nextProcess: "Finishing",
+                issuedFor: "Finishing",
+              });
+            }
+            setStageAvailabilityPatches((current) => ({
+              ...current,
+              [String(row.id)]: {
+                availableSheets: "0",
+                availableSqm: "0.000",
+                availableSqf: "0.000",
+              },
+            }));
             issueToNextFactoryProcess({
               destinationProcess: "Finishing",
-              row,
+              row: {
+                ...issuedRow,
+                availableSheets: String(balances.availableSheets || 0),
+                receivedSheets: String(balances.availableSheets || 0),
+                noOfSheets: String(balances.availableSheets || 0),
+              },
               sourceSlug: "cnc-fluting",
             });
           });
@@ -3753,9 +4286,37 @@ export function FactoryListing<Row extends FactoryRecord>({
         onClose={() => setEmbossingFinishingIssueRows([])}
         onConfirm={() => {
           embossingFinishingIssueRows.forEach((row) => {
+            const balances = getPressingIssueBalances(row);
+            const workItemId =
+              typeof row.workItemId === "string" ? row.workItemId : "";
+            const issuedRow = { ...row } as Row;
+            delete issuedRow.workItemId;
+            if (workItemId) {
+              moveFactoryIssuedWork(workItemId, {
+                availableSheets: "0",
+                availableSqm: "0.000",
+                availableSqf: "0.000",
+                issuedTo: "Finishing",
+                nextProcess: "Finishing",
+                issuedFor: "Finishing",
+              });
+            }
+            setStageAvailabilityPatches((current) => ({
+              ...current,
+              [String(row.id)]: {
+                availableSheets: "0",
+                availableSqm: "0.000",
+                availableSqf: "0.000",
+              },
+            }));
             issueToNextFactoryProcess({
               destinationProcess: "Finishing",
-              row,
+              row: {
+                ...issuedRow,
+                availableSheets: String(balances.availableSheets || 0),
+                receivedSheets: String(balances.availableSheets || 0),
+                noOfSheets: String(balances.availableSheets || 0),
+              },
               sourceSlug: "embossing",
             });
           });
@@ -3790,8 +4351,42 @@ export function FactoryListing<Row extends FactoryRecord>({
           const eligibleRows = finishingPackingIssueRows.filter(
             (row) => !isSampleFactoryRow(row),
           );
-          eligibleRows.forEach((row) => issueFinishingToPacking(row));
-          setSelectedListingRows([]);
+          eligibleRows.forEach((row) => {
+            if (isSampleFactoryRow(row)) {
+              return;
+            }
+            const balances = getPressingIssueBalances(row);
+            const issuedRow = { ...row } as Row;
+            delete issuedRow.workItemId;
+            const sourcePatch = {
+              availableSheets: "0",
+              availableSqm: "0.000",
+              availableSqf: "0.000",
+              issuedTo: "Packing",
+              nextProcess: "Packing",
+              issuedFor: "Packing",
+            };
+            moveFinishingDoneToHistory(row, sourcePatch);
+            setStageAvailabilityPatches((current) => ({
+              ...current,
+              [String(row.id)]: {
+                availableSheets: "0",
+                availableSqm: "0.000",
+                availableSqf: "0.000",
+              },
+            }));
+            issueFinishingToPacking({
+              ...issuedRow,
+              availableSheets: String(balances.availableSheets || 0),
+              receivedSheets: String(balances.availableSheets || 0),
+              noOfSheets: String(balances.availableSheets || 0),
+              packingDate: new Date().toISOString().slice(0, 10),
+            });
+          });
+          const issuedIds = new Set(eligibleRows.map((row) => row.id));
+          setSelectedListingRows((current) =>
+            current.filter((row) => !issuedIds.has(row.id)),
+          );
           setToastNotification({
             message:
               eligibleRows.length > 0
