@@ -311,7 +311,7 @@ export function getBoardIssueToOrderPath(input: {
   warehouseId: string;
   materialType: "plywood" | "mdf";
 }): string {
-  return `/warehouses/${input.warehouseId}/issue-order/${input.materialType}`;
+  return `/warehouses/${input.warehouseId}/issue-for-order/${input.materialType}`;
 }
 
 export function boardMaterialTypeFromSlug(

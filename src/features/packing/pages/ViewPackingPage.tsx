@@ -53,6 +53,7 @@ import {
 } from "../shared/packingStore";
 import { fetchPackingById } from "../api/packingApi";
 import { mapApiItemToPackingRecord } from "../hooks/usePackingList";
+import { getPackingDummyRecord } from "../packingDummyData";
 import { queryKeys } from "../../../query/queryKeys";
 
 export function ViewPackingPage() {
@@ -61,16 +62,20 @@ export function ViewPackingPage() {
   const { id } = useParams<{ id: string }>();
   const paths = getPackingPaths();
 
+  const dummyRecord = id?.startsWith("dummy-packing-")
+    ? getPackingDummyRecord(id)
+    : undefined;
   const { data: apiItem, isLoading, isError } = useQuery({
     queryKey: queryKeys.packing.detail(id ?? ""),
     queryFn: () => fetchPackingById(id!),
-    enabled: !!id,
+    enabled: Boolean(id) && !dummyRecord,
   });
 
   const record: PackingRecord | undefined = useMemo(() => {
+    if (dummyRecord) return dummyRecord;
     if (!apiItem) return undefined;
     return mapApiItemToPackingRecord(apiItem);
-  }, [apiItem]);
+  }, [apiItem, dummyRecord]);
 
   const canEdit = canAccessPermission("packing", "edit");
   const canView = canAccessPermission("packing", "view");
@@ -644,6 +649,41 @@ export function ViewPackingPage() {
                     value={record.sourceRef}
                   />
                 </Box>
+              )}
+              {(record.warehouseIssueId ||
+                record.inventoryId ||
+                record.batchNo ||
+                record.storageSrNo ||
+                record.productionSrNo) && (
+                <Stack spacing={1} sx={{ mt: 1 }}>
+                  {record.warehouseIssueId ? (
+                    <ProfileField
+                      label="Warehouse Issue ID"
+                      value={record.warehouseIssueId}
+                    />
+                  ) : null}
+                  {record.inventoryId ? (
+                    <ProfileField label="Inventory ID" value={record.inventoryId} />
+                  ) : null}
+                  {record.storageSrNo ? (
+                    <ProfileField
+                      label="Storage Sr No."
+                      value={record.storageSrNo}
+                    />
+                  ) : null}
+                  {record.productionSrNo ? (
+                    <ProfileField
+                      label="Production Sr No."
+                      value={record.productionSrNo}
+                    />
+                  ) : null}
+                  {record.palletNo ? (
+                    <ProfileField label="Pallet No." value={record.palletNo} />
+                  ) : null}
+                  {record.batchNo ? (
+                    <ProfileField label="Batch No." value={record.batchNo} />
+                  ) : null}
+                </Stack>
               )}
             </Box>
           </Box>

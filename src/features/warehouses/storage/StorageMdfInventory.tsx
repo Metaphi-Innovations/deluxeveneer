@@ -10,6 +10,7 @@ import {
 } from "../../shared/columnFilters";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
+  fetchAllStorageInventoryRows,
   fetchStorageColumnDropdown,
   fetchStorageInventoryPaginated,
   mapStorageItemToRow,
@@ -131,6 +132,25 @@ export function StorageMdfInventory({
       ? "No MDF history records are available."
       : "No MDF inventory records are available.";
 
+  const resolveAllSelectableRows = useCallback(async () => {
+    if (!warehouseId || section !== "inventory") {
+      return [];
+    }
+    const apiFilters = toApiColumnFilters(columnFilters);
+    return fetchAllStorageInventoryRows(
+      "mdf",
+      {
+        warehouseId,
+        section,
+        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+      },
+      "mdf",
+    );
+  }, [warehouseId, section, columnFilters, searchValue, sortBy, sortOrder]);
+
   return (
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -173,6 +193,7 @@ export function StorageMdfInventory({
         }}
         emptyStateLabel={emptyLabel}
         selectable={section === "inventory"}
+        {...(section === "inventory" ? { resolveAllSelectableRows } : {})}
         {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
         {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
         {...(actions !== undefined ? { actions } : {})}

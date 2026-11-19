@@ -18,15 +18,67 @@ const pressingHiddenKeys = new Set([
   "warehouseName",
 ]);
 
+function withPressingLotAndBatchColumns<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): EnterpriseTableColumn<Row>[] {
+  const extras: readonly EnterpriseTableColumn<Row>[] = [
+    {
+      key: "logNo",
+      label: "Lot No",
+      renderCell: (row: Row) =>
+        String(
+          (row as Record<string, unknown>).logNo ||
+            (row as Record<string, unknown>).logCode ||
+            "-",
+        ),
+    },
+    {
+      key: "batchNo",
+      label: "Batch No",
+      renderCell: (row: Row) =>
+        String(
+          (row as Record<string, unknown>).batchNo ||
+            (row as Record<string, unknown>).batchNoCode ||
+            "-",
+        ),
+    },
+  ];
+  const withoutExtras = columns.filter(
+    (column) => !extras.some((extra) => extra.key === column.key),
+  );
+  const insertAfterKey = withoutExtras.some(
+    (column) => column.key === "itemSubCategory",
+  )
+    ? "itemSubCategory"
+    : withoutExtras.some((column) => column.key === "itemName")
+      ? "itemName"
+      : null;
+
+  if (!insertAfterKey) {
+    return [...extras, ...withoutExtras];
+  }
+
+  const insertAt = withoutExtras.findIndex(
+    (column) => column.key === insertAfterKey,
+  );
+  return [
+    ...withoutExtras.slice(0, insertAt + 1),
+    ...extras,
+    ...withoutExtras.slice(insertAt + 1),
+  ];
+}
+
 export function applyPressingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  const visibleColumns = columns.filter(
-    (column) =>
-      !pressingHiddenKeys.has(column.key) &&
-      column.key !== "storageSrNo" &&
-      column.key !== "storageSerialNumber",
+  const visibleColumns = withPressingLotAndBatchColumns(
+    columns.filter(
+      (column) =>
+        !pressingHiddenKeys.has(column.key) &&
+        column.key !== "storageSrNo" &&
+        column.key !== "storageSerialNumber",
+    ),
   );
   const pressingIdColumn: EnterpriseTableColumn<Row> = {
     key: "pressingId",

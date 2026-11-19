@@ -38,6 +38,8 @@ const veneerColumns = [
   { key: "itemName", label: "Item Name", minWidth: 120 },
   { key: "itemSubCategory", label: "Item Sub Category", minWidth: 120 },
   { key: "groupNo", label: "Group No", minWidth: 96 },
+  { key: "logNo", label: "Lot No", minWidth: 96 },
+  { key: "batchNo", label: "Batch No", minWidth: 100 },
   { key: "length", label: "Length", minWidth: 72 },
   { key: "width", label: "Width", minWidth: 72 },
   { key: "thickness", label: "Thickness", minWidth: 80 },
@@ -89,9 +91,23 @@ export function PressingSelectedVeneer<Row extends FactoryRecord>({
         return (
           <UsageRow
             area={area}
-            cells={veneerColumns.map(
-              (column) => pressingText(row[column.key]) || "-",
-            )}
+            cells={veneerColumns.map((column) => {
+              if (column.key === "logNo") {
+                return (
+                  pressingText(row.logNo) ||
+                  pressingText(row.logCode) ||
+                  "-"
+                );
+              }
+              if (column.key === "batchNo") {
+                return (
+                  pressingText(row.batchNo) ||
+                  pressingText(row.batchNoCode) ||
+                  "-"
+                );
+              }
+              return pressingText(row[column.key]) || "-";
+            })}
             minWidths={veneerColumns.map((column) => column.minWidth)}
             key={row.id}
             onRemove={() => onRemove(String(row.id))}

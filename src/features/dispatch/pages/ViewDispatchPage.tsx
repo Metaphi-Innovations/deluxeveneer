@@ -45,6 +45,7 @@ import {
   type PackingRecord,
   usePackingRecords,
 } from "../../packing/shared/packingStore";
+import { getPackingDummyRecord } from "../../packing/packingDummyData";
 import { canAccessPermission } from "../../permissions";
 import { recordViewActionButtonSx } from "../../shared/buttonStyles";
 import {
@@ -63,7 +64,9 @@ export function ViewDispatchPage() {
 
   const record: PackingRecord | undefined = useMemo(() => {
     if (!id) return undefined;
-    return records.find((entry) => entry.id === id);
+    return (
+      records.find((entry) => entry.id === id) ?? getPackingDummyRecord(id)
+    );
   }, [id, records]);
 
   const canEdit = canAccessPermission("dispatch", "edit");

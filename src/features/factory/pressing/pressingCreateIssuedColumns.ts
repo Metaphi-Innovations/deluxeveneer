@@ -10,6 +10,8 @@ const sharedIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
 const itemIssuedColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "itemName", label: "Item Name" },
   { key: "itemSubCategory", label: "Item Sub Category" },
+  { key: "logNo", label: "Lot No" },
+  { key: "batchNo", label: "Batch No" },
   { key: "length", label: "Length" },
   { key: "width", label: "Width" },
   { key: "thickness", label: "Thickness" },

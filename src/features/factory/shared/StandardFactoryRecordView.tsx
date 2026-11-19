@@ -83,10 +83,13 @@ export function StandardFactoryRecordView<Row extends FactoryRecord>({
   const sourceFields = compactFields([
     field("Source Record No.", row, config.sourceReferenceKeys),
     field("Storage / Production Sr No.", row, ["storageSrNo", "productionSrNo"]),
-    field("Group No.", row, ["groupNo"]),
+    ...(definition.slug === "marquetry"
+      ? []
+      : [field("Group No.", row, ["groupNo"])]),
     field("Source Warehouse", row, ["warehouseName", "storageWarehouseName"]),
     field("Issued From", row, ["issuedFrom", "sourceProcess"]),
-    field("Lot No", row, ["logNo", "batchNo", "logCode"]),
+    field("Lot No", row, ["logNo", "logCode"]),
+    field("Batch No", row, ["batchNo", "batchNoCode"]),
     field("Bundle No.", row, ["bundleNumber", "bundleNo"]),
     field("Pallet No.", row, ["palletNo"]),
     field("Issued Date", row, ["issuedDate", "issueDate"]),
@@ -901,9 +904,21 @@ function buildQuantityFields(slug: string, row: FactoryRecord): ViewField[] {
 
   if (slug === "marquetry") {
     return compactFields([
-      field("Received Leaves", row, ["receivedLeaves", "noOfLeaves"]),
+      field("Received No. of Leaves", row, [
+        "receivedNoOfLeaves",
+        "receivedLeaves",
+        "noOfLeaves",
+      ]),
+      field("Available No. of Leaves", row, [
+        "availableNoOfLeaves",
+        "availableLeaves",
+      ]),
       field("Leaves Used", row, ["leavesUsed", "consumedLeaves"]),
-      field("Produced Sheets", row, ["outputNoOfSheets", "noOfSheets"]),
+      field("No. of Leaves", row, ["noOfLeaves", "outputNoOfLeaves"]),
+      field("Received SQM", row, ["receivedSqm", "sqm", "totalSqm"]),
+      field("Available SQM", row, ["availableSqm"]),
+      field("Received SQF", row, ["receivedSqf", "sqf", "totalSqf"]),
+      field("Available SQF", row, ["availableSqf"]),
       field("Output SQM", row, ["outputSqm", "sqm"]),
       field("Output SQF", row, ["outputSqf", "sqf"]),
     ]);
@@ -973,7 +988,9 @@ function getProcessConfig(slug: string, title: string, row: FactoryRecord) {
       dateLabel: "Fluting Date",
       inputQuantityKeys: ["issuedNoOfSheets", "noOfSheets"],
       inputQuantityLabel: "No. of Sheets",
-      outputSpecificFields: [["Design Code", ["designCode"]]],
+      outputSpecificFields: [
+        ["Structured Code", ["structureCode", "structuredCode", "designCode"]],
+      ],
       processLabel: "Fluting",
       referenceKeys: ["flutingId", "cncId", "id"],
       referenceLabel: "Fluting Reference",

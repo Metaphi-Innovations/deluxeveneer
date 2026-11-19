@@ -18,7 +18,7 @@ import { ProfilePage } from "../features/profile";
 import { rolesPermissionsRoutes } from "../features/roles-permissions";
 import { userManagementRoutes } from "../features/user-management";
 import { DynamicWarehousePage } from "../features/warehouses";
-import { BoardIssueToOrderPage } from "../features/warehouses/production/pages/BoardIssueToOrderPage";
+import { IssueStockForPackingPage } from "../features/warehouses/production/issue-stock-for-packing/IssueStockForPackingPage";
 import { ConsumablesWarehousePage } from "../features/warehouses/pages/ConsumablesWarehousePage";
 import { FeaturePlaceholderPage } from "../features/shared/FeaturePlaceholderPage";
 import { ComponentLibraryPage } from "../pages/ComponentLibraryPage";
@@ -86,7 +86,15 @@ const router = createBrowserRouter([
           },
           {
             path: "issue-order/:materialType",
-            Component: BoardIssueToOrderPage,
+            Component: IssueStockForPackingPage,
+          },
+          {
+            path: "issue-for-order/:materialType",
+            Component: IssueStockForPackingPage,
+          },
+          {
+            path: "issue-stock-for-packing/:materialType",
+            Component: IssueStockForPackingPage,
           },
         ],
       },

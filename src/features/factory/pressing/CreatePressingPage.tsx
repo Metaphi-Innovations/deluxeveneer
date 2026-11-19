@@ -598,6 +598,19 @@ export function CreatePressingPage({
       processValues.width,
       processValues.noOfSheets,
     );
+    const selectedBaseMaterial = selectedBaseRows.map((row) => ({
+      ...row,
+      materialType: pressingText(row.materialType) || baseType,
+      sheetsToUse: baseDrafts[String(row.id)]?.qtyToUse ?? "",
+      remark: baseDrafts[String(row.id)]?.remark ?? "",
+    }));
+    const primaryBaseRow = selectedBaseRows[0];
+    const baseBundleNo =
+      pressingText(primaryBaseRow?.bundleNumber) ||
+      pressingText(primaryBaseRow?.bundleNo);
+    const basePalletNo =
+      pressingText(primaryBaseRow?.palletNo) ||
+      pressingText(primaryBaseRow?.palletNumber);
     const resultBase = {
       baseMaterialType: baseType,
       cutColor: processValues.cutColor,
@@ -624,6 +637,12 @@ export function CreatePressingPage({
       width: processValues.width,
       for: purpose === "Sample Sheet" ? "Sample" : "Order",
       forLabel: purpose === "Sample Sheet" ? "Sample" : "Order",
+      ...(baseBundleNo
+        ? { bundleNo: baseBundleNo, bundleNumber: baseBundleNo }
+        : {}),
+      ...(basePalletNo
+        ? { palletNo: basePalletNo, palletNumber: basePalletNo }
+        : {}),
       ...(purpose === "Sample Sheet" ? { sampleNo } : {}),
       ...(purpose === "Order" && selectedOrder
         ? {
@@ -633,12 +652,7 @@ export function CreatePressingPage({
             orderNo: selectedOrder.orderNo,
           }
         : {}),
-      selectedBaseMaterial: selectedBaseRows.map((row) => ({
-        ...row,
-        materialType: pressingText(row.materialType) || baseType,
-        sheetsToUse: baseDrafts[String(row.id)]?.qtyToUse ?? "",
-        remark: baseDrafts[String(row.id)]?.remark ?? "",
-      })),
+      selectedBaseMaterial,
       rejectDetails: rejectValues,
     };
     const processId = editContext?.processId || `pressing-${Date.now()}`;

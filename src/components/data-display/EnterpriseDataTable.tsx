@@ -151,6 +151,11 @@ interface EnterpriseDataTableProps<Row extends EnterpriseTableRow> {
   isStatusChangeDisabled?: (row: Row) => boolean;
   maxBodyHeight?: number;
   onSelectionChange?: (rows: Row[]) => void;
+  /**
+   * When provided (typically with server pagination), the header checkbox
+   * selects/clears every matching row — not only the current page.
+   */
+  resolveAllSelectableRows?: () => Promise<readonly Row[]> | readonly Row[];
   onStatusChange?: (
     row: Row,
     checked: boolean,
@@ -217,6 +222,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   isStatusChangeDisabled,
   maxBodyHeight = 440,
   onSelectionChange,
+  resolveAllSelectableRows,
   onStatusChange,
   renderActionCell,
   rows,
@@ -237,6 +243,9 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   onColumnFilterOpen,
 }: EnterpriseDataTableProps<Row>) {
   const theme = useTheme();
+  const selectedRowsCacheRef = useRef<Map<string, Row>>(new Map());
+  const lastResolvedAllCountRef = useRef(0);
+  const [isResolvingAllSelection, setIsResolvingAllSelection] = useState(false);
   const denseCellSx = dense
     ? {
       fontSize: "12px",
@@ -265,17 +274,40 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
   const [goToPageError, setGoToPageError] = useState("");
   const [internalSelectedRowIds, setInternalSelectedRowIds] = useState<string[]>([]);
   const selectedRowIds = controlledSelectedRowIds ?? internalSelectedRowIds;
-  const commitSelectedRowIds = (updater: readonly string[] | ((prev: readonly string[]) => readonly string[])) => {
+
+  const resolveSelectedRows = (ids: readonly string[]) => {
+    const cache = selectedRowsCacheRef.current;
+    for (const row of rows) {
+      if (ids.includes(row.id)) {
+        cache.set(row.id, row);
+      }
+    }
+    for (const cachedId of [...cache.keys()]) {
+      if (!ids.includes(cachedId)) {
+        cache.delete(cachedId);
+      }
+    }
+    return ids
+      .map((id) => cache.get(id) ?? rows.find((row) => row.id === id))
+      .filter((row): row is Row => Boolean(row));
+  };
+
+  const commitSelectedRowIds = (
+    updater: readonly string[] | ((prev: readonly string[]) => readonly string[]),
+  ) => {
     if (controlledSelectedRowIds === undefined) {
       setInternalSelectedRowIds((prev) => {
-        const resolved = typeof updater === 'function' ? updater(prev) : updater;
+        const resolved = typeof updater === "function" ? updater(prev) : updater;
         return [...resolved];
       });
       return;
     }
 
-    const resolved = typeof updater === 'function' ? updater(controlledSelectedRowIds) : updater;
-    onSelectionChange?.(rows.filter((row) => resolved.includes(row.id)));
+    const resolved =
+      typeof updater === "function"
+        ? updater(controlledSelectedRowIds)
+        : updater;
+    onSelectionChange?.(resolveSelectedRows(resolved));
   };
   const [filterMenuAnchor, setFilterMenuAnchor] = useState<HTMLElement | null>(
     null,
@@ -543,22 +575,35 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       : sortedRows.slice(pageStartIndex, pageStartIndex + rowsPerPage);
   const visiblePaginationPages = getVisiblePaginationPages(safePage, totalPages);
   const selectableRowIds = sortedRows.map((row) => row.id);
-  const allRowsSelected =
-    selectable &&
+  const selectsAcrossPages = Boolean(resolveAllSelectableRows && isServerPagination);
+  const allMatchingSelected =
+    selectsAcrossPages &&
+    selectedRowIds.length > 0 &&
+    ((totalCount > 0 && selectedRowIds.length >= totalCount) ||
+      (lastResolvedAllCountRef.current > 0 &&
+        selectedRowIds.length >= lastResolvedAllCountRef.current));
+  const allPageRowsSelected =
     selectableRowIds.length > 0 &&
     selectableRowIds.every((rowId) => selectedRowIds.includes(rowId));
+  const allRowsSelected =
+    selectable &&
+    (allMatchingSelected || (!selectsAcrossPages && allPageRowsSelected));
   const someRowsSelected =
     selectable &&
-    selectedRowIds.some((rowId) => selectableRowIds.includes(rowId)) &&
-    !allRowsSelected;
+    selectedRowIds.length > 0 &&
+    !allRowsSelected &&
+    (selectsAcrossPages ||
+      selectedRowIds.some((rowId) => selectableRowIds.includes(rowId)));
   const rangeStart = totalCount === 0 ? 0 : pageStartIndex + 1;
   const rangeEnd = hidePagination
     ? totalCount
     : Math.min(pageStartIndex + rowsPerPage, totalCount);
 
   const selectedRows = useMemo(
-    () => rows.filter((row) => selectedRowIds.includes(row.id)),
-    [rows, selectedRowIds],
+    () => resolveSelectedRows(selectedRowIds),
+    // resolveSelectedRows closes over rows + cache; selectedRowIds/rows drive updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedRowIds, rows],
   );
 
   const activeFilterMeta = activeFilterColumn
@@ -598,6 +643,8 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
     }
 
     setInternalSelectedRowIds([]);
+    selectedRowsCacheRef.current.clear();
+    lastResolvedAllCountRef.current = 0;
   }, [controlledSelectedRowIds, selectable, selectionResetKey]);
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
@@ -759,11 +806,40 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
       return;
     }
 
+    if (resolveAllSelectableRows && isServerPagination) {
+      if (allMatchingSelected) {
+        selectedRowsCacheRef.current.clear();
+        lastResolvedAllCountRef.current = 0;
+        commitSelectedRowIds([]);
+        return;
+      }
+
+      void (async () => {
+        setIsResolvingAllSelection(true);
+        try {
+          const allRows = await Promise.resolve(resolveAllSelectableRows());
+          const cache = selectedRowsCacheRef.current;
+          cache.clear();
+          for (const row of allRows) {
+            cache.set(row.id, row);
+          }
+          lastResolvedAllCountRef.current = allRows.length;
+          commitSelectedRowIds(allRows.map((row) => row.id));
+        } finally {
+          setIsResolvingAllSelection(false);
+        }
+      })();
+      return;
+    }
+
     commitSelectedRowIds((prev) => {
       const areAllSelected = selectableRowIds.every((rowId) => prev.includes(rowId));
       if (areAllSelected) {
         const listedIds = new Set(selectableRowIds);
         return prev.filter((rowId) => !listedIds.has(rowId));
+      }
+      for (const row of sortedRows) {
+        selectedRowsCacheRef.current.set(row.id, row);
       }
       return Array.from(new Set([...prev, ...selectableRowIds]));
     });
@@ -911,6 +987,7 @@ export function EnterpriseDataTable<Row extends EnterpriseTableRow>({
                     >
                       <Checkbox
                         checked={Boolean(allRowsSelected)}
+                        disabled={isResolvingAllSelection}
                         indeterminate={Boolean(someRowsSelected)}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => {

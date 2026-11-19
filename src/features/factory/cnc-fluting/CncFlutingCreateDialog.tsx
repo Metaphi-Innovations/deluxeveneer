@@ -108,24 +108,39 @@ export function buildCncFlutingDoneSnapshot(
   entry: {
     cncDate: string;
     damagedSheets: number;
-    designCode: string;
     noOfSheets: number;
     remark: string;
+    structureCode: string;
   },
 ) {
   const availableSheets = availableSheetCount(row);
   const sheets = String(entry.noOfSheets);
   const remark = entry.remark.trim();
-  const designCode = entry.designCode.trim();
+  const structureCode = entry.structureCode.trim();
   const cncDate = entry.cncDate.trim();
   const outputSqf = scaleMeasure(row.sqf, availableSheets, entry.noOfSheets);
   const outputSqm = scaleMeasure(row.sqm, availableSheets, entry.noOfSheets);
+
+  const batchNo = String(row.batchNo || row.batchNoCode || "").trim();
+  const bundleNumber = String(row.bundleNumber || row.bundleNo || "").trim();
+  const palletNo = String(row.palletNo || row.palletNumber || "").trim();
+  const logNo = String(row.logNo || row.logCode || "").trim();
 
   return {
     ...row,
     cncDate,
     flutingDate: cncDate,
-    ...(designCode ? { designCode } : {}),
+    ...(structureCode
+      ? {
+          structureCode,
+          structuredCode: structureCode,
+          designCode: structureCode,
+        }
+      : {}),
+    ...(batchNo ? { batchNo, batchNoCode: batchNo } : {}),
+    ...(bundleNumber ? { bundleNo: bundleNumber, bundleNumber } : {}),
+    ...(palletNo ? { palletNo, palletNumber: palletNo } : {}),
+    ...(logNo ? { logNo, logCode: logNo } : {}),
     damagedSheets: String(entry.damagedSheets),
     flutingDamagedSheets: String(entry.damagedSheets),
     flutedSheets: sheets,
@@ -156,15 +171,15 @@ export function CncFlutingCreateDialog({
   onSave: (entry: {
     cncDate: string;
     damagedSheets: number;
-    designCode: string;
     noOfSheets: number;
     remark: string;
+    structureCode: string;
   }) => void;
   open: boolean;
   row: FactoryRecord | null;
 }) {
   const [cncDate, setCncDate] = useState("");
-  const [designCode, setDesignCode] = useState("");
+  const [structureCode, setStructureCode] = useState("");
   const [sheets, setSheets] = useState("");
   const [damagedSheets, setDamagedSheets] = useState("0");
   const [remark, setRemark] = useState("");
@@ -182,7 +197,9 @@ export function CncFlutingCreateDialog({
     if (!open) return;
     if (mode === "edit" && row) {
       setCncDate(String(row.cncDate ?? row.flutingDate ?? todayInputValue()));
-      setDesignCode(String(row.designCode ?? ""));
+      setStructureCode(
+        String(row.structureCode ?? row.structuredCode ?? row.designCode ?? ""),
+      );
       setSheets(
         String(
           row.noOfSheets ?? row.flutedSheets ?? row.outputNoOfSheets ?? "",
@@ -194,7 +211,9 @@ export function CncFlutingCreateDialog({
       setRemark(String(row.remark ?? ""));
     } else {
       setCncDate(todayInputValue());
-      setDesignCode(String(row?.designCode ?? ""));
+      setStructureCode(
+        String(row?.structureCode ?? row?.structuredCode ?? row?.designCode ?? ""),
+      );
       setSheets(availableSheets > 0 ? String(availableSheets) : "");
       setDamagedSheets("0");
       setRemark("");
@@ -248,8 +267,11 @@ export function CncFlutingCreateDialog({
     { label: "Order Item No", minWidth: 140, value: row?.orderItemNo },
     { label: "Item Name", minWidth: 170, value: row?.itemName },
     { label: "Item Sub Category", minWidth: 160, value: row?.itemSubCategory },
-    { label: "Design Code", minWidth: 140, value: row?.designCode },
-    { label: "Structure Code", minWidth: 140, value: row?.structureCode },
+    {
+      label: "Structured Code",
+      minWidth: 140,
+      value: row?.structureCode ?? row?.structuredCode ?? row?.designCode,
+    },
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },
     { label: "Thickness", minWidth: 110, value: row?.thickness || row?.height },
@@ -416,13 +438,13 @@ export function CncFlutingCreateDialog({
                   />
                 </Stack>
                 <Stack spacing={0.75}>
-                  <DialogFieldLabel>Design Code</DialogFieldLabel>
+                  <DialogFieldLabel>Structured Code</DialogFieldLabel>
                   <TextField
                     fullWidth
-                    onChange={(event) => setDesignCode(event.target.value)}
-                    placeholder="Enter design code"
+                    onChange={(event) => setStructureCode(event.target.value)}
+                    placeholder="Enter structured code"
                     size="small"
-                    value={designCode}
+                    value={structureCode}
                     sx={(theme) => getCompactFieldSx(theme, "default")}
                   />
                 </Stack>
@@ -491,9 +513,9 @@ export function CncFlutingCreateDialog({
             onSave({
               cncDate: cncDate.trim(),
               damagedSheets: parsedDamagedSheets,
-              designCode: designCode.trim(),
               noOfSheets: parsedSheets,
               remark: remark.trim(),
+              structureCode: structureCode.trim(),
             });
           }}
           sx={recordFormActionButtonSx}

@@ -61,6 +61,50 @@ function withOrderColumnsBeforeItem<Row extends FactoryRecord>(
   ];
 }
 
+function withSplicingBatchNoAndColorColumns<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  const extras: readonly EnterpriseTableColumn<Row>[] = [
+    {
+      key: "batchNo",
+      label: "Batch No",
+      renderCell: (row: Row) =>
+        String(
+          (row as Record<string, unknown>).batchNo ||
+            (row as Record<string, unknown>).batchNoCode ||
+            "-",
+        ),
+    },
+    {
+      key: "color",
+      label: "Color",
+      renderCell: (row: Row) =>
+        String(
+          (row as Record<string, unknown>).color ||
+            (row as Record<string, unknown>).colour ||
+            "-",
+        ),
+    },
+  ];
+  const withoutExtras = columns.filter(
+    (column) => !extras.some((extra) => extra.key === column.key),
+  );
+  const insertAfterKey = withoutExtras.some((column) => column.key === "itemSubCategory")
+    ? "itemSubCategory"
+    : "itemName";
+  const insertAt = withoutExtras.findIndex((column) => column.key === insertAfterKey);
+
+  if (insertAt === -1) {
+    return [...extras, ...withoutExtras];
+  }
+
+  return [
+    ...withoutExtras.slice(0, insertAt + 1),
+    ...extras,
+    ...withoutExtras.slice(insertAt + 1),
+  ];
+}
+
 function withSplicingIssuedLeafColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
 ): readonly EnterpriseTableColumn<Row>[] {
@@ -113,7 +157,8 @@ export function applySplicingListingColumns<Row extends FactoryRecord>(
   const withoutSharedHiddenColumns = columns.filter(
     (column) => column.key !== "storageSrNo" && column.key !== "groupingDate",
   );
-  const withIssuedPurpose = withIssuedPurposeColumn(withoutSharedHiddenColumns);
+  const withBatchAndColor = withSplicingBatchNoAndColorColumns(withoutSharedHiddenColumns);
+  const withIssuedPurpose = withIssuedPurposeColumn(withBatchAndColor);
 
   if (activeTab === "issued") {
     return withAvailableFactoryMeasureColumns(

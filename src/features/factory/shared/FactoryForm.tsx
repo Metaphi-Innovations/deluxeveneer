@@ -712,7 +712,7 @@ const viewHiddenKeysBySlug: Record<string, readonly string[]> = {
 };
 
 const extraViewFieldsBySlug: Record<string, readonly (readonly [string, string])[]> = {
-  "cnc-fluting": [["designCode", "Design Code"]],
+  "cnc-fluting": [["structureCode", "Structured Code"]],
   embossing: [["structureCode", "Structure Code"]],
   finishing: [
     ["designCode", "Design Code"],
@@ -747,6 +747,8 @@ const viewItemKeys = new Set([
   "logNo",
   "noOfLeaves",
   "noOfSheets",
+  "structureCode",
+  "structuredCode",
   "outputNoOfSheets",
   "palletNo",
   "productName",

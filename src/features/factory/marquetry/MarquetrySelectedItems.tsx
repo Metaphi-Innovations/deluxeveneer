@@ -40,10 +40,10 @@ export type MarquetrySelectedDraft = {
 };
 
 const readOnlyColumns = [
-  { key: "groupNo", label: "Group No.", minWidth: 150 },
+  { key: "batchNo", label: "Batch No", minWidth: 150 },
   { key: "itemName", label: "Item Name", minWidth: 180 },
   { key: "dimensions", label: "Dimensions (L × W × T)", minWidth: 220 },
-  { key: "availableLeaves", label: "Available Leaves", minWidth: 140 },
+  { key: "availableNoOfLeaves", label: "Available No. of Leaves", minWidth: 160 },
 ] as const;
 
 export function getMarquetryLeavesUsedError(
@@ -114,14 +114,23 @@ function displaySelectedItemValue(
   row: FactoryRecord,
   key: (typeof readOnlyColumns)[number]["key"],
 ) {
-  if (key === "groupNo") {
-    return displayValue(row.groupNo || row.storageSrNo || row.issueSrNo);
+  if (key === "batchNo") {
+    return displayValue(row.batchNo || row.batchNoCode);
   }
 
   if (key === "dimensions") {
     return [row.length, row.width, row.thickness || row.height]
       .map(displayValue)
       .join(" × ");
+  }
+
+  if (key === "availableNoOfLeaves") {
+    return displayValue(
+      row.availableNoOfLeaves ||
+        row.availableLeaves ||
+        row.receivedNoOfLeaves ||
+        row.noOfLeaves,
+    );
   }
 
   return displayValue(row[key]);
@@ -241,7 +250,10 @@ export function MarquetrySelectedItems<Row extends FactoryRecord>({
                   );
                   const leavesError = getMarquetryLeavesUsedError(
                     draft.leavesUsed,
-                    row.availableLeaves,
+                    row.availableNoOfLeaves ||
+                      row.availableLeaves ||
+                      row.receivedNoOfLeaves ||
+                      row.noOfLeaves,
                     showErrors,
                   );
 

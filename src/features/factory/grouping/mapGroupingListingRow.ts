@@ -10,6 +10,34 @@ function textValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : "";
 }
 
+function groupingBatchNo<Row extends FactoryRecord>(row: Row) {
+  const sourceBatch =
+    textValue(row.batchNo) ||
+    textValue(row.batchNoCode) ||
+    textValue(row.logCode) ||
+    textValue(row.logNo);
+
+  if (sourceBatch) return sourceBatch;
+
+  const identity =
+    textValue(row.storageSrNo) ||
+    textValue(row.sourceRowId) ||
+    textValue(row.workItemId) ||
+    String(row.id ?? "");
+  const numericParts = identity.match(/\d+/g);
+  const numericSuffix = numericParts?.[numericParts.length - 1];
+
+  if (numericSuffix) {
+    return `BATCH-GRP-${numericSuffix.slice(-4).padStart(4, "0")}`;
+  }
+
+  let checksum = 0;
+  for (const character of identity) {
+    checksum = (checksum * 31 + character.charCodeAt(0)) % 10000;
+  }
+  return `BATCH-GRP-${String(checksum || 1).padStart(4, "0")}`;
+}
+
 function groupingIssuedIdentityFields<Row extends FactoryRecord>(row: Row) {
   const itemName = textValue(row.itemName) || textValue(row.productName);
   const subCategory = textValue(row.subCategory) || textValue(row.itemSubCategory);
@@ -74,10 +102,12 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
   const receivedLeaves = showLeafBalance ? getReceivedGroupedLeaves(row) : 0;
   const availableLeaves = showLeafBalance ? getAvailableGroupedSheets(row) : 0;
   const issuedFor = resolveGroupingIssuedFor(row);
+  const batchNo = groupingBatchNo(row);
 
   return {
     ...row,
     ...issuedIdentity,
+    batchNo,
     groupPhoto:
       row.groupPhoto ||
       "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",

@@ -90,6 +90,10 @@ import {
   validateEmbossingRow,
 } from "../embossing/embossingCreateRules";
 import {
+  finishingCreateSourceColumns,
+  orderFinishingCreateFields,
+} from "../finishing/finishingCreateRules";
+import {
   applyGroupingCreateSnapshot,
   calculateGroupingAvailableDetails,
   calculateGroupingRow,
@@ -411,24 +415,6 @@ const metadataKeys = new Set([
 ]);
 
 const fieldValueAliases: Record<string, readonly string[]> = {
-  batchNoCode: [
-    "batchNoCode",
-    "batchNo",
-    "batch_no",
-    "batchNumber",
-    "logNo",
-    "log_no",
-    "logCode",
-  ],
-  batchNo: [
-    "batchNo",
-    "batchNoCode",
-    "batch_no",
-    "batchNumber",
-    "logNo",
-    "log_no",
-    "logCode",
-  ],
   color: ["color", "colour", "processColour"],
   colour: ["colour", "color", "processColour"],
   itemName: ["itemName", "productName"],
@@ -771,7 +757,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
             ? buildDefaultSplicingLineItemValues(lineItemFields, sourceRow)
             : definition.slug === "cnc-fluting"
               ? buildDefaultFlutingLineItemValues(lineItemFields, sourceRow)
-              : definition.slug === "embossing"
+              : definition.slug === "embossing" ||
+                  definition.slug === "finishing"
                 ? buildDefaultEmbossingLineItemValues(lineItemFields, sourceRow)
                 : buildDefaultLineItemValues(lineItemFields, sourceRow),
   );
@@ -2051,7 +2038,10 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
       setDraftValues(
         buildDefaultFlutingLineItemValues(lineItemFields, sourceRow),
       );
-    } else if (definition.slug === "embossing") {
+    } else if (
+      definition.slug === "embossing" ||
+      definition.slug === "finishing"
+    ) {
       setDraftValues(
         buildDefaultEmbossingLineItemValues(lineItemFields, sourceRow),
       );
@@ -4121,6 +4111,8 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                     ...formValues,
                     ...(usesOrderSelection ? marquetryOrderDetails : {}),
                     ...calculatedOutputDetails,
+                    noOfLeaves: calculatedOutputDetails.noOfLeaves,
+                    batchNo: String(row.batchNo || row.batchNoCode || ""),
                     leavesUsed: draft.leavesUsed,
                     marquetryIssueRemark: draft.remark,
                     sqfUsed: usedArea.sqf,
@@ -4452,6 +4444,10 @@ function buildSourceColumns(sourceRow?: SourceRow, slug?: string) {
     return embossingCreateSourceColumns;
   }
 
+  if (slug === "finishing") {
+    return finishingCreateSourceColumns;
+  }
+
   if (slug === "sawing") {
     return sourceColumnDefinitions
       .filter((column) => column.key !== "cbm" && column.key !== "cbf")
@@ -4704,6 +4700,10 @@ function orderProcessSpecificFields(
     return orderEmbossingCreateFields(fields);
   }
 
+  if (slug === "finishing") {
+    return orderFinishingCreateFields(fields);
+  }
+
   if (slug === "grouping") {
     return orderGroupingCreateFields(fields);
   }
@@ -4812,8 +4812,24 @@ function buildDefaultSplicingLineItemValues(
   fields: readonly MasterFieldDefinition[],
   sourceRow?: SourceRow,
 ) {
+  const defaults = buildDefaultLineItemValues(fields, sourceRow);
   return calculateSplicingRow({
-    ...buildDefaultLineItemValues(fields, sourceRow),
+    ...defaults,
+    batchNo:
+      getPreferredFieldValue(sourceRow, "batchNo") ||
+      getPreferredFieldValue(sourceRow, "batchNoCode") ||
+      defaults.batchNo ||
+      "",
+    color:
+      getPreferredFieldValue(sourceRow, "color") ||
+      getPreferredFieldValue(sourceRow, "colour") ||
+      defaults.color ||
+      "",
+    logNo:
+      getPreferredFieldValue(sourceRow, "logNo") ||
+      getPreferredFieldValue(sourceRow, "logCode") ||
+      defaults.logNo ||
+      "",
     noOfLeaves: String(
       readSplicingReferenceLeaves(
         sourceRow as Record<string, unknown> | undefined,
@@ -4825,13 +4841,61 @@ function buildDefaultSplicingLineItemValues(
   });
 }
 
+function readFlutingPressedBaseIdentity(
+  sourceRow: SourceRow | undefined,
+  keys: readonly string[],
+) {
+  const topLevel = keys
+    .map((key) => getPreferredFieldValue(sourceRow, key))
+    .find((value) => Boolean(value));
+  if (topLevel) {
+    return topLevel;
+  }
+
+  const selectedBase = sourceRow?.selectedBaseMaterial;
+  const bases = Array.isArray(selectedBase)
+    ? selectedBase
+    : selectedBase && typeof selectedBase === "object"
+      ? [selectedBase]
+      : [];
+  const primaryBase = bases[0] as Record<string, unknown> | undefined;
+  if (!primaryBase) {
+    return "";
+  }
+
+  for (const key of keys) {
+    const value = String(primaryBase[key] ?? "").trim();
+    if (value) {
+      return value;
+    }
+  }
+  return "";
+}
+
 function buildDefaultFlutingLineItemValues(
   fields: readonly MasterFieldDefinition[],
   sourceRow?: SourceRow,
 ) {
   const defaults = buildDefaultLineItemValues(fields, sourceRow);
+  const bundleNumber =
+    readFlutingPressedBaseIdentity(sourceRow, ["bundleNumber", "bundleNo"]) ||
+    defaults.bundleNumber ||
+    defaults.bundleNo ||
+    "";
+  const palletNo =
+    readFlutingPressedBaseIdentity(sourceRow, ["palletNo", "palletNumber"]) ||
+    defaults.palletNo ||
+    defaults.palletNumber ||
+    "";
   return calculateFlutingRow({
     ...defaults,
+    batchNo:
+      getPreferredFieldValue(sourceRow, "batchNo") ||
+      getPreferredFieldValue(sourceRow, "batchNoCode") ||
+      defaults.batchNo ||
+      "",
+    bundleNo: bundleNumber,
+    bundleNumber,
     color:
       getPreferredFieldValue(sourceRow, "cutColor") || defaults.color || "",
     length: normalizeFlutingSourceDimension(
@@ -4841,7 +4905,14 @@ function buildDefaultFlutingLineItemValues(
     height: normalizeFlutingSourceDimension(
       sourceRow?.height ?? sourceRow?.thickness ?? defaults.height,
     ),
+    logNo:
+      getPreferredFieldValue(sourceRow, "logNo") ||
+      getPreferredFieldValue(sourceRow, "logCode") ||
+      defaults.logNo ||
+      "",
     noOfSheets: "",
+    palletNo,
+    palletNumber: palletNo,
     sqm: "",
     sqf: "",
   });
@@ -4852,8 +4923,25 @@ function buildDefaultEmbossingLineItemValues(
   sourceRow?: SourceRow,
 ) {
   const defaults = buildDefaultLineItemValues(fields, sourceRow);
+  const bundleNumber =
+    readFlutingPressedBaseIdentity(sourceRow, ["bundleNumber", "bundleNo"]) ||
+    defaults.bundleNumber ||
+    defaults.bundleNo ||
+    "";
+  const palletNo =
+    readFlutingPressedBaseIdentity(sourceRow, ["palletNo", "palletNumber"]) ||
+    defaults.palletNo ||
+    defaults.palletNumber ||
+    "";
   return calculateEmbossingRow({
     ...defaults,
+    batchNo:
+      getPreferredFieldValue(sourceRow, "batchNo") ||
+      getPreferredFieldValue(sourceRow, "batchNoCode") ||
+      defaults.batchNo ||
+      "",
+    bundleNo: bundleNumber,
+    bundleNumber,
     color:
       getPreferredFieldValue(sourceRow, "cutColor") || defaults.color || "",
     length: normalizeEmbossingSourceDimension(
@@ -4865,7 +4953,14 @@ function buildDefaultEmbossingLineItemValues(
     height: normalizeEmbossingSourceDimension(
       sourceRow?.height ?? sourceRow?.thickness ?? defaults.height,
     ),
+    logNo:
+      getPreferredFieldValue(sourceRow, "logNo") ||
+      getPreferredFieldValue(sourceRow, "logCode") ||
+      defaults.logNo ||
+      "",
     noOfSheets: "",
+    palletNo,
+    palletNumber: palletNo,
     sqm: "",
     sqf: "",
   });

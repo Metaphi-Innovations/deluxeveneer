@@ -9,8 +9,9 @@ import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import { Eye } from "lucide-react";
+import { Eye, PackageCheck } from "lucide-react";
 import { useNavigate } from "react-router";
+import { getIssueStockForPackingPath } from "../issue-stock-for-packing/issueStockForPacking.mappers";
 import {
   toApiColumnFilters,
   type ColumnFilterValue,
@@ -69,6 +70,7 @@ export function MdfTab({
   warehouseName = "Production Warehouse",
   searchValue,
   canView,
+  canEdit,
   onListQueryChange,
 }: MdfTabProps) {
   const navigate = useNavigate();
@@ -178,8 +180,26 @@ export function MdfTab({
       });
     }
 
+    if (canEdit && warehouseId) {
+      list.push({
+        id: "issue-for-order",
+        label: "Issue for Order",
+        icon: PackageCheck,
+        tone: "primary",
+        onSelect: (row: MdfRow) => {
+          navigate(
+            getIssueStockForPackingPath({
+              warehouseId,
+              materialType: "mdf",
+              inventoryId: row.inventoryRecordId || String(row.id),
+            }),
+          );
+        },
+      });
+    }
+
     return list;
-  }, [canView, navigate, warehouseId, warehouseName]);
+  }, [canEdit, canView, navigate, warehouseId, warehouseName]);
 
   return (
     <EnterpriseDataTable

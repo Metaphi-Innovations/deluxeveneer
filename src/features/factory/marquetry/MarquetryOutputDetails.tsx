@@ -32,7 +32,7 @@ export type MarquetryOutputDetailsValue = {
   length: string;
   width: string;
   thickness: string;
-  noOfSheets: string;
+  noOfLeaves: string;
   sqm: string;
   sqf: string;
   remark: string;
@@ -55,7 +55,7 @@ const outputColumns: readonly {
   { key: "length", label: "Length", minWidth: 130, required: true },
   { key: "width", label: "Width", minWidth: 130, required: true },
   { key: "thickness", label: "Thickness", minWidth: 130, required: true },
-  { key: "noOfSheets", label: "No. of Sheets", minWidth: 140, required: true },
+  { key: "noOfLeaves", label: "No. of Leaves", minWidth: 140, required: true },
   { key: "sqm", label: "SQM", minWidth: 120, readOnly: true },
   { key: "sqf", label: "SQF", minWidth: 120, readOnly: true },
   { key: "remark", label: "Remark", minWidth: 190 },
@@ -76,7 +76,7 @@ export function createEmptyMarquetryOutputDetails(): MarquetryOutputDetailsValue
     length: "",
     width: "",
     thickness: "",
-    noOfSheets: "",
+    noOfLeaves: "",
     sqm: "",
     sqf: "",
     remark: "",
@@ -89,7 +89,7 @@ export function calculateMarquetryOutputDetails(
   const sqm = calculateSlicingSqmValue(
     value.length,
     value.width,
-    value.noOfSheets,
+    value.noOfLeaves,
   );
   return {
     ...value,
@@ -110,7 +110,7 @@ export function readMarquetryOutputDetails(
     length: read(row?.length),
     width: read(row?.width),
     thickness: read(row?.thickness ?? row?.height),
-    noOfSheets: read(row?.noOfSheets),
+    noOfLeaves: read(row?.noOfLeaves ?? row?.noOfSheets),
     sqm: read(row?.sqm),
     sqf: read(row?.sqf),
     remark: read(row?.remark),
@@ -126,8 +126,8 @@ export function isMarquetryOutputDetailsInvalid(
     !isPositiveNumber(value.length) ||
     !isPositiveNumber(value.width) ||
     !isPositiveNumber(value.thickness) ||
-    !/^\d+$/u.test(value.noOfSheets.trim()) ||
-    Number(value.noOfSheets) <= 0
+    !/^\d+$/u.test(value.noOfLeaves.trim()) ||
+    Number(value.noOfLeaves) <= 0
   );
 }
 
@@ -156,14 +156,14 @@ export function MarquetryOutputDetails({
       | "length"
       | "width"
       | "thickness"
-      | "noOfSheets",
+      | "noOfLeaves",
   ) =>
     showErrors &&
     (key === "itemName" || key === "itemSubCategory"
       ? !value[key].trim()
-      : key === "noOfSheets"
-        ? !/^\d+$/u.test(value.noOfSheets.trim()) ||
-          Number(value.noOfSheets) <= 0
+      : key === "noOfLeaves"
+        ? !/^\d+$/u.test(value.noOfLeaves.trim()) ||
+          Number(value.noOfLeaves) <= 0
         : !isPositiveNumber(value[key]));
 
   return (
@@ -211,7 +211,7 @@ export function MarquetryOutputDetails({
                           | "length"
                           | "width"
                           | "thickness"
-                          | "noOfSheets",
+                          | "noOfLeaves",
                       )
                     : false;
                   return (
@@ -257,7 +257,7 @@ export function MarquetryOutputDetails({
                           onChange={(event) => {
                             const raw = event.target.value;
                             const next =
-                              key === "noOfSheets"
+                              key === "noOfLeaves"
                                 ? raw.replace(/\D/gu, "")
                                 : key === "length" ||
                                     key === "width" ||

@@ -426,14 +426,28 @@ const sawingRows = factoryRows("sawing", "Warehouse B", (row, index) => {
 const groupingRows = factoryRows("grouping", "Warehouse C", (row, index) => {
   const seq = String(index + 1).padStart(4, "0");
   const year = new Date().getFullYear().toString().slice(-2);
+  const issueTo = index % 2 === 0 ? "Order" : "Sample Sheet";
+  const lengthMetres = Number(row.length) / 1000;
+  const widthMetres = Number(row.width) / 1000;
+  const leaves = Number(row.noOfLeaves);
+  const groupedSqm = formatSQM(lengthMetres * widthMetres * leaves);
+
   return {
     ...row,
     storageSrNo: `STG-RV-${year}-${seq}`,
-    issuedFor: "Splicing",
+    batchNo: `BATCH-GRP-${seq}`,
+    subCategory: row.itemSubCategory,
+    receivedNoOfLeaves: row.noOfLeaves,
+    availableNoOfLeaves: row.noOfLeaves,
+    issuedFor: issueTo,
+    purpose: issueTo === "Order" ? "ORDER" : "SAMPLE",
+    orderType: issueTo === "Order" ? row.productType : "Sample Sheet",
     groupNo: `GRP-${String(index + 1).padStart(4, "0")}`,
     groupPhoto:
       "https://images.unsplash.com/photo-1546484475-7f7bd55792da?auto=format&fit=crop&w=400&q=80",
-    issueTo: index % 2 === 0 ? "Order" : "Sample Sheet",
+    issueTo,
+    sqm: groupedSqm,
+    sqf: formatSqfFromSqm(groupedSqm),
   };
 });
 
@@ -482,12 +496,17 @@ const splicingRows = factoryRows("splicing", "Warehouse C", (row, index) => {
   };
 });
 
-const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
-    Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
-  ],
-}));
+const pressingRows = factoryRows("pressing", "Warehouse C", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  return {
+    ...withCarriedGroupNo(row, index),
+    logNo: row.logNo || `LOT-${sequence}`,
+    batchNo: `BATCH-PRS-${sequence}`,
+    issuedFor: ["Marquetry", "Decorative", "Fluted", "Embossed"][
+      Number(row.orderItemNo?.toString().replace(/\D/g, "") || "1") % 4
+    ],
+  };
+});
 
 const pressingListingRows = expandFactoryRowsForTabs(
   "pressing",
@@ -513,24 +532,48 @@ const pressingListingRows = expandFactoryRowsForTabs(
 const cncFlutingRows = factoryRows(
   "cnc-fluting",
   "Warehouse C",
-  (row, index) => ({
-    ...withCarriedGroupNo(row, index),
-    issuedFor: "Finishing",
-  }),
+  (row, index) => {
+    const sequence = String(index + 1).padStart(4, "0");
+    return {
+      ...withCarriedGroupNo(row, index),
+      logNo: row.logNo || `LOT-${sequence}`,
+      batchNo: `BATCH-FLT-${sequence}`,
+      bundleNumber: row.bundleNumber || `BDL-WC-${String(410 + index + 1).padStart(3, "0")}`,
+      palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
+      structureCode: `STR-FLT-${sequence}`,
+      issuedFor: "Finishing",
+    };
+  },
 );
 
-const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: "Finishing",
-  structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
-}));
+const embossingRows = factoryRows("embossing", "Warehouse C", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  return {
+    ...withCarriedGroupNo(row, index),
+    logNo: row.logNo || `LOT-${sequence}`,
+    batchNo: `BATCH-EMB-${sequence}`,
+    bundleNumber:
+      row.bundleNumber || `BDL-WC-${String(410 + index + 1).padStart(3, "0")}`,
+    palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
+    issuedFor: "Finishing",
+    structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
+  };
+});
 
-const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => ({
-  ...withCarriedGroupNo(row, index),
-  issuedFor: "Packing",
-  designCode: `DSN-${String(index + 1).padStart(3, "0")}`,
-  structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
-}));
+const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => {
+  const sequence = String(index + 1).padStart(4, "0");
+  return {
+    ...withCarriedGroupNo(row, index),
+    logNo: row.logNo || `LOT-${sequence}`,
+    batchNo: `BATCH-FIN-${sequence}`,
+    bundleNumber:
+      row.bundleNumber || `BDL-WC-${String(410 + index + 1).padStart(3, "0")}`,
+    palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
+    issuedFor: "Packing",
+    designCode: `DSN-${String(index + 1).padStart(3, "0")}`,
+    structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
+  };
+});
 
 const marquetryRows = factoryRows("marquetry", "Warehouse C", (row, index) => {
   const seq = String(index + 1).padStart(4, "0");
@@ -635,6 +678,8 @@ const splicingListingColumns = columns([
   // ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
+  ["batchNo", "Batch No"],
+  ["color", "Color"],
   ["grade", "Grade"],
   ["length", "Length"],
   ["width", "Width"],
@@ -690,10 +735,12 @@ const marquetryListingColumns = columns([
   ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
+  ["batchNo", "Batch No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
-  ["noOfSheets", "No of Sheets"],
+  ["receivedNoOfLeaves", "Received No. of Leaves"],
+  ["availableNoOfLeaves", "Available No. of Leaves"],
   ["sqm", "SQM"],
   ["sqf", "SQF"],
   ["amount", "Amount"],
@@ -713,6 +760,7 @@ const groupingListingColumns = columns([
   ["groupPhoto", "Group Photo"],
   ["issueTo", "Issue To"],
   ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
   ["grade", "Grade"],
   ["length", "Length"],
   ["width", "Width"],
@@ -766,7 +814,11 @@ const flutingListingColumns = listingColumns([
   ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
-  ["designCode", "Design Code"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
+  ["structureCode", "Structured Code"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -793,6 +845,10 @@ const embossingListingColumns = listingColumns([
   ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
   ["structureCode", "Structure Code"],
   ["length", "Length"],
   ["width", "Width"],
@@ -820,6 +876,10 @@ const finishingListingColumns = listingColumns([
   ["orderItemNo", "Order Item No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -923,6 +983,7 @@ const marquetryCreateFields = groupingCreateFields;
 const groupingAddItemFields = [
   ["groupNo", "Group No."],
   ...commonFactoryItemFieldSpecs.filter(([key]) => key !== "remark"),
+  ["batchNo", "Batch No"],
   ["groupPhoto", "Group Photo"],
   ["remark", "Remark"],
 ] as const;
@@ -946,6 +1007,9 @@ const splicingCreateFields = [
 const splicingAddItemFields = [
   ["itemSubCategory", "Item Sub Category"],
   ["itemName", "Item Name"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["color", "Color"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -1007,7 +1071,11 @@ const flutingCreateFields = [
   ["orderNo", "Order No"],
   ["itemName", "Item Name"],
   ["itemSubCategory", "Item Sub Category"],
-  ["designCode", "Design Code"],
+  ["structureCode", "Structured Code"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -1027,6 +1095,9 @@ const embossingCreateFields = [
   ["itemSubCategory", "Item Sub Category"],
   ["structureCode", "Structure Code"],
   ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
@@ -1044,6 +1115,10 @@ const finishingCreateFields = [
   ["orderNo", "Order No"],
   ["orderDetails", "Order Details"],
   ["itemName", "Item Name"],
+  ["logNo", "Lot No"],
+  ["batchNo", "Batch No"],
+  ["bundleNumber", "Bundle No"],
+  ["palletNo", "Pallet No"],
   ["length", "Length"],
   ["width", "Width"],
   ["thickness", "Thickness"],
