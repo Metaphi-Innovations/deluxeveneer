@@ -31,7 +31,40 @@ function detailText(value: unknown) {
   return "";
 }
 
+const baseTypeLabels: Record<string, string> = {
+  PLYWOOD: "Plywood",
+  MDF: "MDF",
+  FLEECE_BACK: "Fleece Back",
+  TWIST: "Twist",
+};
+
+function formatBaseType(value: unknown) {
+  const text = detailText(value);
+  if (!text) {
+    return "";
+  }
+
+  return baseTypeLabels[text] ?? baseTypeLabels[text.toUpperCase()] ?? text;
+}
+
+function isFinishedOrderLine(order: OrderRecord, line: OrderLineItem) {
+  const orderType = detailText(order.orderType);
+  const finishedType =
+    detailText(line.finishedType) || detailText(line.productCategory);
+
+  return (
+    /finished/i.test(orderType) ||
+    /decorative|fluted|embossed|marquetry/i.test(finishedType) ||
+    Boolean(detailText(line.baseType) || detailText(line.baseName))
+  );
+}
+
 function detailFields(order: OrderRecord, line: OrderLineItem) {
+  const finished = isFinishedOrderLine(order, line);
+  const baseType =
+    formatBaseType(line.baseType) || (finished ? "Plywood" : "");
+  const baseName =
+    detailText(line.baseName) || (baseType ? `${baseType} Base` : "");
   const fields: Array<[string, unknown]> = [
     ["Order Date", order.orderDate],
     ["Customer Name", order.customerName],
@@ -40,7 +73,9 @@ function detailFields(order: OrderRecord, line: OrderLineItem) {
     ["Delivery Date", order.deliveryDate],
     ["Status", order.status],
     ["Finished Type", line.finishedType],
-    ["Product Type", line.productCategory],
+    ["Product Type", line.productCategory || line.finishedType],
+    ["Base Type", baseType],
+    ["Base Name", baseName],
     ["Sales Item Name", line.salesItemName],
     ["Item Name", line.itemName || order.itemName],
     ["Sub Category", line.subCategory || order.subCategory],
@@ -51,11 +86,18 @@ function detailFields(order: OrderRecord, line: OrderLineItem) {
     ["No. of Sheets", line.quantitySheets || order.quantitySheets],
     ["SQM", line.sqm || order.sqm],
     ["SQF", line.totalSqm || order.totalSqm],
-    ["Base Type", line.baseType],
-    ["Base Name", line.baseName],
-    ["Base Length", line.baseLength],
-    ["Base Width", line.baseWidth],
-    ["Base Thickness", line.baseThickness],
+    [
+      "Base Length",
+      detailText(line.baseLength) || (finished ? detailText(line.length) : ""),
+    ],
+    [
+      "Base Width",
+      detailText(line.baseWidth) || (finished ? detailText(line.width) : ""),
+    ],
+    [
+      "Base Thickness",
+      detailText(line.baseThickness) || (finished ? "12 mm" : ""),
+    ],
     ["Remark", line.remark || order.remark],
   ];
 
@@ -65,10 +107,36 @@ function detailFields(order: OrderRecord, line: OrderLineItem) {
   });
 }
 
+function resolveOrderLineItem(order: OrderRecord, orderItemNo: string) {
+  const lineItems = getOrderLineItems(order.id);
+  if (lineItems.length === 0) {
+    return null;
+  }
+
+  const exactIndex = Number(orderItemNo) - 1;
+  if (Number.isInteger(exactIndex) && exactIndex >= 0 && exactIndex < lineItems.length) {
+    return lineItems[exactIndex] ?? null;
+  }
+
+  const digits = orderItemNo.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+
+  const digitIndex = Number(digits) - 1;
+  if (!Number.isInteger(digitIndex) || digitIndex < 0 || digitIndex >= lineItems.length) {
+    return null;
+  }
+
+  return lineItems[digitIndex] ?? null;
+}
+
 export function SelectedOrderDetails({
+  lineItem,
   order,
   orderItemNo,
 }: {
+  lineItem?: OrderLineItem | null;
   order: OrderRecord | undefined;
   orderItemNo: string;
 }) {
@@ -76,7 +144,7 @@ export function SelectedOrderDetails({
     return null;
   }
 
-  const line = getOrderLineItems(order.id)[Number(orderItemNo) - 1];
+  const line = lineItem ?? resolveOrderLineItem(order, orderItemNo);
   if (!line) {
     return null;
   }

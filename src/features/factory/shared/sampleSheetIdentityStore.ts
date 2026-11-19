@@ -239,16 +239,16 @@ export function createSampleSheetFromGrouping(input: {
   const store = readStore();
   const sequence = store.sequence + 1;
   const groupingRowId = String(input.groupingRow.id);
-  const sampleNo =
-    getStringField(input.groupingRow, ["groupNo"]) ||
-    groupingRowId ||
-    `sample-sheet-${sequence}`;
+  // Never reuse Group No as Sample No — collisions corrupt sample identity lookups.
+  const sampleNo = `SMP-${String(sequence).padStart(4, "0")}`;
   const issueDate =
     input.issueDate instanceof Date
       ? input.issueDate.toISOString()
       : nowIso();
   const at = nowIso();
   const issuedStatus = `Issued for ${input.nextProcess}` as const;
+  const groupNo =
+    getStringField(input.groupingRow, ["groupNo"]) || groupingRowId;
 
   const sample = withDerivedFields({
     sampleNo,
@@ -261,8 +261,15 @@ export function createSampleSheetFromGrouping(input: {
     purpose: "SAMPLE",
     forLabel: "Sample",
     itemName: getStringField(input.groupingRow, ["itemName", "productName"]),
-    subCategory: getStringField(input.groupingRow, ["itemSubCategory", "subCategory"]),
-    color: getStringField(input.groupingRow, ["color", "colour", "processColour"]),
+    subCategory: getStringField(input.groupingRow, [
+      "itemSubCategory",
+      "subCategory",
+    ]),
+    color: getStringField(input.groupingRow, [
+      "color",
+      "colour",
+      "processColour",
+    ]),
     length: getStringField(input.groupingRow, ["length"]),
     width: getStringField(input.groupingRow, ["width"]),
     thickness: getStringField(input.groupingRow, ["thickness", "thickess"]),
@@ -273,14 +280,25 @@ export function createSampleSheetFromGrouping(input: {
       { stage: "Grouping", status: "Grouping Done", at },
       { stage: input.nextProcess, status: issuedStatus, at },
     ],
-    sourceSnapshot: { ...input.groupingRow },
+    sourceSnapshot: (() => {
+      const snapshot = {
+        ...input.groupingRow,
+        groupNo,
+        sampleNo,
+      } as Record<string, unknown>;
+      delete snapshot.workItemId;
+      return snapshot;
+    })(),
     createdAt: at,
     orderAllocations: [],
   });
 
   writeStore({
     sequence,
-    samples: [sample, ...store.samples],
+    samples: [
+      sample,
+      ...store.samples.filter((entry) => entry.sampleNo !== sampleNo),
+    ],
   });
 
   return sample;
@@ -532,6 +550,10 @@ export function sampleToFactoryRecord(
   } as FactoryRecord;
 }
 
+function textIncludesSample(value: unknown) {
+  return typeof value === "string" && value.trim().toLowerCase().includes("sample");
+}
+
 export function isSampleFactoryRow(row: FactoryRecord | null | undefined) {
   if (!row) {
     return false;
@@ -540,9 +562,32 @@ export function isSampleFactoryRow(row: FactoryRecord | null | undefined) {
     row.purpose === "SAMPLE" ||
     row.forLabel === "Sample" ||
     row.for === "Sample" ||
-    Boolean(row.sampleNo) ||
-    row.isSample === true
+    row.isSample === true ||
+    Boolean(typeof row.sampleNo === "string" && row.sampleNo.trim()) ||
+    textIncludesSample(row.purpose) ||
+    textIncludesSample(row.issuePurpose) ||
+    textIncludesSample(row.issueTo) ||
+    textIncludesSample(row.pressingFor) ||
+    textIncludesSample(row.for) ||
+    textIncludesSample(row.forLabel)
   );
+}
+
+/** Sample vs Order label for Splicing "Issued For" column. */
+export function resolveSplicingIssuePurpose(
+  row: FactoryRecord | null | undefined,
+): "Sample" | "Order" {
+  if (!row) {
+    return "Order";
+  }
+  if (isSampleFactoryRow(row)) {
+    return "Sample";
+  }
+  // issuedFor on splicing often holds product type (Marquetry/Fluted); only treat Sample Sheet.
+  if (textIncludesSample(row.issuedFor)) {
+    return "Sample";
+  }
+  return "Order";
 }
 
 export function getSampleNoFromRow(row: FactoryRecord) {

@@ -1,7 +1,23 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
+import { resolveSplicingIssuePurpose } from "../shared/sampleSheetIdentityStore";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
+
+function splicingProductTypeLabel(row: FactoryRecord) {
+  if (resolveSplicingIssuePurpose(row) === "Sample") {
+    return "-";
+  }
+
+  const value = String(
+    row.productType || row.finishedType || row.orderType || row.issuedFor || "",
+  ).trim();
+  if (!value || value.toLowerCase().includes("sample")) {
+    return "-";
+  }
+
+  return value;
+}
 
 const splicingDoneOrderColumns: readonly EnterpriseTableColumn<FactoryRecord>[] = [
   { key: "orderDate", label: "Order Date" },
@@ -125,27 +141,37 @@ function withSplicingIssuedLeafColumns<Row extends FactoryRecord>(
   ];
 }
 
-function withIssuedPurposeColumn<Row extends FactoryRecord>(
+function withIssuedPurposeAndProductTypeColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
 ): readonly EnterpriseTableColumn<Row>[] {
   const purposeColumn: EnterpriseTableColumn<Row> = {
     key: "issuePurpose",
     label: "Issued For",
   };
+  const productTypeColumn: EnterpriseTableColumn<Row> = {
+    key: "productType",
+    label: "Product Type",
+    renderCell: (row: Row) => splicingProductTypeLabel(row),
+  };
   const withoutPurpose = columns.filter(
-    (column) => column.key !== purposeColumn.key,
+    (column) =>
+      column.key !== purposeColumn.key &&
+      column.key !== productTypeColumn.key &&
+      column.key !== "finishedType" &&
+      column.key !== "orderType",
   );
   const groupNoIndex = withoutPurpose.findIndex(
     (column) => column.key === "groupNo",
   );
 
   if (groupNoIndex === -1) {
-    return [purposeColumn, ...withoutPurpose];
+    return [purposeColumn, productTypeColumn, ...withoutPurpose];
   }
 
   return [
     ...withoutPurpose.slice(0, groupNoIndex + 1),
     purposeColumn,
+    productTypeColumn,
     ...withoutPurpose.slice(groupNoIndex + 1),
   ];
 }
@@ -157,8 +183,12 @@ export function applySplicingListingColumns<Row extends FactoryRecord>(
   const withoutSharedHiddenColumns = columns.filter(
     (column) => column.key !== "storageSrNo" && column.key !== "groupingDate",
   );
-  const withBatchAndColor = withSplicingBatchNoAndColorColumns(withoutSharedHiddenColumns);
-  const withIssuedPurpose = withIssuedPurposeColumn(withBatchAndColor);
+  const withBatchAndColor = withSplicingBatchNoAndColorColumns(
+    withoutSharedHiddenColumns,
+  );
+  const withIssuedPurpose = withIssuedPurposeAndProductTypeColumns(
+    withBatchAndColor,
+  );
 
   if (activeTab === "issued") {
     return withAvailableFactoryMeasureColumns(
@@ -177,7 +207,10 @@ export function applySplicingListingColumns<Row extends FactoryRecord>(
                 label: "Rejected Date",
                 renderCell: (row: Row) =>
                   formatSplicingDate(
-                    row.rejectedDate ?? row.rejectedAt ?? row.processDate ?? row.issuedDate,
+                    row.rejectedDate ??
+                      row.rejectedAt ??
+                      row.processDate ??
+                      row.issuedDate,
                   ),
               }
             : column,

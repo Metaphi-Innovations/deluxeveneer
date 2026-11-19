@@ -1,7 +1,23 @@
 import type { EnterpriseTableColumn } from "../../../components/data-display/EnterpriseDataTable";
 import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMeasures";
+import { isSampleFactoryRow } from "../shared/sampleSheetIdentityStore";
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
+
+function pressingProductTypeLabel(row: FactoryRecord) {
+  if (isSampleFactoryRow(row)) {
+    return "-";
+  }
+
+  const value = String(
+    row.productType || row.finishedType || row.orderType || "",
+  ).trim();
+  if (!value || value.toLowerCase().includes("sample")) {
+    return "-";
+  }
+
+  return value;
+}
 
 const pressingHiddenKeys = new Set([
   "amount",
@@ -68,16 +84,52 @@ function withPressingLotAndBatchColumns<Row extends FactoryRecord>(
   ];
 }
 
+function withPressingProductTypeColumn<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  const productTypeColumn: EnterpriseTableColumn<Row> = {
+    key: "productType",
+    label: "Product Type",
+    renderCell: (row: Row) => pressingProductTypeLabel(row),
+  };
+  const withoutProductType = columns.filter(
+    (column) =>
+      column.key !== productTypeColumn.key &&
+      column.key !== "finishedType" &&
+      column.key !== "orderType",
+  );
+  const insertAfterKey = withoutProductType.some((column) => column.key === "for")
+    ? "for"
+    : withoutProductType.some((column) => column.key === "groupNo")
+      ? "groupNo"
+      : null;
+
+  if (!insertAfterKey) {
+    return [productTypeColumn, ...withoutProductType];
+  }
+
+  const insertAt = withoutProductType.findIndex(
+    (column) => column.key === insertAfterKey,
+  );
+  return [
+    ...withoutProductType.slice(0, insertAt + 1),
+    productTypeColumn,
+    ...withoutProductType.slice(insertAt + 1),
+  ];
+}
+
 export function applyPressingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  const visibleColumns = withPressingLotAndBatchColumns(
-    columns.filter(
-      (column) =>
-        !pressingHiddenKeys.has(column.key) &&
-        column.key !== "storageSrNo" &&
-        column.key !== "storageSerialNumber",
+  const visibleColumns = withPressingProductTypeColumn(
+    withPressingLotAndBatchColumns(
+      columns.filter(
+        (column) =>
+          !pressingHiddenKeys.has(column.key) &&
+          column.key !== "storageSrNo" &&
+          column.key !== "storageSerialNumber",
+      ),
     ),
   );
   const pressingIdColumn: EnterpriseTableColumn<Row> = {

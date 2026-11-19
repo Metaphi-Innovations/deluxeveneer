@@ -5,6 +5,7 @@ import {
   useState,
 } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Alert, Snackbar } from "@mui/material";
 import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
@@ -42,6 +43,12 @@ import {
   parseLeafCount,
   withGroupingAvailability,
 } from "../rawVeneerGroupingQuantity";
+
+const LEAF_ISSUE_ACTION_IDS = new Set([
+  "issue-for-grouping",
+  "issue-for-marquetry",
+  "issue-for-fluting",
+]);
 
 export interface RawVeneerTabProps {
   warehouseName: string;
@@ -122,8 +129,12 @@ export function RawVeneerTab({
 }: RawVeneerTabProps) {
   const navigate = useNavigate();
   const [groupingIssueRow, setGroupingIssueRow] = useState<RawVeneerRow | null>(null);
-  const [marquetryConfirmRow, setMarquetryConfirmRow] = useState<RawVeneerRow | null>(null);
+  const [marquetryIssueRow, setMarquetryIssueRow] = useState<RawVeneerRow | null>(null);
   const [flutingConfirmRow, setFlutingConfirmRow] = useState<RawVeneerRow | null>(null);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "success" | "error";
+  } | null>(null);
   const factoryIssuedWorkItems = useFactoryIssuedWorkItems();
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -153,7 +164,8 @@ export function RawVeneerTab({
           .filter(
             (item) =>
               item.sourceSlug === warehouseName &&
-              item.destinationSlug !== "grouping",
+              item.destinationSlug !== "grouping" &&
+              item.destinationSlug !== "marquetry",
           )
           .map((item) => item.sourceRowId),
       ),
@@ -295,7 +307,7 @@ export function RawVeneerTab({
           icon: Plus,
           tone: "primary",
           onSelect: (row: RawVeneerRow) => {
-            setMarquetryConfirmRow(row);
+            setMarquetryIssueRow(withGroupingAvailability(row, groupingIssuedLeavesByRowId));
           },
         });
 
@@ -318,6 +330,9 @@ export function RawVeneerTab({
   const groupingIssueAvailableLeaves = parseLeafCount(
     groupingIssueRow?.availableNoOfLeaves ?? groupingIssueRow?.noOfLeaves,
   );
+  const marquetryIssueAvailableLeaves = parseLeafCount(
+    marquetryIssueRow?.availableNoOfLeaves ?? marquetryIssueRow?.noOfLeaves,
+  );
 
   return (
     <>
@@ -327,7 +342,13 @@ export function RawVeneerTab({
         onConfirm={(leaves) => {
           if (!groupingIssueRow) return;
           const availableLeaves = parseLeafCount(groupingIssueRow.availableNoOfLeaves);
-          if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) return;
+          if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) {
+            setToastNotification({
+              message: `Enter a whole number of leaves from 1 to ${availableLeaves}.`,
+              severity: "error",
+            });
+            return;
+          }
           const issuedAreas = groupingIssuedSliceAreas(groupingIssueRow, leaves);
           issueFactoryWork({
             destinationProcess: "Grouping",
@@ -368,56 +389,78 @@ export function RawVeneerTab({
             } as FactoryRecord,
           });
           setGroupingIssueRow(null);
+          setToastNotification({
+            message: `Issued ${leaves} leaf${leaves === 1 ? "" : "ves"} for Grouping.`,
+            severity: "success",
+          });
         }}
         open={Boolean(groupingIssueRow)}
         row={groupingIssueRow}
       />
-      <ConfirmationDialog
-        cancelLabel="Cancel"
-        confirmLabel="Issue"
-        description="Are you sure you want to issue this item for Marquetry?"
-        onClose={() => setMarquetryConfirmRow(null)}
-        onConfirm={() => {
-          if (!marquetryConfirmRow) return;
-          const row = marquetryConfirmRow;
-          setMarquetryConfirmRow(null);
+      <IssueForGroupingDialog
+        availableLeaves={marquetryIssueAvailableLeaves}
+        confirmLabel="Issue for Marquetry"
+        onClose={() => setMarquetryIssueRow(null)}
+        onConfirm={(leaves) => {
+          if (!marquetryIssueRow) return;
+          const availableLeaves = parseLeafCount(marquetryIssueRow.availableNoOfLeaves);
+          if (!Number.isInteger(leaves) || leaves < 1 || leaves > availableLeaves) {
+            setToastNotification({
+              message: `Enter a whole number of leaves from 1 to ${availableLeaves}.`,
+              severity: "error",
+            });
+            return;
+          }
+          const issuedAreas = groupingIssuedSliceAreas(marquetryIssueRow, leaves);
           issueFactoryWork({
             destinationProcess: "Marquetry",
             sourceSlug: warehouseName,
             sourceProcess: "Inventory",
             sourceWarehouseName: warehouseName,
             sourceRow: {
-              ...row,
-              itemName: row.itemName,
-              productName: row.itemName,
-              subCategory: row.subCategory,
-              itemSubCategory: row.subCategory,
-              batchNo: row.batchNo,
-              grade: row.grade,
-              length: row.length,
-              width: row.width,
-              thickness: row.thickness,
-              height: row.thickness,
-              noOfLeaves: row.noOfLeaves,
-              receivedNoOfLeaves: row.noOfLeaves,
-              availableNoOfLeaves:
-                row.availableNoOfLeaves || row.noOfLeaves,
-              sqm: row.sqm,
-              sqf: row.sqf,
-              totalSqm: row.sqm,
-              totalSqf: row.sqf,
-              storageSrNo: row.storageSrNo,
-              productionSrNo: row.productionSrNo,
+              ...marquetryIssueRow,
+              itemName: marquetryIssueRow.itemName,
+              productName: marquetryIssueRow.itemName,
+              subCategory: marquetryIssueRow.subCategory,
+              itemSubCategory: marquetryIssueRow.subCategory,
+              batchNo: marquetryIssueRow.batchNo,
+              grade: marquetryIssueRow.grade,
+              length: marquetryIssueRow.length,
+              width: marquetryIssueRow.width,
+              thickness: marquetryIssueRow.thickness,
+              height: marquetryIssueRow.thickness,
+              noOfLeaves: String(leaves),
+              receivedNoOfLeaves: String(leaves),
+              availableNoOfLeaves: String(leaves),
+              receivedLeaves: String(leaves),
+              availableLeaves: String(leaves),
+              sqm: issuedAreas.sqm,
+              sqf: issuedAreas.sqf,
+              receivedSqm: issuedAreas.sqm,
+              availableSqm: issuedAreas.sqm,
+              receivedSqf: issuedAreas.sqf,
+              availableSqf: issuedAreas.sqf,
+              totalSqm: issuedAreas.sqm,
+              totalSqf: issuedAreas.sqf,
+              issuedLeafCount: String(leaves),
+              storageSrNo: marquetryIssueRow.storageSrNo,
+              productionSrNo: marquetryIssueRow.productionSrNo,
               issuedFrom: "Inventory",
               issuedFor: "Marquetry",
               issuedDate: new Date(),
               issueDate: new Date(),
               warehouseName,
-              inventorySlug: row.inventorySlug ?? "raw-veneer",
+              inventorySlug: marquetryIssueRow.inventorySlug ?? "raw-veneer",
             } as FactoryRecord,
           });
+          setMarquetryIssueRow(null);
+          setToastNotification({
+            message: `Issued ${leaves} leaf${leaves === 1 ? "" : "ves"} for Marquetry.`,
+            severity: "success",
+          });
         }}
-        open={Boolean(marquetryConfirmRow)}
+        open={Boolean(marquetryIssueRow)}
+        row={marquetryIssueRow}
         title="Issue for Marquetry"
       />
       <ConfirmationDialog
@@ -427,7 +470,20 @@ export function RawVeneerTab({
         onClose={() => setFlutingConfirmRow(null)}
         onConfirm={() => {
           if (!flutingConfirmRow) return;
-          const row = flutingConfirmRow;
+          const row = withGroupingAvailability(
+            flutingConfirmRow,
+            groupingIssuedLeavesByRowId,
+          );
+          const remainingLeaves = parseLeafCount(row.availableNoOfLeaves);
+          if (remainingLeaves < 1) {
+            setFlutingConfirmRow(null);
+            setToastNotification({
+              message: "No available leaves left to issue for Fluting.",
+              severity: "error",
+            });
+            return;
+          }
+          const remainingAreas = groupingIssuedSliceAreas(row, remainingLeaves);
           setFlutingConfirmRow(null);
           issueFactoryWork({
             destinationProcess: "Fluting",
@@ -446,11 +502,12 @@ export function RawVeneerTab({
               thickness: row.thickness,
               height: row.thickness,
               grade: row.grade,
-              noOfLeaves: row.noOfLeaves,
-              sqm: row.sqm,
-              sqf: row.sqf,
-              totalSqm: row.sqm,
-              totalSqf: row.sqf,
+              noOfLeaves: String(remainingLeaves),
+              sqm: remainingAreas.sqm,
+              sqf: remainingAreas.sqf,
+              totalSqm: remainingAreas.sqm,
+              totalSqf: remainingAreas.sqf,
+              issuedLeafCount: String(remainingLeaves),
               storageSrNo: row.storageSrNo,
               productionSrNo: row.productionSrNo,
               issuedFrom: "Inventory",
@@ -460,6 +517,10 @@ export function RawVeneerTab({
               warehouseName,
               inventorySlug: row.inventorySlug ?? "raw-veneer",
             } as FactoryRecord,
+          });
+          setToastNotification({
+            message: `Issued ${remainingLeaves} leaf${remainingLeaves === 1 ? "" : "ves"} for Fluting.`,
+            severity: "success",
           });
         }}
         open={Boolean(flutingConfirmRow)}
@@ -477,7 +538,7 @@ export function RawVeneerTab({
         getRowActions={(row) =>
           parseLeafCount(row.availableNoOfLeaves) >= 1
             ? actions
-            : actions.filter((action) => action.id !== "issue-for-grouping")
+            : actions.filter((action) => !LEAF_ISSUE_ACTION_IDS.has(action.id))
         }
         onColumnFilterOpen={(columnKey) => {
           if (clientQuantityColumnKeys.has(columnKey)) return;
@@ -509,6 +570,23 @@ export function RawVeneerTab({
           },
         }}
       />
+      <Snackbar
+        open={Boolean(toastNotification)}
+        autoHideDuration={4000}
+        onClose={() => setToastNotification(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            variant="filled"
+            sx={{ width: "100%" }}
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </>
   );
 }

@@ -588,7 +588,35 @@ function resolveFinishedProductCategory(source: Record<string, unknown>) {
   return "Finished";
 }
 
+function isSampleFinishingPackingSource(source: Record<string, unknown>) {
+  if (source.isSample === true) {
+    return true;
+  }
+  const sampleNo = readPackingSourceText(source, ["sampleNo"]);
+  if (sampleNo) {
+    return true;
+  }
+  const markers = [
+    source.purpose,
+    source.issuePurpose,
+    source.for,
+    source.forLabel,
+    source.pressingFor,
+    source.issueTo,
+  ]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  return markers.some(
+    (value) => value === "sample" || value.includes("sample"),
+  );
+}
+
 export function issueFinishingToPacking(source: Record<string, unknown>) {
+  // Sample Sheet / Sample purpose finishing stock must not enter Packing.
+  if (isSampleFinishingPackingSource(source)) {
+    return null;
+  }
+
   const sourceRef = readPackingSourceText(source, ["id", "workItemId"]);
   if (sourceRef) {
     const existing = packingRecords.find(

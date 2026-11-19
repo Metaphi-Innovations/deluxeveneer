@@ -4,6 +4,10 @@ import {
   type OrderRecord,
 } from "../../orders/shared/ordersStore";
 import { formatSQF, formatSQM, SQM_TO_SQF } from "../../shared/numberFormat";
+import {
+  normalizeSplicingOrderType,
+  type SplicingOrderLineItemOption,
+} from "../shared/listing/factoryListingParts";
 import { calculateSlicingSqmValue } from "../shared/slicingAreaCalculation";
 import type { FactoryRecord } from "../shared/types";
 
@@ -74,17 +78,163 @@ const pressingDummyOrderItems: Readonly<
   Record<string, readonly OrderLineItem[]>
 > = {
   "pressing-demo-order-1": [
-    createDummyOrderItem("pressing-demo-line-1", pressingDummyOrders[0]!),
+    createDummyOrderItem("pressing-demo-line-1", pressingDummyOrders[0]!, {
+      finishedType: "Decorative",
+      itemName: "Oak Decorative Panel",
+      salesItemName: "Oak Decorative Panel",
+      subCategory: "Decorative Panel",
+      baseType: "Plywood",
+      baseName: "Commercial Plywood 12mm",
+      baseThickness: "12 mm",
+      grade: "A",
+      quantitySheets: "24",
+      remark: "Demo Decorative order line for Pressing Order Details.",
+    }),
+    createDummyOrderItem("pressing-demo-line-1b", pressingDummyOrders[0]!, {
+      finishedType: "Fluted",
+      itemName: "Oak Fluted Panel",
+      salesItemName: "Oak Fluted Panel",
+      subCategory: "Fluted Panel",
+      baseType: "MDF",
+      baseName: "MDF Core 18mm",
+      baseThickness: "18 mm",
+      grade: "A+",
+      quantitySheets: "12",
+      length: "2440 mm",
+      width: "1220 mm",
+      thickness: "0.60 mm",
+      remark: "Demo Fluted order line for Pressing Order Details.",
+    }),
   ],
   "pressing-demo-order-2": [
-    createDummyOrderItem("pressing-demo-line-2", pressingDummyOrders[1]!),
+    createDummyOrderItem("pressing-demo-line-2", pressingDummyOrders[1]!, {
+      finishedType: "Embossed",
+      itemName: "Walnut Embossed Panel",
+      salesItemName: "Walnut Embossed Panel",
+      subCategory: "Embossed Panel",
+      baseType: "Plywood",
+      baseName: "BWR Plywood 16mm",
+      baseThickness: "16 mm",
+      grade: "A+",
+      quantitySheets: "18",
+      remark: "Demo Embossed order line for Pressing Order Details.",
+    }),
+    createDummyOrderItem("pressing-demo-line-2b", pressingDummyOrders[1]!, {
+      finishedType: "Decorative",
+      itemName: "Walnut Decorative Panel",
+      salesItemName: "Walnut Decorative Panel",
+      subCategory: "Decorative Panel",
+      baseType: "Fleece Back",
+      baseName: "Fleece Back Sheet",
+      baseThickness: "1.5 mm",
+      grade: "A",
+      quantitySheets: "10",
+      remark: "Demo Decorative order line for Pressing Order Details.",
+    }),
   ],
 };
 
 export const pressingDummySampleNos = ["GRP-9001", "GRP-9002"] as const;
 
+const pressingBaseTypeFallbacks = [
+  "Plywood",
+  "MDF",
+  "Fleece Back",
+  "Twist",
+] as const;
+
+function lineNeedsPressingBase(line: OrderLineItem) {
+  return /decorative|fluted|embossed|marquetry|finished/i.test(
+    `${line.finishedType} ${line.productCategory}`,
+  );
+}
+
+/** Fill missing base fields so Order Details always shows Base Type / Name for pressing lines. */
+export function ensurePressingOrderLineBaseFields(
+  line: OrderLineItem,
+  index = 0,
+): OrderLineItem {
+  if (!lineNeedsPressingBase(line) && !line.baseType?.trim() && !line.baseName?.trim()) {
+    return line;
+  }
+
+  const fallbackType =
+    pressingBaseTypeFallbacks[index % pressingBaseTypeFallbacks.length]!;
+  const baseType = line.baseType?.trim() || fallbackType;
+  const baseName =
+    line.baseName?.trim() ||
+    `${baseType} Base ${String(index + 1).padStart(2, "0")}`;
+
+  return {
+    ...line,
+    baseType,
+    baseName,
+    baseLength: line.baseLength?.trim() || line.length || "",
+    baseWidth: line.baseWidth?.trim() || line.width || "",
+    baseThickness: line.baseThickness?.trim() || "12 mm",
+  };
+}
+
 export function getPressingOrderLineItems(orderId: string) {
-  return pressingDummyOrderItems[orderId] ?? getOrderLineItems(orderId);
+  const items = pressingDummyOrderItems[orderId] ?? getOrderLineItems(orderId);
+  return items.map((line, index) => ensurePressingOrderLineBaseFields(line, index));
+}
+
+export function getPressingOrderLineItemOptions(
+  order: OrderRecord,
+  productType: string,
+): SplicingOrderLineItemOption[] {
+  const normalizedProductType = normalizeSplicingOrderType(productType);
+  if (!normalizedProductType) {
+    return [];
+  }
+
+  const recordOrderType =
+    normalizeSplicingOrderType(order.orderType) ??
+    normalizeSplicingOrderType(order.productCategory);
+
+  return getPressingOrderLineItems(String(order.id))
+    .map((lineItem, index) => ({
+      lineItem,
+      orderItemNo: `OI-${String(index + 1).padStart(3, "0")}`,
+    }))
+    .filter((option) => {
+      const lineItemOrderType =
+        normalizeSplicingOrderType(option.lineItem.finishedType) ??
+        normalizeSplicingOrderType(option.lineItem.productCategory);
+
+      if (lineItemOrderType) {
+        return lineItemOrderType === normalizedProductType;
+      }
+
+      return recordOrderType === normalizedProductType;
+    });
+}
+
+export function getPressingOrderNumberOptions(
+  orderRecords: readonly OrderRecord[],
+  productType: string,
+) {
+  return orderRecords
+    .filter(
+      (record) => getPressingOrderLineItemOptions(record, productType).length > 0,
+    )
+    .map((record) => record.orderNo);
+}
+
+export function getPressingOrderItemNumberOptions(
+  orderRecords: readonly OrderRecord[],
+  productType: string,
+  orderNo: string,
+) {
+  const order = orderRecords.find((record) => record.orderNo === orderNo);
+  if (!order) {
+    return [];
+  }
+
+  return getPressingOrderLineItemOptions(order, productType).map(
+    (option) => option.orderItemNo,
+  );
 }
 
 export function buildPressingDummySampleIssuedRows(): FactoryRecord[] {
@@ -189,7 +339,11 @@ export function buildPressingDummyIssuedRows(
   });
 }
 
-function createDummyOrderItem(id: string, order: OrderRecord): OrderLineItem {
+function createDummyOrderItem(
+  id: string,
+  order: OrderRecord,
+  overrides: Partial<OrderLineItem> = {},
+): OrderLineItem {
   return {
     id,
     productCategory: order.productCategory,
@@ -213,5 +367,6 @@ function createDummyOrderItem(id: string, order: OrderRecord): OrderLineItem {
     baseThickness: "12 mm",
     amount: order.amount,
     remark: order.remark,
+    ...overrides,
   };
 }

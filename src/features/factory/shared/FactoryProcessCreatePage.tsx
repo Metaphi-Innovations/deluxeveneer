@@ -1122,12 +1122,9 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
         typeof locationState?.sourceRow?.orderItemNo === "string"
           ? locationState.sourceRow.orderItemNo
           : "";
-      const dummyOrder =
-        usesOrderSelection && !sourceOrderNo ? orderRecords[0] : undefined;
-
       return {
-        orderItemNo: sourceOrderItemNo || (dummyOrder ? "1" : ""),
-        orderNo: sourceOrderNo || dummyOrder?.orderNo || "",
+        orderItemNo: sourceOrderItemNo,
+        orderNo: sourceOrderNo,
         purpose: "Order",
       };
     });
@@ -1762,7 +1759,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   useEffect(() => {
     if (definition.slug !== "grouping") return;
     const calculated = calculateGroupingAvailableDetails({
-      sourceAvailableLeaves: splicingReferenceSheets,
+      sourceAvailableLeaves: groupingReferenceLeaves,
       sourceRow: sourceRow as Record<string, unknown> | undefined,
       totalGroupedLeaves: groupingLeavesForAvailable,
     });
@@ -1774,13 +1771,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   }, [
     definition.slug,
     groupingLeavesForAvailable,
-    splicingReferenceSheets,
+    groupingReferenceLeaves,
     sourceRow,
   ]);
   useEffect(() => {
     if (definition.slug !== "splicing") return;
     const calculated = calculateSplicingAvailableDetails({
-      sourceAvailableLeaves: groupingReferenceLeaves,
+      sourceAvailableLeaves: splicingReferenceSheets,
       sourceRow: sourceRow as Record<string, unknown> | undefined,
       totalLeavesUsed: splicingLeavesForAvailable,
     });
@@ -1791,7 +1788,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
     }));
   }, [
     definition.slug,
-    groupingReferenceLeaves,
+    splicingReferenceSheets,
     sourceRow,
     splicingLeavesForAvailable,
   ]);
@@ -3772,7 +3769,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : validateGroupingForm({
                           availableValues: rejectAvailableValues,
                           items: lineItems,
-                          sourceAvailableLeaves: splicingReferenceSheets,
+                          sourceAvailableLeaves: groupingReferenceLeaves,
                           sourceRow: sourceRow as
                             | Record<string, unknown>
                             | undefined,
@@ -3787,7 +3784,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                       : validateSplicingForm({
                           availableValues: rejectAvailableValues,
                           items: lineItems,
-                          sourceAvailableLeaves: groupingReferenceLeaves,
+                          sourceAvailableLeaves: splicingReferenceSheets,
                           sourceRow: sourceRow as
                             | Record<string, unknown>
                             | undefined,
@@ -4197,6 +4194,89 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
                 (typeof sourceRow?.workItemId === "string"
                   ? sourceRow.workItemId
                   : undefined);
+
+              if (
+                definition.slug === "splicing" &&
+                !isSplicingEdit &&
+                workItemId
+              ) {
+                const carriedGroupNo = getExistingGroupNo(
+                  sourceRow as Record<string, unknown> | undefined,
+                );
+                const sourceFields = {
+                  ...(sourceRow as Record<string, unknown> | undefined),
+                };
+                delete sourceFields.workItemId;
+
+                lineItems.forEach((lineItem, index) => {
+                  const calculatedValues = calculateSplicingRow(lineItem.values);
+                  const outputSheets = calculatedValues.noOfSheets;
+                  const resultSnapshot: Record<string, unknown> = {
+                    ...sourceFields,
+                    ...formValues,
+                    ...calculatedValues,
+                    ...(carriedGroupNo ? { groupNo: carriedGroupNo } : {}),
+                    noOfLeaves: outputSheets,
+                    noOfSheets: outputSheets,
+                    issuedLeafCount: outputSheets,
+                    receivedNoOfLeaves: outputSheets,
+                    availableNoOfLeaves: outputSheets,
+                    sourceAvailableLeaves: outputSheets,
+                    values: calculatedValues,
+                    listingState: "done",
+                  };
+
+                  if (index === 0) {
+                    completeFactoryIssuedWork(workItemId, resultSnapshot);
+                    return;
+                  }
+
+                  const issued = issueFactoryWork({
+                    destinationProcess: "Splicing",
+                    sourceProcess: "Splicing",
+                    sourceRow: {
+                      ...(resultSnapshot as FactoryRecord),
+                      id: `splicing-output-${lineItem.id}`,
+                    },
+                    sourceSlug: "splicing",
+                  });
+                  completeFactoryIssuedWork(issued.id, resultSnapshot);
+                });
+
+                const processedSheets = calculateTotalSplicingLeaves(lineItems);
+                const remainingSheets = Math.max(
+                  0,
+                  splicingReferenceSheets - processedSheets,
+                );
+
+                if (remainingSheets > 0) {
+                  const remainingSnapshot: Record<string, unknown> = {
+                    ...sourceFields,
+                    ...rejectAvailableValues,
+                    ...(carriedGroupNo ? { groupNo: carriedGroupNo } : {}),
+                    noOfLeaves: String(remainingSheets),
+                    noOfSheets: String(remainingSheets),
+                    issuedLeafCount: String(remainingSheets),
+                    receivedNoOfLeaves: String(remainingSheets),
+                    availableNoOfLeaves: String(remainingSheets),
+                    sourceAvailableLeaves: String(remainingSheets),
+                    amount: sourceFields.amount,
+                    listingState: "issued",
+                  };
+                  issueFactoryWork({
+                    destinationProcess: "Splicing",
+                    sourceProcess: "Splicing",
+                    sourceRow: {
+                      ...(remainingSnapshot as FactoryRecord),
+                      id: `splicing-balance-${workItemId}-${Date.now()}`,
+                    },
+                    sourceSlug: "splicing",
+                  });
+                }
+
+                navigate(paths.list);
+                return;
+              }
 
               if (workItemId) {
                 const primaryLineItem = lineItems[0];

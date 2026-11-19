@@ -92,15 +92,20 @@ export function mapGroupingListingRow<Row extends FactoryRecord>(
   activeTab: string,
 ): Row {
   const currentIssueTo = row.issueTo || row.for || "Order";
-  const issuedIdentity =
-    activeTab === "issued" ? groupingIssuedIdentityFields(row) : {};
+  const issuedIdentity = groupingIssuedIdentityFields(row);
   const showLeafBalance =
     activeTab === "issued" ||
     activeTab === "done" ||
     activeTab === "history" ||
     activeTab === "rejected";
   const receivedLeaves = showLeafBalance ? getReceivedGroupedLeaves(row) : 0;
-  const availableLeaves = showLeafBalance ? getAvailableGroupedSheets(row) : 0;
+  const balanceRow =
+    activeTab === "history" && row.groupingRef
+      ? ({ ...row, id: String(row.groupingRef) } as Row)
+      : row;
+  const availableLeaves = showLeafBalance
+    ? getAvailableGroupedSheets(balanceRow)
+    : 0;
   const issuedFor = resolveGroupingIssuedFor(row);
   const batchNo = groupingBatchNo(row);
 

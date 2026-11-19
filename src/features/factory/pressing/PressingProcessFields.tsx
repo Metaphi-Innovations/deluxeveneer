@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   Box,
   Stack,
@@ -13,6 +13,9 @@ import {
 } from "@mui/material";
 
 import { getCompactFieldSx } from "../../../pages/ComponentLibrary/sections/inputs/components/inputFieldStyles";
+import { ErpSelectField } from "../../../pages/ComponentLibrary/shared/ErpFieldControls";
+import { fetchColorsApi } from "../../masters/color-master/api/colorMasterApi";
+import { fetchGradesApi } from "../../masters/grade-master/api/gradeMasterApi";
 import { plainFormSectionHeadingSx } from "../../shared/formSectionStyles";
 import { listingTableContainerSx } from "../../shared/listingTableStyles";
 import {
@@ -37,19 +40,21 @@ export type PressingProcessValues = {
   noOfSheets: string;
   outputItemName: string;
   pressingDate: string;
+  productType?: string;
   remark: string;
   thickness: string;
   width: string;
 };
 
 const headerLabels = [
-  "Pressing Date",
-  "Output Item Name",
+  "Pressing Date *",
+  "Product Type",
+  "Output Item Name *",
   "Item Sub Category",
   "Length",
   "Width",
   "Thickness",
-  "No of Sheets",
+  "No of Sheets *",
   "SQM",
   "SQF",
   "Cut Color",
@@ -60,21 +65,93 @@ const headerLabels = [
 export function PressingProcessFields({
   onChange,
   outputError,
+  productType = "",
   showErrors,
   values,
 }: {
   onChange: (patch: Partial<PressingProcessValues>) => void;
   outputError: string;
+  productType?: string;
   showErrors: boolean;
   values: PressingProcessValues;
 }) {
+  const [colorOptions, setColorOptions] = useState<string[]>([]);
+  const [colorLoading, setColorLoading] = useState(false);
+  const [gradeOptions, setGradeOptions] = useState<string[]>([]);
+  const [gradeLoading, setGradeLoading] = useState(false);
+
+  const loadColors = useCallback(async () => {
+    try {
+      setColorLoading(true);
+      const records = await fetchColorsApi({ status: true, limit: 500 });
+      const names: string[] = [];
+      const seen = new Set<string>();
+      for (const record of records) {
+        const name = String(record.colorName || record.name || "").trim();
+        if (!name || seen.has(name.toLowerCase())) {
+          continue;
+        }
+        seen.add(name.toLowerCase());
+        names.push(name);
+      }
+      setColorOptions(names);
+    } catch {
+      // Keep any previously loaded options if the refresh fails.
+    } finally {
+      setColorLoading(false);
+    }
+  }, []);
+
+  const loadGrades = useCallback(async () => {
+    try {
+      setGradeLoading(true);
+      const records = await fetchGradesApi({ status: true, limit: 500 });
+      const names: string[] = [];
+      const seen = new Set<string>();
+      for (const record of records) {
+        const name = String(record.gradeName || record.name || "").trim();
+        if (!name || seen.has(name.toLowerCase())) {
+          continue;
+        }
+        seen.add(name.toLowerCase());
+        names.push(name);
+      }
+      setGradeOptions(names);
+    } catch {
+      // Keep any previously loaded options if the refresh fails.
+    } finally {
+      setGradeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadColors();
+    void loadGrades();
+  }, [loadColors, loadGrades]);
+
   const area = calculatePressingUsedArea(
     values.length,
     values.width,
     values.noOfSheets,
   );
+  const productTypeValue = productType || values.productType || "";
+  const cutColorOptions =
+    values.cutColor &&
+    !colorOptions.some(
+      (option) => option.toLowerCase() === values.cutColor.trim().toLowerCase(),
+    )
+      ? [values.cutColor, ...colorOptions]
+      : colorOptions;
+  const gradeSelectOptions =
+    values.grade &&
+    !gradeOptions.some(
+      (option) => option.toLowerCase() === values.grade.trim().toLowerCase(),
+    )
+      ? [values.grade, ...gradeOptions]
+      : gradeOptions;
   const inputWidths = [
     200,
+    pressingValueInputWidth(productTypeValue || "-", 120, 160),
     pressingValueInputWidth(values.outputItemName, 160, 240),
     pressingValueInputWidth(values.itemSubCategory, 128, 200),
     pressingValueInputWidth(values.length, 112, 160),
@@ -83,8 +160,8 @@ export function PressingProcessFields({
     pressingValueInputWidth(values.noOfSheets, 96, 130),
     pressingValueInputWidth(area.sqm, 84, 120),
     pressingValueInputWidth(area.sqf, 88, 120),
-    pressingValueInputWidth(values.cutColor, 160, 280),
-    pressingValueInputWidth(values.grade, 64, 110),
+    Math.max(pressingValueInputWidth(values.cutColor || "Select color", 160, 220), 180),
+    Math.max(pressingValueInputWidth(values.grade || "Select grade", 96, 140), 120),
     pressingValueInputWidth(values.remark, 140, 220),
   ];
   const columnWidths = inputWidths.map(pressingCellWidth);
@@ -143,85 +220,116 @@ export function PressingProcessFields({
                     width={inputWidths[0] ?? 200}
                   />
                 </DetailCell>
-                <DetailCell error={itemNameError} minWidth={columnWidths[1]}>
+                <TableCell
+                  sx={(theme) =>
+                    pressingCompactBodyCellSx(theme, columnWidths[1])
+                  }
+                >
+                  {productTypeValue || "-"}
+                </TableCell>
+                <DetailCell error={itemNameError} minWidth={columnWidths[2]}>
                   <DetailInput
                     error={itemNameError}
                     onChange={(value) => onChange({ outputItemName: value })}
                     value={values.outputItemName}
-                    width={inputWidths[1] ?? 160}
-                  />
-                </DetailCell>
-                <DetailCell minWidth={columnWidths[2]}>
-                  <DetailInput
-                    onChange={(value) => onChange({ itemSubCategory: value })}
-                    value={values.itemSubCategory}
-                    width={inputWidths[2] ?? 128}
+                    width={inputWidths[2] ?? 160}
                   />
                 </DetailCell>
                 <DetailCell minWidth={columnWidths[3]}>
                   <DetailInput
-                    onChange={(value) => onChange({ length: value })}
-                    value={values.length}
-                    width={inputWidths[3] ?? 112}
+                    onChange={(value) => onChange({ itemSubCategory: value })}
+                    value={values.itemSubCategory}
+                    width={inputWidths[3] ?? 128}
                   />
                 </DetailCell>
                 <DetailCell minWidth={columnWidths[4]}>
                   <DetailInput
-                    onChange={(value) => onChange({ width: value })}
-                    value={values.width}
+                    onChange={(value) => onChange({ length: value })}
+                    value={values.length}
                     width={inputWidths[4] ?? 112}
                   />
                 </DetailCell>
                 <DetailCell minWidth={columnWidths[5]}>
                   <DetailInput
-                    onChange={(value) => onChange({ thickness: value })}
-                    value={values.thickness}
+                    onChange={(value) => onChange({ width: value })}
+                    value={values.width}
                     width={inputWidths[5] ?? 112}
                   />
                 </DetailCell>
-                <DetailCell error={sheetsError} minWidth={columnWidths[6]}>
+                <DetailCell minWidth={columnWidths[6]}>
+                  <DetailInput
+                    onChange={(value) => onChange({ thickness: value })}
+                    value={values.thickness}
+                    width={inputWidths[6] ?? 112}
+                  />
+                </DetailCell>
+                <DetailCell error={sheetsError} minWidth={columnWidths[7]}>
                   <DetailInput
                     error={sheetsError}
                     onChange={(value) =>
                       onChange({ noOfSheets: sanitizePressingInteger(value) })
                     }
                     value={values.noOfSheets}
-                    width={inputWidths[6] ?? 96}
+                    width={inputWidths[7] ?? 96}
                   />
                 </DetailCell>
                 <TableCell
                   sx={(theme) =>
-                    pressingCompactBodyCellSx(theme, columnWidths[7])
+                    pressingCompactBodyCellSx(theme, columnWidths[8])
                   }
                 >
                   {area.sqm || "-"}
                 </TableCell>
                 <TableCell
                   sx={(theme) =>
-                    pressingCompactBodyCellSx(theme, columnWidths[8])
+                    pressingCompactBodyCellSx(theme, columnWidths[9])
                   }
                 >
                   {area.sqf || "-"}
                 </TableCell>
-                <DetailCell minWidth={columnWidths[9]}>
-                  <DetailInput
-                    onChange={(value) => onChange({ cutColor: value })}
-                    value={values.cutColor}
-                    width={inputWidths[9] ?? 160}
-                  />
-                </DetailCell>
                 <DetailCell minWidth={columnWidths[10]}>
-                  <DetailInput
-                    onChange={(value) => onChange({ grade: value })}
-                    value={values.grade}
-                    width={inputWidths[10] ?? 64}
-                  />
+                  <Box sx={{ minWidth: inputWidths[10] ?? 180, width: inputWidths[10] ?? 180 }}>
+                    <ErpSelectField
+                      onChange={(value) => onChange({ cutColor: value })}
+                      onOpen={() => {
+                        void loadColors();
+                      }}
+                      options={cutColorOptions}
+                      placeholder={
+                        colorLoading && cutColorOptions.length === 0
+                          ? "Loading…"
+                          : "Select color"
+                      }
+                      searchable={cutColorOptions.length > 5}
+                      size="dense"
+                      value={values.cutColor}
+                    />
+                  </Box>
                 </DetailCell>
                 <DetailCell minWidth={columnWidths[11]}>
+                  <Box sx={{ minWidth: inputWidths[11] ?? 120, width: inputWidths[11] ?? 120 }}>
+                    <ErpSelectField
+                      onChange={(value) => onChange({ grade: value })}
+                      onOpen={() => {
+                        void loadGrades();
+                      }}
+                      options={gradeSelectOptions}
+                      placeholder={
+                        gradeLoading && gradeSelectOptions.length === 0
+                          ? "Loading…"
+                          : "Select grade"
+                      }
+                      searchable={gradeSelectOptions.length > 5}
+                      size="dense"
+                      value={values.grade}
+                    />
+                  </Box>
+                </DetailCell>
+                <DetailCell minWidth={columnWidths[12]}>
                   <DetailInput
                     onChange={(value) => onChange({ remark: value })}
                     value={values.remark}
-                    width={inputWidths[11] ?? 140}
+                    width={inputWidths[12] ?? 140}
                   />
                 </DetailCell>
               </TableRow>

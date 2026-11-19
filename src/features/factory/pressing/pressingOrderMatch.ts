@@ -91,7 +91,21 @@ function rowText(row: FactoryRecord, keys: readonly string[]) {
 
 export function getPressingOrderLine(order: OrderRecord, orderItemNo: string) {
   const lineItems = getOrderLineItems(order.id);
-  const index = Math.max(0, Number(orderItemNo || "1") - 1);
+  if (lineItems.length === 0) {
+    return null;
+  }
+
+  const exactIndex = Number(orderItemNo) - 1;
+  if (
+    Number.isInteger(exactIndex) &&
+    exactIndex >= 0 &&
+    exactIndex < lineItems.length
+  ) {
+    return lineItems[exactIndex] ?? null;
+  }
+
+  const digits = String(orderItemNo || "1").replace(/\D/g, "");
+  const index = Math.max(0, Number(digits || "1") - 1);
   return lineItems[index] ?? lineItems[0] ?? null;
 }
 

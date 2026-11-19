@@ -36,7 +36,13 @@ import {
 } from "../../../orders/shared/ordersStore";
 import { recordFormActionButtonSx } from "../../../shared/buttonStyles";
 import { formSectionCardSx, FormSectionHeader } from "../../../shared/formSectionStyles";
-import { formatAmount, parseNumericValue, SQM_TO_SQF } from "../../../shared/numberFormat";
+import {
+  formatAmount,
+  formatSQF,
+  formatSQM,
+  parseNumericValue,
+  SQM_TO_SQF,
+} from "../../../shared/numberFormat";
 import { getAvailableGroupedSheets } from "../groupedStockIssueStore";
 import {
   completeFactoryIssuedWork,
@@ -44,6 +50,7 @@ import {
   issueFactoryWork,
   resolveFactoryProcessLabel,
 } from "../factoryIssuedWorkStore";
+import { buildMarquetryPressingIssueRow } from "../../marquetry/marquetryPressingIssue";
 import {
   getSampleNoFromRow,
   isSampleFactoryRow,
@@ -1129,6 +1136,20 @@ export function getFactoryNextProcessActions<Row extends FactoryRecord>(
     );
   }
 
+  // Done-tab next hop is forward in the process chain — not the current process label
+  // stored on `issuedFor` (e.g. Pressing→Fluting sets issuedFor="Fluting").
+  if (slug === "cnc-fluting" || slug === "embossing") {
+    return [createFactoryIssueAction<Row>("Finishing", slug)].filter(
+      (action) => canAccessPermission(action.permissionKey, "create"),
+    );
+  }
+
+  if (slug === "finishing") {
+    return [createFactoryIssueAction<Row>("Packing", slug)].filter(
+      (action) => canAccessPermission(action.permissionKey, "create"),
+    );
+  }
+
   const issuedFor = typeof row.issuedFor === "string" ? row.issuedFor.trim() : "";
 
   if (
@@ -1241,9 +1262,18 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
   destinationProcess: string;
   row: Row;
   sourceSlug: string;
-}) {
-  const sampleNo = getSampleNoFromRow(row);
-  const isSample = isSampleFactoryRow(row);
+}): boolean {
+  const pressingRow =
+    sourceSlug === "marquetry" &&
+    destinationProcess.replace(/^CNC\s*\/\s*/i, "").trim() === "Pressing"
+      ? buildMarquetryPressingIssueRow(row)
+      : row;
+  if (!pressingRow) {
+    return false;
+  }
+
+  const sampleNo = getSampleNoFromRow(pressingRow);
+  const isSample = isSampleFactoryRow(pressingRow);
   if (sampleNo) {
     const normalized = destinationProcess.replace(/^CNC\s*\/\s*/i, "").trim();
     if (
@@ -1258,19 +1288,23 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
   }
 
   const orderNo =
-    typeof row.orderNo === "string" && !isSample ? row.orderNo : undefined;
+    typeof pressingRow.orderNo === "string" && !isSample
+      ? pressingRow.orderNo
+      : undefined;
   const orderItemNo =
-    typeof row.orderItemNo === "string" && !isSample
-      ? row.orderItemNo
+    typeof pressingRow.orderItemNo === "string" && !isSample
+      ? pressingRow.orderItemNo
       : undefined;
 
   const productType =
-    typeof row.productType === "string" && row.productType.trim()
-      ? row.productType
+    typeof pressingRow.productType === "string" && pressingRow.productType.trim()
+      ? pressingRow.productType
       : sourceSlug === "marquetry"
         ? "Marquetry"
         : "";
-  const sourceRow = productType ? { ...row, productType } : row;
+  const sourceRow = productType
+    ? { ...pressingRow, productType }
+    : pressingRow;
 
   issueFactoryWork({
     destinationProcess,
@@ -1278,11 +1312,12 @@ export function issueToNextFactoryProcess<Row extends FactoryRecord>({
     sourceRow,
     sourceSlug,
     sourceProcess: resolveFactoryProcessLabel(sourceSlug),
-    sourceWarehouseName: getFactoryRowWarehouseName(row),
+    sourceWarehouseName: getFactoryRowWarehouseName(pressingRow),
     ...(sampleNo ? { sampleNo } : {}),
     ...(orderNo ? { orderNo } : {}),
     ...(orderItemNo ? { orderItemNo } : {}),
   });
+  return true;
 }
 
 export function getIssueRoutePermissionKey(route: string) {
@@ -2145,20 +2180,20 @@ export function DialogFieldLabel({
   );
 }
 
-export const splicingOrderTypeOptions = [
-  "Marquetry",
-  "Decorative",
-  "Fluted",
-  "Embossed",
-] as const;
-
+/** Order craft types carried into Splicing (Sample Sheet has none). */
 export const groupingOrderTypeOptions = [
   "Decorative",
   "Fluted",
   "Embossed",
 ] as const;
 
+export const splicingOrderTypeOptions = [
+  ...groupingOrderTypeOptions,
+  "Marquetry",
+] as const;
+
 export type SplicingOrderType = (typeof splicingOrderTypeOptions)[number];
+export type GroupingOrderType = (typeof groupingOrderTypeOptions)[number];
 
 export type SplicingOrderLineItemOption = {
   lineItem: OrderLineItem;
@@ -2286,17 +2321,41 @@ export function getSplicingOrderIssueRoute(orderType: string) {
     : "/factory/pressing/add";
 }
 
+export function resolveSplicingOrderProductType(
+  orderType: string,
+  lineItem?: OrderLineItem | null,
+) {
+  return (
+    normalizeSplicingOrderType(orderType) ||
+    normalizeSplicingOrderType(lineItem?.finishedType) ||
+    normalizeSplicingOrderType(lineItem?.productCategory) ||
+    orderType.trim() ||
+    ""
+  );
+}
+
 export function buildSplicingOrderIssueSourceRow<Row extends FactoryRecord>(
   state: SplicingOrderIssueState<Row>,
   order: OrderRecord | null,
   lineItem: OrderLineItem,
 ) {
+  const productType = resolveSplicingOrderProductType(state.orderType, lineItem);
+
   return {
     ...state.row,
     amount: lineItem.amount || state.row.amount,
     customerName: order?.customerName ?? state.row.customerName,
     issuedDate: state.issueDate ?? new Date(),
-    issuedFor: state.orderType,
+    // Durable order craft type refs (Decorative | Fluted | Embossed | Marquetry).
+    issuedFor: productType,
+    orderType: productType,
+    finishedType: productType,
+    productType,
+    issuePurpose: "Order",
+    purpose: "ORDER",
+    for: "Order",
+    forLabel: "Order",
+    isSample: false,
     itemName:
       lineItem.itemName ||
       lineItem.salesItemName ||
@@ -2313,7 +2372,6 @@ export function buildSplicingOrderIssueSourceRow<Row extends FactoryRecord>(
       lineItem.salesItemName ||
       state.row.itemName ||
       state.row.productName,
-    productType: state.orderType,
     remark: lineItem.remark || state.row.remark,
     sqf: lineItem.totalSqm || state.row.sqf,
     sqm: lineItem.sqm || state.row.sqm,
@@ -2327,10 +2385,53 @@ export function buildGroupingOrderIssueSourceRow<Row extends FactoryRecord>(
   order: OrderRecord | null,
   lineItem: OrderLineItem,
 ) {
+  const issuedLeaves = Number(state.issueSheets);
+  const sourceLeaves = parseNumericValue(
+    state.row.receivedNoOfLeaves ??
+      state.row.noOfLeaves ??
+      state.row.availableNoOfLeaves ??
+      0,
+  ) ?? 0;
+  const sourceSqm = parseNumericValue(state.row.sqm) ?? 0;
+  const issuedSqm =
+    Number.isFinite(issuedLeaves) && issuedLeaves > 0 && sourceLeaves > 0
+      ? (sourceSqm * issuedLeaves) / sourceLeaves
+      : 0;
+  const issuedSqf = issuedSqm * SQM_TO_SQF;
+
+  const productType = resolveSplicingOrderProductType(state.orderType, lineItem);
+
   return {
     ...buildSplicingOrderIssueSourceRow(state, order, lineItem),
+    amount: state.row.amount || lineItem.amount,
     issuedFrom: "Grouping",
     groupingRef: state.row.id,
+    itemName: state.row.itemName || state.row.productName,
+    itemSubCategory: state.row.itemSubCategory || state.row.subCategory,
+    subCategory: state.row.subCategory || state.row.itemSubCategory,
+    productName: state.row.productName || state.row.itemName,
+    length: state.row.length,
+    width: state.row.width,
+    thickness: state.row.thickness || state.row.height,
+    height: state.row.height || state.row.thickness,
+    noOfLeaves: state.issueSheets,
+    noOfSheets: state.issueSheets,
+    issuedLeafCount: state.issueSheets,
+    receivedNoOfLeaves: state.issueSheets,
+    availableNoOfLeaves: state.issueSheets,
+    sourceAvailableLeaves: state.issueSheets,
+    // Keep order type refs after leaf/qty overrides.
+    issuedFor: productType,
+    orderType: productType,
+    finishedType: productType,
+    productType,
+    issuePurpose: "Order",
+    purpose: "ORDER",
+    for: "Order",
+    forLabel: "Order",
+    isSample: false,
+    sqm: issuedSqm > 0 ? formatSQM(issuedSqm) : state.row.sqm,
+    sqf: issuedSqf > 0 ? formatSQF(issuedSqf) : state.row.sqf,
     remark:
       lineItem.remark ||
       `Issued from Grouping ${state.row.id} (${state.issueSheets} sheets)`,

@@ -3,7 +3,6 @@ import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMe
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
-const embossingHiddenOutsideHistory = new Set(["warehouseName"]);
 const embossingHiddenKeys = new Set([
   "amount",
   "issuedFrom",
@@ -124,6 +123,60 @@ function withEmbossingReceivedAvailableColumns<Row extends FactoryRecord>(
   return withAvailableFactoryMeasureColumns(withAvailableSheets);
 }
 
+function withEmbossingReceivedColumns<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  const receivedColumns = columns.map((column) => {
+    if (column.key === "noOfSheets") {
+      return { ...column, key: "receivedSheets", label: "Received Sheets" };
+    }
+    if (column.key === "sqm") {
+      return { ...column, label: "Received SQM" };
+    }
+    if (column.key === "sqf") {
+      return { ...column, label: "Received SQF" };
+    }
+    return column;
+  });
+  const receivedIndex = receivedColumns.findIndex(
+    (column) => column.key === "receivedSheets",
+  );
+  const damageColumn: EnterpriseTableColumn<Row> = {
+    key: "damagedSheets",
+    label: "Damage Qty",
+    renderCell: (row: Row) =>
+      String(row.embossingDamagedSheets ?? row.damagedSheets ?? "0"),
+  };
+
+  if (receivedIndex < 0) {
+    return [...receivedColumns, damageColumn];
+  }
+  return [
+    ...receivedColumns.slice(0, receivedIndex + 1),
+    damageColumn,
+    ...receivedColumns.slice(receivedIndex + 1),
+  ];
+}
+
+function withEmbossingHistoryDamageColumn<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  const damageColumn: EnterpriseTableColumn<Row> = {
+    key: "damagedSheets",
+    label: "Damage Qty",
+    renderCell: (row: Row) =>
+      String(row.embossingDamagedSheets ?? row.damagedSheets ?? "0"),
+  };
+  const sqfIndex = columns.findIndex((column) => column.key === "sqf");
+  return sqfIndex < 0
+    ? [...columns, damageColumn]
+    : [
+        ...columns.slice(0, sqfIndex + 1),
+        damageColumn,
+        ...columns.slice(sqfIndex + 1),
+      ];
+}
+
 export function applyEmbossingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   activeTab: FactoryProcessTab,
@@ -138,11 +191,16 @@ export function applyEmbossingListingColumns<Row extends FactoryRecord>(
         return false;
       }
 
-      if (activeTab === "history" || activeTab === "rejected") {
-        return true;
+      if (
+        column.key === "warehouseName" &&
+        (activeTab === "done" ||
+          activeTab === "history" ||
+          activeTab === "rejected")
+      ) {
+        return false;
       }
 
-      return !embossingHiddenOutsideHistory.has(column.key);
+      return true;
     }),
   );
 
@@ -152,8 +210,14 @@ export function applyEmbossingListingColumns<Row extends FactoryRecord>(
     activeTab === "history" ||
     activeTab === "rejected"
   ) {
-    if (activeTab === "issued" || activeTab === "done") {
+    if (activeTab === "issued") {
       return withEmbossingReceivedAvailableColumns(visibleColumns);
+    }
+    if (activeTab === "done") {
+      return withEmbossingReceivedColumns(visibleColumns);
+    }
+    if (activeTab === "history") {
+      return withEmbossingHistoryDamageColumn(visibleColumns);
     }
     return visibleColumns;
   }

@@ -990,6 +990,10 @@ function createInitialOrderState() {
       ? "Finished Goods"
       : pickValue(productCategoryOptions, sequence);
     const baseType = pickValue(baseTypes, sequence);
+    // Raw "Decorative (Pressed Veneer)" / Fluted / Embossed categories still need base for Pressing.
+    const needsBase =
+      isFinished ||
+      /decorative|fluted|embossed|marquetry/i.test(productCategory);
 
     return {
       id: `order-line-item-${recordNumber}-${itemIndex + 1}`,
@@ -1007,11 +1011,11 @@ function createInitialOrderState() {
       sqm: formatAreaValue(sqm),
       totalSqm: formatAreaValue(sqf),
       ratePerSqf: formatCurrencyAmount(ratePerSqf),
-      baseType: isFinished ? baseType : "",
-      baseName: isFinished ? `${baseType} Base ${String(sequence).padStart(2, "0")}` : "",
-      baseLength: isFinished ? `${lengthMm} mm` : "",
-      baseWidth: isFinished ? `${widthMm} mm` : "",
-      baseThickness: isFinished ? `${12 + (sequence % 5) * 3} mm` : "",
+      baseType: needsBase ? baseType : "",
+      baseName: needsBase ? `${baseType} Base ${String(sequence).padStart(2, "0")}` : "",
+      baseLength: needsBase ? `${lengthMm} mm` : "",
+      baseWidth: needsBase ? `${widthMm} mm` : "",
+      baseThickness: needsBase ? `${12 + (sequence % 5) * 3} mm` : "",
       amount: formatCurrencyAmount(amount),
       remark: itemIndex === 0 ? pickValue(seedRemarks, sequence) : "",
     };

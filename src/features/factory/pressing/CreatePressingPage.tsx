@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Box, Button, Typography } from "@mui/material";
+import { Alert, Box, Button, Snackbar, Typography } from "@mui/material";
 import { useNavigate, useParams } from "react-router";
 
 import {
@@ -41,9 +41,12 @@ import {
 import {
   buildPressingDummyIssuedRows,
   buildPressingDummySampleIssuedRows,
-  getPressingOrderLineItems,
+  getPressingOrderItemNumberOptions,
+  getPressingOrderLineItemOptions,
+  getPressingOrderNumberOptions,
   pressingDummyOrders,
 } from "./pressingDummyIssuedRows";
+import { getPressingDoneIssuedForLabel } from "./pressingIssuedForLabel";
 import { pressingRowIssuedForOrder } from "./pressingOrderMatch";
 import {
   PressingGroupDetailsTable,
@@ -53,18 +56,17 @@ import {
   PressingBaseDetailsTable,
   type PressingBaseDetailRow,
 } from "./PressingBaseDetailsTable";
+import { normalizeSplicingOrderType } from "../shared/listing/factoryListingParts";
 import {
   PressingPurposeChoice,
+  pressingProductTypeOptions,
   type PressingPurpose,
 } from "./PressingPurposeChoice";
 import {
   PressingProcessFields,
   type PressingProcessValues,
 } from "./PressingProcessFields";
-import {
-  PressingRejectDetails,
-  type PressingRejectValues,
-} from "./PressingRejectDetails";
+import { type PressingRejectValues } from "./PressingRejectDetails";
 import {
   calculatePressingUsedArea,
   firstPressingText,
@@ -81,6 +83,33 @@ import {
   usePressingBaseStock,
   type PressingBaseMaterialType,
 } from "./usePressingBaseStock";
+
+function normalizePressingProductType(value: string) {
+  const normalized = normalizeSplicingOrderType(value);
+  return pressingProductTypeOptions.find((option) => option === normalized) ?? "";
+}
+
+function orderItemDigits(value: string) {
+  return value.replace(/\D/g, "").replace(/^0+/, "") || "0";
+}
+
+function resolvePressingOrderItemNo(
+  options: readonly string[],
+  orderItemNo: string,
+) {
+  if (!orderItemNo) {
+    return "";
+  }
+
+  if (options.includes(orderItemNo)) {
+    return orderItemNo;
+  }
+
+  const digits = orderItemDigits(orderItemNo);
+  return (
+    options.find((option) => orderItemDigits(option) === digits) ?? orderItemNo
+  );
+}
 
 function todayInputValue() {
   const today = new Date();
@@ -130,8 +159,15 @@ export function CreatePressingPage({
     [editContext],
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [toastNotification, setToastNotification] = useState<{
+    message: string;
+    severity: "error" | "success";
+  } | null>(null);
   const [purpose, setPurpose] = useState<PressingPurpose>(
     editForm?.purpose ?? "",
+  );
+  const [productType, setProductType] = useState(
+    normalizePressingProductType(editForm?.productType ?? ""),
   );
   const [orderNo, setOrderNo] = useState(editForm?.orderNo ?? "");
   const [orderItemNo, setOrderItemNo] = useState(editForm?.orderItemNo ?? "");
@@ -222,27 +258,51 @@ export function CreatePressingPage({
       ? "This order is cancelled or its allocation is no longer active. Issued pressing records were refreshed."
       : "";
 
-  const orderItemOptions = useMemo(() => {
-    if (!selectedOrder) {
-      return [] as string[];
-    }
+  const orderOptions = useMemo(
+    () =>
+      productType
+        ? getPressingOrderNumberOptions(pressingOrderRecords, productType)
+        : [],
+    [pressingOrderRecords, productType],
+  );
 
-    return getPressingOrderLineItems(String(selectedOrder.id)).map((_, index) =>
-      String(index + 1),
-    );
-  }, [selectedOrder]);
+  const orderItemOptions = useMemo(
+    () =>
+      productType && orderNo
+        ? getPressingOrderItemNumberOptions(
+            pressingOrderRecords,
+            productType,
+            orderNo,
+          )
+        : [],
+    [orderNo, pressingOrderRecords, productType],
+  );
 
   const selectedOrderLine = useMemo(() => {
-    if (!selectedOrder || !orderItemNo) {
+    if (!selectedOrder || !orderItemNo || !productType) {
       return null;
     }
 
+    const options = getPressingOrderLineItemOptions(selectedOrder, productType);
     return (
-      getPressingOrderLineItems(String(selectedOrder.id))[
-        Number(orderItemNo) - 1
-      ] ?? null
-    );
-  }, [orderItemNo, selectedOrder]);
+      options.find((option) => option.orderItemNo === orderItemNo) ??
+      options.find(
+        (option) =>
+          orderItemDigits(option.orderItemNo) === orderItemDigits(orderItemNo),
+      )
+    )?.lineItem ?? null;
+  }, [orderItemNo, productType, selectedOrder]);
+
+  useEffect(() => {
+    if (purpose !== "Order" || !orderItemNo || orderItemOptions.length === 0) {
+      return;
+    }
+
+    const resolved = resolvePressingOrderItemNo(orderItemOptions, orderItemNo);
+    if (resolved !== orderItemNo) {
+      setOrderItemNo(resolved);
+    }
+  }, [orderItemNo, orderItemOptions, purpose]);
 
   const prevOrderSelectionRef = useMemo(() => ({ currentKey: "" }), []);
 
@@ -252,14 +312,15 @@ export function CreatePressingPage({
       return;
     }
 
-    const selectionKey = `${orderNo}__${orderItemNo}`;
-    if (!orderNo || !orderItemNo) {
+    const selectionKey = `${productType}__${orderNo}__${orderItemNo}`;
+    if (!productType || !orderNo || !orderItemNo) {
       prevOrderSelectionRef.currentKey = selectionKey;
       return;
     }
 
     const isOriginalEditSelection =
       isEdit &&
+      productType === editForm?.productType &&
       orderNo === editForm?.orderNo &&
       orderItemNo === editForm?.orderItemNo;
     if (isOriginalEditSelection) {
@@ -291,6 +352,7 @@ export function CreatePressingPage({
         pressingText(selectedOrderLine?.itemName) ||
         pressingText(selectedOrderLine?.salesItemName) ||
         pressingText(selectedOrder?.itemName),
+      productType,
       remark:
         pressingText(selectedOrderLine?.remark) ||
         pressingText(selectedOrder?.remark),
@@ -307,6 +369,7 @@ export function CreatePressingPage({
     orderItemNo,
     orderNo,
     prevOrderSelectionRef,
+    productType,
     purpose,
     selectedOrder,
     selectedOrderLine,
@@ -572,7 +635,7 @@ export function CreatePressingPage({
     Boolean(rejectValues.quantity.trim()) && Number(rejectValues.quantity) <= 0;
   const canCreate =
     (purpose === "Order"
-      ? Boolean(orderNo && orderItemNo && orderActive)
+      ? Boolean(productType && orderNo && orderItemNo && orderActive)
       : purpose === "Sample Sheet") &&
     groupDetailRows.length > 0 &&
     !veneerQtyInvalid &&
@@ -586,10 +649,57 @@ export function CreatePressingPage({
     !outputExceedsVeneer &&
     !outputExceedsBase &&
     !rejectQuantityInvalid;
+  const createBlockedReason = (() => {
+    if (canCreate) {
+      return "";
+    }
+    if (purpose === "Order") {
+      if (!productType || !orderNo || !orderItemNo) {
+        return "Select product type, order no, and order item no.";
+      }
+      if (!orderActive) {
+        return "Selected order is not active for pressing.";
+      }
+    } else if (purpose !== "Sample Sheet") {
+      return "Select Pressing For (Order or Sample Sheet).";
+    }
+    if (!processValues.pressingDate || !processValues.outputItemName.trim()) {
+      return "Fill pressing date and output item name.";
+    }
+    if (!(outputSheets > 0)) {
+      return "Output no of sheets must be greater than 0.";
+    }
+    if (groupDetailRows.length === 0) {
+      return "Add at least one group in Group Details (select group, enter consume, Add Item).";
+    }
+    if (veneerQtyInvalid) {
+      return "Group consume is missing or exceeds available sheets.";
+    }
+    if (baseDetailRows.length === 0) {
+      return "Add at least one base pallet (select pallet, enter consume sheets, Add Item).";
+    }
+    if (baseQtyInvalid) {
+      return "Base consume sheets are missing or exceed available sheets.";
+    }
+    if (outputExceedsVeneer) {
+      return `Output sheets (${outputSheets}) cannot exceed group consume total (${veneerUseTotal}).`;
+    }
+    if (outputExceedsBase) {
+      return `Output sheets (${outputSheets}) cannot exceed base consume total (${baseUseTotal}).`;
+    }
+    if (rejectQuantityInvalid) {
+      return "Reject quantity must be greater than 0 when entered.";
+    }
+    return "Complete all required pressing fields.";
+  })();
 
   const handleCreate = () => {
     setHasSubmitted(true);
     if (!canCreate) {
+      setToastNotification({
+        message: createBlockedReason || "Complete all required pressing fields.",
+        severity: "error",
+      });
       return;
     }
 
@@ -650,6 +760,13 @@ export function CreatePressingPage({
             orderDate: selectedOrder.orderDate,
             orderItemNo,
             orderNo: selectedOrder.orderNo,
+            ...(productType
+              ? {
+                  productType,
+                  finishedType: productType,
+                  orderType: productType,
+                }
+              : {}),
           }
         : {}),
       selectedBaseMaterial,
@@ -679,12 +796,34 @@ export function CreatePressingPage({
       });
     }
 
+    const orderProductType = purpose === "Order" ? productType : "";
+
     selectedVeneerRows.forEach((row) => {
       const draft = veneerDrafts[String(row.id)] ?? {
         qtyToUse: "",
         remark: "",
       };
       const sourceSnapshot = readPressingSourceSnapshot(row);
+      const sourceProductType =
+        pressingText(sourceSnapshot.productType) ||
+        pressingText(sourceSnapshot.finishedType) ||
+        pressingText(sourceSnapshot.orderType);
+      const sourceIssuedFrom =
+        pressingText(sourceSnapshot.issuedFrom) ||
+        pressingText(sourceSnapshot.sourceProcess) ||
+        pressingText(row.issuedFrom) ||
+        pressingText(row.sourceProcess);
+      // Marquetry-sourced stock keeps Marquetry route even when order finishedType is empty.
+      const marquetrySourced = sourceIssuedFrom
+        .toLowerCase()
+        .includes("marquetry");
+      const resolvedProductType =
+        orderProductType ||
+        sourceProductType ||
+        (marquetrySourced ? "Marquetry" : "");
+      const routeLabel =
+        getPressingDoneIssuedForLabel(resolvedProductType) ||
+        resolvedProductType;
       const resultSnapshot = {
         ...sourceSnapshot,
         ...resultBase,
@@ -693,6 +832,29 @@ export function CreatePressingPage({
         processRemark: processValues.remark,
         qtyToUse: draft.qtyToUse,
         remark: draft.remark || resultBase.remark,
+        ...(sourceIssuedFrom
+          ? {
+              issuedFrom: sourceIssuedFrom,
+              sourceProcess: sourceIssuedFrom,
+            }
+          : {}),
+        ...(resolvedProductType
+          ? {
+              productType: resolvedProductType,
+              finishedType: resolvedProductType,
+              // Fluted → Fluting, Embossed → Embossing, Decorative/Marquetry → Finishing.
+              nextProcess:
+                routeLabel === "Decorative" || routeLabel === "Marquetry"
+                  ? "Finishing"
+                  : routeLabel || resolvedProductType,
+            }
+          : marquetrySourced
+            ? {
+                productType: "Marquetry",
+                finishedType: "Marquetry",
+                nextProcess: "Finishing",
+              }
+            : {}),
       };
       const workItemId = readPressingWorkItemId(row);
 
@@ -745,12 +907,18 @@ export function CreatePressingPage({
       : "No issued pressing records are available for this sample sheet.";
   const pressingReady =
     (purpose === "Order" &&
-      Boolean(orderNo && orderItemNo && (orderActive || isEdit))) ||
+      Boolean(
+        productType && orderNo && orderItemNo && (orderActive || isEdit),
+      )) ||
     purpose === "Sample Sheet";
   const baseReady = baseType === "Plywood" || baseType === "MDF";
   const selectionReady = pressingReady && baseReady;
   const pageTitle = isEdit ? "Edit Pressing" : "Create Pressing";
   const listPath = isEdit ? `${paths.list}?tab=done` : paths.list;
+  const outputProductType =
+    purpose === "Order"
+      ? productType
+      : pressingText(processValues.productType);
 
   if (isEdit && !editContext) {
     return (
@@ -791,6 +959,7 @@ export function CreatePressingPage({
         }}
         onChange={(nextPurpose) => {
           setPurpose(nextPurpose);
+          setProductType("");
           setOrderNo("");
           setOrderItemNo("");
           setSampleNo("");
@@ -803,11 +972,21 @@ export function CreatePressingPage({
           setOrderNo(nextOrderNo);
           setOrderItemNo("");
         }}
+        onProductTypeChange={(nextProductType) => {
+          setProductType(normalizePressingProductType(nextProductType));
+          setOrderNo("");
+          setOrderItemNo("");
+          setSelectedVeneerIds([]);
+          setVeneerDrafts({});
+          setGroupDetailRows([]);
+        }}
         orderItemNo={orderItemNo}
         orderItemOptions={orderItemOptions}
         orderNo={orderNo}
-        orderOptions={pressingOrderRecords.map((order) => order.orderNo)}
+        orderOptions={orderOptions}
         orderRecords={pressingOrderRecords}
+        productType={productType}
+        selectedOrderLine={selectedOrderLine}
         showError={hasSubmitted}
         value={purpose}
       />
@@ -830,6 +1009,7 @@ export function CreatePressingPage({
             setProcessValues((current) => ({ ...current, ...patch }))
           }
           outputError={hasSubmitted ? outputError : ""}
+          productType={outputProductType}
           showErrors={hasSubmitted}
           values={processValues}
         />
@@ -877,7 +1057,6 @@ export function CreatePressingPage({
         </Button>
         <Button
           disableElevation
-          disabled={!canCreate}
           onClick={handleCreate}
           sx={highlightedRecordFormPrimaryButtonSx}
           variant="contained"
@@ -885,6 +1064,29 @@ export function CreatePressingPage({
           {isEdit ? "Update Pressing" : "Create Pressing"}
         </Button>
       </Box>
+
+      <Snackbar
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        autoHideDuration={4500}
+        onClose={() => setToastNotification(null)}
+        open={Boolean(toastNotification)}
+      >
+        {toastNotification ? (
+          <Alert
+            onClose={() => setToastNotification(null)}
+            severity={toastNotification.severity}
+            sx={{
+              borderRadius: 1.5,
+              boxShadow: "0 8px 16px rgba(0,0,0,0.15)",
+              fontWeight: 600,
+              width: "100%",
+            }}
+            variant="filled"
+          >
+            {toastNotification.message}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </FactoryPageShell>
   );
 }
