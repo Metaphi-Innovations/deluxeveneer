@@ -23,6 +23,7 @@ const issuedColumnOrder = [
   "issuedDate",
   "itemName",
   "subCategory",
+  "batchNo",
   "grade",
   "length",
   "width",
@@ -40,6 +41,7 @@ const issuedColumnOrder = [
 
 const issuedExtraLabels: Record<string, string> = {
   availableNoOfLeaves: "Available Leaves",
+  batchNo: "Batch No",
   itemName: "Item Name",
   receivedNoOfLeaves: "Received Leaves",
   subCategory: "Sub Category",
@@ -113,6 +115,16 @@ function groupingDoneColumns<Row extends FactoryRecord>(
   const identityColumns: readonly EnterpriseTableColumn<Row>[] = [
     { key: "itemName", label: "Item Name" },
     { key: "subCategory", label: "Sub Category" },
+    {
+      key: "batchNo",
+      label: "Batch No",
+      renderCell: (row: Row) =>
+        String(
+          (row as Record<string, unknown>).batchNo ||
+            (row as Record<string, unknown>).batchNoCode ||
+            "-",
+        ),
+    },
   ];
   const withoutIdentity = columns.filter(
     (column) => !identityColumns.some((extra) => extra.key === column.key),

@@ -278,6 +278,15 @@ export async function fetchStorageColumnDropdown(
   return response.data;
 }
 
+export async function fetchAllStorageInventoryRows(
+  tabSlug: string,
+  params: Omit<StorageQueryParams, "page" | "limit">,
+  inventorySlug: WarehouseInventoryRow["inventorySlug"],
+): Promise<WarehouseInventoryRow[]> {
+  const items = await exportStorageInventoryApi(tabSlug, params);
+  return items.map((item) => mapStorageItemToRow(item, inventorySlug));
+}
+
 export async function exportStorageInventoryApi(
   tabSlug: string,
   params: Omit<StorageQueryParams, "page" | "limit">

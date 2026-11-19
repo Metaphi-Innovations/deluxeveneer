@@ -213,7 +213,7 @@ export function orderSplicingCreateFields(
     "thickness",
     "noOfSheets",
   ]);
-  const visibleFields = fields
+  let visibleFields = fields
     .filter(
       (field) =>
         field.key !== "noOfLeaves" &&
@@ -229,27 +229,60 @@ export function orderSplicingCreateFields(
         field.key !== "sgst" &&
         field.key !== "igst",
     )
-    .map((field) => ({
-      ...field,
-      readOnly: !editableKeys.has(field.key),
-    }));
+    .map((field) => {
+      if (field.key === "logNo") {
+        return { ...field, label: "Lot No", readOnly: true };
+      }
+      if (field.key === "batchNo") {
+        return { ...field, label: "Batch No", readOnly: true };
+      }
+      if (field.key === "color" || field.key === "colour") {
+        return { ...field, label: "Color", readOnly: true };
+      }
+      return {
+        ...field,
+        readOnly: !editableKeys.has(field.key),
+      };
+    });
+
+  if (!visibleFields.some((field) => field.key === "batchNo")) {
+    visibleFields = [
+      ...visibleFields,
+      { key: "batchNo", label: "Batch No", type: "text", readOnly: true },
+    ];
+  }
+  if (!visibleFields.some((field) => field.key === "color" || field.key === "colour")) {
+    visibleFields = [
+      ...visibleFields,
+      { key: "color", label: "Color", type: "text", readOnly: true },
+    ];
+  }
+
   const colorField = visibleFields.find(
     (field) => field.key === "color" || field.key === "colour",
   );
-  const withoutColor = colorField
-    ? visibleFields.filter((field) => field !== colorField)
-    : visibleFields;
-  const logNoIndex = withoutColor.findIndex((field) => field.key === "logNo");
-  const colorOrdered = colorField && logNoIndex >= 0
-    ? [
-        ...withoutColor.slice(0, logNoIndex),
-        colorField,
-        ...withoutColor.slice(logNoIndex),
-      ]
-    : withoutColor;
-  const sheetsField = colorOrdered.find((field) => field.key === "noOfSheets");
-  if (!sheetsField) return colorOrdered;
-  const withoutSheets = colorOrdered.filter((field) => field !== sheetsField);
+  const batchNoField = visibleFields.find((field) => field.key === "batchNo");
+  const withoutSpecial = visibleFields.filter(
+    (field) => field !== colorField && field !== batchNoField,
+  );
+  const logNoIndex = withoutSpecial.findIndex((field) => field.key === "logNo");
+  const withLotBatchColor =
+    logNoIndex >= 0
+      ? [
+          ...withoutSpecial.slice(0, logNoIndex + 1),
+          ...(batchNoField ? [batchNoField] : []),
+          ...(colorField ? [colorField] : []),
+          ...withoutSpecial.slice(logNoIndex + 1),
+        ]
+      : [
+          ...withoutSpecial,
+          ...(batchNoField ? [batchNoField] : []),
+          ...(colorField ? [colorField] : []),
+        ];
+
+  const sheetsField = withLotBatchColor.find((field) => field.key === "noOfSheets");
+  if (!sheetsField) return withLotBatchColor;
+  const withoutSheets = withLotBatchColor.filter((field) => field !== sheetsField);
   const remarkIndex = withoutSheets.findIndex((field) => field.key === "remark");
   const insertionIndex = remarkIndex >= 0 ? remarkIndex : withoutSheets.length;
   return [
@@ -271,7 +304,8 @@ export const splicingCreateSourceColumns = [
   { key: "orderItemNo", keys: ["orderItemNo"], label: "Order Item No", minWidth: 140 },
   { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 170 },
   { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory"], label: "Sub Category", minWidth: 160 },
-  { key: "logNo", keys: ["logNo", "logCode", "batchNo"], label: "Lot No", minWidth: 140 },
+  { key: "logNo", keys: ["logNo", "logCode"], label: "Lot No", minWidth: 140 },
+  { key: "batchNo", keys: ["batchNo", "batchNoCode"], label: "Batch No", minWidth: 140 },
   { key: "bundleNumber", keys: ["bundleNumber", "noOfBundle"], label: "Bundle No.", minWidth: 140 },
   { key: "palletNo", keys: ["palletNo", "palletNumber"], label: "Pallet No.", minWidth: 140 },
   { key: "color", keys: ["color", "colour", "processColour"], label: "Color", minWidth: 120 },

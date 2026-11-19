@@ -9,8 +9,9 @@ import {
   EnterpriseDataTable,
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
-import { Eye } from "lucide-react";
+import { Eye, PackageCheck } from "lucide-react";
 import { useNavigate } from "react-router";
+import { getIssueStockForPackingPath } from "../issue-stock-for-packing/issueStockForPacking.mappers";
 import {
   toApiColumnFilters,
   type ColumnFilterValue,
@@ -70,6 +71,7 @@ export function PlywoodTab({
   warehouseName = "Production Warehouse",
   searchValue,
   canView,
+  canEdit,
   onListQueryChange,
 }: PlywoodTabProps) {
   const navigate = useNavigate();
@@ -180,9 +182,27 @@ export function PlywoodTab({
         });
       }
 
+      if (canEdit && warehouseId) {
+        list.push({
+          id: "issue-for-order",
+          label: "Issue for Order",
+          icon: PackageCheck,
+          tone: "primary",
+          onSelect: (row: PlywoodRow) => {
+            navigate(
+              getIssueStockForPackingPath({
+                warehouseId,
+                materialType: "plywood",
+                inventoryId: row.inventoryRecordId || String(row.id),
+              }),
+            );
+          },
+        });
+      }
+
       return list;
     },
-    [canView, navigate, warehouseId, warehouseName],
+    [canEdit, canView, navigate, warehouseId, warehouseName],
   );
 
   return (

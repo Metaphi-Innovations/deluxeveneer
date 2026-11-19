@@ -831,13 +831,38 @@ export function normalizeFactorySourceColumns<Row extends FactoryRecord>(
   const logNo = getFactoryString(row.logNo) || getFactoryString(row.logCode);
   const height = getFactoryString(row.height);
   const thickness = getFactoryString(row.thickness);
+  const selectedBaseMaterial = (row as Record<string, unknown>)
+    .selectedBaseMaterial;
+  const selectedBases = Array.isArray(selectedBaseMaterial)
+    ? selectedBaseMaterial
+    : selectedBaseMaterial && typeof selectedBaseMaterial === "object"
+      ? [selectedBaseMaterial]
+      : [];
+  const primarySelectedBase = selectedBases[0] as
+    | Record<string, unknown>
+    | undefined;
+  const usePressedBaseIdentity =
+    processSlug === "cnc-fluting" ||
+    processSlug === "embossing" ||
+    processSlug === "finishing";
+  const pressedBaseBundle = usePressedBaseIdentity
+    ? getFactoryString(primarySelectedBase?.bundleNumber) ||
+      getFactoryString(primarySelectedBase?.bundleNo)
+    : "";
+  const pressedBasePallet = usePressedBaseIdentity
+    ? getFactoryString(primarySelectedBase?.palletNo) ||
+      getFactoryString(primarySelectedBase?.palletNumber)
+    : "";
   const bundleNumber =
     getFactoryString(row.bundleNumber) ||
+    getFactoryString(row.bundleNo) ||
     getFactoryString(row.noOfBundle) ||
+    pressedBaseBundle ||
     `BDL-${getFactoryWarehouseCode(warehouseName)}-${rowSequence}`;
   const palletNo =
     getFactoryString(row.palletNo) ||
     getFactoryString(row.palletNumber) ||
+    pressedBasePallet ||
     `PAL-${getFactoryWarehouseCode(warehouseName)}-${rowSequence}`;
   const noOfLeaves =
     getFactoryString(row.noOfLeaves) ||
@@ -874,9 +899,7 @@ export function normalizeFactorySourceColumns<Row extends FactoryRecord>(
     getFactoryString(row.storageSerialNumber) ||
     "";
   const batchNo =
-    getFactoryString(row.batchNo) ||
-    getFactoryString(row.logNo) ||
-    getFactoryString(row.logCode);
+    getFactoryString(row.batchNo) || getFactoryString(row.batchNoCode);
   const receivedCbm =
     getFactoryString(row.receivedCbm) ||
     getFactoryString(row.cbm);

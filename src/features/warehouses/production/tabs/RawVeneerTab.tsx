@@ -10,8 +10,9 @@ import {
   type EnterpriseTableAction,
 } from "../../../../components/data-display/EnterpriseDataTable";
 import { ConfirmationDialog } from "../../../../components/feedback/ConfirmationDialog";
-import { Eye, Plus } from "lucide-react";
+import { Eye, PackageCheck, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
+import { getIssueStockForPackingPath } from "../issue-stock-for-packing/issueStockForPacking.mappers";
 import {
   toApiColumnFilters as toSharedApiColumnFilters,
   type ColumnFilterValue,
@@ -263,6 +264,22 @@ export function RawVeneerTab({
 
       if (canEdit && warehouseId) {
         list.push({
+          id: "issue-for-order",
+          label: "Issue for Order",
+          icon: PackageCheck,
+          tone: "primary",
+          onSelect: (row: RawVeneerRow) => {
+            navigate(
+              getIssueStockForPackingPath({
+                warehouseId,
+                materialType: "raw-veneer",
+                inventoryId: row.inventoryRecordId || String(row.id),
+              }),
+            );
+          },
+        });
+
+        list.push({
           id: "issue-for-grouping",
           label: "Issue for Grouping",
           icon: Plus,
@@ -329,6 +346,7 @@ export function RawVeneerTab({
               thickness: groupingIssueRow.thickness,
               height: groupingIssueRow.thickness,
               grade: groupingIssueRow.grade,
+              batchNo: groupingIssueRow.batchNo,
               currency: groupingIssueRow.currency,
               remark: groupingIssueRow.remark,
               updatedBy: groupingIssueRow.updatedBy,
@@ -370,10 +388,32 @@ export function RawVeneerTab({
             sourceWarehouseName: warehouseName,
             sourceRow: {
               ...row,
+              itemName: row.itemName,
+              productName: row.itemName,
+              subCategory: row.subCategory,
+              itemSubCategory: row.subCategory,
+              batchNo: row.batchNo,
+              grade: row.grade,
+              length: row.length,
+              width: row.width,
+              thickness: row.thickness,
+              height: row.thickness,
+              noOfLeaves: row.noOfLeaves,
+              receivedNoOfLeaves: row.noOfLeaves,
+              availableNoOfLeaves:
+                row.availableNoOfLeaves || row.noOfLeaves,
+              sqm: row.sqm,
+              sqf: row.sqf,
+              totalSqm: row.sqm,
+              totalSqf: row.sqf,
+              storageSrNo: row.storageSrNo,
+              productionSrNo: row.productionSrNo,
               issuedFrom: "Inventory",
               issuedFor: "Marquetry",
               issuedDate: new Date(),
+              issueDate: new Date(),
               warehouseName,
+              inventorySlug: row.inventorySlug ?? "raw-veneer",
             } as FactoryRecord,
           });
         }}

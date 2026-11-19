@@ -121,11 +121,20 @@ export function buildEmbossingDoneSnapshot(
   const outputSqf = scaleMeasure(row.sqf, availableSheets, entry.noOfSheets);
   const outputSqm = scaleMeasure(row.sqm, availableSheets, entry.noOfSheets);
 
+  const batchNo = String(row.batchNo || row.batchNoCode || "").trim();
+  const bundleNumber = String(row.bundleNumber || row.bundleNo || "").trim();
+  const palletNo = String(row.palletNo || row.palletNumber || "").trim();
+  const logNo = String(row.logNo || row.logCode || "").trim();
+
   return {
     ...row,
     cncDate: embossingDate,
     embossingDate,
     ...(structureCode ? { structureCode } : {}),
+    ...(batchNo ? { batchNo, batchNoCode: batchNo } : {}),
+    ...(bundleNumber ? { bundleNo: bundleNumber, bundleNumber } : {}),
+    ...(palletNo ? { palletNo, palletNumber: palletNo } : {}),
+    ...(logNo ? { logNo, logCode: logNo } : {}),
     damagedSheets: String(entry.damagedSheets),
     embossingDamagedSheets: String(entry.damagedSheets),
     embossedSheets: sheets,
@@ -250,7 +259,26 @@ export function EmbossingCreateDialog({
     { label: "Order Item No", minWidth: 140, value: row?.orderItemNo },
     { label: "Item Name", minWidth: 170, value: row?.itemName },
     { label: "Item Sub Category", minWidth: 160, value: row?.itemSubCategory },
-    { label: "Design Code", minWidth: 140, value: row?.designCode },
+    {
+      label: "Lot No",
+      minWidth: 120,
+      value: row?.logNo ?? row?.logCode,
+    },
+    {
+      label: "Batch No",
+      minWidth: 140,
+      value: row?.batchNo ?? row?.batchNoCode,
+    },
+    {
+      label: "Bundle No",
+      minWidth: 140,
+      value: row?.bundleNumber ?? row?.bundleNo,
+    },
+    {
+      label: "Pallet No",
+      minWidth: 140,
+      value: row?.palletNo ?? row?.palletNumber,
+    },
     { label: "Structure Code", minWidth: 140, value: row?.structureCode },
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },

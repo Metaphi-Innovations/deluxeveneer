@@ -14,15 +14,6 @@ import { ClearableSearchField } from "../../shared/ClearableSearchField";
 import { exportRowsToCsv } from "../../shared/exportToCsv";
 import { getDynamicWarehousePermissionKey } from "../../shared/warehousePermission";
 import { useDebouncedValue } from "../../../query/useDebouncedValue";
-import {
-  getOrderLineItems,
-  useOrderRecords,
-  type OrderRecord,
-} from "../../orders/shared/ordersStore";
-import {
-  IssueOrderDialog,
-  type IssueOrderValues,
-} from "../shared/IssueOrderDialog";
 
 import {
   productionWarehouseTabs,
@@ -43,21 +34,20 @@ import { SampleSheetsTab } from "../production/tabs/SampleSheetsTab";
 import { getFactoryIssuedWorkItems } from "../../factory/shared/factoryIssuedWorkStore";
 import {
   exportProductionInventoryApi,
-  getBoardIssueToOrderPath,
-  issueOrderToProduction,
   type ProductionInventoryItem,
 } from "../production/api/productionWarehouseApi";
 import {
   groupingIssuedLeavesBySource,
   withGroupingAvailability,
 } from "./rawVeneerGroupingQuantity";
-import { invalidateWarehouseProduction } from "../../../query/queryClient";
 import {
   EMPTY_PRODUCTION_LIST_QUERY,
   type ProductionListQueryState,
 } from "../production/productionListQuery";
 import { WarehouseKpiCards } from "../components/WarehouseKpiCards";
 import { useWarehouseDynamicKpis } from "../shared/useWarehouseDynamicKpis";
+import { getIssueStockForPackingPath } from "./issue-stock-for-packing/issueStockForPacking.mappers";
+import type { IssueStockMaterial } from "./issue-stock-for-packing/issueStockForPacking.types";
 
 export interface ProductionWarehousePageProps {
   warehouseId?: string | undefined;
@@ -73,11 +63,6 @@ export function ProductionWarehousePage({
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchValue, setSearchValue] = useState("");
   const debouncedSearchValue = useDebouncedValue(searchValue, 450);
-  const [issueOrderDialogOpen, setIssueOrderDialogOpen] = useState(false);
-  const [issueOrderValues, setIssueOrderValues] = useState<IssueOrderValues>({
-    orderItemNo: "",
-    orderNo: "",
-  });
   const [listQuery, setListQuery] = useState<ProductionListQueryState>(
     EMPTY_PRODUCTION_LIST_QUERY,
   );
@@ -103,86 +88,27 @@ export function ProductionWarehousePage({
     tab: activeInventory,
   });
 
-  const orderRecords = useOrderRecords();
-  const rawOrderRecords = useMemo(
-    () => orderRecords.filter(isRawOrderRecord),
-    [orderRecords],
-  );
-
-  const issueOrderNoOptions = useMemo(
-    () =>
-      rawOrderRecords
-        .filter((record) => getOrderLineItems(record.id).length > 0)
-        .map((record) => record.orderNo),
-    [rawOrderRecords],
-  );
-
-  const selectedIssueOrder = useMemo(
-    () =>
-      rawOrderRecords.find(
-        (record) => record.orderNo === issueOrderValues.orderNo,
-      ) ?? null,
-    [issueOrderValues.orderNo, rawOrderRecords],
-  );
-
-  const issueOrderItemNoOptions = useMemo(
-    () =>
-      selectedIssueOrder
-        ? getOrderLineItems(selectedIssueOrder.id).map((_, index) =>
-          `OI-${String(index + 1).padStart(3, "0")}`,
-        )
-        : [],
-    [selectedIssueOrder],
-  );
-
-  const isBoardIssueTab =
-    activeInventory === "plywood" || activeInventory === "mdf";
-  const isLegacyIssueDialogTab = activeInventory === "raw-veneer";
+  const isIssueStockTab =
+    activeInventory === "raw-veneer" ||
+    activeInventory === "plywood" ||
+    activeInventory === "mdf";
 
   const showIssueOrderButton =
     !isSampleSheetsTab &&
     !isSawingTab &&
     canEditWarehouseC &&
-    (isBoardIssueTab || isLegacyIssueDialogTab);
+    isIssueStockTab;
 
   const handleOpenIssueOrder = () => {
-    if (isBoardIssueTab) {
-      if (!warehouseId) {
-        return;
-      }
-      navigate(
-        getBoardIssueToOrderPath({
-          warehouseId,
-          materialType: activeInventory as "plywood" | "mdf",
-        }),
-      );
+    if (!warehouseId || !isIssueStockTab) {
       return;
     }
-    setIssueOrderValues({ orderItemNo: "", orderNo: "" });
-    setIssueOrderDialogOpen(true);
-  };
-
-  const handleSubmitIssueOrder = async () => {
-    if (!issueOrderValues.orderNo || !issueOrderValues.orderItemNo) {
-      return;
-    }
-
-    // Sawing inventory is frontend-only for now — close modal without API.
-    if (!isSawingTab) {
-      try {
-        await issueOrderToProduction({
-          orderNo: issueOrderValues.orderNo,
-          orderItemNo: issueOrderValues.orderItemNo,
-          warehouseId,
-          inventoryType: activeInventory,
-        });
-        void invalidateWarehouseProduction();
-      } catch {
-        // Issue-order API failed; dialog still closes after attempt.
-      }
-    }
-
-    setIssueOrderDialogOpen(false);
+    navigate(
+      getIssueStockForPackingPath({
+        warehouseId,
+        materialType: activeInventory as IssueStockMaterial,
+      }),
+    );
   };
 
   const handleListQueryChange = useCallback((query: ProductionListQueryState) => {
@@ -342,7 +268,7 @@ export function ProductionWarehousePage({
                 onClick={handleOpenIssueOrder}
                 sx={(theme) => getListingToolbarButtonSx(theme)}
               >
-                Issue Order
+                Issue for Order
               </Button>
             ) : null}
 
@@ -419,17 +345,6 @@ export function ProductionWarehousePage({
         )}
       </Stack>
 
-      {isLegacyIssueDialogTab ? (
-        <IssueOrderDialog
-          itemNoOptions={issueOrderItemNoOptions}
-          onChange={setIssueOrderValues}
-          onClose={() => setIssueOrderDialogOpen(false)}
-          onSubmit={handleSubmitIssueOrder}
-          open={issueOrderDialogOpen}
-          orderNoOptions={issueOrderNoOptions}
-          values={issueOrderValues}
-        />
-      ) : null}
     </MasterPageShell>
   );
 }
@@ -485,6 +400,3 @@ function getActiveTab(value: string | null): ProductionWarehouseTabSlug {
   return "raw-veneer";
 }
 
-function isRawOrderRecord(record: OrderRecord) {
-  return record.orderType.trim().toLowerCase().includes("raw");
-}

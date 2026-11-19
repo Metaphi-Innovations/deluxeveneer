@@ -60,7 +60,8 @@ export function getSelectDropdownListboxSx(theme: Theme) {
     scrollbarColor: `${theme.customTokens.brand.primary} ${theme.customTokens.surfaces.alt}`,
     scrollbarWidth: "thin" as const,
     "&::-webkit-scrollbar": {
-      width: 6,
+      width: 3,
+      height: 3,
     },
     "&::-webkit-scrollbar-track": {
       backgroundColor: theme.customTokens.surfaces.alt,

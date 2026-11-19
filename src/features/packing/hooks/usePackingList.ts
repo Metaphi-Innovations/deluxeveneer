@@ -15,8 +15,12 @@ import {
   fetchPackingColumnDropdown,
   type PackingApiItem,
 } from "../api/packingApi";
+import { paginatePackingDummyRecords } from "../packingDummyData";
+import { parsePackingSourceRef } from "../../warehouses/production/issue-stock-for-packing/issueStockForPacking.logic";
 
 export function mapApiItemToPackingRecord(item: PackingApiItem): PackingRecord {
+  const sourceRef = item.sourceRef ?? "";
+  const parsed = parsePackingSourceRef(sourceRef);
   return {
     id: item.id,
     packingId: item.packingId ?? "",
@@ -39,7 +43,17 @@ export function mapApiItemToPackingRecord(item: PackingApiItem): PackingRecord {
     grade: item.grade ?? "",
     amount: String(item.amount ?? ""),
     remark: item.remark ?? "",
-    sourceRef: item.sourceRef ?? "",
+    sourceRef,
+    ...(parsed.warehouseIssueId
+      ? { warehouseIssueId: parsed.warehouseIssueId }
+      : {}),
+    ...(parsed.inventoryId ? { inventoryId: parsed.inventoryId } : {}),
+    ...(parsed.storageSrNo ? { storageSrNo: parsed.storageSrNo } : {}),
+    ...(parsed.productionSrNo
+      ? { productionSrNo: parsed.productionSrNo }
+      : {}),
+    ...(parsed.palletNo ? { palletNo: parsed.palletNo } : {}),
+    ...(parsed.batchNo ? { batchNo: parsed.batchNo } : {}),
     packingDate: item.packingDate ? new Date(item.packingDate) : null,
     dispatchDate: item.dispatchDate ? new Date(item.dispatchDate) : null,
     createdBy: item.createdBy ?? "",
@@ -89,10 +103,28 @@ export function usePackingList() {
         sortOrder: (sortConfig.sortOrder ?? "desc") as "asc" | "desc",
         filters: hasFilters ? apiFilters : undefined,
       });
-      setRows(result.items.map(mapApiItemToPackingRecord));
+      const apiRows = result.items.map(mapApiItemToPackingRecord);
+      if (apiRows.length === 0 && !hasFilters) {
+        const dummy = paginatePackingDummyRecords(activeTab, {
+          page,
+          limit: rowsPerPage,
+          search: searchValue,
+        });
+        setRows(dummy.items);
+        setTotalCount(dummy.total);
+        return;
+      }
+      setRows(apiRows);
       setTotalCount(result.total);
     } catch (err) {
       console.error("Failed to load packing list:", err);
+      const dummy = paginatePackingDummyRecords(activeTab, {
+        page,
+        limit: rowsPerPage,
+        search: searchValue,
+      });
+      setRows(dummy.items);
+      setTotalCount(dummy.total);
     } finally {
       setIsLoading(false);
     }

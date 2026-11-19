@@ -10,6 +10,7 @@ import {
 } from "../../shared/columnFilters";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
+  fetchAllStorageInventoryRows,
   fetchStorageColumnDropdown,
   fetchStorageInventoryPaginated,
   mapStorageItemToRow,
@@ -147,6 +148,41 @@ export function StorageRawVeneerInventory({
       ? "No raw veneer history records are available."
       : "No raw veneer inventory records are available.";
 
+  const resolveAllSelectableRows = useCallback(async () => {
+    if (!warehouseId || section !== "inventory") {
+      return [];
+    }
+    const apiFilters = toApiColumnFilters(columnFilters);
+    let allRows = await fetchAllStorageInventoryRows(
+      "raw-veneer",
+      {
+        warehouseId,
+        section,
+        ...(searchValue.trim() ? { search: searchValue.trim() } : {}),
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+      },
+      "raw-veneer",
+    );
+
+    if (rawTab === "purchase") {
+      allRows = allRows.filter(
+        (r) =>
+          !r.inwardType?.toLowerCase().includes("prod") &&
+          !r.referenceSrNo?.toLowerCase().includes("prd"),
+      );
+    } else if (rawTab === "production") {
+      allRows = allRows.filter(
+        (r) =>
+          r.inwardType?.toLowerCase().includes("prod") ||
+          r.referenceSrNo?.toLowerCase().includes("prd"),
+      );
+    }
+
+    return allRows;
+  }, [warehouseId, section, columnFilters, searchValue, sortBy, sortOrder, rawTab]);
+
   return (
     <Stack spacing={2}>
       {errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
@@ -189,6 +225,9 @@ export function StorageRawVeneerInventory({
         }}
         emptyStateLabel={emptyLabel}
         selectable={section === "inventory"}
+        {...(section === "inventory"
+          ? { resolveAllSelectableRows }
+          : {})}
         {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
         {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
         {...(actions !== undefined ? { actions } : {})}

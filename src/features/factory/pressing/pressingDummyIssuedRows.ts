@@ -155,6 +155,8 @@ export function buildPressingDummyIssuedRows(
           issuedFrom,
           issuedFor: "Pressing",
           groupNo: `GRP-${String(sequence).padStart(4, "0")}`,
+          logNo: `LOT-${String(sequence).padStart(4, "0")}`,
+          batchNo: `BATCH-PRS-${String(sequence).padStart(4, "0")}`,
           orderNo: order.orderNo,
           orderItemNo: String(itemIndex + 1),
           orderDate: order.orderDate,

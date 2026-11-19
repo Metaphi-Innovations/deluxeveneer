@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Box,
+  Checkbox,
   ClickAwayListener,
   IconButton,
   InputAdornment,
@@ -49,13 +50,28 @@ type BaseFieldProps = {
 };
 
 export type ErpSelectFieldProps = BaseFieldProps & {
+  /**
+   * When false, the menu stays open after choosing an option.
+   * Defaults to false when `multiple` is true, otherwise true.
+   */
+  closeOnSelect?: boolean | undefined;
   dropdownWidth?: number | string | undefined;
+  /** Caps the open menu viewport to this many rows; overflow scrolls. */
+  maxListItems?: number | undefined;
   maxVisibleOptions?: number | undefined;
+  /**
+   * Multi-select mode: options stay open, show checkboxes, and `selectedValues`
+   * marks which options are currently selected. `onChange` still receives the
+   * clicked option so the parent can toggle it.
+   */
+  multiple?: boolean | undefined;
   onChange: (value: string) => void;
   onOpen?: (() => void) | undefined;
   options: ReadonlyArray<string>;
   renderBottomAction?: ((helpers: { close: () => void }) => ReactNode) | undefined;
   searchable?: boolean;
+  /** Selected option labels when `multiple` is true. */
+  selectedValues?: ReadonlyArray<string> | undefined;
   value: string;
 };
 
@@ -611,18 +627,22 @@ function CalendarSurface({
 }
 
 export function ErpSelectField({
+  closeOnSelect,
   controlHeight,
   controlRadius,
   dropdownWidth,
   focusRing = "default",
   helperText,
+  maxListItems,
   maxVisibleOptions = defaultVisibleOptionLimit,
+  multiple = false,
   onChange,
   onOpen,
   options,
   placeholder,
   renderBottomAction,
   searchable = true,
+  selectedValues = [],
   size = "regular",
   state = "default",
   value,
@@ -632,19 +652,31 @@ export function ErpSelectField({
   const resolvedRadius = controlRadius ?? theme.customTokens.radius.md;
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [searchText, setSearchText] = useState("");
+  const shouldCloseOnSelect = closeOnSelect ?? !multiple;
+  const selectedValueSet = useMemo(
+    () => new Set(selectedValues),
+    [selectedValues],
+  );
 
   const open = Boolean(anchorEl);
   const styles = getInteractiveFieldStyles(theme, state, open, focusRing);
   const shouldSearchOptions = searchable || options.length > 25;
+  const displayValue = multiple
+    ? selectedValues.length === 0
+      ? ""
+      : selectedValues.length === 1
+        ? selectedValues[0] ?? ""
+        : `${selectedValues.length} selected`
+    : value;
   const visibleOptions = useMemo(
     () =>
       getVisibleSelectOptions({
         limit: maxVisibleOptions,
         options,
         query: searchText,
-        value,
+        value: multiple ? "" : value,
       }),
-    [maxVisibleOptions, options, searchText, value],
+    [maxVisibleOptions, multiple, options, searchText, value],
   );
 
   useEffect(() => {
@@ -659,14 +691,14 @@ export function ErpSelectField({
     }
 
     if (!open) {
-      setSearchText(value);
+      setSearchText(multiple ? "" : value);
       onOpen?.();
     }
 
     setAnchorEl(anchor);
   };
 
-  const fieldSearchValue = open ? searchText : value;
+  const fieldSearchValue = open ? searchText : displayValue;
   const preferredMenuMinWidth =
     typeof dropdownWidth === "number"
       ? dropdownWidth
@@ -688,8 +720,8 @@ export function ErpSelectField({
           <TextField
             fullWidth
             disabled={state === "disabled"}
-            placeholder={!open && !value.trim() ? placeholder : undefined}
-            title={!open && value.trim() ? value : undefined}
+            placeholder={!open && !displayValue.trim() ? placeholder : undefined}
+            title={!open && displayValue.trim() ? displayValue : undefined}
             value={fieldSearchValue}
             onChange={(event) => {
               if (!open) {
@@ -700,7 +732,7 @@ export function ErpSelectField({
               setSearchText(nextText);
 
               // If the text no longer matches the previously selected value, clear the selection
-              if (value && nextText !== value) {
+              if (!multiple && value && nextText !== value) {
                 onChange("");
               }
             }}
@@ -732,7 +764,9 @@ export function ErpSelectField({
               if (event.key === "Enter" && visibleOptions[0]) {
                 event.preventDefault();
                 onChange(visibleOptions[0]);
-                setAnchorEl(null);
+                if (shouldCloseOnSelect) {
+                  setAnchorEl(null);
+                }
               }
             }}
             slotProps={{
@@ -740,7 +774,7 @@ export function ErpSelectField({
                 readOnly: state === "readOnly",
                 endAdornment: (
                   <InputAdornment position="end" sx={{ gap: 0.25 }}>
-                    {value.trim() && state !== "disabled" && state !== "readOnly" ? (
+                    {displayValue.trim() && state !== "disabled" && state !== "readOnly" ? (
                       <IconButton
                         aria-label="Clear selection"
                         edge="end"
@@ -861,7 +895,7 @@ export function ErpSelectField({
                 placeholder={placeholder}
                 size={size}
                 theme={theme}
-                value={value}
+                value={displayValue}
               />
             </Box>
 
@@ -874,7 +908,7 @@ export function ErpSelectField({
                 gap: 0.5,
               }}
             >
-              {value.trim() && state !== "disabled" && state !== "readOnly" ? (
+              {displayValue.trim() && state !== "disabled" && state !== "readOnly" ? (
                 <IconButton
                   aria-label="Clear selection"
                   onClick={(event) => {
@@ -935,9 +969,21 @@ export function ErpSelectField({
                 : {}),
             })}
           >
-            <Box role="listbox" sx={getSelectDropdownListboxSx(theme)}>
+            <Box
+              role="listbox"
+              sx={{
+                ...getSelectDropdownListboxSx(theme),
+                ...(typeof maxListItems === "number" && maxListItems > 0
+                  ? {
+                      maxHeight: metrics.menuItemHeight * maxListItems,
+                    }
+                  : {}),
+              }}
+            >
               {visibleOptions.map((option) => {
-                const selected = option === value;
+                const selected = multiple
+                  ? selectedValueSet.has(option)
+                  : option === value;
 
                 return (
                   <MenuItem
@@ -946,26 +992,82 @@ export function ErpSelectField({
                     title={option}
                     onClick={() => {
                       onChange(option);
-                      setAnchorEl(null);
+                      if (shouldCloseOnSelect) {
+                        setAnchorEl(null);
+                      } else {
+                        setSearchText("");
+                      }
                     }}
                     sx={{
-                      minHeight: "auto",
                       ...getSelectDropdownOptionSx(theme, size === "dense"),
-                      "&.Mui-selected": {
-                        backgroundColor: theme.customTokens.brand.primary,
-                        color: theme.customTokens.text.inverse,
-                      },
-                      "&.Mui-selected:hover": {
-                        backgroundColor: theme.customTokens.brand.secondary,
-                      },
+                      ...(typeof maxListItems === "number" && maxListItems > 0
+                        ? {
+                            display: "flex",
+                            alignItems: "center",
+                            height: metrics.menuItemHeight,
+                            minHeight: metrics.menuItemHeight,
+                            maxHeight: metrics.menuItemHeight,
+                            py: 0,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            overflowWrap: "normal",
+                            wordBreak: "normal",
+                          }
+                        : {
+                            minHeight: "auto",
+                          }),
+                      ...(multiple
+                        ? {
+                            gap: 1,
+                            "&.Mui-selected": {
+                              backgroundColor:
+                                theme.customTokens.navigation.hoverBackground,
+                              color: theme.customTokens.text.primary,
+                            },
+                            "&.Mui-selected:hover": {
+                              backgroundColor:
+                                theme.customTokens.navigation.hoverBackground,
+                            },
+                          }
+                        : {
+                            "&.Mui-selected": {
+                              backgroundColor: theme.customTokens.brand.primary,
+                              color: theme.customTokens.text.inverse,
+                            },
+                            "&.Mui-selected:hover": {
+                              backgroundColor: theme.customTokens.brand.secondary,
+                            },
+                          }),
                       "&:hover": {
-                        backgroundColor: selected
-                          ? theme.customTokens.brand.secondary
-                          : theme.customTokens.navigation.hoverBackground,
+                        backgroundColor: multiple
+                          ? theme.customTokens.navigation.hoverBackground
+                          : selected
+                            ? theme.customTokens.brand.secondary
+                            : theme.customTokens.navigation.hoverBackground,
                       },
                     }}
                   >
-                    {option}
+                    {multiple ? (
+                      <Checkbox
+                        checked={selected}
+                        disableRipple
+                        size="small"
+                        sx={{ p: 0.25, flexShrink: 0 }}
+                        tabIndex={-1}
+                      />
+                    ) : null}
+                    <Box
+                      component="span"
+                      sx={{
+                        minWidth: 0,
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {option}
+                    </Box>
                   </MenuItem>
                 );
               })}

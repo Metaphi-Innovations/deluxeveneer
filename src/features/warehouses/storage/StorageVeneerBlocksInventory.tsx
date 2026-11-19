@@ -11,6 +11,7 @@ import {
 } from "../../shared/columnFilters";
 import { type WarehouseInventoryRow } from "../shared/warehouseTableData";
 import {
+  fetchAllStorageInventoryRows,
   fetchStorageColumnDropdown,
   fetchStorageInventoryPaginated,
   mapStorageItemToRow,
@@ -98,6 +99,24 @@ export function StorageVeneerBlocksInventory({
   const errorMessage =
     listQuery.error instanceof Error ? listQuery.error.message : "";
 
+  const resolveAllSelectableRows = useCallback(async () => {
+    if (!warehouseId || section !== "inventory") {
+      return [];
+    }
+    return fetchAllStorageInventoryRows(
+      "veneer-blocks",
+      {
+        warehouseId,
+        section,
+        ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+        ...(sortBy ? { sortBy } : {}),
+        ...(sortOrder ? { sortOrder } : {}),
+        ...(Object.keys(apiFilters).length > 0 ? { filters: apiFilters } : {}),
+      },
+      "veneer-blocks",
+    );
+  }, [warehouseId, section, debouncedSearch, sortBy, sortOrder, apiFilters]);
+
   const loadDropdownOptions = useCallback(
     async (columnKey: string) => {
       if (!warehouseId) return;
@@ -165,6 +184,7 @@ export function StorageVeneerBlocksInventory({
         }}
         emptyStateLabel={emptyLabel}
         selectable={section === "inventory"}
+        {...(section === "inventory" ? { resolveAllSelectableRows } : {})}
         {...(onSelectionChange !== undefined ? { onSelectionChange } : {})}
         {...(selectionResetKey !== undefined ? { selectionResetKey } : {})}
         {...(actions !== undefined ? { actions } : {})}

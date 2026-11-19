@@ -56,12 +56,29 @@ export function orderGroupingCreateFields(fields: readonly MasterFieldDefinition
       if (field.key === "logNo") {
         return { ...field, label: "Lot No" };
       }
+      if (field.key === "batchNo") {
+        return { ...field, label: "Batch No", readOnly: true };
+      }
       return field;
     });
-  const groupNoField = groupingFields.find((field) => field.key === "groupNo");
+
+  const hasBatchNo = groupingFields.some((field) => field.key === "batchNo");
+  const withBatchNo = hasBatchNo
+    ? groupingFields
+    : [
+        ...groupingFields,
+        {
+          key: "batchNo",
+          label: "Batch No",
+          type: "text" as const,
+          readOnly: true,
+        },
+      ];
+
+  const groupNoField = withBatchNo.find((field) => field.key === "groupNo");
   const withoutGroupNo = groupNoField
-    ? groupingFields.filter((field) => field !== groupNoField)
-    : groupingFields;
+    ? withBatchNo.filter((field) => field !== groupNoField)
+    : withBatchNo;
 
   const colorField = withoutGroupNo.find(
     (field) => field.key === "color" || field.key === "colour",
@@ -70,13 +87,18 @@ export function orderGroupingCreateFields(fields: readonly MasterFieldDefinition
     ? withoutGroupNo.filter((field) => field !== colorField)
     : withoutGroupNo;
   const logNoIndex = withoutColor.findIndex((field) => field.key === "logNo");
-  const orderedFields = colorField && logNoIndex >= 0
+  const colorOrdered = colorField && logNoIndex >= 0
     ? [
         ...withoutColor.slice(0, logNoIndex),
         colorField,
         ...withoutColor.slice(logNoIndex),
       ]
     : withoutColor;
+
+  const orderedFields = insertFactoryCreateField(colorOrdered, "batchNo", (fieldsWithoutBatch) => {
+    const lotIndex = fieldsWithoutBatch.findIndex((field) => field.key === "logNo");
+    return lotIndex >= 0 ? lotIndex + 1 : fieldsWithoutBatch.length;
+  });
 
   const withPhoto = insertFactoryCreateField(orderedFields, "groupPhoto", (withoutSpecialField) =>
     withoutSpecialField.findIndex((field) => field.key === "remark"),

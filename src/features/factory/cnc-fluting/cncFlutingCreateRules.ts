@@ -27,8 +27,11 @@ const financialFieldKeys = new Set([
 
 const flutingFieldOrder = [
   "itemName",
-  "designCode",
+  "structureCode",
   "logNo",
+  "batchNo",
+  "bundleNumber",
+  "palletNo",
   "length",
   "width",
   "height",
@@ -40,6 +43,21 @@ const flutingFieldOrder = [
   "remark",
 ] as const;
 
+const flutingReadOnlyIdentityKeys = new Set([
+  "batchNo",
+  "bundleNo",
+  "bundleNumber",
+  "itemName",
+  "length",
+  "width",
+  "height",
+  "thickness",
+  "sqm",
+  "sqf",
+  "palletNo",
+  "palletNumber",
+]);
+
 export function orderCncFlutingCreateFields(
   fields: readonly MasterFieldDefinition[],
 ) {
@@ -50,21 +68,71 @@ export function orderCncFlutingCreateFields(
         field.key !== "itemSubCategory" &&
         field.key !== "noOfLeaves" &&
         field.key !== "issuedNoOfSheets" &&
-        field.key !== "outputNoOfSheets",
+        field.key !== "outputNoOfSheets" &&
+        field.key !== "bundleNo" &&
+        field.key !== "palletNumber" &&
+        field.key !== "designCode",
     )
     .map((field) => {
-      if (
-        ["itemName", "length", "width", "height", "thickness", "sqm", "sqf"].includes(
-          field.key,
-        )
-      ) {
-        return { ...field, readOnly: true };
+      if (flutingReadOnlyIdentityKeys.has(field.key)) {
+        return {
+          ...field,
+          ...(field.key === "batchNo" ? { label: "Batch No" } : {}),
+          ...(field.key === "bundleNumber" ? { label: "Bundle No" } : {}),
+          ...(field.key === "palletNo" ? { label: "Pallet No" } : {}),
+          readOnly: true,
+        };
+      }
+      if (field.key === "structureCode" || field.key === "structuredCode") {
+        return {
+          ...field,
+          key: "structureCode",
+          label: "Structured Code",
+        };
+      }
+      if (field.key === "logNo") {
+        return { ...field, label: "Lot No" };
       }
       if (field.key === "color") {
         return { ...field, label: "Cut Color" };
       }
       return field;
     });
+
+  if (!normalized.some((field) => field.key === "structureCode")) {
+    normalized.push({
+      key: "structureCode",
+      label: "Structured Code",
+      type: "text",
+    });
+  }
+
+  if (!normalized.some((field) => field.key === "batchNo")) {
+    normalized.push({
+      key: "batchNo",
+      label: "Batch No",
+      type: "text",
+      readOnly: true,
+    });
+  }
+
+  if (!normalized.some((field) => field.key === "bundleNumber")) {
+    normalized.push({
+      key: "bundleNumber",
+      label: "Bundle No",
+      type: "text",
+      readOnly: true,
+    });
+  }
+
+  if (!normalized.some((field) => field.key === "palletNo")) {
+    normalized.push({
+      key: "palletNo",
+      label: "Pallet No",
+      type: "text",
+      readOnly: true,
+    });
+  }
 
   if (!normalized.some((field) => field.key === "noOfSheets")) {
     normalized.push({
@@ -335,6 +403,10 @@ export const cncFlutingCreateSourceColumns = [
   { key: "sourceSrNo", keys: ["sourceSrNo", "processSrNo", "storageSrNo", "storageSerialNumber", "issueSrNo"], label: "Source Sr No", minWidth: 160 },
   { key: "itemName", keys: ["itemName", "productName"], label: "Item Name", minWidth: 180 },
   { key: "itemSubCategory", keys: ["itemSubCategory", "subCategory"], label: "Item Sub Category", minWidth: 170 },
+  { key: "logNo", keys: ["logNo", "logCode"], label: "Lot No", minWidth: 120 },
+  { key: "batchNo", keys: ["batchNo", "batchNoCode"], label: "Batch No", minWidth: 140 },
+  { key: "bundleNumber", keys: ["bundleNumber", "bundleNo"], label: "Bundle No", minWidth: 140 },
+  { key: "palletNo", keys: ["palletNo", "palletNumber"], label: "Pallet No", minWidth: 140 },
   { key: "orderNo", keys: ["orderNo"], label: "Order No", minWidth: 140 },
   { key: "orderItemNo", keys: ["orderItemNo"], label: "Order Item No", minWidth: 140 },
   { key: "length", keys: ["length"], label: "Length", minWidth: 120 },

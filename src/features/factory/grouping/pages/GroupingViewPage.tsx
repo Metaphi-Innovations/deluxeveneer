@@ -198,7 +198,8 @@ export const GroupingViewPage: React.FC = () => {
     record?.itemName || record?.productName || "Beech Veneer",
   );
   const subCategory = String(record?.subCategory || record?.itemSubCategory || "-");
-  const logNo = String(record?.logNo || record?.logCode || record?.batchNo || "-");
+  const logNo = String(record?.logNo || record?.logCode || "-");
+  const batchNo = String(record?.batchNo || record?.batchNoCode || "-");
   const bundleNo = String(record?.bundleNumber || record?.bundleNo || "-");
   const palletNo = String(record?.palletNo || record?.palletNumber || "-");
   const grade = String(record?.grade || record?.itemGrade || "Export");
@@ -438,6 +439,7 @@ export const GroupingViewPage: React.FC = () => {
                 { label: "Item Name", value: itemName },
                 { label: "Item Sub Category", value: subCategory },
                 { label: "Lot No", value: logNo },
+                { label: "Batch No", value: batchNo },
                 { label: "Bundle No", value: bundleNo },
                 { label: "Pallet No", value: palletNo },
                 { label: "Grade", value: grade },
@@ -574,6 +576,9 @@ export const GroupingViewPage: React.FC = () => {
                     <TableCell sx={transactionTableHeaderCellSx(theme, 110)}>
                       Lot No
                     </TableCell>
+                    <TableCell sx={transactionTableHeaderCellSx(theme, 120)}>
+                      Batch No
+                    </TableCell>
                     <TableCell sx={transactionTableHeaderCellSx(theme, 90)}>
                       Length
                     </TableCell>
@@ -650,6 +655,9 @@ export const GroupingViewPage: React.FC = () => {
                         </TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>
                           {String(item.logNo || item.logCode || logNo)}
+                        </TableCell>
+                        <TableCell sx={transactionTableBodyCellSx(theme)}>
+                          {String(item.batchNo || item.batchNoCode || batchNo)}
                         </TableCell>
                         <TableCell sx={transactionTableBodyCellSx(theme)}>
                           {formatDisplayDimension(item.length || record?.length, "mm")}

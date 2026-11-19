@@ -7,6 +7,7 @@ import {
   type DispatchTabValue,
   usePackingRecords,
 } from "../../packing/shared/packingStore";
+import { filterDispatchDummyRecords } from "../../packing/packingDummyData";
 
 export function useDispatchList() {
   const records = usePackingRecords();
@@ -28,16 +29,19 @@ export function useDispatchList() {
         : record.packingState === "dispatched",
     );
     const normalizedSearch = searchValue.trim().toLowerCase();
+    const filteredStoreRows = normalizedSearch
+      ? tabRows.filter((row) =>
+          Object.values(row).some((value) =>
+            formatDispatchSearchValue(value).includes(normalizedSearch),
+          ),
+        )
+      : tabRows;
 
-    if (!normalizedSearch) {
-      return tabRows;
+    if (filteredStoreRows.length > 0) {
+      return filteredStoreRows;
     }
 
-    return tabRows.filter((row) =>
-      Object.values(row).some((value) =>
-        formatDispatchSearchValue(value).includes(normalizedSearch),
-      ),
-    );
+    return filterDispatchDummyRecords(activeTab, searchValue);
   }, [activeTab, records, searchValue]);
 
   return {

@@ -52,6 +52,7 @@ const columns: readonly GroupColumn[] = [
   { key: "itemName", label: "Item Name", minWidth: 130 },
   { key: "itemSubCategory", label: "Item Sub Category", minWidth: 130 },
   { key: "logNo", label: "Lot No", minWidth: 100 },
+  { key: "batchNo", label: "Batch No", minWidth: 110 },
   { key: "length", label: "Length", minWidth: 80 },
   { key: "width", label: "Width", minWidth: 80 },
   { key: "thickness", label: "Thickness", minWidth: 80 },
@@ -216,7 +217,16 @@ export function PressingGroupDetailsTable({
           ? pressingText(record.itemSubCategory) || pressingText(record.subCategory) || "-"
           : "-"}
       </TableCell>
-      <TableCell sx={bodyCellSx}>{record ? pressingText(record.logNo) || "-" : "-"}</TableCell>
+      <TableCell sx={bodyCellSx}>
+        {record
+          ? pressingText(record.logNo) || pressingText(record.logCode) || "-"
+          : "-"}
+      </TableCell>
+      <TableCell sx={bodyCellSx}>
+        {record
+          ? pressingText(record.batchNo) || pressingText(record.batchNoCode) || "-"
+          : "-"}
+      </TableCell>
       <TableCell sx={bodyCellSx}>{record ? pressingText(record.length) || "-" : "-"}</TableCell>
       <TableCell sx={bodyCellSx}>{record ? pressingText(record.width) || "-" : "-"}</TableCell>
       <TableCell sx={bodyCellSx}>{record ? pressingText(record.thickness) || "-" : "-"}</TableCell>

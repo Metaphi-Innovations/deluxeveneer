@@ -97,6 +97,8 @@ export function mapPressingIssuedListingRow(row: FactoryRecord): FactoryRecord {
     ...row,
     issueSrNo: firstPressingText(row, ["issueSrNo", "issueNo"]) || String(row.id),
     itemSubCategory: firstPressingText(row, ["itemSubCategory", "subCategory"]),
+    logNo: firstPressingText(row, ["logNo", "logCode"]),
+    batchNo: firstPressingText(row, ["batchNo", "batchNoCode"]),
     cutColor: firstPressingText(row, ["cutColor", "color"]),
     receivedQty,
     availableQty: String(available),

@@ -47,6 +47,15 @@ export interface PackingRecord extends EnterpriseTableRow {
   sourceOrderId?: string;
   sourceOrderItemId?: string;
   sourceRef?: string;
+  warehouseIssueId?: string;
+  inventoryId?: string;
+  storageSrNo?: string;
+  productionSrNo?: string;
+  palletNo?: string;
+  batchNo?: string;
+  color?: string;
+  issueDate?: string | Date | null;
+  issueUnit?: string;
   dispatchBuyerAddress?: string;
   dispatchSellerAddress?: string;
   dispatchTransactionType?: string;
@@ -74,8 +83,12 @@ export const packingIssuedListingColumns: readonly EnterpriseTableColumn<Packing
     { key: "length", label: "Length" },
     { key: "width", label: "Width" },
     { key: "thickness", label: "Thickness" },
+    { key: "batchNo", label: "Batch No." },
+    { key: "storageSrNo", label: "Storage Sr No." },
+    { key: "productionSrNo", label: "Production Sr No." },
     { key: "issuedFrom", label: "Ready From", filterable: true },
-    { key: "remark", label: "Source Reference" },
+    { key: "sourceRef", label: "Warehouse Source Ref" },
+    { key: "remark", label: "Remark" },
     { key: "createdBy", label: "Created By" },
     { key: "updatedBy", label: "Updated By" },
   ];
@@ -365,9 +378,15 @@ export function createPackingEntry(
   recordId: string | undefined,
   payload: {
     amount?: string;
+    batchNo?: string;
     checkedBy?: string;
+    color?: string;
     completeImmediately?: boolean;
     customerName?: string;
+    grade?: string;
+    inventoryId?: string;
+    issueDate?: string | Date | null;
+    issueUnit?: string;
     issuedFrom?: string;
     itemName?: string;
     length?: string;
@@ -376,17 +395,22 @@ export function createPackingEntry(
     orderItemNo?: string;
     orderType?: string;
     packingDate?: Date | null;
+    palletNo?: string;
     preparedBy?: string;
     productCategory?: string;
+    productionSrNo?: string;
     remark?: string;
     sourceOrderId?: string;
     sourceOrderItemId?: string;
+    sourceRef?: string;
     sqf?: string;
     sqm?: string;
+    storageSrNo?: string;
     thickness?: string;
+    warehouseIssueId?: string;
     width?: string;
   },
-) {
+): string | undefined {
   const timestamp = new Date();
   const completeImmediately = payload.completeImmediately === true;
   const packingDate =
@@ -394,6 +418,7 @@ export function createPackingEntry(
 
   if (!recordId) {
     const nextRecordNumber = packingRecords.length + 1;
+    const createdId = `packing-${nextRecordNumber}`;
     const orderNo = normalizeString(
       payload.orderNo,
       `ORD-RAW-${String(1000 + nextRecordNumber).padStart(4, "0")}`,
@@ -402,7 +427,7 @@ export function createPackingEntry(
 
     updatePackingRecords((records) => [
       {
-        id: `packing-${nextRecordNumber}`,
+        id: createdId,
         packingId,
         issuedFrom: normalizeString(payload.issuedFrom, "Manual Entry"),
         orderNo,
@@ -420,7 +445,7 @@ export function createPackingEntry(
         sqm: normalizeString(payload.sqm, "0.000"),
         sqf: normalizeString(payload.sqf, "0.000"),
         series: "DV-Prime",
-        grade: "A",
+        grade: normalizeString(payload.grade, "A"),
         amount: normalizeString(payload.amount, "18,500.00"),
         remark: normalizeString(payload.remark, ""),
         ...(payload.sourceOrderId
@@ -429,6 +454,22 @@ export function createPackingEntry(
         ...(payload.sourceOrderItemId
           ? { sourceOrderItemId: payload.sourceOrderItemId }
           : {}),
+        ...(payload.sourceRef ? { sourceRef: payload.sourceRef } : {}),
+        ...(payload.warehouseIssueId
+          ? { warehouseIssueId: payload.warehouseIssueId }
+          : {}),
+        ...(payload.inventoryId ? { inventoryId: payload.inventoryId } : {}),
+        ...(payload.storageSrNo ? { storageSrNo: payload.storageSrNo } : {}),
+        ...(payload.productionSrNo
+          ? { productionSrNo: payload.productionSrNo }
+          : {}),
+        ...(payload.palletNo ? { palletNo: payload.palletNo } : {}),
+        ...(payload.batchNo ? { batchNo: payload.batchNo } : {}),
+        ...(payload.color ? { color: payload.color } : {}),
+        ...(payload.issueDate !== undefined
+          ? { issueDate: payload.issueDate }
+          : {}),
+        ...(payload.issueUnit ? { issueUnit: payload.issueUnit } : {}),
         packingDate: completeImmediately ? packingDate : null,
         dispatchDate: null,
         createdBy: "Packing Supervisor",
@@ -441,12 +482,12 @@ export function createPackingEntry(
     ]);
 
     syncOrderFulfillmentStatus(orderNo);
-    return;
+    return createdId;
   }
 
   const existing = getPackingRecord(recordId);
   if (!existing) {
-    return;
+    return undefined;
   }
 
   updatePackingRecords((records) =>
@@ -488,6 +529,23 @@ export function createPackingEntry(
         ...(payload.sourceOrderItemId
           ? { sourceOrderItemId: payload.sourceOrderItemId }
           : {}),
+        ...(payload.sourceRef ? { sourceRef: payload.sourceRef } : {}),
+        ...(payload.warehouseIssueId
+          ? { warehouseIssueId: payload.warehouseIssueId }
+          : {}),
+        ...(payload.inventoryId ? { inventoryId: payload.inventoryId } : {}),
+        ...(payload.storageSrNo ? { storageSrNo: payload.storageSrNo } : {}),
+        ...(payload.productionSrNo
+          ? { productionSrNo: payload.productionSrNo }
+          : {}),
+        ...(payload.palletNo ? { palletNo: payload.palletNo } : {}),
+        ...(payload.batchNo ? { batchNo: payload.batchNo } : {}),
+        ...(payload.color ? { color: payload.color } : {}),
+        ...(payload.grade ? { grade: payload.grade } : {}),
+        ...(payload.issueDate !== undefined
+          ? { issueDate: payload.issueDate }
+          : {}),
+        ...(payload.issueUnit ? { issueUnit: payload.issueUnit } : {}),
         packingId: nextPackingId,
         packingDate: completeImmediately
           ? packingDate
@@ -504,6 +562,7 @@ export function createPackingEntry(
   syncOrderFulfillmentStatus(
     normalizeString(payload.orderNo, existing.orderNo),
   );
+  return recordId;
 }
 
 function readPackingSourceText(source: Record<string, unknown>, keys: readonly string[]) {
