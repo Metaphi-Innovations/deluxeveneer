@@ -11,7 +11,7 @@ import { Pencil, Save } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { env } from "../../../config/env";
-import { buildInwardHeaderAutofillValues } from "../../warehouses/inward/inwardAddAutofill";
+import { buildInwardHeaderAutofillValues } from "../../autofill";
 import {
   MasterFormFields,
   MasterSectionCard,

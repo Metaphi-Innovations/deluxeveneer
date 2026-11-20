@@ -8,6 +8,9 @@ const embossingHiddenKeys = new Set([
   "issuedFrom",
   "issuedFor",
   "ratePerSqf",
+  "warehouseName",
+  "for",
+  "forLabel",
 ]);
 
 function readEmbossingIdentityValue(
@@ -188,15 +191,6 @@ export function applyEmbossingListingColumns<Row extends FactoryRecord>(
       }
 
       if (embossingHiddenKeys.has(column.key)) {
-        return false;
-      }
-
-      if (
-        column.key === "warehouseName" &&
-        (activeTab === "done" ||
-          activeTab === "history" ||
-          activeTab === "rejected")
-      ) {
         return false;
       }
 

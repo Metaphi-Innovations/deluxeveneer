@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useNavigate } from "react-router";
-import { Eye } from "lucide-react";
+import { Eye, PackageCheck } from "lucide-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   EnterpriseDataTable,
@@ -29,6 +29,7 @@ import {
   type SawingRow,
 } from "../types/productionWarehouseTypes";
 import type { ProductionListQueryState } from "../productionListQuery";
+import { getIssueStockForPackingPath } from "../issue-stock-for-packing/issueStockForPacking.mappers";
 
 export interface SawingTabProps {
   warehouseName: string;
@@ -79,6 +80,7 @@ export function SawingTab({
   searchValue,
   warehouseId,
   canView,
+  canEdit,
   onExportReady,
   onListQueryChange,
 }: SawingTabProps) {
@@ -109,8 +111,25 @@ export function SawingTab({
         },
       });
     }
+    if (canEdit && warehouseId) {
+      list.push({
+        id: "issue-for-order",
+        label: "Issue for Order",
+        icon: PackageCheck,
+        tone: "primary",
+        onSelect: (row: SawingRow) => {
+          navigate(
+            getIssueStockForPackingPath({
+              warehouseId,
+              materialType: "sawing",
+              inventoryId: row.inventoryRecordId || String(row.id),
+            }),
+          );
+        },
+      });
+    }
     return list;
-  }, [canView, navigate]);
+  }, [canEdit, canView, navigate, warehouseId]);
 
   useEffect(() => {
     setPage(1);

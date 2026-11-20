@@ -40,6 +40,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Upload,
 } from "lucide-react";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 
@@ -79,6 +80,8 @@ import { changeUserPassword } from "../api/userManagementApi";
 import { useUserList } from "../hooks/useUserList";
 import { getUserDisplayName } from "../hooks/userRowDisplay";
 import { invalidateUsers } from "../../../query/queryClient";
+import { env } from "../../../config/env";
+import { UserBulkImportDialog } from "./UserBulkImportDialog";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 75, 100] as const;
 
@@ -103,6 +106,8 @@ export function UserManagementListing() {
   const navigate = useNavigate();
   const paths = getUserManagementPaths();
   const canCreate = canAccessPermission("userManagement", "create");
+  const showBulkImport = env.VITE_USER_BULK_IMPORT && canCreate;
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
   const {
@@ -681,7 +686,7 @@ export function UserManagementListing() {
           <ClearableSearchField
             value={searchValue}
             onChange={setSearchValue}
-            placeholder="Search..."
+            placeholder="Search (min 2 characters)..."
             sx={{
               width: { xs: "100%", sm: 300 },
               maxWidth: "100%",
@@ -692,17 +697,37 @@ export function UserManagementListing() {
         </Stack>
 
         {canCreate ? (
-          <Button
-            component={RouterLink}
-            startIcon={<Plus size={15} />}
-            sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
-            to={paths.add}
-            variant="contained"
-          >
-            Add User
-          </Button>
+          <Stack direction="row" spacing={1}>
+            {showBulkImport ? (
+              <Button
+                onClick={() => setBulkImportOpen(true)}
+                startIcon={<Upload size={15} />}
+                sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+                variant="outlined"
+              >
+                Bulk import
+              </Button>
+            ) : null}
+            <Button
+              component={RouterLink}
+              startIcon={<Plus size={15} />}
+              sx={(currentTheme) => getListingToolbarButtonSx(currentTheme)}
+              to={paths.add}
+              variant="contained"
+            >
+              Add User
+            </Button>
+          </Stack>
         ) : null}
       </Stack>
+
+      {showBulkImport ? (
+        <UserBulkImportDialog
+          onClose={() => setBulkImportOpen(false)}
+          onImported={() => void invalidateUsers()}
+          open={bulkImportOpen}
+        />
+      ) : null}
 
       {errorMessage ? (
         <Alert severity="error">{errorMessage}</Alert>

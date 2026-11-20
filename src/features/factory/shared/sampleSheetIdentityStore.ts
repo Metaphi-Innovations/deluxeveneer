@@ -408,6 +408,121 @@ export function markSampleProcessDone(sampleNo: string, factorySlug: string) {
   });
 }
 
+function resolveFinishingSampleProcessRoute(row: FactoryRecord) {
+  const candidates = [
+    row.finishedType,
+    row.productType,
+    row.orderType,
+    row.sampleProcessType,
+    row.issuedFrom,
+    row.sourceProcess,
+    row.purpose,
+  ];
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim().toLowerCase();
+    if (!normalized) continue;
+    if (normalized.includes("marquetry")) return "Marquetry";
+    if (normalized.includes("flut")) return "Fluted";
+    if (normalized.includes("emboss")) return "Embossed";
+    if (normalized.includes("decor")) return "Decorative";
+  }
+  return "Finished";
+}
+
+/** Move Finishing Done Sample Sheet stock into Warehouse C → Sample Sheets. */
+export function moveFinishingSampleToWarehouseC(row: FactoryRecord) {
+  const sampleNo = getSampleNoFromRow(row);
+  const existing = sampleNo ? getSampleSheetByNo(sampleNo) : null;
+  const finishedSheets = sheetCountFromRow(row);
+  const at = nowIso();
+  const processRoute = resolveFinishingSampleProcessRoute(row);
+  const warehouseSnapshot = {
+    ...row,
+    warehouseName: "Warehouse C",
+    destinationWarehouse: "Warehouse C",
+    inventorySlug: "sample-sheets",
+  } as Record<string, unknown>;
+  delete warehouseSnapshot.workItemId;
+
+  if (existing) {
+    return updateSample(existing.sampleNo, (sample) => {
+      const alreadyFinished = sample.journey.some(
+        (event) => event.status.toLowerCase() === "finishing done",
+      );
+
+      return {
+        ...sample,
+        itemName:
+          getStringField(row, ["itemName", "outputItemName"]) || sample.itemName,
+        subCategory:
+          getStringField(row, ["itemSubCategory", "subCategory"]) ||
+          sample.subCategory,
+        color:
+          getStringField(row, ["color", "colour", "cutColor"]) || sample.color,
+        length: getStringField(row, ["length"]) || sample.length,
+        width: getStringField(row, ["width"]) || sample.width,
+        thickness: getStringField(row, ["thickness"]) || sample.thickness,
+        availableSheets: finishedSheets || sample.availableSheets,
+        originalSheets: finishedSheets || sample.originalSheets,
+        processRoute: processRoute || sample.processRoute,
+        sourceSnapshot: {
+          ...sample.sourceSnapshot,
+          ...warehouseSnapshot,
+          sampleNo: sample.sampleNo,
+        },
+        journey: alreadyFinished
+          ? sample.journey
+          : [
+              ...sample.journey,
+              { stage: "Finishing", status: "Finishing Done", at },
+            ],
+      };
+    });
+  }
+
+  const store = readStore();
+  const sequence = store.sequence + 1;
+  const createdSampleNo =
+    sampleNo ||
+    getStringField(row, ["groupNo", "groupingRef", "id"]) ||
+    `SAMPLE-FIN-${sequence}`;
+  const sheets = finishedSheets || 1;
+  const sample = withDerivedFields({
+    sampleNo: createdSampleNo,
+    groupingRowId: getStringField(row, ["groupingRef", "groupNo", "id"]),
+    issueDate: at,
+    originalSheets: sheets,
+    availableSheets: sheets,
+    nextProcess: "Pressing",
+    remark: getStringField(row, ["remark"]),
+    purpose: "SAMPLE",
+    forLabel: "Sample",
+    itemName: getStringField(row, ["itemName", "outputItemName"]) || "Sample Sheet",
+    subCategory: getStringField(row, ["itemSubCategory", "subCategory"]),
+    color: getStringField(row, ["color", "colour", "cutColor"]),
+    length: getStringField(row, ["length"]),
+    width: getStringField(row, ["width"]),
+    thickness: getStringField(row, ["thickness"]),
+    currentStage: "Finishing",
+    currentStatus: "Finishing Done",
+    processRoute,
+    journey: [{ stage: "Finishing", status: "Finishing Done", at }],
+    sourceSnapshot: { ...warehouseSnapshot, sampleNo: createdSampleNo },
+    createdAt: at,
+    orderAllocations: [],
+  });
+
+  writeStore({
+    sequence: sampleNo ? store.sequence : sequence,
+    samples: [
+      sample,
+      ...store.samples.filter((entry) => entry.sampleNo !== createdSampleNo),
+    ],
+  });
+
+  return sample;
+}
+
 export function issueSampleToProcess(
   sampleNo: string,
   process: "Finishing" | "Fluting" | "Embossing" | "Pressing" | "Packing",

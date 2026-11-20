@@ -12,8 +12,11 @@ import {
   fetchUserManagementPaginated,
   fetchUserManagementColumnDropdown,
   updateUserManagementStatus,
+  type UserManagementQueryParams,
 } from "../api/userManagementApi";
 import type { UserManagementRecord } from "../shared/userManagementConfig";
+
+const USER_LIST_MIN_SEARCH_LENGTH = 2;
 
 export type SortColumnKey =
   | "user"
@@ -50,6 +53,7 @@ export function useUserList(canEdit: boolean) {
     queryKeys.users.columnDropdowns,
     fetchUserManagementColumnDropdown,
   );
+
   const filters = useMemo(() => {
     const result: Record<string, string[]> = {};
     if (userFilter.length > 0) result.user = userFilter;
@@ -77,16 +81,29 @@ export function useUserList(canEdit: boolean) {
     updatedDateTo,
     userFilter,
   ]);
-  const listParams = useMemo(
-    () => ({
+
+  const apiSearch = useMemo(() => {
+    const trimmed = debouncedSearch.trim();
+    if (trimmed.length < USER_LIST_MIN_SEARCH_LENGTH) {
+      return "";
+    }
+    return trimmed;
+  }, [debouncedSearch]);
+
+  const listParams = useMemo((): UserManagementQueryParams => {
+    const params: UserManagementQueryParams = {
       page,
       limit: rowsPerPage,
-      search: debouncedSearch,
-      ...(sortConfig ? { sortBy: sortConfig.key, sortOrder: sortConfig.direction } : {}),
-      ...(Object.keys(filters).length > 0 ? { filters } : {}),
-    }),
-    [debouncedSearch, filters, page, rowsPerPage, sortConfig],
-  );
+      search: apiSearch,
+      sortBy: sortConfig?.key ?? "createdAt",
+      sortOrder: sortConfig?.direction ?? "desc",
+    };
+    if (Object.keys(filters).length > 0) {
+      params.filters = filters;
+    }
+    return params;
+  }, [apiSearch, filters, page, rowsPerPage, sortConfig]);
+
   const listQuery = useQuery({
     queryKey: queryKeys.users.list(listParams),
     placeholderData: keepPreviousData,
@@ -169,8 +186,8 @@ export function useUserList(canEdit: boolean) {
                     ...currentRow,
                     isActive: updatedUser.isActive,
                     statusLabel: updatedUser.statusLabel,
-                    updatedBy: currentRow.updatedBy,
-                    updatedDate: currentRow.updatedDate,
+                    updatedBy: updatedUser.updatedBy || currentRow.updatedBy,
+                    updatedDate: updatedUser.updatedDate,
                   }
                 : currentRow,
             ),

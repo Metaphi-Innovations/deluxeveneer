@@ -1,4 +1,4 @@
-import { Eye, Package, RotateCcw } from "lucide-react";
+import { Eye, Package, RotateCcw, Warehouse } from "lucide-react";
 
 import type { EnterpriseTableAction } from "../../../components/data-display/EnterpriseDataTable";
 import { isSampleFactoryRow } from "../shared/sampleSheetIdentityStore";
@@ -9,6 +9,7 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
   canEdit,
   canView,
   onIssueToPacking,
+  onMoveSampleToWarehouseC,
   onRevert,
   onView,
   rejectDoneAction,
@@ -18,6 +19,7 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
   canEdit: boolean;
   canView: boolean;
   onIssueToPacking: (row: Row) => void;
+  onMoveSampleToWarehouseC: (row: Row) => void;
   onRevert: (row: Row) => void;
   onView: (row: Row) => void;
   rejectDoneAction: EnterpriseTableAction<Row>;
@@ -32,6 +34,15 @@ export function buildFinishingDoneRowActions<Row extends FactoryRecord>({
           label: "View",
           icon: Eye,
           onSelect: onView,
+        });
+      }
+      if (canCreate) {
+        sampleActions.push({
+          id: "move-to-warehouse-c-sample-sheets",
+          label: "Move to Warehouse C (Sample Sheets)",
+          icon: Warehouse,
+          tone: "primary",
+          onSelect: onMoveSampleToWarehouseC,
         });
       }
       return sampleActions;

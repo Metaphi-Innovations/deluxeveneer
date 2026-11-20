@@ -9,12 +9,31 @@ import type {
 } from "./issueStockForPacking.types";
 
 export function unitForMaterial(material: IssueStockMaterial): IssueStockUnit {
-  return material === "raw-veneer" ? "Leaves" : "Sheets";
+  if (material === "raw-veneer") return "Leaves";
+  if (material === "sawing") return "CBM";
+  return "Sheets";
+}
+
+/** Sawing issues by CBM; other materials issue by whole leaves/sheets/pieces. */
+export function issuesByPrimaryMeasure(material: IssueStockMaterial) {
+  return material === "sawing";
+}
+
+/** Primary / secondary volume-or-area labels for issue form columns. */
+export function measureLabelsForMaterial(material: IssueStockMaterial): {
+  primary: string;
+  secondary: string;
+} {
+  if (material === "sawing") {
+    return { primary: "CBM", secondary: "CFT" };
+  }
+  return { primary: "SQM", secondary: "SQF" };
 }
 
 export function materialLabel(material: IssueStockMaterial) {
   if (material === "raw-veneer") return "Raw Veneer";
   if (material === "plywood") return "Plywood";
+  if (material === "sawing") return "Sawing";
   return "MDF";
 }
 
@@ -35,6 +54,15 @@ export function orderItemMatchesMaterial(
   }
   if (material === "plywood") {
     return normalized.includes("plywood") || normalized === "";
+  }
+  if (material === "sawing") {
+    return (
+      normalized.includes("saw") ||
+      normalized.includes("block") ||
+      normalized.includes("timber") ||
+      normalized.includes("log") ||
+      normalized === ""
+    );
   }
   return normalized.includes("mdf") || normalized === "";
 }
@@ -82,11 +110,27 @@ export function parseWholeQuantity(value: string) {
   return Number.isInteger(parsed) ? parsed : null;
 }
 
+/** Whole qty for leaves/sheets; up to 3 decimal places for sawing CBM. */
+export function parseIssueQuantity(
+  value: string,
+  material: IssueStockMaterial,
+) {
+  if (issuesByPrimaryMeasure(material)) {
+    const trimmed = value.trim();
+    if (!/^\d+(\.\d{1,3})?$/.test(trimmed)) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? roundArea(parsed) : null;
+  }
+  return parseWholeQuantity(value);
+}
+
 export function roundArea(value: number) {
   return Math.round(value * 1000) / 1000;
 }
 
-/** Display helper — always 3 decimal places for SQM/SQF. */
+/** Display helper — always 3 decimal places for SQM/SQF/CBM/CFT. */
 export function formatAreaDecimal(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) {
     return "—";
@@ -99,8 +143,22 @@ export function calculateIssuedArea(input: {
   availableSqm: number;
   availableSqf: number;
   qtyToIssue: number;
+  issueByPrimaryMeasure?: boolean;
 }) {
-  if (input.availableQty <= 0 || input.qtyToIssue <= 0) {
+  if (input.qtyToIssue <= 0) {
+    return { sqm: 0, sqf: 0 };
+  }
+  if (input.issueByPrimaryMeasure) {
+    if (input.availableSqm <= 0) {
+      return { sqm: 0, sqf: 0 };
+    }
+    const ratio = input.qtyToIssue / input.availableSqm;
+    return {
+      sqm: roundArea(input.qtyToIssue),
+      sqf: roundArea(input.availableSqf * ratio),
+    };
+  }
+  if (input.availableQty <= 0) {
     return { sqm: 0, sqf: 0 };
   }
   const ratio = input.qtyToIssue / input.availableQty;
@@ -202,18 +260,27 @@ export function validateIssueStockForPacking(input: {
       continue;
     }
 
-    const qty = parseWholeQuantity(line.qtyToIssue);
+    const qty = parseIssueQuantity(line.qtyToIssue, input.material);
     if (qty === null) {
-      lineErrors[line.inventoryId] = "Enter a positive whole number.";
+      lineErrors[line.inventoryId] = issuesByPrimaryMeasure(input.material)
+        ? "Enter a valid CBM value (up to 3 decimals)."
+        : "Enter a positive whole number.";
       continue;
     }
     if (qty <= 0) {
       lineErrors[line.inventoryId] = "Quantity must be greater than zero.";
       continue;
     }
-    if (qty > stock.availableQty) {
+    const availableLimit = issuesByPrimaryMeasure(input.material)
+      ? stock.availableSqm
+      : stock.availableQty;
+    if (qty > availableLimit) {
+      const unit = unitForMaterial(input.material);
+      const limitLabel = issuesByPrimaryMeasure(input.material)
+        ? formatAreaDecimal(availableLimit)
+        : String(availableLimit);
       lineErrors[line.inventoryId] =
-        `Cannot exceed available ${unitForMaterial(input.material).toLowerCase()} (${stock.availableQty}).`;
+        `Cannot exceed available ${unit} (${limitLabel}).`;
       continue;
     }
 
@@ -247,13 +314,14 @@ export function buildIssueSummaryLines(input: {
   return input.lines
     .map((line) => {
       const stock = input.stockById.get(line.inventoryId);
-      const qty = parseWholeQuantity(line.qtyToIssue) ?? 0;
+      const qty = parseIssueQuantity(line.qtyToIssue, input.material) ?? 0;
       if (!stock || qty <= 0) return null;
       const area = calculateIssuedArea({
         availableQty: stock.availableQty,
         availableSqm: stock.availableSqm,
         availableSqf: stock.availableSqf,
         qtyToIssue: qty,
+        issueByPrimaryMeasure: issuesByPrimaryMeasure(input.material),
       });
       return {
         inventoryId: stock.id,

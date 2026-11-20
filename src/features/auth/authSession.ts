@@ -5,12 +5,51 @@ import {
 } from "../user-management/shared/userManagementConfig";
 import { applyWarehouseScopedCodesToPermissions } from "../shared/warehousePermission";
 import { apiRequest, type ApiResponse } from "../../lib/apiClient";
-
-const AUTH_STORAGE_KEY = "deluxe-veneers-erp-authenticated";
-const AUTH_TOKEN_STORAGE_KEY = "deluxe-veneers-erp-token";
-const AUTH_USER_STORAGE_KEY = "deluxe-veneers-erp-user";
+import {
+  getAuthBroadcastChannel,
+  getAuthTabId,
+  postAuthBroadcast,
+} from "./authBroadcast";
+import { notifyPeerSessionRestored, refreshAccessToken } from "./authTokenRefresh";
+import {
+  AUTH_STORAGE_KEY,
+  AUTH_TOKEN_STORAGE_KEY,
+  AUTH_USER_STORAGE_KEY,
+} from "./authStorageKeys";
 const AUTH_PASSWORD_STORAGE_KEY = "deluxe-veneers-erp-password";
 export const AUTH_USER_UPDATED_EVENT = "deluxe-veneers-auth-user-updated";
+export const AUTH_REMOTE_LOGOUT_EVENT = "deluxe-veneers-auth-remote-logout";
+
+export type AuthInitStatus = "initializing" | "authenticated" | "unauthenticated";
+
+export { refreshAccessToken } from "./authTokenRefresh";
+
+if (typeof window !== "undefined") {
+  const authChannel = getAuthBroadcastChannel();
+  authChannel?.addEventListener("message", (event: MessageEvent) => {
+    const data = event.data as { type?: string; tabId?: string } | null;
+    if (data?.type === "logout") {
+      clearLocalAuthSession();
+      if (data.tabId && data.tabId !== getAuthTabId()) {
+        window.dispatchEvent(new CustomEvent(AUTH_REMOTE_LOGOUT_EVENT));
+      }
+      return;
+    }
+    if (data?.type === "session-restored") {
+      if (isAuthenticated()) {
+        notifyPeerSessionRestored();
+        return;
+      }
+      void refreshAccessToken((user) =>
+        persistCurrentUser(mapBackendUserToProfile(user)),
+      ).then((ok) => {
+        if (ok) {
+          notifyPeerSessionRestored();
+        }
+      });
+    }
+  });
+}
 
 export interface AuthenticatedUserProfile {
   isSuperAdmin?: boolean;
@@ -116,6 +155,28 @@ export function isAuthenticated() {
   );
 }
 
+function clearLocalAuthSession() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
+  window.dispatchEvent(new CustomEvent(AUTH_USER_UPDATED_EVENT));
+}
+
+/**
+ * Restore this tab's session using the HttpOnly refresh cookie (new tabs / refresh).
+ */
+export async function restoreAuthSession(): Promise<boolean> {
+  if (isAuthenticated()) {
+    return true;
+  }
+  return refreshAccessToken((user) =>
+    persistCurrentUser(mapBackendUserToProfile(user)),
+  );
+}
+
 /**
  * Sign in against backend POST /api/auth/login
  * @throws Error with backend message (e.g. inactive account)
@@ -151,11 +212,8 @@ export async function signOut() {
     return;
   }
 
-  // Clear session storage immediately so any synchronous route guards/checks evaluate as unauthenticated
-  window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
-  window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-  window.sessionStorage.removeItem(AUTH_USER_STORAGE_KEY);
-  window.dispatchEvent(new CustomEvent(AUTH_USER_UPDATED_EVENT));
+  clearLocalAuthSession();
+  postAuthBroadcast({ type: "logout", tabId: getAuthTabId() });
 
   try {
     await apiRequest("/auth/logout", { method: "POST" }).catch(() => {});
@@ -354,6 +412,7 @@ function persistAuthenticatedSession(token: string, user: AuthenticatedUserProfi
   window.sessionStorage.setItem(AUTH_STORAGE_KEY, "true");
   window.sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
   persistCurrentUser(user);
+  postAuthBroadcast({ type: "session-restored" });
 }
 
 function mapBackendUserToProfile(user: any): AuthenticatedUserProfile {

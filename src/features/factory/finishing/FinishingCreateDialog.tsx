@@ -294,7 +294,6 @@ export function FinishingCreateDialog({
       minWidth: 140,
       value: row?.palletNo ?? row?.palletNumber,
     },
-    { label: "Design Code", minWidth: 140, value: row?.designCode },
     { label: "Structure Code", minWidth: 140, value: row?.structureCode },
     { label: "Length", minWidth: 110, value: row?.length },
     { label: "Width", minWidth: 110, value: row?.width },

@@ -7,7 +7,8 @@ import {
 import {
   buildIssueSummaryLines,
   calculateIssuedArea,
-  parseWholeQuantity,
+  issuesByPrimaryMeasure,
+  parseIssueQuantity,
   unitForMaterial,
   validateIssueStockForPacking,
 } from "./issueStockForPacking.logic";
@@ -38,16 +39,28 @@ async function revalidateStockRows(
           latest.totalNoOfSheets ??
           current.availableQty,
       );
+      const isSawing = current.materialType === "sawing";
       refreshed.set(line.inventoryId, {
         ...current,
         availableQty: Number.isFinite(availableQty)
           ? availableQty
           : current.availableQty,
         availableSqm: Number(
-          latest.availableSqm ?? latest.sqm ?? current.availableSqm,
+          isSawing
+            ? (latest.cbm ??
+                latest.availableSqm ??
+                latest.sqm ??
+                current.availableSqm)
+            : (latest.availableSqm ?? latest.sqm ?? current.availableSqm),
         ),
         availableSqf: Number(
-          latest.availableSqf ?? latest.sqf ?? current.availableSqf,
+          isSawing
+            ? (latest.cft ??
+                latest.cbf ??
+                latest.availableSqf ??
+                latest.sqf ??
+                current.availableSqf)
+            : (latest.availableSqf ?? latest.sqf ?? current.availableSqf),
         ),
         batchNo: String(
           latest.batchNo ?? latest.batchNoCode ?? current.batchNo ?? "",
@@ -153,10 +166,12 @@ export async function submitIssueStockForPacking(input: {
       orderNo: input.order.orderNo,
       orderItemNo: input.orderItem.orderItemNo,
       warehouseId: input.warehouseId,
-      inventoryType: "raw-veneer",
+      inventoryType: input.material === "sawing" ? "sawing" : "raw-veneer",
     });
     for (const line of summaryLines) {
-      warehouseIssueIds.push(`raw-issue-${line.inventoryId}-${Date.now()}`);
+      warehouseIssueIds.push(
+        `${input.material}-issue-${line.inventoryId}-${Date.now()}`,
+      );
     }
   }
 
@@ -170,11 +185,12 @@ export async function submitIssueStockForPacking(input: {
 }
 
 export function previewLineIssue(stock: IssueStockRow, qtyText: string) {
-  const qty = parseWholeQuantity(qtyText) ?? 0;
+  const qty = parseIssueQuantity(qtyText, stock.materialType) ?? 0;
   return calculateIssuedArea({
     availableQty: stock.availableQty,
     availableSqm: stock.availableSqm,
     availableSqf: stock.availableSqf,
     qtyToIssue: qty,
+    issueByPrimaryMeasure: issuesByPrimaryMeasure(stock.materialType),
   });
 }

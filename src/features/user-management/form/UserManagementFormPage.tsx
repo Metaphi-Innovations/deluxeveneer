@@ -54,6 +54,11 @@ import {
 } from "../api/userManagementApi";
 import { invalidateUsers } from "../../../query/queryClient";
 import { queryKeys } from "../../../query/queryKeys";
+import { env } from "../../../config/env";
+import {
+  buildUserAddAutofillPermissions,
+  buildUserAddAutofillValues,
+} from "../../autofill";
 
 interface UserManagementFormPageProps {
   mode: "add" | "edit" | "view";
@@ -102,6 +107,8 @@ export function UserManagementFormPage({
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
   const paths = getUserManagementPaths();
+  const showUserAddAutofill =
+    env.VITE_INWARD_AUTOFILL && mode === "add";
   const canCreate = canAccessPermission("userManagement", "create");
   const canEdit = canAccessPermission("userManagement", "edit");
   const canView = canAccessPermission("userManagement", "view");
@@ -742,6 +749,19 @@ export function UserManagementFormPage({
     navigate(paths.list);
   };
 
+  const handleAutofillTestData = () => {
+    setHasSubmitted(false);
+    setErrorMessage("");
+    setValues((current) => {
+      const next = buildUserAddAutofillValues(current, departmentNames);
+      if (next.dateOfBirth) {
+        next.age = calculateAge(next.dateOfBirth as Date | string);
+      }
+      return next;
+    });
+    setPermissions(buildUserAddAutofillPermissions());
+  };
+
   return (
     <MasterPageShell
       backNav={{
@@ -1044,6 +1064,17 @@ export function UserManagementFormPage({
                 </Box>
 
                 <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+                  {showUserAddAutofill ? (
+                    <Button
+                      type="button"
+                      disabled={isSaving}
+                      onClick={handleAutofillTestData}
+                      sx={[recordFormActionButtonSx, actionButtonSx]}
+                      variant="outlined"
+                    >
+                      Autofill test data
+                    </Button>
+                  ) : null}
                   {activeStep === "basic" ? (
                     <>
                       <Button

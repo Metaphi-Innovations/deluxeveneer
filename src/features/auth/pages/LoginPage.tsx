@@ -28,12 +28,16 @@ import {
   requestPasswordReset,
   signIn,
 } from "../authSession";
-
 type ForgotPasswordStep = "email" | "otp";
 
 const devLoginPassword = env.VITE_DEV_LOGIN_PASSWORD;
 const devLoginEmail = devLoginPassword ? demoCredentials.email : "";
+const DEV_LOGIN_BLOCK_KEY = "deluxe-veneers-dev-login-blocked";
 let devLoginAttempt: Promise<boolean> | null = null;
+
+function isLoginRateLimitedMessage(message: string) {
+  return /too many login attempts/i.test(message.trim());
+}
 
 export function LoginPage() {
   const theme = useTheme();
@@ -59,6 +63,7 @@ export function LoginPage() {
 
   useEffect(() => {
     if (!devLoginPassword || isAuthenticated()) return;
+    if (sessionStorage.getItem(DEV_LOGIN_BLOCK_KEY) === "1") return;
 
     let cancelled = false;
     setIsSubmitting(true);
@@ -71,6 +76,7 @@ export function LoginPage() {
       .then((signedIn) => {
         if (cancelled) return;
         if (signedIn) {
+          sessionStorage.removeItem(DEV_LOGIN_BLOCK_KEY);
           navigate(getDefaultAuthenticatedRoute(), { replace: true });
           return;
         }
@@ -78,11 +84,14 @@ export function LoginPage() {
       })
       .catch((error: unknown) => {
         if (cancelled) return;
-        setErrorMessage(
+        const message =
           error instanceof Error && error.message.trim()
             ? error.message
-            : "Invalid email or password.",
-        );
+            : "Invalid email or password.";
+        if (isLoginRateLimitedMessage(message)) {
+          sessionStorage.setItem(DEV_LOGIN_BLOCK_KEY, "1");
+        }
+        setErrorMessage(message);
       })
       .finally(() => {
         devLoginAttempt = null;
@@ -93,6 +102,17 @@ export function LoginPage() {
       cancelled = true;
     };
   }, [navigate]);
+
+  const [searchParams] = useSearchParams();
+  const resetTokenFromUrl = searchParams.get("token");
+
+  useEffect(() => {
+    if (resetTokenFromUrl) {
+      navigate(`/setup-password?token=${encodeURIComponent(resetTokenFromUrl)}`, {
+        replace: true,
+      });
+    }
+  }, [navigate, resetTokenFromUrl]);
 
   if (authenticated) {
     return <Navigate to={getDefaultAuthenticatedRoute()} replace />;
@@ -105,6 +125,7 @@ export function LoginPage() {
 
     try {
       if (await signIn(email, password)) {
+        sessionStorage.removeItem(DEV_LOGIN_BLOCK_KEY);
         navigate(getDefaultAuthenticatedRoute(), { replace: true });
         return;
       }
@@ -113,11 +134,14 @@ export function LoginPage() {
       setErrorMessage("Invalid email or password.");
     } catch (error) {
       setLoginNotice("");
-      setErrorMessage(
+      const message =
         error instanceof Error && error.message.trim()
           ? error.message
-          : "Invalid email or password.",
-      );
+          : "Invalid email or password.";
+      if (isLoginRateLimitedMessage(message)) {
+        sessionStorage.setItem(DEV_LOGIN_BLOCK_KEY, "1");
+      }
+      setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -152,15 +176,6 @@ export function LoginPage() {
     setForgotPasswordMessage("");
     setForgotPasswordError("");
   };
-
-  const [searchParams] = useSearchParams();
-  const resetTokenFromUrl = searchParams.get("token");
-
-  useEffect(() => {
-    if (resetTokenFromUrl) {
-      navigate(`/setup-password?token=${encodeURIComponent(resetTokenFromUrl)}`, { replace: true });
-    }
-  }, [navigate, resetTokenFromUrl]);
 
   const handleForgotPasswordAction = async () => {
     setForgotPasswordError("");

@@ -1,3 +1,4 @@
+import { isAuthenticated } from "../../auth/authSession";
 import type { MasterDefinition } from "../shared/types";
 import { uniqueOptions } from "../shared/masterRecordHelpers";
 import {
@@ -79,8 +80,8 @@ export function getTransporterMasterOptions(): string[] {
     }
   }
 
-  // Trigger cache refresh in background if empty
-  if (typeof window !== "undefined") {
+  // Prefetch only when signed in (avoids 401 + refresh storms on the login page).
+  if (typeof window !== "undefined" && isAuthenticated()) {
     void refreshTransporterMasterCache().catch(() => {});
   }
 

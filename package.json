@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/features/warehouses/production/issue-stock-for-packing/*.test.ts"
+    "test": "node --import tsx --test src/features/auth/authStorageKeys.test.ts src/features/warehouses/production/issue-stock-for-packing/*.test.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
