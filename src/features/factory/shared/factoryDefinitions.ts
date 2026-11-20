@@ -698,8 +698,16 @@ const embossingListingRows = expandFactoryRowsForTabs(
     : row,
 );
 
+const finishingProductRoutes = [
+  "Fluting",
+  "Embossing",
+  "Decorative",
+  "Marquetry",
+] as const;
+
 const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => {
   const sequence = String(index + 1).padStart(4, "0");
+  const productRoute = finishingProductRoutes[index % finishingProductRoutes.length]!;
   return {
     ...withCarriedGroupNo(row, index),
     logNo: row.logNo || `LOT-${sequence}`,
@@ -707,8 +715,9 @@ const finishingRows = factoryRows("finishing", "Warehouse C", (row, index) => {
     bundleNumber:
       row.bundleNumber || `BDL-WC-${String(410 + index + 1).padStart(3, "0")}`,
     palletNo: row.palletNo || `PAL-WC-${String(20 + index + 1).padStart(2, "0")}`,
-    issuedFor: "Packing",
-    designCode: `DSN-${String(index + 1).padStart(3, "0")}`,
+    issuedFor: productRoute,
+    productType: productRoute,
+    finishedType: productRoute,
     structureCode: `STR-${String(index + 1).padStart(3, "0")}`,
     status: "Issued",
     finishingType: ["Glossy", "Rough"][index % 2]!,
@@ -740,14 +749,14 @@ const finishingListingRows = expandFactoryRowsForTabs(
         orderItemNo: "SAMPLE-ITEM-001",
         orderNo: "SAMPLE-FIN-0001",
         orderType: "Sample Sheet",
-        productType: "",
-        finishedType: "",
+        productType: "Fluting",
+        finishedType: "Fluting",
         purpose: "SAMPLE",
         issuePurpose: "Sample Sheet",
         for: "Sample Sheet",
         forLabel: "Sample Sheet",
         pressingFor: "Sample Sheet",
-        issuedFor: row.id === "finishing-done-1" ? "Packing" : "Finishing",
+        issuedFor: "Fluting",
         issuedFrom: "Fluting",
         sourceProcess: "Fluting",
         remark: "Dummy Sample Sheet for testing Finishing (no Issue for Packing).",
@@ -1046,7 +1055,6 @@ const embossingListingColumns = listingColumns([
 
 const finishingListingColumns = listingColumns([
   ["warehouseName", "Warehouses"],
-  ["issuedFrom", "Issued From"],
   ["issuedFor", "Issued For"],
   ["groupNo", "Group No."],
   ["orderDate", "Order Date"],

@@ -38,7 +38,9 @@ import {
 import {
   buildIssueSummaryLines,
   formatAreaDecimal,
+  issuesByPrimaryMeasure,
   materialLabel,
+  measureLabelsForMaterial,
   todayInputValue,
   unitForMaterial,
   validateIssueStockForPacking,
@@ -128,6 +130,7 @@ function parseMaterial(slug: string): IssueStockMaterial | null {
   if (normalized === "raw-veneer") return "raw-veneer";
   if (normalized === "plywood") return "plywood";
   if (normalized === "mdf") return "mdf";
+  if (normalized === "sawing") return "sawing";
   return null;
 }
 
@@ -138,6 +141,7 @@ export function IssueStockForPackingPage() {
   const [searchParams] = useSearchParams();
   const warehouseId = params.warehouseId ?? "";
   const material = parseMaterial(params.materialType ?? "");
+  const measureLabels = measureLabelsForMaterial(material ?? "raw-veneer");
   const preselectInventoryId = searchParams.get("inventoryId")?.trim() || "";
 
   const warehousePermissionKey = warehouseId
@@ -242,7 +246,9 @@ export function IssueStockForPackingPage() {
         ? "Plywood"
         : material === "mdf"
           ? "MDF"
-          : undefined;
+          : material === "sawing"
+            ? "Sawing"
+            : undefined;
     void fetchOrdersPaginatedApi({
       page: 1,
       limit: 200,
@@ -503,7 +509,9 @@ export function IssueStockForPackingPage() {
                     {[
                       "Storage Sr No.",
                       "Production Sr No.",
-                      ...(material === "raw-veneer" ? [] : ["Pallet No."]),
+                      ...(material === "raw-veneer" || material === "sawing"
+                        ? []
+                        : ["Pallet No."]),
                       "Batch No.",
                       "Item Name",
                       "Subcategory",
@@ -512,11 +520,13 @@ export function IssueStockForPackingPage() {
                       "L × W × T",
                       "Received",
                       "Available",
-                      "Available SQM",
-                      "Available SQF",
-                      `Qty (${unitForMaterial(material)})`,
-                      "Issued SQM",
-                      "Issued SQF",
+                      `Available ${measureLabels.primary}`,
+                      `Available ${measureLabels.secondary}`,
+                      material && issuesByPrimaryMeasure(material)
+                        ? measureLabels.primary
+                        : `Qty (${unitForMaterial(material)})`,
+                      `Issued ${measureLabels.primary}`,
+                      `Issued ${measureLabels.secondary}`,
                       "",
                     ].map((label) => (
                       <TableCell
@@ -553,7 +563,7 @@ export function IssueStockForPackingPage() {
                         <TableRow key={line.inventoryId} sx={{ height: 40 }}>
                           <TableCell>{stock?.storageSrNo || "—"}</TableCell>
                           <TableCell>{stock?.productionSrNo || "—"}</TableCell>
-                          {material === "raw-veneer" ? null : (
+                          {material === "raw-veneer" || material === "sawing" ? null : (
                             <TableCell>{stock?.palletNo || "—"}</TableCell>
                           )}
                           <TableCell>{stock?.batchNo || "—"}</TableCell>
@@ -581,7 +591,14 @@ export function IssueStockForPackingPage() {
                               size="small"
                               value={line.qtyToIssue}
                               onChange={(event) => {
-                                const next = event.target.value.replace(/\D/g, "");
+                                const raw = event.target.value;
+                                const next =
+                                  material && issuesByPrimaryMeasure(material)
+                                    ? raw
+                                        .replace(/[^\d.]/g, "")
+                                        .replace(/(\..*)\./g, "$1")
+                                        .replace(/^(\d+)\.(\d{0,3}).*$/, "$1.$2")
+                                    : raw.replace(/\D/g, "");
                                 setLines((current) =>
                                   current.map((entry) =>
                                     entry.inventoryId === line.inventoryId
@@ -736,7 +753,9 @@ export function IssueStockForPackingPage() {
                 label={`Ordered ${unitForMaterial(material)}`}
                 value={
                   selectedOrderItem
-                    ? String(selectedOrderItem.orderedQty)
+                    ? material && issuesByPrimaryMeasure(material)
+                      ? formatAreaDecimal(selectedOrderItem.orderedQty)
+                      : String(selectedOrderItem.orderedQty)
                     : "—"
                 }
               />
@@ -744,7 +763,11 @@ export function IssueStockForPackingPage() {
                 label="Previously Issued"
                 value={
                   selectedOrderItem
-                    ? String(selectedOrderItem.previouslyIssuedQty)
+                    ? material && issuesByPrimaryMeasure(material)
+                      ? formatAreaDecimal(
+                          selectedOrderItem.previouslyIssuedQty,
+                        )
+                      : String(selectedOrderItem.previouslyIssuedQty)
                     : "—"
                 }
               />
@@ -753,7 +776,9 @@ export function IssueStockForPackingPage() {
                 value={
                   selectedOrderItem?.remainingQty == null
                     ? "—"
-                    : String(selectedOrderItem.remainingQty)
+                    : material && issuesByPrimaryMeasure(material)
+                      ? formatAreaDecimal(selectedOrderItem.remainingQty)
+                      : String(selectedOrderItem.remainingQty)
                 }
               />
             </Box>
@@ -788,12 +813,20 @@ export function IssueStockForPackingPage() {
               <ReadOnlyField label="Destination" value="Order" />
               <ReadOnlyField
                 label="Total Issue Qty"
-                value={String(
-                  summaryLines.reduce((sum, line) => sum + line.qty, 0) || "—",
-                )}
+                value={
+                  summaryLines.length === 0
+                    ? "—"
+                    : material && issuesByPrimaryMeasure(material)
+                      ? formatAreaDecimal(
+                          summaryLines.reduce((sum, line) => sum + line.qty, 0),
+                        )
+                      : String(
+                          summaryLines.reduce((sum, line) => sum + line.qty, 0),
+                        )
+                }
               />
               <ReadOnlyField
-                label="Total Issued SQM"
+                label={`Total Issued ${measureLabels.primary}`}
                 value={
                   summaryLines.length
                     ? formatAreaDecimal(
@@ -803,7 +836,7 @@ export function IssueStockForPackingPage() {
                 }
               />
               <ReadOnlyField
-                label="Total Issued SQF"
+                label={`Total Issued ${measureLabels.secondary}`}
                 value={
                   summaryLines.length
                     ? formatAreaDecimal(

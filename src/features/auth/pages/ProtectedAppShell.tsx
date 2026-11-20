@@ -2,20 +2,32 @@ import { Navigate } from "react-router";
 import { useEffect } from "react";
 
 import { AppShell } from "../../../layouts/AppShell";
-import { isAuthenticated, refreshCurrentUserPermissions } from "../authSession";
+import { ContentLoader } from "../../../components/feedback/ContentLoader";
+import { RemoteLogoutDialog } from "../RemoteLogoutDialog";
+import { refreshCurrentUserPermissions } from "../authSession";
+import { useAuthInitialization } from "../useAuthInitialization";
 
 export function ProtectedAppShell() {
-  const authenticated = isAuthenticated();
+  const status = useAuthInitialization();
 
   useEffect(() => {
-    if (authenticated) {
+    if (status === "authenticated") {
       void refreshCurrentUserPermissions();
     }
-  }, [authenticated]);
+  }, [status]);
 
-  if (!authenticated) {
+  if (status === "initializing") {
+    return <ContentLoader />;
+  }
+
+  if (status === "unauthenticated") {
     return <Navigate to="/" replace />;
   }
 
-  return <AppShell />;
+  return (
+    <>
+      <AppShell />
+      <RemoteLogoutDialog />
+    </>
+  );
 }

@@ -1,5 +1,8 @@
+import { refreshAccessToken } from '../features/auth/authTokenRefresh';
+
 const BASE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const AUTH_TOKEN_STORAGE_KEY = 'deluxe-veneers-erp-token';
+const AUTH_STORAGE_KEY = 'deluxe-veneers-erp-authenticated';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -98,27 +101,25 @@ export async function apiRequest<TResponse>(
 
   let response = await fetch(url, requestInit);
 
-  // If unauthorized (401), attempt to refresh the access token once via HttpOnly refresh cookie
-  if (response.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/refresh')) {
+  if (
+    response.status === 401 &&
+    !path.includes('/auth/login') &&
+    !path.includes('/auth/refresh') &&
+    !path.includes('/auth/logout')
+  ) {
     try {
-      const refreshRes = await fetch(`${BASE_API_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      if (refreshRes.ok) {
-        const refreshData = await refreshRes.json().catch(() => null);
-        const newAccessToken = refreshData?.data?.accessToken;
-        if (newAccessToken && typeof window !== 'undefined') {
-          window.sessionStorage.setItem(AUTH_TOKEN_STORAGE_KEY, newAccessToken);
-          // Retry the original request with the renewed token
-          headers['Authorization'] = `Bearer ${newAccessToken}`;
-          response = await fetch(url, {
-            ...requestInit,
-            headers,
-          });
-        }
+      const refreshed = await refreshAccessToken(null);
+      const newAccessToken =
+        typeof window !== 'undefined'
+          ? window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+          : null;
+      if (refreshed && newAccessToken) {
+        window.sessionStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        headers['Authorization'] = `Bearer ${newAccessToken}`;
+        response = await fetch(url, {
+          ...requestInit,
+          headers,
+        });
       }
     } catch {
       // Refresh failed; proceed to normal 401 error handling below

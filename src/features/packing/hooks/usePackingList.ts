@@ -93,37 +93,37 @@ export function usePackingList() {
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
-    try {
-      const apiFilters = toApiColumnFilters(columnFilters);
-      const hasFilters = Object.keys(apiFilters).length > 0;
-      const normalizedSearch = searchValue.trim().toLowerCase();
-      const finishingFlowRows =
-        page === 1 && !hasFilters
-          ? frontendPackingRecords.filter(
-              (record) =>
-                record.id.startsWith("packing-finishing-") &&
-                record.packingState === activeTab &&
-                (!normalizedSearch ||
-                  Object.values(record).some((value) =>
-                    String(value ?? "").toLowerCase().includes(normalizedSearch),
-                  )),
-            )
-          : [];
-      const mergeFinishingFlowRows = (sourceRows: PackingRecord[]) => {
-        const flowReferences = new Set(
-          finishingFlowRows.flatMap((record) =>
-            record.sourceRef ? [record.sourceRef] : [],
-          ),
-        );
-        return [
-          ...finishingFlowRows,
-          ...sourceRows.filter(
+    const apiFilters = toApiColumnFilters(columnFilters);
+    const hasFilters = Object.keys(apiFilters).length > 0;
+    const normalizedSearch = searchValue.trim().toLowerCase();
+    const finishingFlowRows =
+      page === 1 && !hasFilters
+        ? frontendPackingRecords.filter(
             (record) =>
-              !finishingFlowRows.some((flow) => flow.id === record.id) &&
-              (!record.sourceRef || !flowReferences.has(record.sourceRef)),
-          ),
-        ].slice(0, rowsPerPage);
-      };
+              record.id.startsWith("packing-finishing-") &&
+              record.packingState === activeTab &&
+              (!normalizedSearch ||
+                Object.values(record).some((value) =>
+                  String(value ?? "").toLowerCase().includes(normalizedSearch),
+                )),
+          )
+        : [];
+    const mergeFinishingFlowRows = (sourceRows: PackingRecord[]) => {
+      const flowReferences = new Set(
+        finishingFlowRows.flatMap((record) =>
+          record.sourceRef ? [record.sourceRef] : [],
+        ),
+      );
+      return [
+        ...finishingFlowRows,
+        ...sourceRows.filter(
+          (record) =>
+            !finishingFlowRows.some((flow) => flow.id === record.id) &&
+            (!record.sourceRef || !flowReferences.has(record.sourceRef)),
+        ),
+      ].slice(0, rowsPerPage);
+    };
+    try {
       const result = await fetchPackingList({
         tab: activeTab,
         page,

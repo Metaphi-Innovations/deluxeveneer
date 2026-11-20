@@ -91,13 +91,11 @@ export function ProductionWarehousePage({
   const isIssueStockTab =
     activeInventory === "raw-veneer" ||
     activeInventory === "plywood" ||
-    activeInventory === "mdf";
+    activeInventory === "mdf" ||
+    activeInventory === "sawing";
 
   const showIssueOrderButton =
-    !isSampleSheetsTab &&
-    !isSawingTab &&
-    canEditWarehouseC &&
-    isIssueStockTab;
+    !isSampleSheetsTab && canEditWarehouseC && isIssueStockTab;
 
   const handleOpenIssueOrder = () => {
     if (!warehouseId || !isIssueStockTab) {

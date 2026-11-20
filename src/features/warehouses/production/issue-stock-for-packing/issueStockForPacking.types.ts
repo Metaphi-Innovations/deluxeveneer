@@ -1,6 +1,6 @@
-export type IssueStockMaterial = "raw-veneer" | "plywood" | "mdf";
+export type IssueStockMaterial = "raw-veneer" | "plywood" | "mdf" | "sawing";
 
-export type IssueStockUnit = "Leaves" | "Sheets";
+export type IssueStockUnit = "Leaves" | "Sheets" | "Pieces" | "CBM";
 
 export interface IssueStockRow {
   id: string;

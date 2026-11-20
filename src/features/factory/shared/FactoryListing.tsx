@@ -188,6 +188,7 @@ import {
   isSampleFactoryRow,
   issueSampleToProcess,
   markSampleProcessDone,
+  moveFinishingSampleToWarehouseC,
   resolveSplicingIssuePurpose,
   sampleToFactoryRecord,
   useSampleSheetRecords,
@@ -521,6 +522,8 @@ export function FactoryListing<Row extends FactoryRecord>({
   const [sawingWarehouseMoveRows, setSawingWarehouseMoveRows] = useState<Row[]>(
     [],
   );
+  const [finishingSampleWarehouseMoveRow, setFinishingSampleWarehouseMoveRow] =
+    useState<Row | null>(null);
   const [splicingOrderIssue, setSplicingOrderIssue] =
     useState<SplicingOrderIssueState<Row> | null>(null);
   const [groupingSampleIssue, setGroupingSampleIssue] =
@@ -829,7 +832,7 @@ export function FactoryListing<Row extends FactoryRecord>({
               issuedDate: item.movedAt
                 ? new Date(item.movedAt)
                 : new Date(item.createdAt),
-            } as Row;
+            } as unknown as Row;
           })
         : [];
     const rowsForTab =
@@ -1497,7 +1500,13 @@ export function FactoryListing<Row extends FactoryRecord>({
       columns = applyFinishingListingColumns(columns, activeTab);
     }
 
-    if (supportsSamplePurposeColumn && definition.slug !== "marquetry") {
+    if (
+      supportsSamplePurposeColumn &&
+      definition.slug !== "marquetry" &&
+      definition.slug !== "cnc-fluting" &&
+      definition.slug !== "embossing" &&
+      definition.slug !== "finishing"
+    ) {
       columns = withOptionalColumn(
         columns,
         {
@@ -1505,14 +1514,7 @@ export function FactoryListing<Row extends FactoryRecord>({
           label: "For",
           ...(definition.slug === "pressing"
             ? { renderCell: (row: Row) => getPressingForLabel(row) }
-            : definition.slug === "cnc-fluting" ||
-                definition.slug === "embossing" ||
-                definition.slug === "finishing"
-              ? {
-                  renderCell: (row: Row) =>
-                    isSampleFactoryRow(row) ? "Sample Sheet" : "Order",
-                }
-              : {}),
+            : {}),
         },
         "itemName",
       );
@@ -2010,6 +2012,9 @@ export function FactoryListing<Row extends FactoryRecord>({
             row: selectedRow,
             sourceSlug: "finishing",
           });
+        },
+        onMoveSampleToWarehouseC: (selectedRow) => {
+          setFinishingSampleWarehouseMoveRow(selectedRow);
         },
         onRevert: (selectedRow) =>
           setConfirmRevertRow({ row: selectedRow, type: "finishing-done" }),
@@ -3103,6 +3108,49 @@ export function FactoryListing<Row extends FactoryRecord>({
         onConfirm={confirmSawingWarehouseMove}
         open={sawingWarehouseMoveRows.length > 0}
         title="Confirm Move to Warehouse C"
+        tone="default"
+      />
+
+      <ConfirmationDialog
+        cancelLabel="Cancel"
+        confirmLabel="Move"
+        description="Are you sure you want to move this Sample Sheet to Warehouse C under Sample Sheets? It will leave Finishing Done and appear in Warehouse C → Sample Sheets."
+        onClose={() => setFinishingSampleWarehouseMoveRow(null)}
+        onConfirm={() => {
+          const row = finishingSampleWarehouseMoveRow;
+          if (!row) return;
+
+          const sample = moveFinishingSampleToWarehouseC(row);
+          const sourcePatch = {
+            availableSheets: "0",
+            availableSqm: "0.000",
+            availableSqf: "0.000",
+            issuedTo: "Warehouse C",
+            nextProcess: "Warehouse C",
+            issuedFor: "Sample Sheets",
+          };
+          moveFinishingDoneToHistory(row, sourcePatch);
+          setStageAvailabilityPatches((current) => ({
+            ...current,
+            [String(row.id)]: {
+              availableSheets: "0",
+              availableSqm: "0.000",
+              availableSqf: "0.000",
+            },
+          }));
+          setSelectedListingRows((current) =>
+            current.filter((selectedRow) => selectedRow.id !== row.id),
+          );
+          setToastNotification({
+            message: sample
+              ? `Moved Sample Sheet ${sample.sampleNo} to Warehouse C → Sample Sheets.`
+              : "Moved Sample Sheet to Warehouse C → Sample Sheets.",
+            severity: "success",
+          });
+          setFinishingSampleWarehouseMoveRow(null);
+        }}
+        open={Boolean(finishingSampleWarehouseMoveRow)}
+        title="Move to Warehouse C (Sample Sheets)"
         tone="default"
       />
 

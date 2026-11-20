@@ -154,6 +154,53 @@ function buildDummyOrders(
     ];
   }
 
+  if (material === "sawing") {
+    return [
+      {
+        id: "dummy-ord-saw-001",
+        orderNo: "ORD-RAW-SAW-2401",
+        orderDate: "2026-03-04",
+        deliveryDate: "2026-03-24",
+        customerName: "Timberline Fabricators",
+        customerId: "dummy-cust-saw-1",
+        status: "Active",
+        orderType: "Raw Order",
+        items: [
+          {
+            id: "dummy-oi-saw-001",
+            orderItemNo: "OI-SAW-001",
+            productCategory: "Sawing",
+            itemName: "Teak Block Cut",
+            grade: "A",
+            length: "2400",
+            width: "1200",
+            thickness: "50",
+            orderedQty: 28.8,
+            previouslyIssuedQty: 4.0,
+            remainingQty: 24.8,
+            sqm: 28.8,
+            sqf: 310.0,
+          },
+          {
+            id: "dummy-oi-saw-002",
+            orderItemNo: "OI-SAW-002",
+            productCategory: "Timber",
+            itemName: "Oak Log Sawn",
+            grade: "B",
+            length: "2500",
+            width: "1300",
+            thickness: "40",
+            orderedQty: 20.0,
+            previouslyIssuedQty: 0,
+            remainingQty: 20.0,
+            sqm: 20.0,
+            sqf: 215.28,
+          },
+        ],
+      },
+    ];
+  }
+
   return [
     {
       id: "dummy-ord-rv-001",
@@ -232,3 +279,4 @@ export function getIssueStockDummyOrders(
 ): IssueStockOrderOption[] {
   return buildDummyOrders(material);
 }
+

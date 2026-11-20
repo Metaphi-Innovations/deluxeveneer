@@ -21,22 +21,52 @@ export function mapProductionItemToIssueStockRow(
   item: ProductionInventoryItem,
   material: IssueStockMaterial,
 ): IssueStockRow {
-  const receivedQty = toNumber(
-    item.receivedQuantity ??
-      item.noOfLeaves ??
-      item.noOfSheets ??
-      item.totalNoOfSheets ??
-      0,
-  );
-  const availableQty = toNumber(
-    item.availableQuantity ??
-      item.noOfLeaves ??
-      item.noOfSheets ??
-      item.totalNoOfSheets ??
-      receivedQty,
-  );
-  const availableSqm = toNumber(item.availableSqm ?? item.sqm ?? item.totalSqm);
-  const availableSqf = toNumber(item.availableSqf ?? item.sqf ?? item.totalSqf);
+  const receivedQty =
+    material === "sawing"
+      ? toNumber(
+          item.receivedQuantity ??
+            item.availableQuantity ??
+            item.quantity ??
+            item.noOfSheets ??
+            1,
+          1,
+        ) || 1
+      : toNumber(
+          item.receivedQuantity ??
+            item.noOfLeaves ??
+            item.noOfSheets ??
+            item.totalNoOfSheets ??
+            0,
+        );
+  const availableQty =
+    material === "sawing"
+      ? toNumber(
+          item.availableQuantity ??
+            item.quantity ??
+            item.noOfSheets ??
+            receivedQty,
+          receivedQty || 1,
+        ) || 1
+      : toNumber(
+          item.availableQuantity ??
+            item.noOfLeaves ??
+            item.noOfSheets ??
+            item.totalNoOfSheets ??
+            receivedQty,
+        );
+  // Sawing stores volume as cbm/cft; sqm/sqf are often 0 and must not win via ??.
+  const availableSqm =
+    material === "sawing"
+      ? toNumber(item.cbm ?? item.availableSqm ?? item.sqm ?? item.totalSqm)
+      : toNumber(item.availableSqm ?? item.sqm ?? item.totalSqm ?? item.cbm);
+  const availableSqf =
+    material === "sawing"
+      ? toNumber(
+          item.cft ?? item.cbf ?? item.availableSqf ?? item.sqf ?? item.totalSqf,
+        )
+      : toNumber(
+          item.availableSqf ?? item.sqf ?? item.totalSqf ?? item.cft ?? item.cbf,
+        );
 
   return {
     id: String(item.id),
@@ -62,10 +92,12 @@ export function mapProductionItemToIssueStockRow(
 function mapOrderItem(
   item: BackendOrderItem,
   previouslyIssuedQty = 0,
+  material: IssueStockMaterial = "raw-veneer",
 ): IssueStockOrderItemOption {
-  const orderedQty = toNumber(
-    item.noOfLeaves ?? item.quantitySheets ?? 0,
-  );
+  const orderedQty =
+    material === "sawing"
+      ? toNumber(item.cbm ?? item.sqm ?? item.quantitySheets ?? 0)
+      : toNumber(item.noOfLeaves ?? item.quantitySheets ?? 0);
   const remaining = Math.max(0, orderedQty - previouslyIssuedQty);
   return {
     id: item.id,
@@ -79,8 +111,14 @@ function mapOrderItem(
     orderedQty,
     previouslyIssuedQty,
     remainingQty: remaining,
-    sqm: toNumber(item.sqm),
-    sqf: toNumber(item.totalSqf),
+    sqm: toNumber(
+      material === "sawing" ? (item.cbm ?? item.sqm) : item.sqm,
+    ),
+    sqf: toNumber(
+      material === "sawing"
+        ? (item.cft ?? item.cbf ?? item.totalSqf)
+        : item.totalSqf,
+    ),
   };
 }
 
@@ -96,7 +134,11 @@ export function mapOrdersToIssueOptions(
           orderItemMatchesMaterial(item.productCategory, material),
         )
         .map((item) =>
-          mapOrderItem(item, previouslyIssuedByItemId.get(item.id) ?? 0),
+          mapOrderItem(
+            item,
+            previouslyIssuedByItemId.get(item.id) ?? 0,
+            material,
+          ),
         );
       const customerId = order.customerId ?? order.customer?.id;
       return {

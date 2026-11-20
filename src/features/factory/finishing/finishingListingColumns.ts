@@ -3,18 +3,18 @@ import { withAvailableFactoryMeasureColumns } from "../shared/factoryAvailableMe
 import type { FactoryProcessTab } from "../shared/factoryUtils";
 import type { FactoryRecord } from "../shared/types";
 
-const finishingHiddenOutsideHistory = new Set(["issuedFor"]);
 const finishingHiddenKeys = new Set([
   "amount",
+  "designCode",
+  "for",
+  "forLabel",
+  "issuedFrom",
   "rate",
   "ratePerSqf",
 ]);
 
 const finishingIssuedCodeColumns: readonly EnterpriseTableColumn<FactoryRecord>[] =
-  [
-    { key: "designCode", label: "Design Code" },
-    { key: "structureCode", label: "Structure Code" },
-  ];
+  [{ key: "structureCode", label: "Structure Code" }];
 
 function readFinishingIdentityValue(
   row: FactoryRecord,
@@ -46,6 +46,78 @@ function readFinishingIdentityValue(
     }
   }
   return "-";
+}
+
+function isFinishingSampleRow(row: FactoryRecord) {
+  if (row.isSample === true) {
+    return true;
+  }
+  if (typeof row.sampleNo === "string" && row.sampleNo.trim()) {
+    return true;
+  }
+  const markers = [
+    row.purpose,
+    row.issuePurpose,
+    row.for,
+    row.forLabel,
+    row.pressingFor,
+    row.orderType,
+  ]
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean);
+  return markers.some(
+    (value) => value === "sample" || value.includes("sample"),
+  );
+}
+
+function getFinishingProductRouteLabel(row: FactoryRecord) {
+  const candidates = [
+    row.finishedType,
+    row.productType,
+    row.orderType,
+    row.sampleProcessType,
+    row.purpose,
+    row.issuePurpose,
+    row.issuedFrom,
+    row.sourceProcess,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim().toLowerCase();
+    if (
+      !normalized ||
+      normalized === "-" ||
+      normalized === "packing" ||
+      normalized === "sample" ||
+      normalized === "sample sheet" ||
+      normalized === "order"
+    ) {
+      continue;
+    }
+    if (normalized.includes("marquetry")) {
+      return "Marquetry";
+    }
+    if (normalized.includes("flut")) {
+      return "Fluting";
+    }
+    if (normalized.includes("emboss")) {
+      return "Embossing";
+    }
+    if (normalized.includes("decor")) {
+      return "Decorative";
+    }
+  }
+
+  return "";
+}
+
+/** Issued For: Fluting | Embossing | Decorative | Marquetry, or Sample Sheet [- route]. */
+export function getFinishingIssuedForLabel(row: FactoryRecord) {
+  const route = getFinishingProductRouteLabel(row);
+  if (isFinishingSampleRow(row)) {
+    return route ? `Sample Sheet - ${route}` : "Sample Sheet";
+  }
+  return route || "-";
 }
 
 function withFinishingIdentityColumns<Row extends FactoryRecord>(
@@ -106,13 +178,27 @@ function withFinishingIdentityColumns<Row extends FactoryRecord>(
   ];
 }
 
+function withFinishingIssuedForColumn<Row extends FactoryRecord>(
+  columns: readonly EnterpriseTableColumn<Row>[],
+): readonly EnterpriseTableColumn<Row>[] {
+  return columns.map((column) =>
+    column.key === "issuedFor"
+      ? {
+          ...column,
+          label: "Issued For",
+          renderCell: (row: Row) => getFinishingIssuedForLabel(row),
+        }
+      : column,
+  );
+}
+
 export function applyFinishingListingColumns<Row extends FactoryRecord>(
   columns: readonly EnterpriseTableColumn<Row>[],
   activeTab: FactoryProcessTab,
 ): readonly EnterpriseTableColumn<Row>[] {
-  const visible = withFinishingIdentityColumns(
-    columns
-      .filter((column) => {
+  const visible = withFinishingIssuedForColumn(
+    withFinishingIdentityColumns(
+      columns.filter((column) => {
         if (column.key === "storageSrNo" || column.key === "storageSerialNumber") {
           return false;
         }
@@ -125,25 +211,9 @@ export function applyFinishingListingColumns<Row extends FactoryRecord>(
           return false;
         }
 
-        if (activeTab === "history" || activeTab === "rejected") {
-          return true;
-        }
-
-        return !finishingHiddenOutsideHistory.has(column.key);
-      })
-      .map((column) =>
-        column.key === "issuedFrom"
-          ? {
-              ...column,
-              renderCell: (row: Row) => {
-                const value = String(row.issuedFrom ?? "-").trim();
-                return value === "CNC/Fluting" || value === "CNC / Fluting"
-                  ? "Fluting"
-                  : value;
-              },
-            }
-          : column,
-      ),
+        return true;
+      }),
+    ),
   );
 
   if (activeTab === "issued") {

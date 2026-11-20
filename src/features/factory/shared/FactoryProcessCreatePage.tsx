@@ -1063,6 +1063,7 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [pressingPurpose, setPressingPurpose] = useState<PressingPurpose>("");
+  const [pressingProductType, setPressingProductType] = useState("");
   const [pressingOrderNo, setPressingOrderNo] = useState("");
   const [pressingOrderItemNo, setPressingOrderItemNo] = useState("");
   const [pressingSampleNo, setPressingSampleNo] = useState("");
@@ -2569,11 +2570,13 @@ export function FactoryProcessCreatePage<Row extends FactoryRecord>({
               setPressingOrderNo(nextOrderNo);
               setPressingOrderItemNo("");
             }}
+            onProductTypeChange={setPressingProductType}
             orderItemNo={pressingOrderItemNo}
             orderItemOptions={pressingOrderItemOptions}
             orderNo={pressingOrderNo}
             orderOptions={orderRecords.map((entry) => entry.orderNo)}
             orderRecords={orderRecords}
+            productType={pressingProductType}
             showError={hasSubmitted}
             value={pressingPurpose}
           />

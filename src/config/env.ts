@@ -22,8 +22,10 @@ const envSchema = z.object({
   VITE_API_URL: z.string().url('VITE_API_URL must be a valid URL'),
   VITE_APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   VITE_APP_NAME: z.string().default('Deluxe Veneers'),
-  /** When true, shows "Autofill test data" on inward add forms. Default false if unset. */
+  /** When true, shows "Autofill test data" on inward add and user add forms. Default false if unset. */
   VITE_INWARD_AUTOFILL: z.boolean().default(false),
+  /** When true, shows bulk CSV import on user listing (requires backend USER_BULK_IMPORT_ENABLED). */
+  VITE_USER_BULK_IMPORT: z.boolean().default(false),
   /**
    * Optional local login password. When set, the login page fills the
    * superadmin email with this password and signs in on open.
